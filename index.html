@@ -36,6 +36,7 @@ body{margin:0;background:var(--oven);color:var(--cream);font-family:var(--body);
 button{font:inherit;color:inherit;cursor:pointer}
 button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outline-offset:2px}
 #stage{position:fixed;inset:0;background:#2a140b;touch-action:none}
+#stage *,.overlay button,.overlay canvas{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #game{position:absolute;inset:0;width:100%;height:100%;display:block}
 .hud{position:absolute;inset:0;pointer-events:none;
   padding-top:max(12px,env(safe-area-inset-top,0px));padding-bottom:max(14px,env(safe-area-inset-bottom,0px));
@@ -1809,16 +1810,19 @@ addEventListener('blur',()=>{keys.left=keys.right=keys.brake=false;if(window.__c
   ib.addEventListener('pointerup',e=>{if(!down)return;down=false;itemQueued=(e.clientY-sy>26)?'back':'fwd';ib.classList.remove('fwd','back');});
   ib.addEventListener('pointercancel',()=>{down=false;ib.classList.remove('fwd','back');});
   /* touch: every touch event rebuilds steering and braking from e.touches, the browser's list of fingers actually on the screen */
-  const steerT=new Set(),brakeT=new Map();
+  const steerT=new Set(),brakeT=new Map(),itemT=new Set();
   function fromTouches(list){const live=new Set();for(const t of list)live.add(t.identifier);
-    for(const id of [...steerT])if(!live.has(id))steerT.delete(id);for(const id of [...brakeT.keys()])if(!live.has(id))brakeT.delete(id);
+    for(const id of [...steerT])if(!live.has(id))steerT.delete(id);for(const id of [...brakeT.keys()])if(!live.has(id))brakeT.delete(id);for(const id of [...itemT])if(!live.has(id))itemT.delete(id);
     let l=0,r=0;for(const t of list)if(steerT.has(t.identifier)){if(t.clientX<window.innerWidth/2)l++;else r++;}
     tl=l;tr=r;keys.left=l>0||ml;keys.right=r>0||mr;zl.classList.toggle('on',keys.left);zr.classList.toggle('on',keys.right);
     const bOn=new Set(brakeT.values());bEls.forEach(b=>b.classList.toggle('on',bOn.has(b)));keys.brake=brakeT.size>0||brakes.size>0;}
   let tl=0,tr=0,ml=false,mr=false;
   const onTouch=e=>{if(e.type==='touchstart'){for(const t of e.changedTouches){const el=t.target&&t.target.closest?t.target:null;if(!el||el.closest('.overlay'))continue;
-      const bb=el.closest('#brakeL,#brakeR');if(bb){brakeT.set(t.identifier,bb);continue;}if(el.closest('#itemBtn,#pauseBtn'))continue;if(el.closest('#tzone'))steerT.add(t.identifier);}}
-    fromTouches(e.touches);if(steerT.size||brakeT.size){if(e.cancelable&&e.type!=='touchend')e.preventDefault();}};
+      const bb=el.closest('#brakeL,#brakeR');if(bb){brakeT.set(t.identifier,bb);continue;}if(el.closest('#itemBtn')){itemT.add(t.identifier);continue;}if(el.closest('#pauseBtn'))continue;if(el.closest('#tzone'))steerT.add(t.identifier);}}
+    const had=steerT.size||brakeT.size||itemT.size;fromTouches(e.touches);if((had||steerT.size||brakeT.size||itemT.size)&&e.cancelable&&state!=='menu')e.preventDefault();};
+  /* no iOS magnifier, text selection, callout or pinch-zoom during play */
+  const inGame=e=>e.target&&e.target.closest&&e.target.closest('#stage');
+  for(const ev of ['selectstart','contextmenu','gesturestart','gesturechange','dblclick'])document.addEventListener(ev,e=>{if(inGame(e)||ev.startsWith('gesture'))e.preventDefault();},{passive:false});
   for(const ev of ['touchstart','touchmove','touchend','touchcancel'])document.addEventListener(ev,onTouch,{passive:false,capture:true});
   window.__clearInput=()=>{steerT.clear();brakeT.clear();act.clear();brakes.clear();fromTouches([]);upd();keys.left=keys.right=keys.brake=false;bEls.forEach(b=>b.classList.remove('on'));zl.classList.remove('on');zr.classList.remove('on');};
   document.addEventListener('visibilitychange',()=>{if(document.hidden)window.__clearInput();});
@@ -2279,7 +2283,7 @@ function renderResults(){finalizeRace();const st=standings();const me=player.pla
 function togglePause(){if(window.__clearInput)window.__clearInput();if(state==='race'||state==='countdown'){pauseOv._prev=state;state='paused';pauseOv.hidden=false;if(engGain)engGain.gain.value=0;}
   else if(state==='paused'){state=pauseOv._prev;pauseOv.hidden=true;last=performance.now();}}
 $('startBtn').onclick=startFromMenu;$('againBtn').onclick=()=>{if(gp){if(gp.race>=3)startGP();else{gp.race++;goRace(CUP_TRACKS[gp.cup][gp.race]);}}else goRace(mapIdx);};$('restartBtn').onclick=()=>{if(gp)gp.pts.forEach((v,i)=>gp.pts[i]=v);startRace();};
-$('toMenuBtn').onclick=toMenu;$('quitBtn').onclick=toMenu;$('resumeBtn').onclick=togglePause;$('pauseBtn').onclick=togglePause;
+$('toMenuBtn').onclick=toMenu;$('quitBtn').onclick=toMenu;$('resumeBtn').onclick=togglePause;$('pauseBtn').addEventListener('pointerup',e=>{e.preventDefault();togglePause();});
 const setOv=$('setOv'),howOv=$('howOv'),fpsEl=$('fpsEl');let setFrom=null;
 const BOOLK=['shadows','showfps','shake','mini'];
 const cfgVal=k=>k==='sound'?!muted:k==='stats'?statsOn:CFG[k];
