@@ -1007,7 +1007,7 @@ Object.assign(BODY_FN,{
   hyper(S,M,rc,idx,B){carBody('hyper',M,B);return {car:'hyper',fit:{roof:2.95,belt:1.55,lean:.3},belt:1.55,numPos:[.2,1.0],rw:[-3.62,2.1,.953],fw:[3.2,2.04,.929],wz:1.3,drv:[.1,.6,-.8],drvS:.3,noCockpit:1,pipes:[[-5.4,.95,0]],bubY:2.4,bubS:1.05,glY:8,top:3.3};},
   roadster(S,M,rc,idx,B){carBody('roadster',M,B);return {car:'roadster',fit:{open:1,rim:1.85,s:.36},belt:1.75,numPos:[.4,1.15],rw:[-2.25,1.34,.78],fw:[2.88,1.34,.78],wz:1.1,drv:[-1.0,.72,.7],drvS:.34,noCockpit:1,pipes:[[-4.5,.55,.5]],bubY:2.4,bubS:.9,glY:7.6,top:3.6};},
   tourer(S,M,rc,idx,B){carBody('tourer',M,B);return {car:'tourer',fit:{roof:4.35,belt:3.0,lean:0},belt:3.0,numPos:[-.6,2.2],rw:[-4.56,1.76,1.115],fw:[5.34,1.73,1.093],wz:1.1,drv:[-1.2,1.35,.75],drvS:.4,noCockpit:1,pipes:[[-6.8,.9,.7]],bubY:3.0,bubS:1.2,glY:9.8,top:5};},
-  concept(S,M,rc,idx,B){carBody('concept',M,B);return {car:'concept',fit:{roof:2.58,belt:1.72,lean:.4},belt:1.72,numPos:[.3,1.1],rw:[-3.74,2.36,.906],fw:[3.51,2.31,.846],wz:1.3,drv:[.2,.45,-.8],drvS:.3,noCockpit:1,pipes:[[-6.1,1.0,0]],bubY:2.4,bubS:1.1,glY:8,top:3.1};},
+  concept(S,M,rc,idx,B){carBody('concept',M,B);return {car:'concept',fit:{roof:2.58,belt:1.72,lean:.4},belt:1.72,numPos:[.3,1.1],rw:[-3.74,2.36,.906],fw:[3.51,2.31,.846],wz:1.3,drv:[.2,.45,0],drvS:.3,noCockpit:1,pipes:[[-6.1,1.0,0]],bubY:2.4,bubS:1.1,glY:8,top:3.1};},
   interceptor(S,M,rc,idx,B){carBody('interceptor',M,B);return {car:'interceptor',fit:{roof:2.8,belt:2.05,lean:.35},belt:2.05,numPos:[.2,1.25],flash:1,rw:[-3.48,2.02,.89],fw:[3.28,2.16,.852],wz:1.3,drv:[0,.55,-.8],drvS:.32,noCockpit:1,pipes:[[-5.6,.9,.4],[-5.6,.9,-.4]],bubY:2.5,bubS:1.05,glY:8,top:3.3};},
   formula(S,M,rc,idx,B){carBody('formula',M,B);return {car:'formula',fit:{open:1,rim:1.75,s:.36},belt:1.15,numPos:[-.9,1.25],rw:[-4.852,1.841,.885],fw:[3.655,1.938,.886],wz:1.3,drv:[.35,.7,0],drvS:.47,noCockpit:1,pipes:[[-6.55,1.15,0]],bubY:2.6,bubS:1.15,glY:8.6,top:3.8};},
   gt(S,M,rc,idx,B){carBody('gt',M,B);return {car:'gt',fit:{open:1,rim:1.8,s:.4},belt:1.63,numPos:[.35,1.05],rw:[-3.005,2.023,.873],fw:[3.286,2.052,.868],wz:1.3,drv:[.25,.5,-.85],drvS:.5,noCockpit:1,pipes:[[-5.95,.85,.9],[-5.95,.85,-.9]],bubY:2.7,bubS:1.1,glY:8.6,top:4.2};}});
@@ -1106,11 +1106,17 @@ function buildKart(spec){
   const L=cfg.rw[2]*(wt.r-1),wz=(cfg.wz||1)*wt.wz;B.position.y=L;
   /* oversized or wider wheels are pushed out past the bodywork so they never cut into it */
   const bodyPts=[];B.traverse(o=>{if(o.isMesh&&o.geometry&&o.material!==SH.carGlass)bodyPts.push(o.geometry.attributes.position.array);});
-  const halfAt=(x0,R)=>{let m=0;for(const a of bodyPts)for(let i=0;i<a.length;i+=3){const y=a[i+1]+L;if(y>.12&&y<2*R+.15&&Math.abs(a[i]-x0)<R*1.08){const z=Math.abs(a[i+2]);if(z>m)m=z;}}return m;};
-  const wheelZ=(w,f,s,R)=>{let z=w[1]+.25*(wz-1);if(cfg.car&&wt.id==='standard'){const q=CAR_PACKS[cfg.car].h.wheels.find(q=>Math.sign(q.c[2])===s&&q.f===f);return q.c[2];}
-    const W0=1.44*w[2]/1.32*(cfg.wz||1),Wn=1.44*R/1.32*wz;if(R>w[2]*1.02||Wn>W0*1.02)z=Math.max(z,halfAt(w[0],R)+Wn/2+.12);return z*s;};
+  /* slide the wheel outwards only until no bodywork sits inside the tyre's swept disc (the hub area is allowed, that's where it bolts on) */
+  const clearZ=(x0,R,z,Wn,r0,zN,W0)=>{for(let it=0;it<4;it++){let m=-1;const lo=z-Wn/2,hi=z+Wn/2;
+      for(const a of bodyPts)for(let i=0;i<a.length;i+=3){const dx=a[i]-x0,dy=a[i+1]+L-R,rr=Math.sqrt(dx*dx+dy*dy);if(rr>R*.96||rr<R*.34)continue;const az=Math.abs(a[i+2]);
+        if(rr<r0*1.02&&az>zN-W0/2-.15&&az<zN+W0/2+.15)continue;/* brakes and suspension that live inside the original wheel */
+        if(az>lo&&az<hi&&az>m)m=az;}
+      if(m<0)break;z=m+Wn/2+.04;}return z;};
+  const wheelZ=(w,f,s,R)=>{if(cfg.car&&wt.id==='standard'){const q=CAR_PACKS[cfg.car].h.wheels.find(q=>Math.sign(q.c[2])===s&&q.f===f);return q.c[2];}
+    const W0=1.44*w[2]/1.32*(cfg.wz||1),Wn=1.44*R/1.32*wz;let z=w[1]+Math.max(0,(Wn-W0)/2);if(R>w[2]*1.02||Wn>W0*1.02)z=clearZ(w[0],R,z,Wn,w[2],w[1],W0);return z*s;};
   const wheels=[],front=[];
   for(const [w,f] of [[cfg.rw,0],[cfg.fw,1]])for(const s of [-1,1]){const R=w[2]*wt.r,yaw=new THREE.Group();yaw.position.set(w[0],R,wheelZ(w,f,s,R));g.add(yaw);
+    const zN=w[1],zW=Math.abs(yaw.position.z),Wh=1.44*R/1.32*wz;if(zW-Wh/2>zN-.05){const len=zW-Wh/2-(zN-.4),ad=new THREE.Mesh(KG.axle,SH.metal);ad.rotation.x=Math.PI/2;ad.scale.set(R*.9,len/5.6,R*.9);ad.position.z=-s*(Wh/2+len/2);ad.castShadow=true;yaw.add(ad);}
     const spin=new THREE.Group();yaw.add(spin);let wh;if(cfg.car&&wt.id==='standard'){const cg=carGeos(cfg.car),wi=CAR_PACKS[cfg.car].h.wheels.findIndex(q=>Math.sign(q.c[2])===s&&q.f===f);wh=new THREE.Mesh(cg['w'+wi],SH.carVC);wh.castShadow=true;}else{wh=buildWheel(wt.id,s,M);wh.scale.set(R/1.32,R/1.32,R/1.32*wz);}spin.add(wh);wheels.push({spin,r:R});if(f)front.push(yaw);}
   if(cfg.fit){const F=cfg.fit,[e,h]=CHAR_MET[rc.name.toLowerCase()]||[2.8,6.4],cl=Math.cos(F.lean||0);let sc,eye;
     let q=1;if(F.open){sc=F.s;eye=F.rim+.38;}else{const eyeT=F.belt+.18,room=F.roof-.07-eyeT;sc=clamp(room/((h-e)*cl),.25,.36);q=clamp(room/((h-e)*sc*cl),.6,1);eye=Math.min(eyeT,F.roof-.07-(h-e)*sc*q*cl);}
