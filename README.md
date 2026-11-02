@@ -1,6 +1,6 @@
 # Crust Rush
 
-A 3D kart racer on giant pizzas. Sixteen tracks in four Grand Prix cups, speed classes up to Reverse, ten items, eight drivers, and a garage where you build your kart from bodies (including a Formula car and a GT racer), wheels, gliders and paint. Every track has hills, ramps, a loop-the-loop and a glide section over a sauce chasm.
+A 3D kart racer on giant pizzas. Sixteen tracks in four Grand Prix cups, speed classes up to Reverse, ten items, eight drivers (each its own topping character), and a garage where you build your kart from bodies (including seven detailed real-world-style cars), wheels, gliders and paint. Every track has hills, ramps, a loop-the-loop and a glide section over a sauce chasm.
 
 ## Play
 
