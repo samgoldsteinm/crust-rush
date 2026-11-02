@@ -1,5 +1,5 @@
 // Crust Rush service worker: lets the game install as an app and play offline after the first visit.
-const VERSION = 'crust-rush-v4';
+const VERSION = 'crust-rush-v5';
 const SHELL = [
   './',
   './index.html',

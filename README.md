@@ -27,7 +27,8 @@ The installed app opens full screen with no browser bars. After the first visit 
 - Tap the item button to throw ahead, or swipe down on it to throw behind.
 - Customize kart (menu): pick a body, wheels, glider and paint. Each part trades strengths for drawbacks; Classic with Standard wheels is the neutral build. Turn Kart stats off to make parts cosmetic.
 - Glide ramps (blue) open your glider. Steer through the rings for boosts.
-- Keyboard: arrows steer, Space drifts, X throws ahead, Z throws back, P pauses.
+- Settings (menu or pause): graphics quality, shadows, scenery distance, frame rate (Auto or 60 fps), frame counter, sound and volume, kart stats, mph or km/h, camera shake and minimap.
+- Keyboard: Esc closes menus or pauses, arrows steer, Space drifts, X throws ahead, Z throws back, P pauses.
 
 ## Files
 
