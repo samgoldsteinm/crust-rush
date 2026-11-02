@@ -1793,21 +1793,35 @@ addEventListener('keydown',e=>{if(e.target.closest&&e.target.closest('.overlay')
   else if(e.code==='KeyZ'||e.code==='KeyQ'){if(!e.repeat)itemQueued='back';e.preventDefault();}
   else if(e.code==='KeyP'||e.code==='Escape'){togglePause();}});
 addEventListener('keyup',e=>{const k=KEYMAP[e.code];if(k)keys[k]=false;});
-addEventListener('blur',()=>{keys.left=keys.right=keys.brake=false;});
+addEventListener('blur',()=>{keys.left=keys.right=keys.brake=false;if(window.__clearInput)window.__clearInput();});
 (function(){const zone=document.getElementById('tzone'),zl=zone.children[0],zr=zone.children[1],act=new Map();
   function upd(){let l=0,r=0;for(const s of act.values()){if(s==='l')l++;else r++;}keys.left=l>0;keys.right=r>0;zl.classList.toggle('on',l>0);zr.classList.toggle('on',r>0);}
   const side=e=>e.clientX<window.innerWidth/2?'l':'r';
-  zone.addEventListener('pointerdown',e=>{e.preventDefault();try{zone.setPointerCapture(e.pointerId);}catch(_){}act.set(e.pointerId,side(e));upd();});
-  zone.addEventListener('pointermove',e=>{if(act.has(e.pointerId)){act.set(e.pointerId,side(e));upd();}});
-  const end=e=>{act.delete(e.pointerId);upd();};zone.addEventListener('pointerup',end);zone.addEventListener('pointercancel',end);zone.addEventListener('lostpointercapture',end);
+  zone.addEventListener('pointerdown',e=>{if(e.pointerType==='touch')return;e.preventDefault();try{zone.setPointerCapture(e.pointerId);}catch(_){}act.set(e.pointerId,side(e));upd();});
+  zone.addEventListener('pointermove',e=>{if(e.pointerType==='touch')return;if(act.has(e.pointerId)){act.set(e.pointerId,side(e));upd();}});
+  const end=e=>{if(e.pointerType==='touch')return;act.delete(e.pointerId);upd();};zone.addEventListener('pointerup',end);zone.addEventListener('pointercancel',end);zone.addEventListener('lostpointercapture',end);
   const brakes=new Set(),bEls=[document.getElementById('brakeL'),document.getElementById('brakeR')];
-  for(const b of bEls){b.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();try{b.setPointerCapture(e.pointerId);}catch(_){}brakes.add(e.pointerId);keys.brake=true;b.classList.add('on');});
-    const up=e=>{brakes.delete(e.pointerId);keys.brake=brakes.size>0;b.classList.remove('on');};b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('lostpointercapture',up);}
+  for(const b of bEls){b.addEventListener('pointerdown',e=>{if(e.pointerType==='touch'){e.preventDefault();return;}e.preventDefault();e.stopPropagation();try{b.setPointerCapture(e.pointerId);}catch(_){}brakes.add(e.pointerId);keys.brake=true;b.classList.add('on');});
+    const up=e=>{if(e.pointerType==='touch')return;brakes.delete(e.pointerId);keys.brake=brakes.size>0;b.classList.remove('on');};b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('lostpointercapture',up);}
   const ib=document.getElementById('itemBtn');let sy=0,down=false;
   ib.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();try{ib.setPointerCapture(e.pointerId);}catch(_){}sy=e.clientY;down=true;ib.classList.add('fwd');});
   ib.addEventListener('pointermove',e=>{if(!down)return;const dy=e.clientY-sy;ib.classList.toggle('back',dy>26);ib.classList.toggle('fwd',dy<=26);});
   ib.addEventListener('pointerup',e=>{if(!down)return;down=false;itemQueued=(e.clientY-sy>26)?'back':'fwd';ib.classList.remove('fwd','back');});
   ib.addEventListener('pointercancel',()=>{down=false;ib.classList.remove('fwd','back');});
+  /* touch: every touch event rebuilds steering and braking from e.touches, the browser's list of fingers actually on the screen */
+  const steerT=new Set(),brakeT=new Map();
+  function fromTouches(list){const live=new Set();for(const t of list)live.add(t.identifier);
+    for(const id of [...steerT])if(!live.has(id))steerT.delete(id);for(const id of [...brakeT.keys()])if(!live.has(id))brakeT.delete(id);
+    let l=0,r=0;for(const t of list)if(steerT.has(t.identifier)){if(t.clientX<window.innerWidth/2)l++;else r++;}
+    tl=l;tr=r;keys.left=l>0||ml;keys.right=r>0||mr;zl.classList.toggle('on',keys.left);zr.classList.toggle('on',keys.right);
+    const bOn=new Set(brakeT.values());bEls.forEach(b=>b.classList.toggle('on',bOn.has(b)));keys.brake=brakeT.size>0||brakes.size>0;}
+  let tl=0,tr=0,ml=false,mr=false;
+  const onTouch=e=>{if(e.type==='touchstart'){for(const t of e.changedTouches){const el=t.target&&t.target.closest?t.target:null;if(!el||el.closest('.overlay'))continue;
+      const bb=el.closest('#brakeL,#brakeR');if(bb){brakeT.set(t.identifier,bb);continue;}if(el.closest('#itemBtn,#pauseBtn'))continue;if(el.closest('#tzone'))steerT.add(t.identifier);}}
+    fromTouches(e.touches);if(steerT.size||brakeT.size){if(e.cancelable&&e.type!=='touchend')e.preventDefault();}};
+  for(const ev of ['touchstart','touchmove','touchend','touchcancel'])document.addEventListener(ev,onTouch,{passive:false,capture:true});
+  window.__clearInput=()=>{steerT.clear();brakeT.clear();act.clear();brakes.clear();fromTouches([]);upd();keys.left=keys.right=keys.brake=false;bEls.forEach(b=>b.classList.remove('on'));zl.classList.remove('on');zr.classList.remove('on');};
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)window.__clearInput();});
   document.querySelectorAll('#stage button,.tz').forEach(b=>b.addEventListener('contextmenu',e=>e.preventDefault()));})();
 function playerInput(){const it=itemQueued;itemQueued=null;return {steer:(keys.right?1:0)-(keys.left?1:0),brake:keys.brake,mul:1,use:!!it,back:it==='back'};}
 
@@ -2065,12 +2079,12 @@ function stepKart(k,inp,dt){
   for(const r of ramps){const p0=track[r.j],dx=k.x-p0.x,dy=k.y-p0.y,al=dx*p0.tx+dy*p0.ty;if(al<0||al>r.len)continue;if(Math.abs(dx*p0.nx+dy*p0.ny)>r.w)continue;const hh=r.h*al/r.len;if(k.wy<=G+hh+1.5){G+=hh;onR=true;gR=!!r.glide;}}
   const rate=(G-(k.lastG===undefined?G:k.lastG))/dt;k.lastG=G;
   if(k.air&&!k.glide&&k.onGlide&&!gR&&k.speed>20){startGlide(k);k.wvy=Math.max(30,k.wvy);}
-  if(k.air){k.airT+=dt;if(k.glide){k.wvy-=70*dt;const sk=-(k.gsink||15);if(k.wvy<sk)k.wvy+=(sk-k.wvy)*Math.min(1,dt*4);if(GLIDE&&G<GLIDE.y-20&&k.wy<GLIDE.y+6&&k.wvy<0)k.wvy*=.8;glideRings(k);}else k.wvy-=260*dt;
+  if(k.air){k.airT+=dt;if(k.glide){k.wvy-=70*dt;const sk=-(k.gsink||15);if(k.wvy<sk)k.wvy+=(sk-k.wvy)*Math.min(1,dt*4);if(GLIDE&&G<GLIDE.y-20&&k.wy<GLIDE.y+6&&k.wvy<0)k.wvy*=.8;glideRings(k);}else k.wvy-=(k.big?(k.wvy>0?80:110):260)*dt;
     k.wy+=k.wvy*dt;if(k.wy<=G){k.wy=G;k.air=false;if(k.big||k.glide)land(k);k.big=false;k.glide=false;k.wvy=rate;k.gRate=rate;}}
-  else if(k.onRamp&&!onR&&k.speed>20){k.air=true;k.big=true;k.airT=0;k.wvy=(k.gRate||0)+k.speed*.42;k.trick=false;k.drift=0;
+  else if(k.onRamp&&!onR&&k.speed>20){k.air=true;k.big=true;k.airT=0;k.wvy=32+Math.min(Math.max(0,k.speed),BASE_MAX*1.6)*.05;k.speed=Math.max(k.speed,BASE_MAX*.9);k.trick=false;k.drift=0;
     if(k.onGlide)startGlide(k);
     k.wy+=k.wvy*dt;}
-  else if(rate<k.gRate-260*dt*1.1&&k.speed>60){k.air=true;k.big=(k.gRate-rate)>55;k.airT=0;k.wvy=k.gRate;k.wy+=k.wvy*dt;}
+  else if(rate<k.gRate-260*dt*1.1&&k.speed>60){k.air=true;k.big=(k.gRate-rate)>55;k.airT=0;k.wvy=Math.min(k.gRate,42);k.wy+=k.wvy*dt;}
   else{k.wy=G;k.gRate=rate;}
   k.onRamp=onR;k.onGlide=gR;k.z=Math.max(0,k.wy-G);
   if(GLIDE&&k.wy<GLIDE.y-32&&pitAt(k.x,k.y)>25){respawn(k);return;}
@@ -2241,7 +2255,7 @@ function hud(dt,time){
 const menu=$('menu'),results=$('results'),pauseOv=$('pauseOv'),resList=$('resList'),resTitle=$('resTitle'),resSub=$('resSub');
 function goFullscreen(){const el=document.documentElement;try{const p=el.requestFullscreen?el.requestFullscreen({navigationUI:'hide'}):(el.webkitRequestFullscreen?el.webkitRequestFullscreen():null);
   if(p&&p.then)p.then(()=>{try{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{});}catch(e){}}).catch(()=>{});}catch(e){}}
-function startRace(){initAudio();if(ac&&ac.state==='suspended')ac.resume();goFullscreen();
+function startRace(){if(window.__clearInput)window.__clearInput();initAudio();if(ac&&ac.state==='suspended')ac.resume();goFullscreen();
   menu.hidden=true;results.hidden=true;pauseOv.hidden=true;resetRace(false);state='countdown';cd=3.4;lastCd=4;stage.classList.remove('demo');raceDone=false;
   lastPos=lastLap=lastItem=lastTimeStr='';lastSpd=-1;hud.ch=-1;hud.bst=null;hud.dr=null;banner.textContent='';hintShown=false;itemQueued=null;}
 function goRace(mi){const rev=!!CLASSES[clsKey].rev;if(mi!==mapIdx||rev!==curRev){mapIdx=mi;loadMap(mi,rev);}BASE_MAX=BASE0*CLASSES[clsKey].mul;startRace();}
@@ -2262,7 +2276,7 @@ function renderResults(){finalizeRace();const st=standings();const me=player.pla
       resSub.textContent='Final standings · '+cl+' class';$('againBtn').textContent='Play this cup again';$('toMenuBtn').textContent='Back to menu';}
     else{resTitle.textContent=me===1?'1st place!':me+suf(me)+' place';resSub.textContent=MAPS[mapIdx].name+' · '+cl+' class';$('againBtn').textContent='Next race';$('toMenuBtn').textContent='Quit to menu';}}
   else{gb.hidden=true;resTitle.textContent=me===1?'1st place!':me+suf(me)+' place';resSub.textContent=MAPS[mapIdx].name+' · '+cl+' class';$('againBtn').textContent='Race again';$('toMenuBtn').textContent='Change track or driver';}}
-function togglePause(){if(state==='race'||state==='countdown'){pauseOv._prev=state;state='paused';pauseOv.hidden=false;if(engGain)engGain.gain.value=0;}
+function togglePause(){if(window.__clearInput)window.__clearInput();if(state==='race'||state==='countdown'){pauseOv._prev=state;state='paused';pauseOv.hidden=false;if(engGain)engGain.gain.value=0;}
   else if(state==='paused'){state=pauseOv._prev;pauseOv.hidden=true;last=performance.now();}}
 $('startBtn').onclick=startFromMenu;$('againBtn').onclick=()=>{if(gp){if(gp.race>=3)startGP();else{gp.race++;goRace(CUP_TRACKS[gp.cup][gp.race]);}}else goRace(mapIdx);};$('restartBtn').onclick=()=>{if(gp)gp.pts.forEach((v,i)=>gp.pts[i]=v);startRace();};
 $('toMenuBtn').onclick=toMenu;$('quitBtn').onclick=toMenu;$('resumeBtn').onclick=togglePause;$('pauseBtn').onclick=togglePause;
