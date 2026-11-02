@@ -1,12 +1,16 @@
 # Crust Rush
 
-A 3D kart racer on giant pizzas. Sixteen tracks in four Grand Prix cups, speed classes up to Reverse, ten items, eight drivers, and a garage where you build your kart from bodies, wheels, gliders and paint. Every track has hills, ramps, a loop-the-loop and a glide section over a sauce chasm.
+A 3D kart racer on giant pizzas. Sixteen tracks in four Grand Prix cups, speed classes up to Reverse, ten items, eight drivers, and a garage where you build your kart from bodies (including a Formula car and a GT racer), wheels, gliders and paint. Every track has hills, ramps, a loop-the-loop and a glide section over a sauce chasm.
 
 ## Play
 
 Once GitHub Pages is on, the game lives at:
 
 `https://samgoldsteinm.github.io/crust-rush/`
+
+## Performance
+
+Track scenery is built once when a track loads and merged into a small number of static meshes per area, so it costs almost nothing per frame. Distant scenery is hidden automatically, and the resolution adapts to hold your screen's refresh rate (up to 120 fps on 120 Hz displays).
 
 ## Install it like an app
 
