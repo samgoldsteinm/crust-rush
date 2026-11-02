@@ -483,7 +483,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
       <div class="set-row"><div class="set-t"><b>Quality</b><small id="qualNote"></small></div><div class="seg" id="qual"><button data-q="fast">Fast</button><button data-q="balanced">Balanced</button><button data-q="sharp">Sharp</button></div></div>
       <div class="set-row"><div class="set-t"><b>Shadows</b><small>Real-time shadows from karts and scenery.</small></div><div class="seg seg2" data-k="shadows"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
       <div class="set-row"><div class="set-t"><b>Scenery distance</b><small>How far away trackside props are drawn.</small></div><div class="seg" data-k="detail"><button data-v="near">Near</button><button data-v="normal">Normal</button><button data-v="far">Far</button></div></div>
-      <div class="set-row"><div class="set-t"><b>Frame rate</b><small>Auto matches your screen, up to 120 fps. 60 fps saves battery.</small></div><div class="seg seg2" data-k="fps"><button data-v="auto">Auto</button><button data-v="60">60 fps</button></div></div>
+      <div class="set-row"><div class="set-t"><b>Frame rate</b><small>60 fps is the smoothest and steadiest. Auto chases your screen's top rate, up to 120 fps.</small></div><div class="seg seg2" data-k="fps"><button data-v="auto">Auto</button><button data-v="60">60 fps</button></div></div>
       <div class="set-row"><div class="set-t"><b>Frame counter</b><small>Show frames per second during a race.</small></div><div class="seg seg2" data-k="showfps"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
     </section>
     <section class="set-group"><h3 class="label">Sound</h3>
@@ -590,8 +590,9 @@ const lerpA=(a,b,t)=>a+angDiff(b,a)*t;
 function cnv(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
 function shade(hex,amt){const n=parseInt(hex.slice(1),16);let r=n>>16,g=(n>>8)&255,b=n&255;const tg=amt<0?0:255,a=Math.abs(amt);r=Math.round(r+(tg-r)*a);g=Math.round(g+(tg-g)*a);b=Math.round(b+(tg-b)*a);return '#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1);}
 const store={get(k){try{return localStorage.getItem(k);}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,v);}catch(e){}}};
-const CFG_DEF={shadows:true,detail:'normal',fps:'auto',showfps:false,vol:80,units:'mph',shake:true,mini:true};
+const CFG_DEF={shadows:true,detail:'normal',fps:'60',showfps:false,vol:80,units:'mph',shake:true,mini:true};
 const CFG=Object.assign({},CFG_DEF,(()=>{try{return JSON.parse(store.get('crust-cfg')||'{}')||{};}catch(e){return {};}})());
+if(!CFG.v33){CFG.v33=1;CFG.fps='60';}/* everyone moves to the steady 60 fps default once */
 const saveCfg=()=>store.set('crust-cfg',JSON.stringify(CFG));
 
 /* ================= TRACK ================= */
@@ -660,9 +661,9 @@ const cvs=document.getElementById('game');
 let renderer;
 try{renderer=new THREE.WebGLRenderer({canvas:cvs,antialias:true,powerPreference:'high-performance',stencil:false});renderer.shadowMap.enabled=CFG.shadows!==false;}
 catch(e){fail('This device could not start 3D graphics (WebGL).');return;}
-const QUAL={fast:{cap:1.5,start:1.25,floor:1,sm:1024,soft:false,detail:1100,note:'Lower resolution for the smoothest frame rate on older phones.'},
-  balanced:{cap:2.2,start:2,floor:1.5,sm:2048,soft:true,detail:1600,note:'Crisp retina detail with a steady frame rate. Best for most phones.'},
-  sharp:{cap:3,start:3,floor:2.5,sm:4096,soft:true,detail:2300,note:'Full device resolution, 4K shadows and the longest scenery distance.'}};
+const QUAL={fast:{cap:1.25,start:1,floor:.85,sm:1024,soft:false,detail:1100,note:'Lower resolution and no glow pass, for the smoothest frame rate on older phones.'},
+  balanced:{cap:1.75,start:1.5,floor:1.15,sm:2048,soft:true,detail:1500,note:'Crisp detail with glow and colour grading at a steady 60 fps. Best for most phones.'},
+  sharp:{cap:2.25,start:2,floor:1.5,sm:2048,soft:true,detail:2100,note:'Highest resolution and the longest scenery distance. Best on newer phones and computers.'}};
 let qKey=store.get('crust-q')||(COARSE?'balanced':'sharp');if(!QUAL[qKey])qKey='balanced';
 const DPR=window.devicePixelRatio||1;let pr=Math.min(DPR,QUAL[qKey].start),capPR=Math.min(DPR,QUAL[qKey].cap);
 renderer.setPixelRatio(pr);
@@ -1729,7 +1730,7 @@ function loadMap(mi,rev){
   if(GLIDE)for(let j=GLIDE.rj-3;j<=GLIDE.j1+3;j++)track[(j+N)%N].open=true;
   disposeWorld();world=new THREE.Group();scene.add(world);animators=[];boxes=[];pads=[];FXA.clear();FXN.clear();
   const R=def.R;
-  renderer.toneMappingExposure=th.exposure;Object.assign(POST.grade,{kitchen:{sat:1.02,con:1.04,tint:[1.01,1,.98],vig:.26,bloom:.35,thr:2.4},bay:{sat:1.04,con:1.04,tint:[1.01,1,.99],vig:.2,bloom:.3,thr:2.6},freezer:{sat:1.02,con:1.05,tint:[.99,1,1.02],vig:.18,bloom:.25,thr:3.0},night:{sat:1.0,con:1.05,tint:[1,1,1],vig:.3,bloom:.45,thr:1.8}}[def.theme]||{});
+  renderer.toneMappingExposure=th.exposure;Object.assign(POST.grade,{kitchen:{sat:.9,con:1.02,tint:[1.01,1,.99],vig:.24,bloom:.32,thr:2.4},bay:{sat:.9,con:1.02,tint:[1.01,1,.99],vig:.2,bloom:.28,thr:2.6},freezer:{sat:.94,con:1.03,tint:[.99,1,1.01],vig:.18,bloom:.25,thr:3.0},night:{sat:.9,con:1.03,tint:[1,1,1],vig:.28,bloom:.42,thr:1.8}}[def.theme]||{});
   scene.fog=new THREE.Fog(th.fog[0],th.fog[1],th.fog[2]);scene.background=new THREE.Color(th.bg);
   hemi.color.set(th.hemi[0]);hemi.groundColor.set(th.hemi[1]);hemi.intensity=th.hemi[2];rimL.color.set(def.theme==='night'?'#8a6bff':def.theme==='kitchen'?'#ffd0a0':'#a8ccff');rimL.intensity=def.theme==='night'?.9:.55;
   sun.color.set(th.sun[0]);sun.intensity=th.sun[1];sunDir.set(th.dir[0],th.dir[1],th.dir[2]).normalize();
@@ -2259,7 +2260,7 @@ function buildNight(R,L1,L2){TUNNEL=null;
 let karts=[],player=null,camT=null,projectiles=[],hazards=[],state='menu',cd=0,raceTime=0,finishCount=0,lastCd=0,resultsAt=0,lapShown=1,camSnap=true,acc=0,alpha=1;
 let selected=(+(store.get('crust-driver')||0)||0)%8,mapIdx=(+(store.get('crust-map')||0)||0)%MAPS.length,clsKey=store.get('crust-cls')||'medium',mode=store.get('crust-mode')||'gp',cupIdx=(+(store.get('crust-cup')||0)||0)%CUPS.length,gp=null,raceDone=false;if(!CLASSES[clsKey])clsKey='medium';if(mode!=='gp'&&mode!=='single')mode='gp';
 const aiKey=()=>CLASSES[clsKey].ai;
-const cam={a:0,look:new THREE.Vector3(),base:new THREE.Vector3(),roll:0,F:new THREE.Vector3(),U:new THREE.Vector3(),P:new THREE.Vector3()};
+const cam={a:0,look:new THREE.Vector3(),base:new THREE.Vector3(),roll:0,gp:0,gr:0,sx:0,oy:0,vy:0,pvz:0,pspd:0,F:new THREE.Vector3(),U:new THREE.Vector3(),P:new THREE.Vector3()};
 function makeKart(ri,slot,isPlayer,diff,build){
   const back=4+Math.floor(slot/2)*3,idx=(N-back)%N,p=track[idx],lat=slot%2?19:-19;
   const sk=diff.skill[0]+Math.random()*(diff.skill[1]-diff.skill[0]);
@@ -2745,9 +2746,20 @@ function render(time,dt){
     const spn=Math.min(1.4,Math.abs(camT.speed)/BASE_MAX);let amp=.03+.09*spn+(camT.sf===0&&spn>.25?.32:camT.sf===1&&spn>.25?.12:0)+(camT.boost>0?.12:0)+(camT.z>0&&!camT.air?0:0)+shakeImp;
     shakeImp*=Math.exp(-6*dt);if(state==='countdown')amp=.02;if(RM)amp*=.25;if(!CFG.shake)amp=0;
     const n1=Math.sin(time*29)*.5+Math.sin(time*47.3+1.3)*.3+Math.sin(time*11.7+.7)*.2,n2=Math.sin(time*33.1+2)*.5+Math.sin(time*53+.4)*.3+Math.sin(time*9.3+1.1)*.2,n3=Math.sin(time*26.7+4)*.5+Math.sin(time*41+2.2)*.5;
-    camera.position.set(cam.base.x+n1*amp*.3,cam.base.y+n2*amp*.35,cam.base.z+n3*amp*.3);
-    camera.lookAt(cam.look);
-    cam.roll+=((-camT.steer*.02-(camT.drift?camT.steer*.03*(camT.dAmt||0):0))-cam.roll)*Math.min(1,4*dt);camera.rotateZ(cam.roll+n3*amp*.006);
+    let G=CFG.shake?(RM?.35:1):0;if(state==='countdown'||inLoop||!dt)G=0;
+    {const m=camT.m,ff=k=>1-Math.exp(-k*dt);
+      /* pitch follows the slope under the kart, plus a nod when speeding up or braking */
+      const acc=dt>0?(camT.speed-cam.pspd)/dt:0;cam.pspd=camT.speed;cam.gp+=(((m.tp||0)*.4-clamp(acc*.00016,-.035,.035))*G-cam.gp)*ff(6);
+      /* roll leans with the ground camber and into the turn */
+      cam.gr+=(((m.tr||0)*.5-camT.steer*.04-(camT.drift?camT.steer*.035*(camT.dAmt||0):0))*G-cam.gr)*ff(5);
+      /* the camera swings slightly out of the turn, like it hangs on a boom */
+      cam.sx+=(camT.steer*2.4*spn*G-cam.sx)*ff(3);
+      /* a sprung vertical mount: drops on landings, lifts on take-off, wobbles over bumps */
+      const vz=dt>0?(camT.rz-cam.pvz)/dt:0;cam.pvz=camT.rz;const f=(-cam.oy*55-cam.vy*9)+clamp(-vz*.9,-40,40)*G*(camT.air?.25:1);cam.vy+=f*dt;cam.oy+=cam.vy*dt;cam.oy=clamp(cam.oy,-2.6,2.6);}
+    const rx=Math.sin(cam.a),rz=-Math.cos(cam.a);
+    camera.position.set(cam.base.x+n1*amp*.3-rx*cam.sx,cam.base.y+n2*amp*.35+cam.oy,cam.base.z+n3*amp*.3-rz*cam.sx);
+    camera.lookAt(cam.look.x,cam.look.y+cam.oy*.45,cam.look.z);camera.rotateX(-cam.gp);
+    cam.roll=cam.gr;camera.rotateZ(cam.roll+n3*amp*.006);
     const hf=(camT.boost>0?100:90)*Math.PI/180,vf=clamp(2*Math.atan(Math.tan(hf/2)/camera.aspect)*180/Math.PI,52,100);
     if(Math.abs(camera.fov-vf)>.05){camera.fov+=(vf-camera.fov)*Math.min(1,5*dt);camera.updateProjectionMatrix();}
     snapSun(camT.rx+Math.cos(cam.a)*80,camT.rg,camT.ry+Math.sin(cam.a)*80);}
@@ -2975,9 +2987,9 @@ function postInit(){if(POST.qs)return;POST.qs=new THREE.Scene();POST.qc=new THRE
       float l=dot(c,vec3(.2126,.7152,.0722));c=mix(vec3(l),c,sat);c=clamp((c-.5)*con+.5,0.,1.);
       vec2 d=(vUv-.5)*vec2(aspect,1.);c*=1.-vig*smoothstep(.35,1.05,length(d));
       gl_FragColor=vec4(srgb(c),1.);}`,{tex:{value:null},b1:{value:null},b2:{value:null},exposure:{value:1},bloom:{value:.55},sat:{value:1.08},con:{value:1.06},vig:{value:.28},aspect:{value:1},tint:{value:new THREE.Vector3(1,1,1)}});}
-function postSize(w,h){if(POST.w===w&&POST.h===h&&POST.rt)return;POST.w=w;POST.h=h;for(const k of ['rt','b1','b2','b3','b4'])if(POST[k])POST[k].dispose();
+function postSize(w,h){if(POST.w===w&&POST.h===h&&POST.rt&&(POST.pr>1.6)===(pr>1.6))return;POST.w=w;POST.h=h;for(const k of ['rt','b1','b2','b3','b4'])if(POST[k])POST[k].dispose();
   const ht=renderer.capabilities.isWebGL2?THREE.HalfFloatType:THREE.UnsignedByteType,opt={type:ht,depthBuffer:false};
-  POST.rt=new THREE.WebGLRenderTarget(w,h,{type:ht,samples:renderer.capabilities.isWebGL2?4:0});
+  POST.rt=new THREE.WebGLRenderTarget(w,h,{type:ht,samples:renderer.capabilities.isWebGL2?(pr>1.6?2:4):0});POST.pr=pr;
   const w4=Math.max(1,w>>2),h4=Math.max(1,h>>2),w8=Math.max(1,w>>3),h8=Math.max(1,h>>3);
   POST.b1=new THREE.WebGLRenderTarget(w4,h4,opt);POST.b2=new THREE.WebGLRenderTarget(w4,h4,opt);POST.b3=new THREE.WebGLRenderTarget(w8,h8,opt);POST.b4=new THREE.WebGLRenderTarget(w8,h8,opt);}
 function pass(mat,target){POST.q.material=mat;renderer.setRenderTarget(target);renderer.render(POST.qs,POST.qc);}
@@ -3016,7 +3028,7 @@ function snapSun(x,y,z){const sc=sun.shadow.camera,tx=(sc.right-sc.left)/sun.sha
   _sT.set(x,y,z);const a=Math.round(_sT.dot(_sA)/tx)*tx,b=Math.round(_sT.dot(_sB)/tx)*tx,c=Math.round(_sT.dot(sunDir)/4)*4;
   _sT.copy(_sA).multiplyScalar(a).addScaledVector(_sB,b).addScaledVector(sunDir,c);sun.target.position.copy(_sT);sun.position.copy(_sT).addScaledVector(sunDir,500);}
 function adaptQuality(dt,time){perfSum+=dt;perfN++;perfT+=dt;if(perfT<1.5)return;const avg=perfSum/perfN;perfT=perfSum=perfN=0;
-  bestDt=Math.min(bestDt*1.01,avg);let P=1/60;for(const h of HZ)if(h>=bestDt*.93){P=h;break;}  /* the display's refresh period: 120Hz screens get a 120fps target */
+  bestDt=Math.min(bestDt*1.01,avg);let P=1/60;for(const h of HZ)if(h>=bestDt*.93){P=h;break;}if(CFG.fps==='60')P=Math.max(P,1/60);  /* the display's refresh period: 120Hz screens get a 120fps target */
   const fl=Math.min(DPR,QUAL[qKey].floor);slowN=avg>P*1.12?slowN+1:0;fastN=avg<P*1.02?fastN+1:0;
   if(slowN>=3&&pr>fl+.01){if(raisedAt>0&&time-raisedAt<12)capPR=Math.max(fl,pr-.15);pr=Math.max(fl,pr-.15);droppedAt=time;slowN=0;fit();}
   else if(fastN>=6&&pr<capPR-.01&&time-droppedAt>20){pr=Math.min(capPR,pr+.1);raisedAt=time;fastN=0;fit();}}
@@ -3024,7 +3036,7 @@ let slowN=0,fastN=0,droppedAt=-99;
 let lastFrameT=0,fpsN=0,fpsT=0;
 function frame(now){
   if(!booted){requestAnimationFrame(frame);return;}
-  if(CFG.fps==='60'&&now-lastFrameT<15.4){requestAnimationFrame(frame);return;}lastFrameT=now;
+  if(CFG.fps==='60'&&now-lastFrameT<13.5){requestAnimationFrame(frame);return;}lastFrameT=now;
   fpsN++;if(now-fpsT>500){const show=CFG.showfps&&state!=='menu';fpsEl.hidden=!show;if(show)fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' FPS';fpsN=0;fpsT=now;}
   let dt=(now-last)/1000;last=now;if(dt>.1)dt=.1;if(dt<0)dt=0;const time=now/1000;
   if(state==='menu'||state==='race'){acc+=dt;let n=0;while(acc>=STEP&&n<12){update(STEP);acc-=STEP;n++;}if(n>=12)acc=0;alpha=acc/STEP;
