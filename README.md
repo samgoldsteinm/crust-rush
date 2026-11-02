@@ -1,6 +1,6 @@
 # Crust Rush
 
-A 3D kart racer on giant pizzas. Three tracks with hills, ramps and a loop-the-loop, eight drivers, CPU difficulty levels, drifting, items and boosts.
+A 3D kart racer on giant pizzas. Sixteen tracks in four Grand Prix cups, speed classes up to Reverse, ten items, eight drivers, and a garage where you build your kart from bodies, wheels, gliders and paint. Every track has hills, ramps, a loop-the-loop and a glide section over a sauce chasm.
 
 ## Play
 
@@ -21,6 +21,8 @@ The installed app opens full screen with no browser bars. After the first visit 
 - Touch the left or right half of the screen to steer.
 - Tap a Drift button (bottom corners) at speed to start drifting. Steer to guide it, and tap again for a boost. When slow, hold it to brake or reverse.
 - Tap the item button to throw ahead, or swipe down on it to throw behind.
+- Customize kart (menu): pick a body, wheels, glider and paint. Each part trades strengths for drawbacks; Classic with Standard wheels is the neutral build. Turn Kart stats off to make parts cosmetic.
+- Glide ramps (blue) open your glider. Steer through the rings for boosts.
 - Keyboard: arrows steer, Space drifts, X throws ahead, Z throws back, P pauses.
 
 ## Files
