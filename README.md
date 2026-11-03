@@ -27,7 +27,7 @@ After the first visit the game is saved on your device and works offline. It ope
 | `js/game.<hash>.js` | The game itself |
 | `css/style.<hash>.css` | All styling |
 | `vendor/three-0.149.0.min.js` | The 3D engine (three.js) |
-| `assets/geo.<hash>.bin` | Every car and scenery model, packed into one download |
+| `assets/geo/<model>.<hash>.bin` | One file per car and scenery model, so an update only re-downloads the models that changed |
 | `assets/tex/` | Sky panoramas and scenery textures |
 | `assets/shots/` | Track photos for the menus |
 | `sw.js` | Offline support: saves every file above on the device |

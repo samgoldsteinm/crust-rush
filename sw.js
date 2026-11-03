@@ -1,6 +1,6 @@
 // Crust Rush service worker: installs the game as an app and keeps every file for offline play.
 // Game files have their content hash in the name, so a saved copy never goes stale; only the page itself is re-checked.
-const VERSION = 'crust-rush-v41';
+const VERSION = 'crust-rush-v42';
 const SHELL = [
   "./",
   "./index.html",
@@ -9,7 +9,49 @@ const SHELL = [
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",
   "./icons/favicon-64.png",
-  "./assets/geo.0ca7f1eea0.bin",
+  "./assets/geo/formula.a2521243d2.bin",
+  "./assets/geo/gt.0614da9ec6.bin",
+  "./assets/geo/hyper.6b7da65a37.bin",
+  "./assets/geo/roadster.b954c55e8a.bin",
+  "./assets/geo/tourer.10219a867b.bin",
+  "./assets/geo/concept.4896a96dc6.bin",
+  "./assets/geo/interceptor.1da367a926.bin",
+  "./assets/geo/monster.c1c7d0aa59.bin",
+  "./assets/geo/muscle.c6a8fa4e96.bin",
+  "./assets/geo/wheelset.01d35e5074.bin",
+  "./assets/geo/gokart.baf72d914c.bin",
+  "./assets/geo/chariot.1fb96afc85.bin",
+  "./assets/geo/hatch.db29691d7a.bin",
+  "./assets/geo/coupe.ed9b78f64b.bin",
+  "./assets/geo/scissor.641b1efa5f.bin",
+  "./assets/geo/suv.a3c94fb4a4.bin",
+  "./assets/geo/formula_hq.3b711f9dbc.bin",
+  "./assets/geo/gt_hq.843754961c.bin",
+  "./assets/geo/hyper_hq.eaafa35d8f.bin",
+  "./assets/geo/tourer_hq.6a5a22f4db.bin",
+  "./assets/geo/concept_hq.702ecf66ed.bin",
+  "./assets/geo/interceptor_hq.c61f046b3c.bin",
+  "./assets/geo/gokart_hq.8abaeecd3e.bin",
+  "./assets/geo/hatch_hq.682ec32c9c.bin",
+  "./assets/geo/scissor_hq.cfb581826d.bin",
+  "./assets/geo/suv_hq.eea66bc13f.bin",
+  "./assets/geo/onyx.f323474385.bin",
+  "./assets/geo/tree_pine1.55f1df225a.bin",
+  "./assets/geo/tree_pine2.51237a24e1.bin",
+  "./assets/geo/tree_round1.cc883fdab7.bin",
+  "./assets/geo/tree_round2.be26072d49.bin",
+  "./assets/geo/tree_shrub.0ddbd87366.bin",
+  "./assets/geo/skyline.f6c0aa9c1a.bin",
+  "./assets/geo/mount.5104833cac.bin",
+  "./assets/geo/tunnel.975467a68d.bin",
+  "./assets/geo/city.bce45a74fe.bin",
+  "./assets/geo/tree_pine1_lo.c9c9061205.bin",
+  "./assets/geo/tree_pine2_lo.0f99873fb2.bin",
+  "./assets/geo/tree_round1_lo.3d6fd5a921.bin",
+  "./assets/geo/tree_round2_lo.1c0ead0363.bin",
+  "./assets/geo/waterfall.efc038e2cf.bin",
+  "./assets/geo/riverbed.6009bf3d95.bin",
+  "./assets/geo/pond.1dafdeeb39.bin",
   "./assets/tex/tex_ar_arena.f7dc7fc88b.jpg",
   "./assets/tex/tex_ar_track.579b73460a.jpg",
   "./assets/tex/tex_ar_glow.67ce84a9df.jpg",
@@ -84,8 +126,8 @@ const SHELL = [
   "./assets/shots/peak-h.186d4aea66.jpg",
   "./assets/shots/peak-m.4003974e0a.jpg",
   "./assets/shots/peak-a.d8b995f958.jpg",
-  "./css/style.32667216e9.css",
-  "./js/game.fe87f20ba4.js",
+  "./css/style.edf4251524.css",
+  "./js/game.432a75e715.js",
   "./vendor/three-0.149.0.min.js"
 ];
 
@@ -96,7 +138,7 @@ self.addEventListener('install', (event) => {
     for (const u of SHELL) if (!(await caches.match(u))) todo.push(u);
     let i = 0;
     const worker = async () => { while (i < todo.length) { const u = todo[i++]; try { await c.add(u); } catch (e) {} } };
-    await Promise.all([worker(), worker(), worker(), worker()]);
+    await Promise.all([worker(), worker()]);
   }).then(() => self.skipWaiting()));
 });
 

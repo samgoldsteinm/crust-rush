@@ -12,12 +12,12 @@
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html,body{height:100%;overflow:hidden}
+html,body{height:100%;overflow:hidden;background:#2a140b}
 body{margin:0;background:var(--oven);color:var(--cream);font-family:var(--body);font-size:15px;
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
 button{font:inherit;color:inherit;cursor:pointer}
 button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outline-offset:2px}
-#stage{position:fixed;inset:0;background:#2a140b;touch-action:none}@supports(height:100dvh){#stage,.overlay{bottom:auto;height:100dvh}}
+#stage{position:fixed;inset:0;background:#2a140b;touch-action:none}@supports(height:100dvh){#stage,.overlay{bottom:0;height:auto;min-height:100dvh}}
 #stage *,.overlay button,.overlay canvas{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #game{position:absolute;inset:0;width:100%;height:100%;display:block}
 .hud{position:absolute;inset:0;pointer-events:none;

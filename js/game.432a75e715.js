@@ -1107,7 +1107,7 @@ function carGeos(id){const p=CAR_PACKS[id];if(p.g)return p.g;const bin=p.b?new U
     geo.setIndex(new THREE.BufferAttribute(new Uint16Array(idx),1));geo.computeBoundingSphere();CARGEO.add(geo);g[m.n]=geo;}
   p.d=null;p.b=null;p.g=g;return g;}
 let HQB=false;let LODM=0,LODF=200;
-function carBody(id,M,B){const g=carGeos(HQB&&CAR_PACKS[id+'_hq']?id+'_hq':id);M.carPaint=new THREE.MeshPhysicalMaterial({color:M.paint.color.clone(),vertexColors:true,metalness:.5,roughness:.34,clearcoat:1,clearcoatRoughness:.04,envMapIntensity:1.2});
+function carBody(id,M,B){const g=carGeos(HQB&&hqReady(id)?id+'_hq':id);M.carPaint=new THREE.MeshPhysicalMaterial({color:M.paint.color.clone(),vertexColors:true,metalness:.5,roughness:.34,clearcoat:1,clearcoatRoughness:.04,envMapIntensity:1.2});
   M.blue=new THREE.MeshStandardMaterial({color:'#2a5bff',emissive:'#2a5bff',emissiveIntensity:2});const mats={paint:M.carPaint,tail:M.tailM,light:SH.carLight,glass:SH.carGlass,vc:SH.carVC,blue:M.blue};
   for(const k in g){if(!k.startsWith('b_'))continue;const me=new THREE.Mesh(g[k],mats[k.slice(2)]);me.castShadow=k!=='b_glass';me.receiveShadow=true;B.add(me);if(k==='b_paint')M.paintMesh=me;}}
 Object.assign(BODY_FN,{
@@ -4029,7 +4029,7 @@ function fit(){const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;r
 
 /* ================= BOOT ================= */
 let booted=false;
-async function loadExt(step){const X=window.CR_EXT;if(!X)return;let buf;
+async function loadExt(step){const X=window.CR_EXT;if(!X)return;if(X.items)return loadItems(X,step);let buf;
   try{const r=await fetch(X.geo);if(!r.ok)throw new Error(r.status);const tot=+r.headers.get('content-length')||X.size;
     if(r.body&&r.body.getReader){const rd=r.body.getReader(),u=new Uint8Array(X.size);let o=0,lastP=-1;
       for(;;){const {done,value}=await rd.read();if(done)break;if(o+value.length>u.length)throw new Error('size');u.set(value,o);o+=value.length;const p=Math.floor(o/X.size*100);if(p>=lastP+4){lastP=p;await step(2+8*o/X.size,'Loading karts and props… '+p+'%');}}
@@ -4037,6 +4037,16 @@ async function loadExt(step){const X=window.CR_EXT;if(!X)return;let buf;
     else buf=await r.arrayBuffer();}
   catch(e){const t=document.getElementById('ldTxt');if(t)t.textContent='Could not load the game files. Check your connection and reload.';throw e;}
   for(const [kind,id,o,n] of X.ofs){const tgt=kind==='c'?CAR_PACKS[id]:PROP_PACKS[id];if(tgt)tgt.b=buf.slice(o,o+n);}}
+const extTgt=(kind,id)=>kind==='c'?CAR_PACKS[id]:PROP_PACKS[id];
+async function fetchBin(url){const r=await fetch(url);if(!r.ok)throw new Error(r.status);return r.arrayBuffer();}
+async function loadItems(X,step){const core=X.items.filter(it=>!it[4]),tot=core.reduce((a,it)=>a+it[3],0);let got=0,i=0,lastP=-1;
+  try{const worker=async()=>{while(i<core.length){const it=core[i++];let buf=null;for(let t=0;t<3&&!buf;t++){try{buf=await fetchBin(it[2]);}catch(e){if(t===2)throw e;await new Promise(r=>setTimeout(r,600*(t+1)));}}
+      const tg=extTgt(it[0],it[1]);if(tg)tg.b=buf;got+=it[3];const p=Math.floor(got/tot*100);if(p>=lastP+4){lastP=p;await step(2+8*got/tot,'Loading karts and props… '+p+'%');}}};
+    await Promise.all([worker(),worker(),worker(),worker(),worker(),worker()]);}
+  catch(e){const t=document.getElementById('ldTxt');if(t)t.textContent='Could not load the game files. Check your connection and reload.';throw e;}}
+/* the high-detail car bodies arrive after the menu is up; until each one lands, that car uses its standard model */
+async function loadHQ(){const X=window.CR_EXT;if(!X||!X.items)return;for(const it of X.items.filter(it=>it[4])){try{const buf=await fetchBin(it[2]);const tg=extTgt(it[0],it[1]);if(tg&&!tg.g)tg.b=buf;}catch(e){}}}
+const hqReady=id=>{const p=CAR_PACKS[id+'_hq'];return !!(p&&(p.g||p.b||p.d));};
 async function boot(){const ld=document.getElementById('loader'),bar=document.getElementById('ldBar'),txt=document.getElementById('ldTxt');
   /* while the page and engine download, the bar creeps forward on its own; from here every step is real work */
   const W0=()=>{const w=bar.getBoundingClientRect().width,t=bar.parentNode.getBoundingClientRect().width;return t?w/t*100:0;};let cur=Math.max(3,W0());bar.classList.add('live');bar.style.width=cur+'%';const span=100-cur;
@@ -4053,7 +4063,8 @@ async function boot(){const ld=document.getElementById('loader'),bar=document.ge
   applySettings();
   await step(88,'Lining up the grid…');resetRace(true);
   await step(96,'Firing up the oven…');try{renderer.compile(scene,camera);}catch(e){}
-  booted=true;bar.style.width='100%';menu.hidden=false;last=performance.now();setTimeout(()=>{ld.classList.add('done');setTimeout(()=>ld.remove(),600);},120);}
+  booted=true;bar.style.width='100%';menu.hidden=false;last=performance.now();setTimeout(()=>{ld.classList.add('done');setTimeout(()=>ld.remove(),600);},120);
+  setTimeout(()=>{loadHQ().finally(()=>{window.dispatchEvent(new Event('cr-booted'));});},1500);}
 
 let last=performance.now(),resTick=0,perfT=0,perfN=0,perfSum=0,raisedAt=-1;
 let bestDt=1;const HZ=[1/165,1/144,1/120,1/90,1/75,1/60,1/50,1/30];
