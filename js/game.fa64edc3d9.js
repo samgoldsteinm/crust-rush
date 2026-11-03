@@ -3424,7 +3424,8 @@ function stepKart(k,inp,dt){
     if(!k.air){const ca=Math.cos(k.ma),sa=Math.sin(k.ma),sl=(groundAt(k.x+ca*5,k.y+sa*5)-groundAt(k.x-ca*5,k.y-sa*5))/10;k.speed-=sl*165*dt;}
     const sp=Math.abs(k.speed),dir=(k.speed<0?-1:1)*(k.air&&k.big?.35:1);
     const hs=clamp((sp-40)/(BASE_MAX-40),0,1),lo=sp<1?0:Math.min(1,sp/35),tfN=lo*(1-.66*hs)*((k.isPlayer&&!k.auto)?1:1.4)*sm.hnd,tfD=lo*(1-.4*hs)*sm.hnd;
-    let dRel=false;if(dPress&&k.drift&&!k.air)dRel=true;else{if(dPress&&!k.drift)k.dWant=.6;if(k.dWant>0&&inp.brake)k.dWant=Math.max(k.dWant,.12);
+    let dRel=false;if(k.spin>0||k.sink!=null)k.dLatch=false;if(dPress&&k.air&&!k.drift){k.dLatch=!k.dLatch;k.dWant=0;}/* tapped mid-air (jump or glide): stay armed and drift the moment you land */else if(dPress&&k.drift&&!k.air)dRel=true;else{if(dPress&&!k.drift)k.dWant=.6;if(k.dWant>0&&inp.brake)k.dWant=Math.max(k.dWant,.12);
+      if(k.dLatch&&!k.drift&&!k.air){if(sp>40){k.dLatch=false;k.dWant=0;k.drift=1;k.charge=0;k.dAmt=.35;k.tier=0;k.dTime=0;k.sT=0;if(k===player)SFX.hop();}else if(sp<30)k.dLatch=false;}
       if(k.dWant>0&&!k.drift&&!k.air&&sp>55&&!(k.boost>0&&k.bAge<.8)){k.dWant=0;k.drift=1;k.charge=0;k.dAmt=0;k.tier=0;k.dTime=0;k.sT=0;k.air=true;k.big=false;k.airT=0;k.wvy=(k.gRate||0)+18;if(k===player)SFX.hop();}}
     if(k.drift&&!dRel){k.dTime+=dt;const sl=Math.abs(angDiff(k.a,k.ma));if(k.dTime>.45&&Math.abs(k.steer)<.3&&sl<.14){k.sT+=dt;if(k.sT>.3)dRel=true;}else k.sT=0;}
     if(k.drift){
@@ -3650,7 +3651,7 @@ function hud(dt,time){
   const chg=player.drift?Math.min(100,player.charge/2.6*100):0,tierN=player.drift?(player.tier||0):0;if(Math.abs(chg-(hud.ch||0))>.8||tierN!==hud.tn){hud.ch=chg;hud.tn=tierN;gCh.style.strokeDasharray=chg.toFixed(1)+' 100';gCh.style.stroke=['#fff4dc','#ffe066','#ff9a1f','#ff3b1a'][tierN];}
   const bst=player.boost>0;if(bst!==hud.bst){hud.bst=bst;gauge.classList.toggle('boost',bst);}
   speedfx.classList.toggle('on',player.boost>0&&state==='race');frostfx.classList.toggle('on',player.frozen>0);
-  const dr=!!player.drift;if(dr!==hud.dr){hud.dr=dr;brkEls.forEach(b=>b.classList.toggle('drifting',dr));}
+  const dr=!!(player.drift||player.dLatch);if(dr!==hud.dr){hud.dr=dr;brkEls.forEach(b=>b.classList.toggle('drifting',dr));}
   const rk=ITEM_KEYS[Math.floor(time*14)%ITEM_KEYS.length],rl=player.roll>0,s1=player.item||(rl?rk:''),s2=player.item2||(rl&&(player.item||player.pend.length>1)?rk:''),ik=s1+'|'+s2;
   if(ik!==lastItem){lastItem=ik;itemBtn.classList.toggle('rolling',rl);itemBtn.classList.toggle('has',!!player.item&&!rl);
     itemIcon.innerHTML=s1?SVG[s1]:'<span class="empty"></span>';slot2El.innerHTML=s2?SVG[s2]:'<span class="empty"></span>';$('itemBtn2').classList.toggle('has',!!player.item2&&!rl);if(rl)SFX.tick();
