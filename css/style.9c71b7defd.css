@@ -557,3 +557,12 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .theme .fav[aria-pressed="true"] svg{fill:#ff4d6d;stroke:#ff4d6d;opacity:1}
 .theme b{padding-right:24px}
 .fav-empty{grid-column:1/-1;margin:6px 2px;font-size:13px;color:var(--muted)}
+
+#banner.md{top:calc(env(safe-area-inset-top,0px) + 16%);font-size:clamp(34px,10vmin,76px)}
+#banner.sm{font-size:clamp(18px,4.4vmin,32px)}
+.edgefx{position:absolute;inset:0;pointer-events:none;z-index:5;box-shadow:inset 0 0 70px 14px var(--c);animation:edgefx .7s ease-out forwards}
+.edgefx.soft{box-shadow:inset 0 0 50px 8px var(--c)}
+@keyframes edgefx{0%{opacity:0}15%{opacity:.85}100%{opacity:0}}
+#itemBtn.robbed,#itemBtn2.robbed{animation:robbed .6s ease-out}
+@keyframes robbed{0%,100%{transform:none;box-shadow:none}20%{transform:translateX(-5px) scale(1.06);box-shadow:0 0 0 4px #b26bff,0 0 24px #b26bff}45%{transform:translateX(5px)}70%{transform:translateX(-3px)}}
+@media (prefers-reduced-motion:reduce){.edgefx{animation-duration:.3s}#itemBtn.robbed,#itemBtn2.robbed{animation:none}}
