@@ -58,7 +58,7 @@ Object.assign(SVG,{
   rush:'<svg viewBox="0 0 24 24"><path d="M1.5 15l5.5-2.5 3 1-4 3.5z" fill="#ff9a1f"/><path d="M1 11.5h4.5M2.5 19h3" stroke="#ffd36b" stroke-width="1.6" stroke-linecap="round"/><rect x="8" y="8" width="14" height="9" rx="1.6" fill="#f5ead2" stroke="#d6402a" stroke-width="1.4"/><path d="M15 9.6l-3 6h6z" fill="#d6402a"/></svg>',
   freezer:'<svg viewBox="0 0 24 24"><g stroke="#8fd8ff" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M3.3 7l17.4 10M3.3 17l17.4-10"/><path d="M9.5 3.5L12 6l2.5-2.5M9.5 20.5L12 18l2.5 2.5"/></g><circle cx="12" cy="12" r="2.6" fill="#dff4ff"/></svg>'});
 const ITEM_KEYS=['chili','pepperoni','oil','dough','trio','garlic','flour','wheel','rush','freezer'];
-const HELP={chili:['Chili Boost','A burst of speed that works even on the cheese.'],pepperoni:['Pepperoni','Throw it ahead or behind. It bounces off the crust wall.'],oil:['Olive Oil','Drops behind you, or lob it ahead. Karts that hit it spin out.'],dough:['Dough Ball','Chases the racer ahead of you, or the one behind if thrown back.'],trio:['Pepperoni Trio','Fires three pepperoni at once in a spread, ahead or behind.'],garlic:['Garlic Shield','A garlic bubble that makes you invincible for a few seconds and knocks over anyone you touch.'],flour:['Flour Bomb','Lob it ahead or drop it behind. It bursts into a cloud that spins out everyone nearby.'],wheel:['Pizza Wheel','A rolling cutter that chases down whoever is in first. Only shows up for racers near the back.'],rush:['Delivery Rush','Autopilot at full speed for a few seconds, plowing through anyone in the way.'],freezer:['Freezer Blast','Slows down every racer ahead of you for a few seconds.']};
+const HELP={chili:['Chili Boost','A burst of speed that works even on the cheese.'],pepperoni:['Pepperoni','Fires straight ahead and bounces off the crust walls.'],oil:['Olive Oil','Drops a slick on the road behind you. Karts that drive through it spin out.'],dough:['Dough Ball','Rolls forward and chases down the racer ahead of you.'],trio:['Pepperoni Trio','Fires three pepperoni ahead at once in a spread.'],garlic:['Garlic Shield','A garlic bubble that stays on until something hits you. It blocks one item or special ability.'],flour:['Flour Bomb','Lobbed ahead, it bursts into a cloud that spins out everyone nearby.'],wheel:['Pizza Wheel','A rolling cutter that chases down whoever is in first. Only shows up for racers near the back.'],rush:['Delivery Rush','Autopilot at full speed for a few seconds, plowing through anyone in the way.'],freezer:['Freezer Blast','Slows down every racer ahead of you for a few seconds.']};
 for(const k of ITEM_KEYS){document.getElementById('h-'+k).innerHTML=SVG[k]+'<span><b>'+HELP[k][0]+'.</b> '+HELP[k][1]+'</span>';}
 
 let seed=20261101;const rnd=()=>{seed=(seed*16807)%2147483647;return (seed-1)/2147483646;};
@@ -1769,7 +1769,7 @@ function buildHazards(def,R,ctx){HAZ={traffic:[],train:null,walk:[],pool:[],city
   for(const k of set){try{({traffic:buildTraffic,train:buildTrain,walk:buildWalkers,pool:buildPonds,city:buildCity})[k](def,ctx);}catch(e){console.warn('hazard',k,e);}}}
 function resetHazards(){for(const c of HAZ.traffic){c.s=c.s0;c.lat=c.latT;}if(HAZ.train){HAZ.train.state='wait';HAZ.train.wait=2+Math.random()*2;HAZ.train.pos=-HAZ.train.span-HAZ.train.len;}}
 function hzBump(k,x,y,r,kind){const dx=k.x-x,dy=k.y-y,d=Math.hypot(dx,dy)||1;if(d>=r)return false;const ov=r-d;k.x+=dx/d*ov;k.y+=dy/d*ov;
-  if(kind){spinOut(k,kind);return true;}if(k.inv>0)return true;k.speed*=.55;k.inv=.35;if(k===camT)shake(.6);SFX.bump(near(k));burst(k.x,6,k.y,10,['#fff4dc','#ffe066'],40,2.2);return true;}
+  if(kind){spinOut(k,kind,1);return true;}if(k.inv>0)return true;k.speed*=.55;k.inv=.35;if(k===camT)shake(.6);SFX.bump(near(k));burst(k.x,6,k.y,10,['#fff4dc','#ffe066'],40,2.2);return true;}
 function poolFall(k,pl){if(k.inv>0&&k.sink==null)return;k.sink=.7;k.sinkP=pl;k.speed*=.25;k.drift=0;k.boost=0;k.charge=0;burst(k.x,2,k.y,24,[POOLBY[curMapId()]?.[0]||'#7fd8ff','#ffffff'],60,2.6);SFX.bump(near(k));if(k===player)showBanner('Splash!',1.2);if(k===camT)shake(.5);}
 const curMapId=()=>MAPS[mapIdx]?MAPS[mapIdx].id:'';
 function poolRespawn(k){const j=(k.idx-6+N)%N,p=track[j],lat=k.sinkP?-Math.sign(k.sinkP.lat)*20:0;let di=j-k.idx;if(di>N/2)di-=N;if(di<-N/2)di+=N;k.prog+=di;k.idx=j;
@@ -1784,11 +1784,11 @@ function updateHazards(dt){if(state==='menu'&&!HAZ.traffic.length&&!HAZ.train&&!
   const tr=HAZ.train;if(tr){if(tr.state==='wait'){tr.wait-=dt;if(tr.wait<=0){tr.state='run';tr.dir=Math.random()<.5?1:-1;tr.pos=-tr.span-tr.len;}}
     else{tr.pos+=tr.v*dt;if(tr.pos>tr.span+10){tr.state='wait';tr.wait=4+Math.random()*5;}}
     if(tr.state==='run')for(const c of tr.cars){const t=(tr.pos+tr.len-c.off)*tr.dir,x=tr.p.x+tr.ux*t,y=tr.p.y+tr.uy*t;c.t=t;
-      for(const k of karts){if(k.loop||k.z>14||k.sink!=null)continue;const dx=k.x-x,dy=k.y-y,u=dx*tr.ux+dy*tr.uy,v=dy*tr.ux-dx*tr.uy;if(Math.abs(u)<c.L/2+6&&Math.abs(v)<12){const sg=Math.sign(v)||1;k.x+=-tr.uy*sg*(14-Math.abs(v));k.y+=tr.ux*sg*(14-Math.abs(v));spinOut(k,'wheel');}}}}
+      for(const k of karts){if(k.loop||k.z>14||k.sink!=null)continue;const dx=k.x-x,dy=k.y-y,u=dx*tr.ux+dy*tr.uy,v=dy*tr.ux-dx*tr.uy;if(Math.abs(u)<c.L/2+6&&Math.abs(v)<12){const sg=Math.sign(v)||1;k.x+=-tr.uy*sg*(14-Math.abs(v));k.y+=tr.ux*sg*(14-Math.abs(v));spinOut(k,'wheel',1);}}}}
   /* walkers */
   for(const w of HAZ.walk){if(w.pause>0){w.pause-=dt;}else{if(Math.abs(w.lat-w.latT)<2){w.latT=(Math.random()*2-1)*(RW+8);w.pause=.4+Math.random()*1.8;}else w.lat+=Math.sign(w.latT-w.lat)*w.v*dt;}
     w.along=Math.sin(simTime*.3+w.ph)*3;const P=trackAt(w.j+w.along,w.lat);w.x=P.x;w.y=P.y;w.face=P.ang+(w.pause>0?Math.sin(simTime+w.ph)*.6:Math.sign(w.latT-w.lat)*Math.PI/2);
-    for(const k of karts){if(k.loop||k.z>w.H*.8||k.sink!=null)continue;if((k.x-w.x)**2+(k.y-w.y)**2<15*15&&k.inv<=0){spinOut(k,'meat');w.pause=1.2;w.hitT=.6;}}}
+    for(const k of karts){if(k.loop||k.z>w.H*.8||k.sink!=null)continue;if((k.x-w.x)**2+(k.y-w.y)**2<15*15&&k.inv<=0){spinOut(k,'meat',1);w.pause=1.2;w.hitT=.6;}}}
   pondTick(dt);
   for(const k of karts){if(k.sink!=null)continue;
     if(k.air||k.loop||k.glide||k.z>2)continue;for(const pl of HAZ.pool){const dx=k.x-pl.x,dy=k.y-pl.y,u=dx*pl.tx+dy*pl.ty,v=dx*pl.nx+dy*pl.ny;if((u/(pl.rx-4))**2+(v/(pl.rz-4))**2<1){poolFall(k,pl);break;}}}}
@@ -2385,7 +2385,7 @@ const KEYMAP={ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',Arrow
 addEventListener('keydown',e=>{if(e.target.closest&&e.target.closest('.overlay'))return;const k=KEYMAP[e.code];
   if(k){keys[k]=true;e.preventDefault();}
   else if(e.code==='KeyX'||e.code==='KeyE'||e.code==='Enter'){if(!e.repeat)itemQueued='fwd';e.preventDefault();}
-  else if(e.code==='KeyZ'||e.code==='KeyQ'){if(!e.repeat)itemQueued='back';e.preventDefault();}
+  else if(e.code==='KeyZ'||e.code==='KeyQ'){if(!e.repeat)itemQueued='fwd2';e.preventDefault();}
   else if(e.code==='KeyV'){if(!e.repeat)itemQueued='fwd2';e.preventDefault();}
   else if(e.code==='KeyP'||e.code==='Escape'){togglePause();}});
 addEventListener('keyup',e=>{const k=KEYMAP[e.code];if(k)keys[k]=false;});
@@ -2402,7 +2402,7 @@ addEventListener('blur',()=>{keys.left=keys.right=keys.brake=false;if(window.__c
   for(const [bid,sl] of [['itemBtn',''],['itemBtn2','2']]){const ib=document.getElementById(bid);let sy=0,down=false;
   ib.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();try{ib.setPointerCapture(e.pointerId);}catch(_){}sy=e.clientY;down=true;ib.classList.add('fwd');});
   ib.addEventListener('pointermove',e=>{if(!down)return;const dy=e.clientY-sy;ib.classList.toggle('back',dy>26);ib.classList.toggle('fwd',dy<=26);});
-  ib.addEventListener('pointerup',e=>{if(!down)return;down=false;itemQueued=((e.clientY-sy>26)?'back':'fwd')+sl;ib.classList.remove('fwd','back');});
+  ib.addEventListener('pointerup',e=>{if(!down)return;down=false;itemQueued='fwd'+sl;ib.classList.remove('fwd','back');});
   ib.addEventListener('pointercancel',()=>{down=false;ib.classList.remove('fwd','back');});}
   /* touch: every touch event rebuilds steering and braking from e.touches, the browser's list of fingers actually on the screen */
   const steerT=new Set(),brakeT=new Map(),itemT=new Set();
@@ -2544,7 +2544,14 @@ const HITC={flour:['#ffffff','#f6f1e6','#e9dfc8'],wheel:['#ff3b1a','#ffe066','#f
 function loopStep(k,dt){const L=k.loop;k.speed=Math.max(k.speed,BASE_MAX*1.18);L.th+=k.speed*dt/LOOPR;const th=Math.min(L.th,Math.PI*2),p=L.p,sx=LOOPR*Math.sin(th),hg=LOOPR*(1-Math.cos(th)),lat=L.lat0+L.shift*th/(Math.PI*2);
   k.x=p.x+p.tx*sx+p.nx*lat;k.y=p.y+p.ty*sx+p.ny*lat;k.wy=L.g0+hg+.35;k.z=hg;k.loopTh=th;k.a=k.ma=p.ang;k.drift=0;k.steer*=.9;k.air=false;
   if(L.th>=Math.PI*2){k.loop=null;k.loopTh=0;k.pth=0;k.boost=Math.max(k.boost,1.5);k.wvy=0;k.gRate=0;k.lastG=groundAt(k.x,k.y);k.wy=k.lastG;k.z=0;if(k===camT)shake(.5);if(k===player)SFX.boost(3);}}
-function spinOut(k,kind){if(k.inv>0||k.shield>0||k.rush>0||k.ghostT>0)return;if(k===camT)shake(1.1);k.spin=1.1*(1.25-.25*k.sm.wgt);k.inv=1.9;k.speed*=.3;k.drift=0;k.charge=0;k.boost=0;if(!k.air&&!k.loop){k.air=true;k.big=false;k.airT=0;k.wvy=(k.gRate||0)+40;}
+
+/* shields: one or two garlic layers that stay until something hits you; each layer stops one item or special */
+function addShield(k,n){k.shL=Math.min(2,(k.shL||0)+n);const gy=(k.wy||0)+7;spawnRing(k.x,(k.wy||0)+.6,k.y,'#7fe07a',44,.6);burst(k.x,gy,k.y,24,['#7fe07a','#f4ecdc','#ffffff'],60,2.4);
+  if(k===player){showBanner(k.shL>1?'Double shield':'Shield up',1.1);SFX.garlic(1);}else if(near(k)>0)SFX.garlic(near(k));}
+function absorb(k){if(!(k.shL>0))return false;k.shL--;k.absT=.6;k.inv=Math.max(k.inv||0,.6);const gy=(k.wy||0)+7;
+  burst(k.x,gy,k.y,40,['#7fe07a','#f4ecdc','#ffffff'],110,3.2);spawnRing(k.x,gy,k.y,'#c8ffc0',60,.5);if(k===camT)shake(.35);
+  if(k===player){showBanner(k.shL>0?'Shield blocked! 1 left':'Shield blocked!',1.2);SFX.garlic(1);}else if(near(k)>0)SFX.garlic(near(k));return true;}
+function spinOut(k,kind,world){if(k.inv>0||k.shield>0||k.rush>0||k.ghostT>0||k.absT>0)return;if(!world&&absorb(k))return;if(k===camT)shake(1.1);k.spin=1.1*(1.25-.25*k.sm.wgt);k.inv=1.9;k.speed*=.3;k.drift=0;k.charge=0;k.boost=0;if(!k.air&&!k.loop){k.air=true;k.big=false;k.airT=0;k.wvy=(k.gRate||0)+40;}
   const cols=HITC[kind]||['#fff4dc','#ffe066','#ff3b1a'],y=6*KS;burst(k.x,y,k.y,34,cols,70,3.4);
   for(let i=0;i<12;i++){const a=i/12*Math.PI*2;FXA.spawn(k.x,y,k.y,Math.cos(a)*90,8,Math.sin(a)*90,'#ffffff',2.4,.3,.35,0,4);}
   for(let i=0;i<8;i++){const a=Math.random()*Math.PI*2;FXN.spawn(k.x+Math.cos(a)*3,2,k.y+Math.sin(a)*3,Math.cos(a)*14,6+Math.random()*8,Math.sin(a)*14,kind==='dough'?'#fff4dc':'#d8d0c4',4,14,.9,-2,1.5);}
@@ -2633,7 +2640,7 @@ const ITEM_BUILD={
     [[0,.6,0,1.6,3.2,0],[1.4,.0,.5,1,2,-.6],[-1.3,.1,-.4,1.1,2.3,.6],[.4,-.2,-1.3,.9,1.7,.3],[-.5,-.3,1.2,.8,1.5,-.4]].forEach(([x,y,z,w,h,r])=>IMesh(new THREE.OctahedronGeometry(1,0),ice,[x,y,z],[w,h,w],[r,r*2,r*.5],G));
     IMesh(new THREE.IcosahedronGeometry(1.2,0),imat('icecore',{color:'#ffffff',roughness:.2,emissive:'#9fdcff',emissiveIntensity:.8,flatShading:true}),[0,.3,0],null,null,G);return G;},
   trio(){const G=new THREE.Group();for(let i=0;i<3;i++){const p=itemProto('pep').clone();p.position.set((i-1)*2.2,i*.15,(i-1)*-.6);p.rotation.set(1.1,0,(i-1)*.35);G.add(p);}return G;},
-  pepperoni(){return itemProto('pep').clone();},garlic(){return itemProto('bulb').clone();},
+  pepperoni(){return itemProto('pep').clone();},garlic(){return itemProto('bulb').clone();},garlic2(){const G=new THREE.Group();for(const [x,z,r] of [[-1.6,0,-.25],[1.6,.4,.25]]){const b=itemProto('bulb').clone();b.position.set(x,0,z);b.rotation.y=r;b.scale.setScalar(.85);G.add(b);}return G;},
   icebox(){const G=new THREE.Group(),ice=imat('iceshell',{color:'#cdeeff',roughness:.05,metalness:.05,clearcoat:1,transparent:true,opacity:.48,depthWrite:false,emissive:'#4a9adf',emissiveIntensity:.2,flatShading:true});
     IMesh(new THREE.IcosahedronGeometry(1,1),ice,null,[6.4,3.9,4.2],null,G).castShadow=false;
     [[4.2,2.4,1.6,.42],[-3.8,2.6,-1.5,.36],[.8,3.6,2.2,.32],[-1.4,3.7,-1.9,.34]].forEach(([x,y,z,s])=>IMesh(new THREE.OctahedronGeometry(1,0),ice,[x,y,z],[s*1.3,s*2.2,s*1.3],[x*.1,0,-x*.08],G).castShadow=false);return G;}
@@ -2675,7 +2682,7 @@ const NEWITEMS={
   cutter:['Cutter Orbit','Three pizza cutters spin around your kart. Anyone who touches them spins out.','#d8dde3'],
   sauce:['Sauce Splat','Splatters sauce over every racer ahead, smearing their view and their steering.','#d8301c'],
   heat:['Heat Wave','A blast of oven heat that knocks back and shrinks every rival for a few seconds.','#ff7a1a'],
-  bomb:['Calzone Bomb','Lob it ahead or drop it behind. It blows up in a big blast a moment later.','#e2b06a'],
+  bomb:['Calzone Bomb','Lobbed ahead, it blows up in a big blast a moment later.','#e2b06a'],
   forks:['Fork Spikes','Scatters forks across the road behind you. Drive over them and you spin.','#c9ced6'],
   ghost:['Ghost Pepper','Fade out for a few seconds: nothing can hit you, and you steal the leader’s item.','#e8f6ff'],
   cannon:['Pizza Cannon','Fires you down the track at huge speed, ploughing through anyone in the way.','#ffd23a'],
@@ -2684,11 +2691,12 @@ const NEWITEMS={
   boxes:['Box Barricade','Drops a wall of pizza boxes across the road behind you.','#c98b4e']};
 const NOBACK=['chili','garlic','wheel','rush','freezer','jalapeno','torpedo','shroom','magnet','cutter','sauce','heat','forks','ghost','cannon','twister','swap','boxes'];
 const ITEM_COL={chili:'#ff5a1a',pepperoni:'#ff6a3a',oil:'#e8c040',dough:'#ffe2a0',trio:'#ff6a3a',garlic:'#e8fff0',flour:'#ffffff',wheel:'#ff3b1a',rush:'#7fe8ff',freezer:'#bfe6ff'};
+NEWITEMS.garlic2=['Double Garlic Shield','Two garlic layers that stay on until you are hit. Each layer blocks one item or special ability.','#b8ffb0'];
 for(const k in NEWITEMS){ITEM_COL[k]=NEWITEMS[k][2];if(!ITEM_KEYS.includes(k))ITEM_KEYS.push(k);HELP[k]=[NEWITEMS[k][0],NEWITEMS[k][1]];
   SVG[k]='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="'+NEWITEMS[k][2]+'"/></svg>';}
 /* new odds: the leaders get defensive tools, the pack gets attacks, the back of the field gets the big catch-up items */
-ROLL[0]={pepperoni:18,oil:15,trio:8,garlic:10,dough:6,flour:10,chili:6,forks:12,boxes:10,meatball:9,bomb:7,jalapeno:4,cutter:4};
-ROLL[1]={pepperoni:9,oil:6,trio:9,garlic:7,dough:9,flour:6,chili:9,freezer:3,wheel:2,rush:2,jalapeno:8,meatball:7,torpedo:8,shroom:6,cutter:6,sauce:5,bomb:6,forks:4,magnet:5,ghost:3,twister:4,swap:3};
+ROLL[0]={pepperoni:18,oil:15,trio:8,garlic:10,garlic2:4,dough:6,flour:10,chili:6,forks:12,boxes:10,meatball:9,bomb:7,jalapeno:4,cutter:4};
+ROLL[1]={pepperoni:9,oil:6,trio:9,garlic:7,garlic2:3,dough:9,flour:6,chili:9,freezer:3,wheel:2,rush:2,jalapeno:8,meatball:7,torpedo:8,shroom:6,cutter:6,sauce:5,bomb:6,forks:4,magnet:5,ghost:3,twister:4,swap:3};
 ROLL[2]={chili:10,dough:7,trio:6,rush:8,wheel:8,freezer:6,jalapeno:10,torpedo:7,magnet:9,cannon:7,heat:4,sauce:6,ghost:5,twister:5,swap:6,shroom:4};
 /* ---------- models ---------- */
 Object.assign(ITEM_BUILD,{
@@ -2763,7 +2771,7 @@ Object.assign(SFX,{
 function fireItem(k,it,back){const a=k.item,b=k.item2,d=k.ai.itemDelay;k.item=it;k.item2=null;useItem(k,back,true);k.item=a;k.item2=b;k.ai.itemDelay=d;}
 function kartAhead(k){const st=standCache,i=st.indexOf(k);return i>0?st[i-1]:null;}
 function itemFx(k,col,n){const gy=(k.wy||0)+7;spawnRing(k.x,(k.wy||0)+.6,k.y,col,40,.5);spawnRing(k.x,gy,k.y,'#ffffff',22,.3,false);burst(k.x,gy,k.y,n||30,[col,'#ffffff','#ffe066'],90,3);FXA.spawn(k.x,gy,k.y,0,0,0,col,40,8,.22,0,0);}
-function blast(x,y,r,owner,kind,col){const gy=groundAt(x,y);for(const k of karts){if(k===owner&&kind!=='self')continue;if(k.loop)continue;if((k.x-x)**2+(k.y-y)**2<r*r){spinOut(k,kind==='self'?'pep':kind);if(!k.air&&k.shield<=0&&k.ghostT<=0){k.air=true;k.big=true;k.airT=0;k.wvy=55;}}}
+function blast(x,y,r,owner,kind,col){const gy=groundAt(x,y);for(const k of karts){if(k===owner&&kind!=='self')continue;if(k.loop)continue;if((k.x-x)**2+(k.y-y)**2<r*r){spinOut(k,kind==='self'?'pep':kind);if(!k.air&&k.shield<=0&&k.ghostT<=0&&!(k.absT>0)){k.air=true;k.big=true;k.airT=0;k.wvy=55;}}}
   burst(x,gy+6,y,60,[col,'#ffe066','#ffffff','#ff5a14'],140,4.2);for(let n=0;n<24;n++){const a=Math.random()*6.28,u=.3+Math.random()*.7;FXN.spawn(x+Math.cos(a)*6,gy+4,y+Math.sin(a)*6,Math.cos(a)*70*u,14+Math.random()*30,Math.sin(a)*70*u,'#5a4a3a',9,28,1.4,-3,1.2);}
   spawnRing(x,gy+.8,y,col,r*1.3,.7);spawnRing(x,gy+8,y,'#ffffff',r,.4,false);FXA.spawn(x,gy+8,y,0,0,0,'#fff2c8',70,12,.25,0,0);SFX.boom(near({x,y})||.3);if(Math.hypot(x-camera.position.x,y-camera.position.z)<160)shake(.9);}
 const TRAIL={pep:'#ff7a3a',dough:'#ffe2a0',lob:'#c9e86a',flour:'#ffffff',torp:'#9fd8ff',meat2:'#c8784a',bomb:'#ffcc33',twist:'#f3dfb4'};
@@ -2775,24 +2783,24 @@ function useItem2(k,it,back){const ca=Math.cos(k.a),sa=Math.sin(k.a),st=standCac
   else if(it==='shroom'){k.air=true;k.big=true;k.airT=0;k.wvy=78;k.boost=Math.max(k.boost,.9);k.drift=0;itemFx(k,col,30);if(v>0)SFX.shroom();if(k===player)shake(.4);}
   else if(it==='magnet'){k.magT=2.6;k.magTg=kartAhead(k);itemFx(k,col,20);if(v>0)SFX.magnet();}
   else if(it==='cutter'){k.cutT=8;k.cutA=0;if(!k.cutM){k.cutM=[0,1,2].map(()=>{const m=itemProto('cutter').clone();m.scale.setScalar(1.1);scene.add(m);return m;});}k.cutM.forEach(m=>m.visible=true);itemFx(k,col,24);if(v>0)SFX.cutter();}
-  else if(it==='sauce'){for(let j=0;j<i;j++){const o=st[j];if(o.shield>0||o.ghostT>0||o.loop)continue;o.sauceT=4;burst(o.x,(o.wy||0)+8,o.y,26,['#d8301c','#a8180a','#ff6a3a'],70,3.2);spawnRing(o.x,(o.wy||0)+.6,o.y,'#d8301c',24,.5);if(o===player){sauceFx(true);SFX.sauce(1);}}
+  else if(it==='sauce'){for(let j=0;j<i;j++){const o=st[j];if(o.shield>0||o.ghostT>0||o.loop||o.absT>0)continue;if(absorb(o))continue;o.sauceT=4;burst(o.x,(o.wy||0)+8,o.y,26,['#d8301c','#a8180a','#ff6a3a'],70,3.2);spawnRing(o.x,(o.wy||0)+.6,o.y,'#d8301c',24,.5);if(o===player){sauceFx(true);SFX.sauce(1);}}
     itemFx(k,col,26);if(v>0)SFX.sauce(v);}
-  else if(it==='heat'){for(const o of karts){if(o===k||o.loop||o.shield>0||o.ghostT>0)continue;o.shrinkT=3.2;o.speed*=.6;spinOut(o,'pep');}heatFlash();SFX.heat();itemFx(k,col,40);}
+  else if(it==='heat'){for(const o of karts){if(o===k||o.loop||o.shield>0||o.ghostT>0||o.absT>0)continue;if(absorb(o))continue;o.shrinkT=3.2;o.speed*=.6;spinOut(o,'pep');}heatFlash();SFX.heat();itemFx(k,col,40);}
   else if(it==='bomb'){if(back)projectiles.push({type:'bomb',custom:1,x:k.x-Math.cos(k.ma)*16,y:k.y-Math.sin(k.ma)*16,vx:0,vy:0,t:1.6,fuse:1.6,owner:k,safe:9,b:0,landed:true,mesh:itemMesh('bomb')});
     else{const sp=Math.max(0,k.speed)+160;projectiles.push({type:'bomb',custom:1,x:k.x+ca*8,y:k.y+sa*8,vx:ca*sp,vy:sa*sp,t:.75+1.1,t0:.75,fuse:1.1,owner:k,safe:9,b:0,landed:false,mesh:itemMesh('bomb')});}if(v>0)SFX.throwF();}
   else if(it==='forks'){const p=track[k.idx];for(const o of [-22,0,22]){const x=k.x-Math.cos(k.ma)*22+p.nx*o,y=k.y-Math.sin(k.ma)*22+p.ny*o;hazards.push({x,y,t:25,born:0,owner:k,armed:false,kind:'forks',mesh:itemMesh('forks')});}if(v>0)SFX.forks(v);}
-  else if(it==='ghost'){k.ghostT=4.5;const ld=st[0];if(ld&&ld!==k&&ld.item){const got=ld.item;ld.item=ld.item2;ld.item2=null;if(!k.item)k.item=got;else if(!k.item2)k.item2=got;if(ld===player)showBanner('Item stolen!',1.2);}
+  else if(it==='ghost'){k.ghostT=4.5;const ld=st[0];if(ld&&ld!==k&&ld.item&&!absorb(ld)){const got=ld.item;ld.item=ld.item2;ld.item2=null;if(!k.item)k.item=got;else if(!k.item2)k.item2=got;if(ld===player)showBanner('Item stolen!',1.2);}
     itemFx(k,'#bfe6ff',30);if(v>0)SFX.ghost();}
   else if(it==='cannon'){k.cannonT=2.6;k.rush=2.6;k.boost=Math.max(k.boost,2.6);k.drift=0;itemFx(k,col,50);if(k===player){SFX.cannon();shake(1.2);}else if(v>0)SFX.cannon();}
   else if(it==='twister'){projectiles.push({type:'twist',custom:1,x:k.x+ca*16,y:k.y+sa*16,vx:0,vy:0,t:9,owner:k,safe:.6,b:0,prog:k.prog+3,lat:lateral(k),ph:Math.random()*6,mesh:itemMesh('twister')});if(v>0)SFX.twister(v);}
-  else if(it==='swap'){const o=kartAhead(k);if(o&&!o.loop&&!k.loop&&!o.finished&&o.prog-k.prog<N*.35){for(const f of ['x','y','px','py','a','ma','pa','pma','idx','prog','wy','pwy','lastG','sc','scI','speed']){const t=k[f];k[f]=o[f];o[f]=t;}
+  else if(it==='swap'){const o=kartAhead(k);if(o&&!o.loop&&!k.loop&&!o.finished&&o.prog-k.prog<N*.35&&!absorb(o)){for(const f of ['x','y','px','py','a','ma','pa','pma','idx','prog','wy','pwy','lastG','sc','scI','speed']){const t=k[f];k[f]=o[f];o[f]=t;}
       for(const q of [k,o]){spawnRing(q.x,(q.wy||0)+.6,q.y,'#b26bff',40,.6);burst(q.x,(q.wy||0)+8,q.y,30,['#b26bff','#ffe066','#ffffff'],80,3);}if(k===camT||o===camT)camSnap=true;if(o===player)showBanner('Swapped!',1);}
     if(v>0||o===player)SFX.swap();}
   else if(it==='boxes'){const p=track[k.idx];for(const o of [-30,0,30]){const x=k.x-Math.cos(k.ma)*26+p.nx*o,y=k.y-Math.sin(k.ma)*26+p.ny*o;hazards.push({x,y,t:22,born:0,owner:k,armed:false,kind:'boxes',mesh:itemMesh('boxes')});}if(v>0)SFX.boxes(v);}}
 /* ---------- the custom projectiles and status effects, run every physics step ---------- */
 function itemsProj(p,dt){p.t-=dt;p.safe-=dt;
   if(p.type==='twist'){p.prog+=dt*Math.max(14,BASE_MAX*.72/(T.L/N));p.lat=Math.sin(simTime*1.6+p.ph)*(RW*.75);const P=trackAt(p.prog,p.lat);p.x=P.x;p.y=P.y;
-    for(const k of karts){if(k.loop||(k===p.owner&&p.safe>0))continue;if((k.x-p.x)**2+(k.y-p.y)**2<20*20&&k.inv<=0){spinOut(k,'flour');if(!k.air&&k.shield<=0&&k.ghostT<=0){k.air=true;k.big=true;k.airT=0;k.wvy=65;}}}
+    for(const k of karts){if(k.loop||(k===p.owner&&p.safe>0))continue;if((k.x-p.x)**2+(k.y-p.y)**2<20*20&&k.inv<=0){spinOut(k,'flour');if(!k.air&&k.shield<=0&&k.ghostT<=0&&!(k.absT>0)){k.air=true;k.big=true;k.airT=0;k.wvy=65;}}}
     return p.t<=0;}
   if(p.type==='torp'&&p.target&&!p.target.finished){const tg=p.target,des=Math.atan2(tg.y-p.y,tg.x-p.x);let cur=Math.atan2(p.vy,p.vx);cur+=clamp(angDiff(des,cur),-7*dt,7*dt);let sp=Math.hypot(p.vx,p.vy);const want=Math.max(380,Math.abs(tg.speed||0)*1.35+90);sp+=(want-sp)*Math.min(1,dt*3);p.vx=Math.cos(cur)*sp;p.vy=Math.sin(cur)*sp;}
   if(p.type==='bomb'){if(!p.landed){if(p.t<=p.fuse){p.landed=true;p.vx=p.vy=0;}}else{p.vx*=.9;p.vy*=.9;}if(p.t<=0){blast(p.x,p.y,48,null,'pep','#ff9a1f');return true;}if(p.landed&&Math.random()<.5)SFX.fuse(near({x:p.x,y:p.y})*.6);}
@@ -2913,8 +2921,9 @@ function buildDressing(def,ctx){const {pick,straight,farFrom,used}=ctx,night=def
     const I=new THREE.InstancedMesh(tri,fm,flagP.length),m4=new THREE.Matrix4(),q=new THREE.Quaternion();flagP.forEach(([x,y,z,a],n)=>{q.setFromEuler(new THREE.Euler(0,-a,0));m4.compose(new THREE.Vector3(x,y-.6,z),q,new THREE.Vector3(1,1,1));I.setMatrixAt(n,m4);I.setColorAt(n,flagC[n]);});
     I.userData.noLift=true;I.frustumCulled=false;world.add(I);animators.push(t=>{I.rotation.x=0;});}}
 
+const DROPS=['oil','forks','boxes'];
 function useItem(k,back){
-  const it=k.item;k.item=k.item2;k.item2=null;{const col=ITEM_COL[it]||'#ffe066',gy=(k.wy||0)+7;if(k===player)shake(.18);
+  back=DROPS.includes(k.item);const it=k.item;if(it==='garlic'||it==='garlic2'){k.item=k.item2;k.item2=null;addShield(k,it==='garlic2'?2:1);return;}k.item=k.item2;k.item2=null;{const col=ITEM_COL[it]||'#ffe066',gy=(k.wy||0)+7;if(k===player)shake(.18);
     FXA.spawn(k.x,gy,k.y,0,0,0,col,30,8,.18,0,0);spawnRing(k.x,(k.wy||0)+.6,k.y,col,26,.35);for(let n=0;n<10;n++){const a=Math.random()*6.28;FXA.spawn(k.x,gy,k.y,Math.cos(a)*40,15+Math.random()*25,Math.sin(a)*40,col,2.2,.4,.3,40,1);}}if(k.item)k.ai.itemDelay=.6+Math.random()*1.6;if(NEWITEMS[it]){useItem2(k,it,back);return;}const ca=Math.cos(k.a),sa=Math.sin(k.a),st=standCache,i=st.indexOf(k);
   if(it==='chili'){k.boost=Math.max(k.boost,1.4);}
   else if(it==='pepperoni'){if(back)projectiles.push({type:'pep',x:k.x-ca*10,y:k.y-sa*10,vx:-ca*240,vy:-sa*240,t:4,owner:k,safe:.3,b:0,mesh:itemMesh('pep')});
@@ -2929,7 +2938,7 @@ function useItem(k,back){
     else{const v=Math.max(0,k.speed)+170;projectiles.push({type:'flour',x:k.x+ca*10,y:k.y+sa*10,vx:ca*v,vy:sa*v,t:.75,t0:.75,owner:k,safe:9,b:0,mesh:itemMesh('flour')});}}
   else if(it==='wheel'){projectiles.push({type:'wheel',x:k.x,y:k.y,vx:0,vy:0,t:16,owner:k,safe:9,b:0,target:st[0]===k?null:st[0],prog:k.prog+2,lat:lateral(k),spin:0,dir:k.a,mesh:itemMesh('wheel')});}
   else if(it==='rush'){k.rush=3.2;k.boost=Math.max(k.boost,3.2);k.drift=0;}
-  else if(it==='freezer'){for(let j=0;j<i;j++){const o=st[j];if(o.shield>0||o.rush>0||o.loop)continue;o.frozen=2.8;burst(o.x,o.rz||o.wy,o.y,18,['#bfe6ff','#ffffff','#7fd0ff'],50,2.6);spawnRing(o.x,(o.wy||0)+.6,o.y,'#8fd8ff',26,.5);}spawnRing(k.x,(k.wy||0)+.6,k.y,'#bfe6ff',60,.7);}
+  else if(it==='freezer'){for(let j=0;j<i;j++){const o=st[j];if(o.shield>0||o.rush>0||o.loop||o.absT>0)continue;if(absorb(o))continue;o.frozen=2.8;burst(o.x,o.rz||o.wy,o.y,18,['#bfe6ff','#ffffff','#7fd0ff'],50,2.6);spawnRing(o.x,(o.wy||0)+.6,o.y,'#8fd8ff',26,.5);}spawnRing(k.x,(k.wy||0)+.6,k.y,'#bfe6ff',60,.7);}
   if(it==='chili'||it==='rush'){if(k===player)SFX.chili();}else if(it==='garlic'){if(near(k)>0)SFX.garlic(near(k));}else if(it==='freezer'){SFX.freeze();}else if(it==='wheel'){SFX.wheel(near(k)||.4);}else if(near(k)>0)(back?SFX.throwB:SFX.throwF)();
 }
 function stepKart(k,inp,dt){
@@ -2939,7 +2948,7 @@ function stepKart(k,inp,dt){
   if(k.air&&k.big&&dPress&&!k.trick){k.trick=true;k.trickT=.45;if(k===player)SFX.trick();}
   const lat=Math.abs(lateral(k)),sm=k.sm;let tp=lat<RW?1:lat<CURB?.86+.02*sm.off:clamp(.58+.06*sm.off,.4,.82);if(k.glide)tp=1;if(k.sc)tp=.96;if(k.boost>0)tp=Math.max(tp,.93);k.sf=k.sc?1:lat<RW?2:lat<CURB?1:0;
   k.pen+=(tp-k.pen)*Math.min(1,dt*(tp<k.pen?3.5:6));
-  let max=BASE_MAX*inp.mul*k.pen*sm.spd*(k.glide?k.gair||1:1);if(k.boost>0){max*=1.58;k.boost-=dt;}if(k.shield>0){k.shield-=dt;max*=1.08;}if(k.rush>0){k.rush-=dt;max*=1.12;k.pen=Math.max(k.pen,.95);}if(k.cannonT>0)max*=1.22;if(k.shrinkT>0)max*=.78;if(k.sauceT>0)max*=.93;if(k.frozen>0){k.frozen-=dt;max*=.55;}
+  let max=BASE_MAX*inp.mul*k.pen*sm.spd*(k.glide?k.gair||1:1);if(k.boost>0){max*=1.58;k.boost-=dt;}if(k.shield>0){k.shield-=dt;max*=1.08;}if(k.absT>0)k.absT-=dt;if(k.rush>0){k.rush-=dt;max*=1.12;k.pen=Math.max(k.pen,.95);}if(k.cannonT>0)max*=1.22;if(k.shrinkT>0)max*=.78;if(k.sauceT>0)max*=.93;if(k.frozen>0){k.frozen-=dt;max*=.55;}
   const v0=k.speed;
   if(k.spin>0){k.spin-=dt;k.a+=14*dt;k.speed+=(0-k.speed)*Math.min(1,2.5*dt);if(k.spin<=0){k.spin=0;k.a=k.ma;}k.brake=0;}
   else{
@@ -3005,7 +3014,7 @@ function respawn(k){const j=(GLIDE.rj-24+N)%N,p=track[j];let di=j-k.idx;if(di>N/
 function update(dt){
   standCache=standings();simTime+=dt;
   for(const r of rollers){const p=track[r.j];r.lat=Math.sin(simTime*1.05+r.ph)*(RW+6);r.x=p.x+p.nx*r.lat;r.y=p.y+p.ny*r.lat;
-    for(const k of karts){if(!k.loop&&k.z<14&&(k.x-r.x)**2+(k.y-r.y)**2<306)spinOut(k,'meat');}}
+    for(const k of karts){if(!k.loop&&k.z<14&&(k.x-r.x)**2+(k.y-r.y)**2<306)spinOut(k,'meat',1);}}
   updateHazards(dt);itemsTick(dt);abilityTick(dt);if(abilQueued){abilQueued=false;if(player&&state==='race')useAbility(player);}
   for(const k of karts){k.px=k.x;k.py=k.y;k.pa=k.a;k.pma=k.ma;k.pz=k.z;k.pwy=k.wy;k.pth=k.loopTh||0;const inp=(k.isPlayer&&!k.auto&&!(k.rush>0))?playerInput():aiInput(k,dt);if(k.rush>0)inp.use=false;stepKart(k,inp,dt);}
   for(let i=0;i<karts.length;i++)for(let j=i+1;j<karts.length;j++){const a=karts[i],b=karts[j];const dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;
@@ -3066,7 +3075,7 @@ function syncKart(k,dt,time){
   for(const fw of m.front)fw.rotation.y=-k.steer*.42;
   m.drv.rotation.x=-k.steer*.14;m.drv.position.y=m.drvY+Math.sin(time*18+k.ri)*.03*Math.min(1,Math.abs(k.speed)/100);
   m.tailM.emissiveIntensity=m.flash?(Math.floor(time*7+k.ri)%2?3.2:.4):.8+k.brake*3;if(m.flash)m.flash.emissiveIntensity=Math.floor(time*7+k.ri)%2?.3:3.2;
-  {const shOn=k.shield>0&&(k.shield>1.2||Math.floor(time*10)%2===0),ruOn=k.rush>0;m.bub.visible=shOn||ruOn;if(m.bub.visible){m.bub.material=shOn?bubbleMat:bubRushMat;if(m.bub.userData.cl)m.bub.userData.cl.visible=shOn;m.bub.rotation.y+=dt*(shOn?2:4);}}
+  {const shOn=(k.shield>0&&(k.shield>1.2||Math.floor(time*10)%2===0))||k.shL>0,ruOn=k.rush>0;if(m.bub.userData.cl)m.bub.userData.cl.visible=!(k.shL===1&&!(k.shield>0));m.bub.visible=shOn||ruOn;if(m.bub.visible){m.bub.material=shOn?bubbleMat:bubRushMat;if(m.bub.userData.cl)m.bub.userData.cl.visible=shOn;m.bub.rotation.y+=dt*(shOn?2:4);}}
   if(k.frozen>0&&Math.random()<.5)FXA.spawn(x+(Math.random()-.5)*10,z+8*KS,y+(Math.random()-.5)*10,0,-6,0,'#bfe6ff',2.4,.6,.5,0,0);
   if(k.shield>0&&Math.random()<.4)FXA.spawn(x+(Math.random()-.5)*12,z+2+Math.random()*10,y+(Math.random()-.5)*12,0,8,0,'#7fe07a',1.8,.4,.5,0,0);
   const on=k.boost>0;for(const fl of m.flames){fl.visible=on;if(on)fl.scale.set(1,.8+Math.random()*.5,1);}
@@ -3275,7 +3284,7 @@ const cfgVal=k=>k==='sound'?!muted:k==='stats'?statsOn:CFG[k];
 function openSettings(from){setFrom=from;from.hidden=true;setOv.hidden=false;setOv.scrollTop=0;refreshSettings();}
 function closeSettings(){setOv.hidden=true;(setFrom||menu).hidden=false;refreshMenu();}
 function fillGuide(){const gi=$('guideItems'),ga=$('guideAbil');if(!gi||gi.dataset.done)return;gi.dataset.done=1;
-  gi.innerHTML=ITEM_KEYS.map(k=>'<li><span class="gi">'+(SVG[k]||'')+'</span><span><b>'+HELP[k][0]+'</b>'+(NOBACK.includes(k)?'<em>ahead only</em>':'')+'<small>'+HELP[k][1]+'</small></span></li>').join('');
+  gi.innerHTML=ITEM_KEYS.map(k=>'<li><span class="gi">'+(SVG[k]||'')+'</span><span><b>'+HELP[k][0]+'</b>'+(DROPS.includes(k)?'<em class="dr">drop</em>':'')+'<small>'+HELP[k][1]+'</small></span></li>').join('');
   ga.innerHTML=RACERS.map((r,i)=>{const A=ABIL[r.name.toLowerCase()];if(!A)return '';return '<li><span class="gi pt" style="--c:'+A[2]+';'+(PORTRAITS[i]?'background-image:url('+PORTRAITS[i]+')':'')+'"></span><span><b>'+A[0]+'</b><em>'+r.name+'</em><small>'+A[1]+'</small></span></li>';}).join('');}
 function refreshSettings(){try{fillGuide();}catch(e){}document.querySelectorAll('#setOv .seg[data-k]').forEach(sg=>{const v=cfgVal(sg.dataset.k),sv=typeof v==='boolean'?(v?'1':'0'):String(v);sg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===sv)));});
   $('volR').value=CFG.vol;$('volO').textContent=CFG.vol;$('mvolR').value=CFG.mvol;$('mvolO').textContent=CFG.mvol;refreshMenu();}
@@ -3637,6 +3646,7 @@ function musTick(){if(!ac||!master)return;musInit();if(!MUS.bus)return;
     if(MUS.step>=16){MUS.step=0;MUS.bar++;MUS.menuBars++;if(MUS.bar>=len){MUS.bar=0;MUS.sec++;if(MUS.sec>=FORM.length)MUS.sec=1;}
       if(!playing&&MUS.menuBars>=60&&FORM[MUS.sec][0]==='A'&&MUS.bar===0){MUS.menuI++;}}}}
 
+(()=>{try{const f=document.getElementById('fpsEl'),st=document.getElementById('stage');if(f&&st)st.appendChild(f);}catch(e){}})();
 function frame(now){
   if(!booted){requestAnimationFrame(frame);return;}
   if(CFG.fps==='60'&&now-lastFrameT<13.5){requestAnimationFrame(frame);return;}lastFrameT=now;

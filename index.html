@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@500;600;700&display=swap">
 <link rel="preload" href="assets/geo.fe4246d806.bin" as="fetch" crossorigin>
 <link rel="preload" href="vendor/three-0.149.0.min.js" as="script">
-<link rel="stylesheet" href="css/style.74832da020.css">
+<link rel="stylesheet" href="css/style.6a982083a1.css">
 </head>
 <body>
 <div id="stage" class="demo">
@@ -50,7 +50,7 @@
     <div id="wrong" class="banner" hidden><span>Wrong way</span></div>
     <button id="brakeL" class="brk l" aria-label="Drift, or brake when slow"><svg viewBox="0 0 24 24"><path d="M4 17c5 0 8-3 10-9" stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M11 7l3.5 1 1-3.5" stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Drift</span><small>BRAKE</small></button>
     <button id="brakeR" class="brk r" aria-label="Drift, or brake when slow"><svg viewBox="0 0 24 24"><path d="M20 17c-5 0-8-3-10-9" stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M13 7l-3.5 1-1-3.5" stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Drift</span><small>BRAKE</small></button>
-    <div class="ihint" id="ihint">Tap to throw ahead.<br>Swipe down to throw back.</div>
+    <div class="ihint" id="ihint">Tap a slot to use that item.</div>
     <button id="abilBtn" class="abtn" aria-label="Use special ability"><span class="ab-r"></span><span class="ab-t">Special</span></button>
     <button id="itemBtn" class="ibtn" aria-label="Use item"><span class="arr up"></span><span id="itemIcon"><span class="empty"></span></span><span class="arr dn"></span></button>
     <button id="itemBtn2" class="ibtn ib2" aria-label="Use second item"><span class="arr up"></span><span id="slot2" class="s2i"></span><span class="arr dn"></span></button>
@@ -121,7 +121,7 @@
     <ul class="howlist">
         <li><svg viewBox="0 0 24 24"><path d="M3 12h18M13 5l7 7-7 7" stroke="#fff4dc" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Driving.</b> Your kart accelerates on its own. Touch the left half of the screen to steer left and the right half to steer right. The Drift / Brake buttons sit in both bottom corners. When you're slow, hold one to brake or reverse.</span></li>
         <li><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8" fill="#2286c0"/><path d="M6 6l12 12M18 6L6 18" stroke="#fff4dc" stroke-width="2.4" stroke-linecap="round"/></svg><span><b>Hazards.</b> Some tracks have slow traffic to weave through, critters that spin you out, pools that swallow karts (you get fished out a moment later) and a train crossing. Hit the ramp before the crossing to jump the train.</span></li><li><svg viewBox="0 0 24 24"><path d="M3 18c6 0 9-5 10-10" stroke="#ff9a1f" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="17" cy="6" r="3" fill="#ff3b1a"/></svg><span><b>Drift.</b> At speed, tap Drift once to start drifting. It stays on by itself. Steer to guide the slide. Straighten out too much and the drift ends on its own, or tap Drift again to end it. Sparks go yellow, orange, then red, and ending the drift gives you a boost.</span></li>
-        <li><svg viewBox="0 0 24 24"><path d="M12 3v18M6 9l6-6 6 6M6 15l6 6 6-6" stroke="#f7c948" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Items.</b> Tap the item button to throw ahead. Swipe down on it to throw behind you.</span></li>
+        <li><svg viewBox="0 0 24 24"><path d="M12 3v18M6 9l6-6 6 6M6 15l6 6 6-6" stroke="#f7c948" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Items.</b> You can hold two. Tap a slot to use it: traps drop onto the road behind you, everything else fires forward. Shields stay on until something hits you.</span></li>
         <li id="h-chili"></li><li id="h-pepperoni"></li><li id="h-oil"></li><li id="h-dough"></li><li id="h-trio"></li><li id="h-garlic"></li><li id="h-flour"></li><li id="h-wheel"></li><li id="h-rush"></li><li id="h-freezer"></li><li id="h-jalapeno"></li><li id="h-meatball"></li><li id="h-torpedo"></li><li id="h-shroom"></li><li id="h-magnet"></li><li id="h-cutter"></li><li id="h-sauce"></li><li id="h-heat"></li><li id="h-bomb"></li><li id="h-forks"></li><li id="h-ghost"></li><li id="h-cannon"></li><li id="h-twister"></li><li id="h-swap"></li><li id="h-boxes"></li>
         <li><svg viewBox="0 0 24 24"><rect x="3" y="7" width="12" height="12" rx="2" fill="#f7c948"/><rect x="9" y="3" width="12" height="12" rx="2" fill="#ffe9a0" stroke="#f7c948"/><text x="15" y="12.5" font-size="7" text-anchor="middle" fill="#7d1d0e" font-family="Arial" font-weight="bold">x2</text></svg><span><b>Two item slots.</b> You can hold two items. Gold double boxes fill both slots at once. Your second item shows in the small bubble on the item button.</span></li>
         <li><svg viewBox="0 0 24 24"><path d="M7 3h10v4a5 5 0 0 1-10 0z" fill="#f7c948"/><path d="M7 5H4a3 3 0 0 0 3 4M17 5h3a3 3 0 0 1-3 4" stroke="#f7c948" stroke-width="1.6" fill="none"/><rect x="10.5" y="12" width="3" height="5" fill="#f7c948"/><rect x="7.5" y="17" width="9" height="3" rx="1" fill="#c98b4e"/></svg><span><b>Grand Prix.</b> Race all four tracks in a cup. Places earn 15, 12, 10, 8, 6, 4, 2 and 1 points. Most points takes the trophy.</span></li>
@@ -160,7 +160,7 @@
       <div class="set-row"><div class="set-t"><b>Music</b><small>A different soundtrack on every track, two that take turns on the menus.</small></div><div class="seg seg2" data-k="music"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
       <div class="set-row"><div class="set-t"><b>Best-run ghost</b><small>Race a see-through copy of your personal best.</small></div><div class="seg seg2" data-k="ghost"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
     </section>
-    <section class="set-group guide"><h3 class="label">Item guide</h3><p class="g-note">Hold up to two items. Tap a slot to use it ahead, or swipe down on it to throw behind (items marked “ahead only” can't go backwards).</p><ul class="guide-list" id="guideItems"></ul></section>
+    <section class="set-group guide"><h3 class="label">Item guide</h3><p class="g-note">Hold up to two items and tap either slot to use it. Items marked <em class="dr" style="font-style:normal">drop</em> land on the road behind you; everything else fires or works forward.</p><ul class="guide-list" id="guideItems"></ul></section>
     <section class="set-group guide"><h3 class="label">Special abilities</h3><p class="g-note">Every driver has their own special. It recharges over 30 seconds; the ring around the button fills as it charges. Tap it when it glows.</p><ul class="guide-list abl" id="guideAbil"></ul></section>
     <button id="setReset" class="ghost" type="button">Reset to defaults</button>
   </div>
@@ -186,7 +186,7 @@
 </div>
 <script>window.CR_EXT={"geo":"assets/geo.fe4246d806.bin","size":11927204,"ofs":[["c","formula",0,353640],["c","gt",353640,400904],["c","hyper",754544,265384],["c","roadster",1019928,389616],["c","tourer",1409544,382332],["c","concept",1791876,407832],["c","interceptor",2199708,428792],["c","monster",2628500,242904],["c","muscle",2871404,482400],["c","wheelset",3353804,324632],["c","gokart",3678436,232508],["c","chariot",3910944,297328],["c","hatch",4208272,341548],["c","coupe",4549820,374308],["c","scissor",4924128,374960],["c","suv",5299088,349008],["c","formula_hq",5648096,451976],["c","gt_hq",6100072,505776],["c","hyper_hq",6605848,479692],["c","tourer_hq",7085540,674236],["c","concept_hq",7759776,506676],["c","interceptor_hq",8266452,378488],["c","gokart_hq",8644940,186568],["c","hatch_hq",8831508,443016],["c","scissor_hq",9274524,600264],["c","suv_hq",9874788,595400],["p","tree_pine1",10470188,29708],["p","tree_pine2",10499896,29660],["p","tree_round1",10529556,20184],["p","tree_round2",10549740,20184],["p","tree_shrub",10569924,10380],["p","skyline",10580304,129640],["p","mount",10709944,87724],["p","tunnel",10797668,188900],["p","city",10986568,332060],["p","tree_pine1_lo",11318628,11100],["p","tree_pine2_lo",11329728,11216],["p","tree_round1_lo",11340944,8000],["p","tree_round2_lo",11348944,8004],["p","waterfall",11356948,288460],["p","riverbed",11645408,85512],["p","pond",11730920,196284]]};</script>
 <script src="vendor/three-0.149.0.min.js"></script>
-<script src="js/game.34d35d03e4.js"></script>
+<script src="js/game.c05e7fd1ec.js"></script>
 <script>
 if('serviceWorker' in navigator){addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}
 </script>

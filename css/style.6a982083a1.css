@@ -498,3 +498,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .guide-list b{font-size:13.5px;color:var(--cream)}
 .guide-list em{font-style:normal;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin-left:7px;padding:1px 6px;border-radius:5px;background:rgba(247,201,72,.18);color:var(--cheese)}
 .guide-list small{display:block;margin-top:2px;font-size:12px;line-height:1.4;color:rgba(255,244,220,.7)}
+
+#stage>#fpsEl{position:absolute;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 46px);z-index:6;pointer-events:none}
+.ibtn .arr{display:none!important}
+.guide-list em.dr{background:rgba(127,224,122,.18);color:#9ff09a}
