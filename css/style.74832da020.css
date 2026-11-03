@@ -488,3 +488,13 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 #stage{--hudTop:clamp(58px,15vh,96px)}
 .tbprog .tb-lap{position:absolute;top:50%;width:3px;height:16px;margin:-8px 0 0 -1.5px;border-radius:2px;background:#fff4dc;box-shadow:0 0 0 1.5px rgba(10,20,40,.7)}
 .tbprog .tb-lap b{position:absolute;top:13px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:800;letter-spacing:.04em;color:#fff4dc;text-shadow:0 1px 3px #000}
+
+.set-group.guide .g-note{margin:0 0 8px;font-size:12.5px;line-height:1.45;color:rgba(255,244,220,.72)}
+.guide-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px}
+.guide-list li{display:grid;grid-template-columns:42px minmax(0,1fr);gap:10px;align-items:center;padding:7px 10px 7px 7px;border-radius:12px;background:rgba(255,244,220,.05);border:1px solid rgba(255,244,220,.08)}
+.guide-list .gi{width:42px;height:42px;border-radius:10px;display:grid;place-items:center;background:radial-gradient(circle at 50% 35%,#4a2616,#160904 75%)}
+.guide-list .gi svg,.guide-list .gi img{width:80%;height:80%;object-fit:contain}
+.guide-list .gi.pt{border-radius:50%;background-color:#2a1810;background-size:230%;background-position:50% 26%;box-shadow:0 0 0 2px var(--c)}
+.guide-list b{font-size:13.5px;color:var(--cream)}
+.guide-list em{font-style:normal;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin-left:7px;padding:1px 6px;border-radius:5px;background:rgba(247,201,72,.18);color:var(--cheese)}
+.guide-list small{display:block;margin-top:2px;font-size:12px;line-height:1.4;color:rgba(255,244,220,.7)}

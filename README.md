@@ -9,7 +9,7 @@ A 3D kart racer on giant pizzas, made as an installable web app. Sixteen tracks 
 - Touch the left or right half of the screen to steer.
 - Tap a Drift button at speed to start drifting; steer to guide it and tap again for a boost. When slow, hold it to brake or reverse.
 - Your two item slots sit top right; tap either one to use that item, or swipe down on it to throw behind. The button top left is your driver's special ability, ready every 30 seconds.
-- Keyboard: arrows steer, Space drifts, X throws ahead, Z throws back, V uses the second item, C uses the ability, P or Esc pauses.
+- Keyboard: arrows steer, Space drifts, X throws ahead, Z throws back, V uses the second item, C uses the ability, P or Esc pauses. Settings has a full guide to every item and special ability.
 
 ## Install it like an app
 
