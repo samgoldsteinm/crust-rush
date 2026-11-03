@@ -1,6 +1,6 @@
 // Crust Rush service worker: installs the game as an app and keeps every file for offline play.
 // Game files have their content hash in the name, so a saved copy never goes stale; only the page itself is re-checked.
-const VERSION = 'crust-rush-v33';
+const VERSION = 'crust-rush-v34';
 const SHELL = [
   "./",
   "./index.html",
@@ -9,7 +9,7 @@ const SHELL = [
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",
   "./icons/favicon-64.png",
-  "./assets/geo.af99d441ab.bin",
+  "./assets/geo.fe4246d806.bin",
   "./assets/tex/tex_skyline.457a6fecf7.jpg",
   "./assets/tex/tex_skyline_e.30cb2dfa85.jpg",
   "./assets/tex/tex_mount.b8a1c13020.jpg",
@@ -30,6 +30,8 @@ const SHELL = [
   "./assets/tex/sky_mc.e744b96a84.jpg",
   "./assets/tex/sky_cave.7ed938e790.jpg",
   "./assets/tex/sky_nebula.f4e8c6c9bb.jpg",
+  "./assets/tex/tex_pond.8f551e9556.jpg",
+  "./assets/tex/tex_pondgrass.ea3a48c6f8.jpg",
   "./assets/shots/margherita-h.6ce3ada66e.jpg",
   "./assets/shots/margherita-m.b4a457a59e.jpg",
   "./assets/shots/margherita-a.63fa4045d9.jpg",
@@ -79,7 +81,7 @@ const SHELL = [
   "./assets/shots/peak-m.4003974e0a.jpg",
   "./assets/shots/peak-a.d8b995f958.jpg",
   "./css/style.87f6e92aa2.css",
-  "./js/game.89d9fb1455.js",
+  "./js/game.9c18776e8c.js",
   "./vendor/three-0.149.0.min.js"
 ];
 
