@@ -545,3 +545,15 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .cheat-msg{margin:4px 0 0;font-size:13px;min-height:1.2em}
 .cheat-msg.ok{color:var(--cheese)}.cheat-msg.no{color:#ff9a8a}
 .cheat-tag{font-style:normal;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;border-radius:6px;background:var(--cheese);color:#2a1408;margin-left:6px}
+
+.maps-wrap{display:flex;flex-direction:column;gap:6px;min-height:0;min-width:0}
+.maps-wrap>.maps{flex:1;min-height:0}
+.maps.two{grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-template-rows:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(0,1fr)}
+.mapcats{padding-bottom:2px}
+.mapcats button{display:inline-flex;align-items:center;gap:6px}
+.mapcats button i{width:8px;height:8px;border-radius:50%;flex:none}
+.theme .fav{position:absolute;right:6px;bottom:6px;width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:rgba(14,7,4,.55);cursor:pointer}
+.theme .fav svg{width:13px;height:13px;fill:none;stroke:var(--cream);stroke-width:2.2;opacity:.75}
+.theme .fav[aria-pressed="true"] svg{fill:#ff4d6d;stroke:#ff4d6d;opacity:1}
+.theme b{padding-right:24px}
+.fav-empty{grid-column:1/-1;margin:6px 2px;font-size:13px;color:var(--muted)}

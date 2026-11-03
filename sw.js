@@ -1,6 +1,6 @@
 // Crust Rush service worker: installs the game as an app and keeps every file for offline play.
 // Game files have their content hash in the name, so a saved copy never goes stale; only the page itself is re-checked.
-const VERSION = 'crust-rush-v42';
+const VERSION = 'crust-rush-v43';
 const SHELL = [
   "./",
   "./index.html",
@@ -35,7 +35,7 @@ const SHELL = [
   "./assets/geo/hatch_hq.682ec32c9c.bin",
   "./assets/geo/scissor_hq.cfb581826d.bin",
   "./assets/geo/suv_hq.eea66bc13f.bin",
-  "./assets/geo/onyx.f323474385.bin",
+  "./assets/geo/onyx.bd5e8ef3d3.bin",
   "./assets/geo/tree_pine1.55f1df225a.bin",
   "./assets/geo/tree_pine2.51237a24e1.bin",
   "./assets/geo/tree_round1.cc883fdab7.bin",
@@ -78,6 +78,9 @@ const SHELL = [
   "./assets/tex/sky_nebula.f4e8c6c9bb.jpg",
   "./assets/tex/tex_pond.8f551e9556.jpg",
   "./assets/tex/tex_pondgrass.ea3a48c6f8.jpg",
+  "./assets/shots/grid-h.c38df1173a.jpg",
+  "./assets/shots/grid-m.937c71e878.jpg",
+  "./assets/shots/grid-a.bbfac8514d.jpg",
   "./assets/shots/margherita-h.6ce3ada66e.jpg",
   "./assets/shots/margherita-m.b4a457a59e.jpg",
   "./assets/shots/margherita-a.63fa4045d9.jpg",
@@ -126,8 +129,8 @@ const SHELL = [
   "./assets/shots/peak-h.186d4aea66.jpg",
   "./assets/shots/peak-m.4003974e0a.jpg",
   "./assets/shots/peak-a.d8b995f958.jpg",
-  "./css/style.edf4251524.css",
-  "./js/game.432a75e715.js",
+  "./css/style.32d895bffc.css",
+  "./js/game.3eeea94216.js",
   "./vendor/three-0.149.0.min.js"
 ];
 
