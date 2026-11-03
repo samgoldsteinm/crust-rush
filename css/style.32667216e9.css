@@ -537,3 +537,11 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .theme{position:relative}
 .theme.locked i{filter:saturate(.5) brightness(.6)}.theme.locked b{opacity:.6}
 .theme .lk{position:absolute;right:9px;top:7px;width:14px;height:14px;color:var(--cream)}.theme .lk svg{width:100%;height:100%;display:block}
+
+.cheat-f{display:flex;gap:8px;min-width:0}
+.cheat-f input{flex:1 1 auto;min-width:0;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,244,220,.2);background:rgba(14,7,4,.55);color:var(--cream);font:700 15px/1 var(--body,system-ui);letter-spacing:.12em;text-transform:uppercase}
+.cheat-f input:focus{outline:2px solid var(--cheese);outline-offset:1px}
+.cheat-f .cta{flex:none;padding:10px 16px;font-size:14px}
+.cheat-msg{margin:4px 0 0;font-size:13px;min-height:1.2em}
+.cheat-msg.ok{color:var(--cheese)}.cheat-msg.no{color:#ff9a8a}
+.cheat-tag{font-style:normal;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;border-radius:6px;background:var(--cheese);color:#2a1408;margin-left:6px}
