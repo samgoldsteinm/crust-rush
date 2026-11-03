@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@500;600;700&display=swap">
 <link rel="preload" href="assets/geo.af99d441ab.bin" as="fetch" crossorigin>
 <link rel="preload" href="vendor/three-0.149.0.min.js" as="script">
-<link rel="stylesheet" href="css/style.8804cd9a92.css">
+<link rel="stylesheet" href="css/style.87f6e92aa2.css">
 </head>
 <body>
 <div id="stage" class="demo">
@@ -44,7 +44,7 @@
       <div class="g-num"><b id="spd">0</b><small id="spdU">MPH</small></div></div>
     <div class="hud-tr">
       <button id="pauseBtn" class="pause" aria-label="Pause"><svg viewBox="0 0 10 10"><rect x="1.5" y="1" width="2.5" height="8" rx=".6" fill="#fff4dc"/><rect x="6" y="1" width="2.5" height="8" rx=".6" fill="#fff4dc"/></svg></button>
-      <canvas id="mini" width="300" height="300" aria-hidden="true"></canvas><div id="fpsEl" class="fps" hidden></div>
+      <canvas id="mini" width="300" height="300" aria-hidden="true" hidden></canvas><div id="fpsEl" class="fps" hidden></div>
     </div>
     <div id="banner" class="banner"></div>
     <div id="wrong" class="banner" hidden><span>Wrong way</span></div>
@@ -52,7 +52,8 @@
     <button id="brakeR" class="brk r" aria-label="Drift, or brake when slow"><svg viewBox="0 0 24 24"><path d="M20 17c-5 0-8-3-10-9" stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M13 7l-3.5 1-1-3.5" stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Drift</span><small>BRAKE</small></button>
     <div class="ihint" id="ihint">Tap to throw ahead.<br>Swipe down to throw back.</div>
     <button id="abilBtn" class="abtn" aria-label="Use special ability"><span class="ab-r"></span><span class="ab-t">Special</span></button>
-    <button id="itemBtn" class="ibtn" aria-label="Use item"><span class="arr up"></span><span id="itemIcon"><span class="empty"></span></span><span class="arr dn"></span><span class="slot2" id="slot2"></span></button>
+    <button id="itemBtn" class="ibtn" aria-label="Use item"><span class="arr up"></span><span id="itemIcon"><span class="empty"></span></span><span class="arr dn"></span></button>
+    <button id="itemBtn2" class="ibtn ib2" aria-label="Use second item"><span class="arr up"></span><span id="slot2" class="s2i"></span><span class="arr dn"></span></button>
   </div></div>
 </div>
 
@@ -155,7 +156,7 @@
       <div class="set-row"><div class="set-t"><b>Speed units</b><small></small></div><div class="seg seg2" data-k="units"><button data-v="mph">mph</button><button data-v="kmh">km/h</button></div></div>
       <div class="set-row"><div class="set-t"><b>Camera</b><small>Close sits right behind your driver.</small></div><div class="seg seg2" data-k="cam"><button data-v="close">Close</button><button data-v="far">Far</button></div></div>
       <div class="set-row"><div class="set-t"><b>Camera shake</b><small>Shake on bumps, boosts and hits.</small></div><div class="seg seg2" data-k="shake"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
-      <div class="set-row"><div class="set-t"><b>Minimap</b><small></small></div><div class="seg seg2" data-k="mini"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+      <div class="set-row"><div class="set-t"><b>Music</b><small>A different soundtrack on every track, two that take turns on the menus.</small></div><div class="seg seg2" data-k="music"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
       <div class="set-row"><div class="set-t"><b>Best-run ghost</b><small>Race a see-through copy of your personal best.</small></div><div class="seg seg2" data-k="ghost"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
     </section>
     <button id="setReset" class="ghost" type="button">Reset to defaults</button>
@@ -182,7 +183,7 @@
 </div>
 <script>window.CR_EXT={"geo":"assets/geo.af99d441ab.bin","size":11730920,"ofs":[["c","formula",0,353640],["c","gt",353640,400904],["c","hyper",754544,265384],["c","roadster",1019928,389616],["c","tourer",1409544,382332],["c","concept",1791876,407832],["c","interceptor",2199708,428792],["c","monster",2628500,242904],["c","muscle",2871404,482400],["c","wheelset",3353804,324632],["c","gokart",3678436,232508],["c","chariot",3910944,297328],["c","hatch",4208272,341548],["c","coupe",4549820,374308],["c","scissor",4924128,374960],["c","suv",5299088,349008],["c","formula_hq",5648096,451976],["c","gt_hq",6100072,505776],["c","hyper_hq",6605848,479692],["c","tourer_hq",7085540,674236],["c","concept_hq",7759776,506676],["c","interceptor_hq",8266452,378488],["c","gokart_hq",8644940,186568],["c","hatch_hq",8831508,443016],["c","scissor_hq",9274524,600264],["c","suv_hq",9874788,595400],["p","tree_pine1",10470188,29708],["p","tree_pine2",10499896,29660],["p","tree_round1",10529556,20184],["p","tree_round2",10549740,20184],["p","tree_shrub",10569924,10380],["p","skyline",10580304,129640],["p","mount",10709944,87724],["p","tunnel",10797668,188900],["p","city",10986568,332060],["p","tree_pine1_lo",11318628,11100],["p","tree_pine2_lo",11329728,11216],["p","tree_round1_lo",11340944,8000],["p","tree_round2_lo",11348944,8004],["p","waterfall",11356948,288460],["p","riverbed",11645408,85512]]};</script>
 <script src="vendor/three-0.149.0.min.js"></script>
-<script src="js/game.a5a9150eec.js"></script>
+<script src="js/game.89d9fb1455.js"></script>
 <script>
 if('serviceWorker' in navigator){addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}
 </script>

@@ -1,6 +1,6 @@
 # Crust Rush
 
-A 3D kart racer on giant pizzas, made as an installable web app. Sixteen tracks in four Grand Prix cups, speed classes from 50cc to Reverse, 25 items, eight drivers with their own special abilities, moving hazards on every track, and a garage where you build your kart from bodies, wheels, gliders, colours and liveries.
+A 3D kart racer on giant pizzas, made as an installable web app. Sixteen tracks in four Grand Prix cups, speed classes from 50cc to Reverse, 25 items, eight drivers with their own special abilities, a soundtrack for every track, moving hazards, and a garage where you build your kart from bodies, wheels, gliders, colours and liveries.
 
 **Play:** https://samgoldsteinm.github.io/crust-rush/
 
@@ -8,8 +8,8 @@ A 3D kart racer on giant pizzas, made as an installable web app. Sixteen tracks 
 
 - Touch the left or right half of the screen to steer.
 - Tap a Drift button at speed to start drifting; steer to guide it and tap again for a boost. When slow, hold it to brake or reverse.
-- Tap the item button to throw ahead, or swipe down on it to throw behind. The ring button is your driver's special ability, ready every 30 seconds.
-- Keyboard: arrows steer, Space drifts, X throws ahead, Z throws back, C uses the ability, P or Esc pauses.
+- Your two item slots sit top right; tap either one to use that item, or swipe down on it to throw behind. The button top left is your driver's special ability, ready every 30 seconds.
+- Keyboard: arrows steer, Space drifts, X throws ahead, Z throws back, V uses the second item, C uses the ability, P or Esc pauses.
 
 ## Install it like an app
 
