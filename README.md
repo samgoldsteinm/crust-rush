@@ -1,42 +1,43 @@
 # Crust Rush
 
-A 3D kart racer on giant pizzas. Sixteen tracks in four Grand Prix cups, speed classes up to Reverse, ten items, eight drivers (each its own topping character), and a garage where you build your kart from bodies (including seven detailed real-world-style cars), wheels, gliders, solid colours and multi-colour livery themes. Every track has hills, ramps, a loop-the-loop and a glide section over a sauce chasm.
+A 3D kart racer on giant pizzas, made as an installable web app. Sixteen tracks in four Grand Prix cups, speed classes from 50cc to Reverse, 25 items, eight drivers with their own special abilities, moving hazards on every track, and a garage where you build your kart from bodies, wheels, gliders, colours and liveries.
 
-## Play
-
-Once GitHub Pages is on, the game lives at:
-
-`https://samgoldsteinm.github.io/crust-rush/`
-
-## Performance
-
-Track scenery is built once when a track loads and merged into a small number of static meshes per area, so it costs almost nothing per frame. Distant scenery is hidden automatically, and the resolution adapts to hold your screen's refresh rate (up to 120 fps on 120 Hz displays).
-
-## Install it like an app
-
-- **iPhone or iPad (Safari):** open the link, tap the Share button, then **Add to Home Screen**.
-- **Android (Chrome):** open the link, tap the menu (⋮), then **Install app** or **Add to Home screen**.
-- **Computer (Chrome or Edge):** open the link and click the install icon in the address bar.
-
-The installed app opens full screen with no browser bars. After the first visit it also works offline.
+**Play:** https://samgoldsteinm.github.io/crust-rush/
 
 ## Controls
 
 - Touch the left or right half of the screen to steer.
-- Tap a Drift button (bottom corners) at speed to start drifting. Steer to guide it, and tap again for a boost. When slow, hold it to brake or reverse.
-- Tap the item button to throw ahead, or swipe down on it to throw behind.
-- Customize kart (menu): pick a body, wheels, glider and paint. Each part trades strengths for drawbacks; Classic with Standard wheels is the neutral build. Turn Kart stats off to make parts cosmetic.
-- Glide ramps (blue) open your glider. Steer through the rings for boosts.
-- Settings (menu or pause): graphics quality, shadows, scenery distance, frame rate (Auto or 60 fps), frame counter, sound and volume, kart stats, mph or km/h, camera shake and minimap.
-- Keyboard: Esc closes menus or pauses, arrows steer, Space drifts, X throws ahead, Z throws back, P pauses.
+- Tap a Drift button at speed to start drifting; steer to guide it and tap again for a boost. When slow, hold it to brake or reverse.
+- Tap the item button to throw ahead, or swipe down on it to throw behind. The ring button is your driver's special ability, ready every 30 seconds.
+- Keyboard: arrows steer, Space drifts, X throws ahead, Z throws back, C uses the ability, P or Esc pauses.
 
-## Files
+## Install it like an app
 
-- `index.html`: the whole game
-- `manifest.webmanifest`: app name, icons and full-screen landscape settings
-- `sw.js`: offline support
-- `icons/`: app icons
+- **iPhone or iPad (Safari):** open the link, tap the Share button, then **Add to Home Screen**.
+- **Android (Chrome):** open the link, tap the **⋮** menu, then **Install app** (or **Add to Home screen**).
+- **Computer (Chrome or Edge):** open the link and click the install icon at the right end of the address bar.
+
+After the first visit the game is saved on your device and works offline. It opens full screen with no browser bars.
+
+## How the files are laid out
+
+| Path | What it holds |
+| --- | --- |
+| `index.html` | The page and its menus |
+| `js/game.<hash>.js` | The game itself |
+| `css/style.<hash>.css` | All styling |
+| `vendor/three-0.149.0.min.js` | The 3D engine (three.js) |
+| `assets/geo.<hash>.bin` | Every car and scenery model, packed into one download |
+| `assets/tex/` | Sky panoramas and scenery textures |
+| `assets/shots/` | Track photos for the menus |
+| `sw.js` | Offline support: saves every file above on the device |
+
+Files with a hash in the name get a new name whenever their contents change, so an update can never mix old and new pieces. Unchanged files keep their names, so each update only adds the files that actually changed.
 
 ## Updating
 
-Replace `index.html` with a new version and push. When you ship an update, change `VERSION` at the top of `sw.js` (for example `crust-rush-v2`) so installed copies pick up the new files.
+All files are generated from one source file by a build script, so replace them as a set and commit everything together. The `crust-rush-vNN` version in `sw.js` goes up with every release, which tells installed copies to fetch the new files.
+
+## Credits
+
+Some 3D models and sky images are used under Creative Commons Attribution licences; the full list is in the game's **How to play** screen.
