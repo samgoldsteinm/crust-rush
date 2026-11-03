@@ -96,7 +96,7 @@ function buildTrack(def,rev){
   return {pts,N,L,R:def.R};
 }
 let T=null,track=[],N=0,grid=null,RIM=1000;
-let HILLS=[],FLATS=[],HR=1000,HMIN=-30,LOOP=null,LOOPS=[],PITS=[],GLIDE=null;const LOOPR=46,UPV=new THREE.Vector3(0,1,0);
+let HILLS=[],FLATS=[],HR=1000,HMIN=-30,LOOP=null,LOOPS=[],PITS=[],GLIDE=null;const LOOPR=56,UPV=new THREE.Vector3(0,1,0);
 function pitAt(x,y){let d=0;for(const q of PITS){const dx=x-q.x,dy=y-q.y,u=dx*q.ux+dy*q.uy;if(u<=0||u>=q.L)continue;const v=Math.abs(dy*q.ux-dx*q.uy);if(v>=q.W+70)continue;
   let a=Math.min(u,q.L-u)/8;a=a>=1?1:a*a*(3-2*a);let l=Math.min(1,(q.W+70-v)/70);l=l*l*(3-2*l);d+=q.D*a*l;}return d;}
 function groundAt(x,y){let h=0,r=0;for(const b of HILLS){const dx=x-b.x,dy=y-b.y;h+=b.a*Math.exp(-(dx*dx+dy*dy)*b.k);}
@@ -104,26 +104,34 @@ function groundAt(x,y){let h=0,r=0;for(const b of HILLS){const dx=x-b.x,dy=y-b.y
   return PITS.length?r-pitAt(x,y):r;}
 function glideY(x,y){const G=GLIDE;if(!G||!G.long||!G.p)return G?G.y:0;const u=clamp(((x-G.p.x)*G.ux+(y-G.p.y)*G.uy)/G.L,0,1);return G.y0+(G.y1-G.y0)*u;}
 const overPit=(x,y)=>GLIDE&&groundAt(x,y)<glideY(x,y)-20;
-const loopNear=(j,g)=>LOOPS.some(L=>{const d=Math.abs(j-L.j)%N;return Math.min(d,N-d)<g+(L.full?40:0);});
+const loopNear=(j,g)=>LOOPS.some(L=>{const d=Math.abs(j-L.j)%N;return Math.min(d,N-d)<g+(L.full?100:0);});
 const INLOOP=['margherita','peaks','lagoon','burn','spiral','moon','calzone'];
 const LONGGLIDE=['bay','peaks','lagoon','calzone','tour','peak','glacier','frosty'];
+function shiftForLoop(L){const ss=t=>t<=0?0:t>=1?1:t*t*(3-2*t),W0=95,base=[];
+  for(let o=-W0;o<=W0;o++){const j=(L.j+o+N)%N;base.push([o,j,track[j].nx,track[j].ny]);}
+  for(const [o,j,nx,ny] of base){const off=o<0?-L.S*ss((o+W0)/75):L.S*(1-ss((o-18)/75)),p=track[j];p.x+=nx*off;p.y+=ny*off;}
+  track[(L.j-1+N)%N].cut=true;
+  for(let o=-W0-1;o<=W0+1;o++){const j=(L.j+o+N)%N,a=o===0?j:(j-1+N)%N,b=o===-1?j:(j+1)%N,A=track[a],B=track[b];let tx=B.x-A.x,ty=B.y-A.y;const l=Math.hypot(tx,ty)||1;tx/=l;ty/=l;Object.assign(track[j],{tx,ty,nx:-ty,ny:tx,ang:Math.atan2(ty,tx)});}
+  for(let o=-W0-12;o<=W0+12;o++){const j=(L.j+o+N)%N;track[j].bend=angDiff(track[(j+10)%N].ang,track[(j-10+N)%N].ang);}}
 function makeHills(def){HILLS=[];FLATS=[];PITS=[];GLIDE=null;HR=def.R;HMIN=def.theme==='bay'?-8:-30;
   for(let i=0;i<9;i++){const p=track[Math.floor((i+.3+rnd()*.4)*N/9)%N],off=(rnd()-.5)*240,s=150+rnd()*130,neg=def.theme!=='bay'&&rnd()<.3;
     HILLS.push({x:p.x+p.nx*off,y:p.y+p.ny*off,a:neg?-(18+rnd()*16):(30+rnd()*50),k:1/(2*s*s)});}
   for(let i=0;i<4;i++){const a=rnd()*6.283,r=Math.sqrt(rnd())*(def.R-450),s=200+rnd()*150;HILLS.push({x:Math.cos(a)*r,y:Math.sin(a)*r,a:35+rnd()*55,k:1/(2*s*s)});}
   for(const p of track){p.flo=p.fhi=undefined;}const s0=track[0];FLATS.push({x:s0.x,y:s0.y,k:1/(2*120*120)});
-  LOOP=null;for(const lim of [.1,.18,.3]){let best=null,bs=1e9;for(let j=Math.floor(N*.25);j<Math.floor(N*.85);j++){let ok=true;for(let o=-26;o<=26;o+=2)if(Math.abs(track[(j+o)%N].bend)>lim){ok=false;break;}
-      if(!ok)continue;const d=Math.abs(j-N*.55);if(d<bs){bs=d;best=j;}}
-    if(best!=null){LOOP={j:best,lat0:-18,shift:36,p:track[best],g0:0,W:15};FLATS.push({x:track[best].x,y:track[best].y,k:1/(2*160*160)});break;}}
-  LOOPS=LOOP?[LOOP]:[];
-  /* built-in loop: the whole road funnels into a wide loop, with a boost pad and a row of item boxes on the way in */
-  if(INLOOP.includes(def.id)){const cdl=(a,b)=>{const d=Math.abs(a-b)%N;return Math.min(d,N-d);};const bx=def.boxes.map(f=>Math.floor(f*N));
-    for(const lim of [.12,.18,.26]){let best=null,bs=1e9;for(let j=70;j<N-30;j++){if(cdl(j,0)<110)continue;if(LOOP&&cdl(j,LOOP.j)<N*.22)continue;if(bx.some(b=>cdl(b,j)<70))continue;
-        let ok=true;for(let o=-62;o<=24;o+=2)if(Math.abs(track[(j+o+N)%N].bend)>lim){ok=false;break;}if(!ok)continue;const d=Math.min(cdl(j,Math.floor(N*.2)),cdl(j,Math.floor(N*.8)));if(d<bs){bs=d;best=j;}}
-      if(best!=null){const L={j:best,lat0:-24,shift:48,p:track[best],g0:0,W:22,full:true};LOOPS.push(L);FLATS.push({x:track[best].x,y:track[best].y,k:1/(2*190*190)});
-        const fl=(best-34+N)%N,q=track[fl];FLATS.push({x:q.x,y:q.y,k:1/(2*120*120)});
-        for(let o=-56;o<=0;o++){const t=Math.min(1,(o+56)/46),p=track[(best+o+N)%N];p.flo=-(WALLD-3.5)+((L.lat0-L.W+4)+(WALLD-3.5))*t;p.fhi=(WALLD-3.5)+((L.lat0+L.W-4)-(WALLD-3.5))*t;}
-        break;}}}
+  LOOP=null;LOOPS=[];
+  /* full-width loops: the road swings left, the whole road climbs into the loop, and it comes back down on the right where the road carries on */
+  {const cdl=(a,b)=>{const d=Math.abs(a-b)%N;return Math.min(d,N-d);},bx=def.boxes.map(f=>Math.floor(f*N)),targets=INLOOP.includes(def.id)?[.3,.72]:[.55];
+    for(const tf of targets){let got=null;
+      for(const [lim,clr] of [[.08,330],[.12,330],[.18,300],[.26,270],[.34,240],[.42,210]]){let best=null,bs=1e9;
+        for(let j=0;j<N;j++){if(cdl(j,0)<150)continue;if(LOOPS.some(L=>cdl(L.j,j)<N*.25))continue;if(bx.some(b=>cdl(b,j)<45))continue;
+          let ok=true;for(let o=-95;o<=95;o+=3)if(Math.abs(track[(j+o+N)%N].bend)>lim){ok=false;break;}if(!ok)continue;
+          const p=track[j];for(let i=0;i<N;i+=3){if(cdl(i,j)<110)continue;const q=track[i];if(Math.hypot(q.x-p.x,q.y-p.y)<clr){ok=false;break;}}if(!ok)continue;
+          if(Math.hypot(p.x,p.y)>def.R-260)continue;
+          const d=cdl(j,Math.floor(tf*N));if(d<bs){bs=d;best=j;}}
+        if(best!=null){got=best;break;}}
+      if(got==null)continue;const p=track[got];
+      LOOPS.push({j:got,p:{x:p.x,y:p.y,tx:p.tx,ty:p.ty,nx:p.nx,ny:p.ny,ang:p.ang},g0:0,W:60,S:62,lat0:-62,shift:124,full:true});FLATS.push({x:p.x,y:p.y,k:1/(2*220*220)});}
+    LOOPS.sort((a,b)=>a.j-b.j);LOOP=LOOPS[0]||null;for(const L of LOOPS)shiftForLoop(L);if(LOOPS.length)buildGrid();}
   {const bx=def.boxes.map(f=>Math.floor(f*N)),cd=(a,b)=>{const d=Math.abs(a-b)%N;return Math.min(d,N-d);};
     /* long glides on some maps: a high launch cliff, a deep canyon and a landing far below, 5-8 seconds in the air */
     const tries=LONGGLIDE.includes(def.id)?[[1050,1],[850,1],[300,0]]:[[300,0]];
@@ -1505,7 +1513,7 @@ function put(geo,mat,x,y,z,parent,cast){const m=new THREE.Mesh(geo,mat);m.positi
 function strip(j0,j1,o0,o1,y,mat,vLen,cast,tone){const pos=[],uv=[],idx=[],col=tone?[]:null;const cnt=j1-j0,M=Math.max(1,Math.round(Math.abs(o1-o0)/9)),W=M+1;
   for(let k=0;k<=cnt;k++){const j=((j0+k)%N+N)%N,p=track[j],v=(k*T.L/N)/vLen;
     for(let m=0;m<=M;m++){const o=o0+(o1-o0)*m/M,x=p.x+p.nx*o,z=p.y+p.ny*o;pos.push(x,y+groundAt(x,z),z);uv.push(m/M,v);if(col){const t=tone(x,z,o);col.push(t,t,t);}}
-    if(k<cnt)for(let m=0;m<M;m++){const a=k*W+m;idx.push(a,a+1,a+W,a+1,a+W+1,a+W);}}
+    if(k<cnt&&!p.cut)for(let m=0;m<M;m++){const a=k*W+m;idx.push(a,a+1,a+W,a+1,a+W+1,a+W);}}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);if(col)g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.computeVertexNormals();
   const m=new THREE.Mesh(g,mat);m.receiveShadow=true;m.castShadow=!!cast;m.userData.noLift=true;world.add(m);return m;}
 
@@ -1515,8 +1523,8 @@ function rampTex(){const c=cnv(256,256),g=c.getContext('2d');const gr=g.createLi
 function meatTex(){const c=cnv(256,256),g=c.getContext('2d');g.fillStyle='#6b3a22';g.fillRect(0,0,256,256);for(let i=0;i<900;i++){g.fillStyle=rnd()<.5?'rgba(40,18,8,.55)':'rgba(150,90,60,.5)';g.beginPath();g.arc(rnd()*256,rnd()*256,1+rnd()*5,0,7);g.fill();}
   for(let i=0;i<120;i++){g.fillStyle='#3f7a2a';g.fillRect(rnd()*256,rnd()*256,3,1.5);}return c;}
 /* ================= SHORTCUTS: secret side paths that cut across a bend ================= */
-let SHORTS=[];const SCW=19;
-function nearSC(x,y,r){for(const sc of SHORTS)for(const p of sc.pts)if((p.x-x)**2+(p.y-y)**2<r*r)return true;return false;}
+let SHORTS=[];const SCW=19;const ROUTEW=34;const ROUTEMAPS=['bay','basil','mozz','oven','napoli','glacier','tour','peak','frosty'];
+function nearSC(x,y,r){for(const sc of SHORTS){const e=r+(sc.w||SCW)-SCW;for(const p of sc.pts)if((p.x-x)**2+(p.y-y)**2<e*e)return true;}return false;}
 function findShortcuts(def){SHORTS=[];const cd=(a,b)=>{const d=Math.abs(a-b)%N;return Math.min(d,N-d);};
   const bx=def.boxes.map(f=>Math.floor(f*N)),bad=j=>{j=((j%N)+N)%N;const p=track[j];if(p.open||p.wall||p.pond)return true;if(cd(j,0)<45)return true;if(bx.some(b=>cd(b,j)<22))return true;
     if(loopNear(j,45))return true;if(ramps.some(r=>cd(r.j,j)<14))return true;if(pads.some(p2=>cd(p2.j,j)<10))return true;return false;};
@@ -1529,11 +1537,12 @@ function findShortcuts(def){SHORTS=[];const cd=(a,b)=>{const d=Math.abs(a-b)%N;r
     const s=Math.sign(dx*pa.nx+dy*pa.ny);if(!s||Math.sign(-dx*pb.nx-dy*pb.ny)!==s)continue;
     cands.push({a,b,k,s,save:TL-D});}}
   cands.sort((x,y)=>Math.abs(x.save-520)-Math.abs(y.save-520));
-  for(const c of cands){if(SHORTS.length>=2)break;if(SHORTS.some(o=>cd(o.a,c.a)<N/5||cd(o.b,c.b)<N/5||inSpan(o.a,o.b,c.a)||inSpan(c.a,c.b,o.a)))continue;
-    const sc=makePath(c);if(sc)SHORTS.push(sc);}}
+  const clash=c=>SHORTS.some(o=>cd(o.a,c.a)<N/5||cd(o.b,c.b)<N/5||inSpan(o.a,o.b,c.a)||inSpan(c.a,c.b,o.a));
+  if(ROUTEMAPS.includes(def.id))for(const c of cands){const sc=makePath(c,ROUTEW);if(sc){sc.route=true;SHORTS.push(sc);break;}}
+  for(const c of cands){if(SHORTS.length>=2)break;if(clash(c))continue;const sc=makePath(c);if(sc)SHORTS.push(sc);}}
 function scNear(x,y,th,f,a,b){const t2=th*th;for(let j=0;j<N;j+=2){if(f<.18||f>.82){let da=Math.abs(j-a)%N,db=Math.abs(j-b)%N;da=Math.min(da,N-da);db=Math.min(db,N-db);if((f<.18&&da<30)||(f>.82&&db<30))continue;}
   const p=track[j];if((p.x-x)**2+(p.y-y)**2<t2)return true;}return false;}
-function makePath(c){const pa=track[c.a],pb=track[c.b],s=c.s,o=WALLD-10;
+function makePath(c,w){const W=w||SCW;const pa=track[c.a],pb=track[c.b],s=c.s,o=WALLD-10;
   const S=[pa.x+pa.nx*s*o,pa.y+pa.ny*s*o],E=[pb.x+pb.nx*s*o,pb.y+pb.ny*s*o],D=Math.hypot(E[0]-S[0],E[1]-S[1]),h=Math.min(90,D*.32);
   const c1=[S[0]+(pa.tx*.55+pa.nx*s*.85)*h,S[1]+(pa.ty*.55+pa.ny*s*.85)*h],c2=[E[0]+(-pb.tx*.55+pb.nx*s*.85)*h,E[1]+(-pb.ty*.55+pb.ny*s*.85)*h];
   const pts=[],M=200;let L=0,prev=null;const raw=[];
@@ -1541,46 +1550,55 @@ function makePath(c){const pa=track[c.a],pb=track[c.b],s=c.s,o=WALLD-10;
   const n=Math.max(8,Math.round(L/8));let r=0;for(let i=0;i<=n;i++){const tl=L*i/n;while(r<M&&raw[r+1][2]<tl)r++;const A=raw[r],B=raw[Math.min(M,r+1)],f=B[2]>A[2]?(tl-A[2])/(B[2]-A[2]):0;pts.push({x:A[0]+(B[0]-A[0])*f,y:A[1]+(B[1]-A[1])*f});}
   for(let i=0;i<pts.length;i++){const q=pts[Math.min(pts.length-1,i+1)],p0=pts[Math.max(0,i-1)];let tx=q.x-p0.x,ty=q.y-p0.y;const l=Math.hypot(tx,ty)||1;tx/=l;ty/=l;Object.assign(pts[i],{tx,ty,nx:-ty,ny:tx});}
   if(c.k*T.L/N-L<110||c.k*T.L/N-L>620)return null;
-  for(let i=0;i<pts.length;i++){const p=pts[i];if(Math.hypot(p.x,p.y)>RIM-SCW-20)return null;if(GLIDE&&pitAt(p.x,p.y)>.5)return null;
-    if(scNear(p.x,p.y,WALLD+SCW+5,i/(pts.length-1),c.a,c.b))return null;
+  for(let i=0;i<pts.length;i++){const p=pts[i];if(Math.hypot(p.x,p.y)>RIM-W-20)return null;if(GLIDE&&pitAt(p.x,p.y)>.5)return null;
+    if(scNear(p.x,p.y,WALLD+W+5,i/(pts.length-1),c.a,c.b))return null;
     if(LOOPS.some(L=>Math.hypot(p.x-L.p.x,p.y-L.p.y)<(L.full?240:160)))return null;
     for(let j=1;j<pts.length-1;j++){/* sharp kinks */}
-    if(obstacles.some(ob=>Math.hypot(ob.x-p.x,ob.y-p.y)<ob.r+SCW+4))return null;
-    if(SHORTS.some(o=>o.pts.some(q=>Math.hypot(q.x-p.x,q.y-p.y)<SCW*2+30)))return null;}
+    if(obstacles.some(ob=>Math.hypot(ob.x-p.x,ob.y-p.y)<ob.r+W+4))return null;
+    if(SHORTS.some(o=>o.pts.some(q=>Math.hypot(q.x-p.x,q.y-p.y)<W*2+30)))return null;}
   for(let i=1;i<pts.length-1;i++){const a=pts[i-1],b=pts[i+1];if(a.tx*b.tx+a.ty*b.ty<.9)return null;}
-  return {a:c.a,b:c.b,s,pts,n:pts.length,L,save:c.k*T.L/N-L};}
-function buildShortcut(sc,def){const th=def.theme,road=new THREE.MeshStandardMaterial({map:T2(TX.crust,1,1),color:th==='freezer'?'#e8f2fb':th==='night'?'#9a8a7a':'#e6c79a',roughness:.85});
+  return {a:c.a,b:c.b,s,pts,n:pts.length,L,save:c.k*T.L/N-L,w:W};}
+
+/* gantry over the road where a paved route splits off: one way is quicker, the other has the item boxes */
+function routeSign(sc){const p=track[(sc.a-10+N)%N],gy=groundAt(p.x,p.y),G=new THREE.Group();G.position.set(p.x,gy,p.y);G.rotation.y=-p.ang;G.userData.noLift=true;world.add(G);
+  const post=wm('#2a2a33',{metalness:.6,roughness:.35});for(const z of [-(WALLD+4),WALLD+4])put(new THREE.BoxGeometry(2.4,34,2.4),post,0,17,z,G);put(new THREE.BoxGeometry(2,2,2*(WALLD+4)),post,0,33,0,G);
+  const left=sc.s>0;const mk=(lines,bg,acc)=>{const t=signTex(lines,bg,'#fff4dc',acc);return new THREE.MeshStandardMaterial({map:t,emissive:'#ffffff',emissiveMap:t,emissiveIntensity:.45,roughness:.5});};
+  const fast=mk([left?'<< FAST LANE':'FAST LANE >>','shorter, no items'],'#1d5f8a','#7fe8ff'),items=mk(['ITEMS AHEAD','stay on the road'],'#7d1d0e','#ffd24a');
+  const zF=(left?1:-1)*WALLD*.5,zI=-zF;
+  for(const [m,z] of [[fast,zF],[items,zI]]){const b=new THREE.Mesh(new THREE.BoxGeometry(1.4,22,WALLD*.92),[post,post,post,post,post,post]);b.position.set(0,24,z);G.add(b);
+    for(const sd of [-1,1]){const pl=new THREE.Mesh(new THREE.PlaneGeometry(WALLD*.9,21),m);pl.position.set(sd*.75,24,z);pl.rotation.y=sd>0?Math.PI/2:-Math.PI/2;G.add(pl);}}}
+function buildShortcut(sc,def){const SW=sc.w||SCW;const th=def.theme,road=sc.route?roadMaterial('asphalt',th==='night'):new THREE.MeshStandardMaterial({map:T2(TX.crust,1,1),color:th==='freezer'?'#e8f2fb':th==='night'?'#9a8a7a':'#e6c79a',roughness:.85});
   const P=sc.pts,pos=[],uv=[],idx=[];let v=0;
-  for(let i=0;i<P.length;i++){const p=P[i],vv=i*8/30;for(const sd of [-1,1]){const x=p.x+p.nx*SCW*sd,z=p.y+p.ny*SCW*sd;pos.push(x,groundAt(x,z)+.12,z);uv.push(sd<0?0:1.4,vv);}if(i<P.length-1){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2);}}
+  for(let i=0;i<P.length;i++){const p=P[i],vv=i*8/30;for(const sd of [-1,1]){const x=p.x+p.nx*SW*sd,z=p.y+p.ny*SW*sd;pos.push(x,groundAt(x,z)+.12,z);uv.push(sd<0?0:(sc.route?1:1.4),sc.route?i*8/(SW*2):vv);}if(i<P.length-1){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2);}}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
   const m=new THREE.Mesh(g,road);m.receiveShadow=true;m.userData.noLift=true;world.add(m);
   /* low rails of bread sticks along both sides, with a gap at each end */
   const wp=[],wc=[],cA=new THREE.Color('#c98b4e'),cB=new THREE.Color('#e2b070'),cK=new THREE.Color('#5a3a20'),H=3.4,TH=2;
   const tri=(a,b,c,cl)=>{for(const q of [a,b,c]){wp.push(q[0],q[1],q[2]);wc.push(cl.r,cl.g,cl.b);}},quad=(a,b,c,d,cl)=>{tri(a,b,c,cl);tri(a,c,d,cl);};
   for(const sd of [-1,1])for(let i=2;i<P.length-3;i++){const p=P[i],q=P[i+1],at=(pt,o,hh)=>{const x=pt.x+pt.nx*o*sd,z=pt.y+pt.ny*o*sd;return [x,groundAt(x,z)+hh,z];},cl=(i>>1)%2?cA:cB;
-    quad(at(p,SCW+1,-.4),at(q,SCW+1,-.4),at(q,SCW+1,H),at(p,SCW+1,H),cl);quad(at(p,SCW+1,H),at(q,SCW+1,H),at(q,SCW+1+TH,H),at(p,SCW+1+TH,H),cA);quad(at(p,SCW+1+TH,H),at(q,SCW+1+TH,H),at(q,SCW+1+TH,-.4),at(p,SCW+1+TH,-.4),cK);}
+    quad(at(p,SW+1,-.4),at(q,SW+1,-.4),at(q,SW+1,H),at(p,SW+1,H),cl);quad(at(p,SW+1,H),at(q,SW+1,H),at(q,SW+1+TH,H),at(p,SW+1+TH,H),cA);quad(at(p,SW+1+TH,H),at(q,SW+1+TH,H),at(q,SW+1+TH,-.4),at(p,SW+1+TH,-.4),cK);}
   const wg=new THREE.BufferGeometry();wg.setAttribute('position',new THREE.Float32BufferAttribute(wp,3));wg.setAttribute('color',new THREE.Float32BufferAttribute(wc,3));wg.computeVertexNormals();
   const wm2=new THREE.Mesh(wg,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.6,side:THREE.DoubleSide}));wm2.castShadow=true;wm2.receiveShadow=true;wm2.userData.noLift=true;world.add(wm2);
   /* little lanterns marking the secret entrance */
   const glow=new THREE.MeshBasicMaterial({color:'#9dff7a',toneMapped:false}),pole=wm('#3a2a20',{roughness:.6});
-  for(const end of [0,P.length-1])for(const sd of [-1,1]){const p=P[end],x=p.x+p.nx*(SCW+4)*sd,z=p.y+p.ny*(SCW+4)*sd,gy=groundAt(x,z);
+  for(const end of [0,P.length-1])for(const sd of [-1,1]){const p=P[end],x=p.x+p.nx*(SW+4)*sd,z=p.y+p.ny*(SW+4)*sd,gy=groundAt(x,z);
     const g2=new THREE.Group();g2.position.set(x,gy,z);g2.userData.noLift=true;world.add(g2);put(new THREE.CylinderGeometry(.5,.6,9,8),pole,0,4.5,0,g2);put(new THREE.SphereGeometry(1.4,12,8),glow,0,9.6,0,g2,false);}
   /* a few herb tufts and crumbs on the path edges so it reads as a hidden trail */
-  for(let i=4;i<P.length-4;i+=3)for(const sd of [-1,1])if(rnd()<.6){const p=P[i],x=p.x+p.nx*(SCW+6+rnd()*6)*sd,z=p.y+p.ny*(SCW+6+rnd()*6)*sd;const b=put(new THREE.SphereGeometry(2+rnd()*1.5,8,6),wm('#3f8a35',{roughness:.5}),x,groundAt(x,z)+1,z);b.scale.y=.6;b.userData.noLift=true;}}
+  for(let i=4;i<P.length-4;i+=3)for(const sd of [-1,1])if(rnd()<.6){const p=P[i],x=p.x+p.nx*(SW+6+rnd()*6)*sd,z=p.y+p.ny*(SW+6+rnd()*6)*sd;const b=put(new THREE.SphereGeometry(2+rnd()*1.5,8,6),wm('#3f8a35',{roughness:.5}),x,groundAt(x,z)+1,z);b.scale.y=.6;b.userData.noLift=true;}}
 /* per-step: karts on a shortcut follow its own path for progress and walls */
 function scStep(k){if(!SHORTS.length)return;
   if(k.sc){const sc=k.sc,P=sc.pts;let bi=k.scI,bd=1e18;for(let i=Math.max(0,k.scI-3);i<=Math.min(sc.n-1,k.scI+6);i++){const d=(P[i].x-k.x)**2+(P[i].y-k.y)**2;if(d<bd){bd=d;bi=i;}}k.scI=bi;
     const p=P[bi],along=(k.x-p.x)*p.tx+(k.y-p.y)*p.ty,off=(k.x-p.x)*p.nx+(k.y-p.y)*p.ny;
     const ni=sc.a+Math.round(bi/(sc.n-1)*((sc.b-sc.a+N)%N)),nidx=ni%N;let di=nidx-k.idx;if(di>N/2)di-=N;if(di<-N/2)di+=N;k.prog+=di;k.idx=nidx;
-    if((bi>=sc.n-1&&along>0)||(bi>=sc.n-3&&Math.abs(off)>SCW-4)){k.sc=null;k.idx=sc.b;return;}
-    if(bi<=2&&(along<-2||Math.abs(off)>SCW+2)){k.sc=null;k.idx=sc.a;return;}
-    const lim=SCW-3.5;if(Math.abs(off)>lim&&bi>2&&bi<sc.n-3){const sg=Math.sign(off),ov=Math.abs(off)-lim,nx=p.nx*sg,ny=p.ny*sg;k.x-=nx*ov;k.y-=ny*ov;
+    if((bi>=sc.n-1&&along>0)||(bi>=sc.n-3&&Math.abs(off)>(sc.w||SCW)-4)){k.sc=null;k.idx=sc.b;return;}
+    if(bi<=2&&(along<-2||Math.abs(off)>(sc.w||SCW)+2)){k.sc=null;k.idx=sc.a;return;}
+    const lim=(sc.w||SCW)-3.5;if(Math.abs(off)>lim&&bi>2&&bi<sc.n-3){const sg=Math.sign(off),ov=Math.abs(off)-lim,nx=p.nx*sg,ny=p.ny*sg;k.x-=nx*ov;k.y-=ny*ov;
       const vx=Math.cos(k.ma),vy=Math.sin(k.ma),dot=vx*nx+vy*ny;if(dot>0){k.speed*=1-.2*dot;const tx=vx-dot*nx,ty=vy-dot*ny;if(Math.hypot(tx,ty)>.05){const na=Math.atan2(ty,tx);k.ma=na;k.a+=angDiff(na,k.a)*.5;}}}
     return;}
   for(const sc of SHORTS){let dj=k.idx-sc.a;if(dj>N/2)dj-=N;if(dj<-N/2)dj+=N;if(Math.abs(dj)>9)continue;const P=sc.pts;
-    const pj=track[k.idx],lat=((k.x-pj.x)*pj.nx+(k.y-pj.y)*pj.ny)*sc.s,mouth=Math.abs(dj)<=4&&lat>WALLD-16;
+    const pj=track[k.idx],lat=((k.x-pj.x)*pj.nx+(k.y-pj.y)*pj.ny)*sc.s,mouth=Math.abs(dj)<=(sc.route?8:4)&&lat>WALLD-(sc.route?40:16);
     for(let i=0;i<8;i++){const p=P[i],off=(k.x-p.x)*p.nx+(k.y-p.y)*p.ny,al=(k.x-p.x)*p.tx+(k.y-p.y)*p.ty;
-      if((Math.abs(off)<SCW-1&&Math.abs(al)<9||mouth&&Math.abs(off)<SCW+4&&Math.abs(al)<12)&&Math.cos(k.ma)*p.tx+Math.sin(k.ma)*p.ty>-.1){k.sc=sc;k.scI=i;if(k===player&&!sc.found){sc.found=true;showBanner('Shortcut!',1);SFX.ring();}return;}}}}
+      const SW=sc.w||SCW;if((Math.abs(off)<SW-1&&Math.abs(al)<9||mouth&&Math.abs(off)<SW+4&&Math.abs(al)<12)&&Math.cos(k.ma)*p.tx+Math.sin(k.ma)*p.ty>-.1){k.sc=sc;k.scI=i;if(k===player&&!sc.found&&!sc.route){sc.found=true;showBanner('Shortcut!',1);SFX.ring();}return;}}}}
 
 function glideTex(){const c=cnv(256,256),g=c.getContext('2d');const gr=g.createLinearGradient(0,0,256,0);gr.addColorStop(0,'#0e4f7a');gr.addColorStop(.5,'#2fb4ff');gr.addColorStop(1,'#0e4f7a');g.fillStyle=gr;g.fillRect(0,0,256,256);
   g.fillStyle='#ffffff';for(let i=0;i<3;i++){const y=i*84+14;g.beginPath();g.moveTo(128,y);g.lineTo(196,y+44);g.lineTo(196,y+66);g.lineTo(128,y+22);g.lineTo(60,y+66);g.lineTo(60,y+44);g.closePath();g.fill();}
@@ -2125,7 +2143,7 @@ function loadMap(mi,rev){
     const m=new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.45,side:THREE.DoubleSide}));m.receiveShadow=true;m.castShadow=true;m.userData.noLift=true;world.add(m);})();
   const buildBarrier=(function(){const pos=[],col=[],H=4.6,TH=2.6,th=THEMES[def.theme],cA=new THREE.Color(def.theme==='night'?'#3a6fd8':def.theme==='freezer'?'#4aa8e8':'#d6301e'),cB=new THREE.Color('#f4efe4'),cT=new THREE.Color('#c98b4e'),cK=new THREE.Color('#3a2a20');
     const tri=(a,b,c,cl)=>{for(const v of [a,b,c]){pos.push(v[0],v[1],v[2]);col.push(cl.r,cl.g,cl.b);}},quad=(a,b,c,d,cl)=>{tri(a,b,c,cl);tri(a,c,d,cl);};
-    for(const s of [-1,1])for(let j=0;j<N;j++){const p=track[j],q=track[(j+1)%N];if(p.open||q.open)continue;if(p.wall===s&&q.wall===s)continue;if(p.pond===s||q.pond===s)continue;if(SHORTS.some(sc=>sc.s===s&&[sc.a,sc.b].some(e=>{const d=Math.abs(j-e)%N;return Math.min(d,N-d)<=3;})))continue;
+    for(const s of [-1,1])for(let j=0;j<N;j++){const p=track[j],q=track[(j+1)%N];if(p.open||q.open||p.cut)continue;if(p.wall===s&&q.wall===s)continue;if(p.pond===s||q.pond===s)continue;if(SHORTS.some(sc=>sc.s===s&&[sc.a,sc.b].some(e=>{const d=Math.abs(j-e)%N;return Math.min(d,N-d)<=(sc.route?8:3);})))continue;
       const at=(pt,o,h)=>{const X=pt.x+pt.nx*o*s,Z=pt.y+pt.ny*o*s;return [X,h+groundAt(X,Z),Z];},cl=((j>>2)%2)?cA:cB;
       const pi0=at(p,WALLD,-.5),pi1=at(p,WALLD,H),po1=at(p,WALLD+TH,H),po0=at(p,WALLD+TH,-.5),qi0=at(q,WALLD,-.5),qi1=at(q,WALLD,H),qo1=at(q,WALLD+TH,H),qo0=at(q,WALLD+TH,-.5);
       if(s>0){quad(pi0,qi0,qi1,pi1,cl);quad(pi1,qi1,qo1,po1,cT);quad(po1,qo1,qo0,po0,cK);}else{quad(pi0,pi1,qi1,qi0,cl);quad(pi1,po1,qo1,qi1,cT);quad(po1,po0,qo0,qo1,cK);}}
@@ -2149,7 +2167,7 @@ function loadMap(mi,rev){
     for(let j=30;j<N-30;j++){let ok=true;for(let o=-14;o<=14;o+=2)if(Math.abs(track[(j+o+N)%N].bend)>.18){ok=false;break;}if(ok&&!boxIdx.some(b=>Math.abs(b-j)<24)&&!(GLIDE&&j>GLIDE.rj-40&&j<GLIDE.j1+24)&&!(loopNear(j,45)))cand.push(j);}
     for(let i=0;i<3&&cand.length;i++){const target=Math.floor((i+.3)*N/3);let best=null,bd=1e9;for(const c of cand){const d=Math.abs(c-target);if(d<bd&&!pads.some(p=>Math.abs(p.j-c)<N/6)){bd=d;best=c;}}
       if(best==null)continue;const lat=[-22,0,22][i%3];pads.push({j:best,lat});strip(best-2,best+2,lat-16,lat+16,.1,mat,32);}
-    for(const L of LOOPS)if(L.full){const lat=L.lat0;pads.push({j:(L.j-12+N)%N,lat});strip(L.j-14,L.j-10,lat-17,lat+17,.1,mat,32);}
+    for(const L of LOOPS)if(L.full){pads.push({j:(L.j-12+N)%N,lat:0,w:58});strip(L.j-14,L.j-10,-58,58,.1,mat,32);}
     animators.push((t,dt)=>{tex.offset.y-=dt*1.6;});})();
   ramps=[];obstacles=[];rollers=[];
   const used=[0,...def.boxes.map(f=>Math.floor(f*N)),...pads.map(p=>p.j),...LOOPS.flatMap(L=>L.full?[L.j,L.j-20,L.j-40,L.j-56,L.j+15]:[L.j])];if(GLIDE)for(let j=GLIDE.rj-18;j<=GLIDE.j1+14;j+=6)used.push(j);
@@ -2169,12 +2187,12 @@ function loadMap(mi,rev){
       for(const sd of [-1,1]){const l=lat+sd*W,X=p.x+p.tx*sx+p.nx*l,Z=p.y+p.ty*sx+p.ny*l;pos.push(X,g0+hg+.35,Z);uv.push(sd<0?0:1,i/SEG*9);(sd<0?eL:eR).push(new THREE.Vector3(X,g0+hg+1.6,Z));}
       if(i<SEG){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2);}}
     const lg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));lg.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));lg.setIndex(idx);lg.computeVertexNormals();
-    const lt=T2(padTex(),1,1),lm=new THREE.Mesh(lg,LOOP.full?loopDeckMat(def):new THREE.MeshStandardMaterial({map:lt,emissive:'#ff6a1a',emissiveMap:lt,emissiveIntensity:.9,roughness:.35,side:THREE.DoubleSide}));if(LOOP.full)buildFunnel(LOOP,def);lm.castShadow=lm.receiveShadow=true;lm.userData.noLift=true;world.add(lm);
+    const lt=T2(padTex(),1,1),lm=new THREE.Mesh(lg,LOOP.full?loopDeckMat(def):new THREE.MeshStandardMaterial({map:lt,emissive:'#ff6a1a',emissiveMap:lt,emissiveIntensity:.9,roughness:.35,side:THREE.DoubleSide}));lm.castShadow=lm.receiveShadow=true;lm.userData.noLift=true;world.add(lm);
     animators.push((t,dt)=>{lt.offset.y-=dt*2.2;});
     const railM=wm('#f7c948',{metalness:.6,roughness:.25});for(const e of [eL,eR]){const tm=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(e),160,1.1,8,false),railM);tm.castShadow=true;tm.userData.noLift=true;world.add(tm);}
     const top=new THREE.Vector3(p.x,g0+2*LOOPR,p.y),bm=wm('#3a3a44',{metalness:.6,roughness:.35}),G=new THREE.Group();G.userData.noLift=true;world.add(G);
-    for(const sd of [-1,1]){const bx=p.x+p.nx*(RW+16)*sd,bz=p.y+p.ny*(RW+16)*sd;limb(new THREE.CylinderGeometry(1.8,2.4,1,10),bm,[bx,g0-2,bz],[top.x+p.nx*(W+3)*sd,top.y,top.z+p.ny*(W+3)*sd],G);
-      put(new THREE.CylinderGeometry(5,6,3,14),bm,bx,g0,bz,G);obstacles.push({x:bx,y:bz,r:4,h:60,j:LOOP.j,lat:(RW+16)*sd});}
+    for(const sd of [-1,1]){const sw=LOOP.full?LOOP.S+LOOP.W+14:RW+16,bx=p.x+p.nx*sw*sd,bz=p.y+p.ny*sw*sd;limb(new THREE.CylinderGeometry(1.8,2.4,1,10),bm,[bx,g0-2,bz],[top.x+p.nx*(W+3)*sd,top.y,top.z+p.ny*(W+3)*sd],G);
+      put(new THREE.CylinderGeometry(5,6,3,14),bm,bx,g0,bz,G);obstacles.push({x:bx,y:bz,r:4,h:60,j:LOOP.j,lat:LOOP.full?999:(RW+16)*sd});}
     G.children.forEach(c=>c.castShadow=true);}
   const sideM=new THREE.MeshStandardMaterial({map:T2(TX.side),roughness:.5}),lidM=new THREE.MeshStandardMaterial({map:T2(TX.lid),roughness:.45}),botM=wm('#cdbb94');
   const rr=new THREE.Shape(),BW=3.5,BC=.9;rr.moveTo(-BW+BC,-BW);rr.lineTo(BW-BC,-BW);rr.quadraticCurveTo(BW,-BW,BW,-BW+BC);rr.lineTo(BW,BW-BC);rr.quadraticCurveTo(BW,BW,BW-BC,BW);rr.lineTo(-BW+BC,BW);rr.quadraticCurveTo(-BW,BW,-BW,BW-BC);rr.lineTo(-BW,-BW+BC);rr.quadraticCurveTo(-BW,-BW,-BW+BC,-BW);
@@ -2186,13 +2204,15 @@ function loadMap(mi,rev){
   const ringMat=new THREE.MeshBasicMaterial({color:'#ffe9a0',transparent:true,opacity:.9,toneMapped:false}),glowMat=new THREE.MeshBasicMaterial({map:T2(TX.glow),color:'#ffd24a',transparent:true,opacity:.5,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false});
   const lid2=cnv(256,256),lg2=lid2.getContext('2d');lg2.fillStyle='#ffd54a';lg2.fillRect(0,0,256,256);lg2.strokeStyle='#b8860b';lg2.lineWidth=14;lg2.strokeRect(10,10,236,236);lg2.fillStyle='#7d1d0e';lg2.font='bold 130px Arial Black,Impact,sans-serif';lg2.textAlign='center';lg2.textBaseline='middle';lg2.fillText('x2',128,138);
   const dSide=new THREE.MeshPhysicalMaterial({color:'#ffd54a',metalness:.6,roughness:.25,clearcoat:1,map:T2(TX.side,1/6.5,1/1.4)}),dLid=new THREE.MeshPhysicalMaterial({map:capT(lid2),metalness:.45,roughness:.28,clearcoat:1}),ring2=new THREE.MeshBasicMaterial({color:'#ffd24a',transparent:true,opacity:.95,toneMapped:false});
-  def.boxes.concat(LOOPS.filter(L=>L.full).map(L=>((L.j-66+N)%N)/N)).forEach((f,gi)=>{const p=track[Math.floor(f*N)];[-36,-12,12,36].forEach((o,i)=>{const x=p.x+p.nx*o,y=p.y+p.ny*o,dbl=i===(gi%2?1:2);
+  const boxRow=(f,gi)=>{const p=track[Math.floor(f*N)];[-36,-12,12,36].forEach((o,i)=>{const x=p.x+p.nx*o,y=p.y+p.ny*o,dbl=i===(gi%2?1:2);
     const m=new THREE.Group();for(const [g2,mm] of [[ibBase,dbl?[dSide,dSide]:[iSide,iSide]],[ibLid,dbl?[dLid,dSide]:[iLid,iSide]],[ibSeam,dbl?seam2:seamM]]){const me=new THREE.Mesh(g2,mm);me.castShadow=mm!==seamM&&mm!==seam2;me.receiveShadow=true;m.add(me);}world.add(m);const ring=new THREE.Mesh(ringGeo,dbl?ring2:ringMat);world.add(ring);
-    const gl=new THREE.Mesh(glowGeo,glowMat);gl.rotation.x=-Math.PI/2;gl.position.set(x,.3,y);world.add(gl);boxes.push({x,y,r:0,sv:gi*4+i,m,ring,gl,gy:groundAt(x,y),dbl});});});
+    const gl=new THREE.Mesh(glowGeo,glowMat);gl.rotation.x=-Math.PI/2;gl.position.set(x,.3,y);world.add(gl);boxes.push({x,y,r:0,sv:gi*4+i,m,ring,gl,gy:groundAt(x,y),dbl});});};
+  def.boxes.concat(LOOPS.filter(L=>L.full).map(L=>((L.j-66+N)%N)/N)).forEach(boxRow);
   animators.push(t=>{glowMat.opacity=.35+Math.sin(t*4)*.15;});
 
   findShortcuts(def);for(const sc of SHORTS){used.push(sc.a,sc.b);buildShortcut(sc,def);}buildBarrier();
-  DBK=new Map();const placed=[];for(const q of PONDS)placed.push([q.x,q.y,Math.max(q.ax,q.az)*1.35]);for(const sc of SHORTS)for(const p of sc.pts)placed.push([p.x,p.y,SCW+14]);const area=Math.min(3.2,(R/512)*(R/512)*.55);
+  SHORTS.filter(sc=>sc.route).forEach((sc,i)=>{const span=(sc.b-sc.a+N)%N;boxRow(((sc.a+Math.round(span*.35))%N)/N,20+i*2);boxRow(((sc.a+Math.round(span*.7))%N)/N,21+i*2);routeSign(sc);});
+  DBK=new Map();const placed=[];for(const q of PONDS)placed.push([q.x,q.y,Math.max(q.ax,q.az)*1.35]);for(const sc of SHORTS)for(const p of sc.pts)placed.push([p.x,p.y,(sc.w||SCW)+14]);const area=Math.min(3.2,(R/512)*(R/512)*.55);
   const spots=[];for(let x=-R+150;x<=R-150;x+=40)for(let y=-R+150;y<=R-150;y+=40){if(Math.hypot(x,y)>R-170)continue;if(nearSC(x,y,140))continue;const d=minTrackDist(x,y);if(d>150)spots.push([x,y,d]);}
   spots.sort((a,b)=>b[2]-a[2]);const L1=spots[0]||[0,0,160];const L2=spots.find(s=>Math.hypot(s[0]-L1[0],s[1]-L1[1])>450)||null;
   placed.push([L1[0],L1[1],95]);if(L2)placed.push([L2[0],L2[1],70]);
@@ -2801,14 +2821,15 @@ function aiInput(k,dt){
   let avoid=false;for(const o of obstacles){let dj=o.j-k.idx;if(dj<0)dj+=N;if(dj>1&&dj<28&&Math.abs(ai.lane-o.lat)<o.r+15){ai.laneTarget=clamp(o.lat>0?o.lat-o.r-22:o.lat+o.r+22,-42,42);ai.laneT=Math.max(ai.laneT,1.2);avoid=true;}}
   for(const c of HAZ.traffic){if(c.hide)continue;let dj=c.i-k.idx;if(dj<0)dj+=N;if(dj>1&&dj<24&&Math.abs(ai.lane-c.lat)<28){ai.laneTarget=clamp(c.lat>0?c.lat-32:c.lat+32,-44,44);ai.laneT=Math.max(ai.laneT,1);avoid=true;}}
   for(const w of HAZ.walk){let dj=w.j-k.idx;if(dj<0)dj+=N;if(dj>1&&dj<14&&Math.abs(ai.lane-w.lat)<20&&Math.random()<.6){ai.laneTarget=clamp(w.lat>0?w.lat-26:w.lat+26,-44,44);avoid=true;}}
-  for(const LOOP of LOOPS){let dl=LOOP.j-k.idx;if(dl<0)dl+=N;if(dl>1&&dl<70){ai.laneTarget=LOOP.lat0;avoid=true;}}
+  for(const LOOP of LOOPS)if(!LOOP.full){let dl=LOOP.j-k.idx;if(dl<0)dl+=N;if(dl>1&&dl<70){ai.laneTarget=LOOP.lat0;avoid=true;}}
   if(GLIDE){let dg=GLIDE.rj-k.idx;if(dg<0)dg+=N;if(dg>0&&dg<60){ai.laneTarget=clamp(ai.laneTarget,-28,28);avoid=true;}}
   ai.lane+=(ai.laneTarget-ai.lane)*Math.min(1,dt*(avoid?2.8:.8));
-  const tp=track[(k.idx+9+Math.floor(Math.max(0,k.speed)/32))%N];
+  const ti=(k.idx+9+Math.floor(Math.max(0,k.speed)/32))%N;let tp=track[ti];
+  for(const L of LOOPS){if(!L.full)continue;const a=(L.j-1-k.idx+N)%N,b=(ti-k.idx+N)%N;if(a<b&&a<N/2){const c=track[(L.j-1+N)%N],ex=(b-a)*T.L/N;tp={x:c.x+c.tx*ex,y:c.y+c.ty*ex,nx:c.nx,ny:c.ny};break;}}
   let des=Math.atan2(tp.y+tp.ny*ai.lane-k.y,tp.x+tp.nx*ai.lane-k.x);
   if(k.sc){const P=k.sc.pts,q=P[Math.min(k.sc.n-1,k.scI+4)];des=Math.atan2(q.y-k.y,q.x-k.x);}
   else for(const sc of SHORTS){let dj=k.idx-sc.a;if(dj>N/2)dj-=N;if(dj<-N/2)dj+=N;
-    if(dj>-62&&dj<-48&&ai.scSeen!==sc){ai.scSeen=sc;ai.pick=Math.random()<({easy:.25,normal:.5,hard:.8}[player?aiKey():'normal']||.5)?sc:null;}
+    if(dj>-62&&dj<-48&&ai.scSeen!==sc){ai.scSeen=sc;ai.pick=Math.random()<(sc.route?.5:({easy:.25,normal:.5,hard:.8}[player?aiKey():'normal']||.5))?sc:null;}
     if(ai.pick===sc){if(dj>-16&&dj<6){const q=sc.pts[2];des=Math.atan2(q.y-k.y,q.x-k.x);}else if(dj>=-40&&dj<=-16){ai.lane+=(sc.s*48-ai.lane)*Math.min(1,dt*2);}else if(dj>=6)ai.pick=null;}}
   const steer=clamp(angDiff(des,k.a)*2.6+(k.sauceT>0?Math.sin(simTime*5+k.ri)*.55:0),-1,1);
   const bend=Math.abs(angDiff(track[(k.idx+18)%N].ang,track[k.idx].ang));
@@ -2833,7 +2854,7 @@ function updRings(dt){for(const r of rings){if(!r.m.visible)continue;r.t+=dt;con
 const HITC={flour:['#ffffff','#f6f1e6','#e9dfc8'],wheel:['#ff3b1a','#ffe066','#ffffff'],garlic:['#7fe07a','#f4ecdc','#ffffff'],pep:['#ff3b1a','#b8311c','#ffe066','#fff4dc'],dough:['#fff4dc','#f3dfb4','#ffe066'],oil:['#ffd24a','#e0b22a','#fff2b0'],meat:['#7a4528','#ff9a1f','#fff4dc'],lob:['#ffd24a','#e0b22a','#fff2b0']};
 function loopStep(k,dt){const L=k.loop;k.speed=Math.max(k.speed,BASE_MAX*1.18);L.th+=k.speed*dt/LOOPR;const th=Math.min(L.th,Math.PI*2),p=L.p,sx=LOOPR*Math.sin(th),hg=LOOPR*(1-Math.cos(th)),lat=L.lat0+L.shift*th/(Math.PI*2);
   k.x=p.x+p.tx*sx+p.nx*lat;k.y=p.y+p.ty*sx+p.ny*lat;k.wy=L.g0+hg+.35;k.z=hg;k.loopTh=th;k.a=k.ma=p.ang;k.drift=0;k.steer*=.9;k.air=false;
-  if(L.th>=Math.PI*2){k.loop=null;k.loopTh=0;k.pth=0;k.boost=Math.max(k.boost,1.5);k.wvy=0;k.gRate=0;k.lastG=groundAt(k.x,k.y);k.wy=k.lastG;k.z=0;if(k===camT)shake(.5);if(k===player)SFX.boost(3);}}
+  if(L.th>=Math.PI*2){if(L.full){let di=L.j-k.idx;if(di>N/2)di-=N;if(di<-N/2)di+=N;k.prog+=di;k.idx=L.j;}k.loop=null;k.loopTh=0;k.pth=0;k.boost=Math.max(k.boost,1.5);k.wvy=0;k.gRate=0;k.lastG=groundAt(k.x,k.y);k.wy=k.lastG;k.z=0;if(k===camT)shake(.5);if(k===player)SFX.boost(3);}}
 
 /* shields: one or two garlic layers that stay until something hits you; each layer stops one item or special */
 function addShield(k,n){k.shL=Math.min(2,(k.shL||0)+n);const gy=(k.wy||0)+7;spawnRing(k.x,(k.wy||0)+.6,k.y,'#7fe07a',44,.6);burst(k.x,gy,k.y,24,['#7fe07a','#f4ecdc','#ffffff'],60,2.4);
@@ -3236,7 +3257,7 @@ function stepKart(k,inp,dt){
   const dPress=inp.brake&&!k.pd;k.pd=inp.brake;if(k.gripT>0)k.gripT-=dt;
   if(k.loop){loopStep(k,dt);return;}
   if(k.air&&k.big&&dPress&&!k.trick){k.trick=true;k.trickT=.45;if(k===player)SFX.trick();}
-  const lat=Math.abs(lateral(k)),sm=k.sm;let tp=lat<RW?1:lat<CURB?.86+.02*sm.off:clamp(.58+.06*sm.off,.4,.82);if(k.glide)tp=1;if(k.sc)tp=.96;if(k.boost>0)tp=Math.max(tp,.93);k.sf=k.sc?1:lat<RW?2:lat<CURB?1:0;
+  const lat=Math.abs(lateral(k)),sm=k.sm;let tp=lat<RW?1:lat<CURB?.86+.02*sm.off:clamp(.58+.06*sm.off,.4,.82);if(k.glide)tp=1;if(k.sc)tp=k.sc.route?1:.96;if(k.boost>0)tp=Math.max(tp,.93);k.sf=k.sc?1:lat<RW?2:lat<CURB?1:0;
   k.pen+=(tp-k.pen)*Math.min(1,dt*(tp<k.pen?3.5:6));
   let max=BASE_MAX*inp.mul*k.pen*sm.spd*(k.glide?k.gair||1:1);if(k.boost>0){k.bAge=(k.pBoost>0?(k.bAge||0)+dt:0);max*=1.58;k.boost-=dt;}else k.bAge=9;k.pBoost=k.boost;if(k.dWant>0)k.dWant-=dt;if(k.shield>0){k.shield-=dt;max*=1.08;}if(k.absT>0)k.absT-=dt;if(k.rush>0){k.rush-=dt;max*=1.12;k.pen=Math.max(k.pen,.95);}if(k.cannonT>0)max*=1.22;if(k.shrinkT>0)max*=.78;if(k.sauceT>0)max*=.93;if(k.frozen>0){k.frozen-=dt;max*=.55;}
   const v0=k.speed;
@@ -3266,7 +3287,7 @@ function stepKart(k,inp,dt){
   k.acc+=((k.speed-v0)/dt-k.acc)*Math.min(1,dt*6);
   k.x+=Math.cos(k.ma)*k.speed*dt;k.y+=Math.sin(k.ma)*k.speed*dt;
   scStep(k);
-  {const pj=track[k.idx],lt=(k.x-pj.x)*pj.nx+(k.y-pj.y)*pj.ny,sg=lt<0?-1:1,lim=pj.wall===sg?CURB+7:pj.pond===sg?CURB+2*POND.GR*POND.SZ+30:WALLD-3.5;if(!pj.open&&!k.glide&&!k.loop&&!k.sc&&lt*sg>lim&&!SHORTS.some(sc=>sc.s===sg&&lt*sg<WALLD+30&&Math.min(Math.abs(k.idx-sc.a)%N,N-Math.abs(k.idx-sc.a)%N)<=3)){const ov=lt*sg-lim,nx=pj.nx*sg,ny=pj.ny*sg;k.x-=nx*ov;k.y-=ny*ov;
+  {const pj=track[k.idx],lt=(k.x-pj.x)*pj.nx+(k.y-pj.y)*pj.ny,sg=lt<0?-1:1,lim=pj.wall===sg?CURB+7:pj.pond===sg?CURB+2*POND.GR*POND.SZ+30:WALLD-3.5;if(!pj.open&&!k.glide&&!k.loop&&!k.sc&&lt*sg>lim&&!SHORTS.some(sc=>sc.s===sg&&lt*sg<WALLD+(sc.route?70:30)&&Math.min(Math.abs(k.idx-sc.a)%N,N-Math.abs(k.idx-sc.a)%N)<=(sc.route?8:3))){const ov=lt*sg-lim,nx=pj.nx*sg,ny=pj.ny*sg;k.x-=nx*ov;k.y-=ny*ov;
     const vx=Math.cos(k.ma),vy=Math.sin(k.ma),dot=vx*nx+vy*ny;if(dot>0){if(k===camT&&dot>.3)shake(.25);k.speed*=1-.22*dot;const tx=vx-dot*nx,ty=vy-dot*ny;if(Math.hypot(tx,ty)>.05){const na=Math.atan2(ty,tx);k.ma=na;k.a+=angDiff(na,k.a)*.5;}if(dot>.45&&k.wallT<=0){k.wallT=.35;if(k===player)SFX.bump(.7);sparkWall(k,nx,ny);}}}}
   {const pj=track[k.idx];if(pj.flo!==undefined&&!k.loop&&!k.glide&&!k.sc){const lt=(k.x-pj.x)*pj.nx+(k.y-pj.y)*pj.ny;let ov=0,sg=0;if(lt<pj.flo){ov=pj.flo-lt;sg=-1;}else if(lt>pj.fhi){ov=lt-pj.fhi;sg=1;}
     if(ov>0){const nx=pj.nx*sg,ny=pj.ny*sg;k.x-=nx*ov;k.y-=ny*ov;const vx=Math.cos(k.ma),vy=Math.sin(k.ma),dot=vx*nx+vy*ny;if(dot>0){k.speed*=1-.15*dot;const tx=vx-dot*nx,ty=vy-dot*ny;if(Math.hypot(tx,ty)>.05){const na=Math.atan2(ty,tx);k.ma=na;k.a+=angDiff(na,k.a)*.5;}if(dot>.45&&k.wallT<=0){k.wallT=.35;if(k===player)SFX.bump(.6);sparkWall(k,nx,ny);}}}}}
@@ -3294,9 +3315,10 @@ function stepKart(k,inp,dt){
   if(k.roll>0){k.roll-=dt;if(k.roll<=0){while(k.pend.length){const it=k.pend.shift();if(!k.item)k.item=it;else if(!k.item2)k.item2=it;}const df=DIFFS[player?aiKey():'normal'];k.ai.itemDelay=df.delay[0]+Math.random()*(df.delay[1]-df.delay[0]);if(k===player){SFX.ready();itemBtn.classList.remove('pop');void itemBtn.offsetWidth;itemBtn.classList.add('pop');}}}
   const oIdx=k.idx;let best=k.idx,bd=1e18;if(!k.sc)for(let o=-12;o<=20;o++){const j=(k.idx+o+N)%N,p=track[j],dd=(p.x-k.x)**2+(p.y-k.y)**2;if(dd<bd){bd=dd;best=j;}}
   let di=best-k.idx;if(di>N/2)di-=N;if(di<-N/2)di+=N;k.prog+=di;k.idx=best;
-  for(const LOOP of LOOPS)if(!k.air&&k.speed>50&&k.spin<=0&&!k.loop){let d0=oIdx-LOOP.j,d1=k.idx-LOOP.j;if(d0>N/2)d0-=N;if(d0<-N/2)d0+=N;if(d1>N/2)d1-=N;if(d1<-N/2)d1+=N;
+  for(const LOOP of LOOPS)if(!k.loop&&LOOP.full){let dj=LOOP.j-k.idx;if(dj>N/2)dj-=N;if(dj<-N/2)dj+=N;if(dj>=1&&dj<=8){const P=LOOP.p,al=(k.x-P.x)*P.tx+(k.y-P.y)*P.ty,lt=(k.x-P.x)*P.nx+(k.y-P.y)*P.ny;if(al>=-1){k.loop={th:0,p:P,lat0:clamp(lt,-LOOP.S-LOOP.W+5,-LOOP.S+LOOP.W-5),shift:LOOP.shift,g0:LOOP.g0,j:LOOP.j,full:true};k.drift=0;k.spin=0;k.air=false;k.big=false;k.glide=false;if(k===player)SFX.pad();}}}
+  for(const LOOP of LOOPS)if(!LOOP.full&&!k.air&&k.speed>50&&k.spin<=0&&!k.loop){let d0=oIdx-LOOP.j,d1=k.idx-LOOP.j;if(d0>N/2)d0-=N;if(d0<-N/2)d0+=N;if(d1>N/2)d1-=N;if(d1<-N/2)d1+=N;
     if(d0<0&&d1>=0){const lt=lateral(k);if(LOOP.full||Math.abs(lt-LOOP.lat0)<17){k.loop={th:0,p:LOOP.p,lat0:LOOP.full?clamp(lt,LOOP.lat0-LOOP.W+4,LOOP.lat0+LOOP.W-4):LOOP.lat0,shift:LOOP.shift,g0:LOOP.g0};k.drift=0;if(k===player)SFX.pad();}}}
-  for(const pd of pads){let dj=k.idx-pd.j;if(dj>N/2)dj-=N;if(dj<-N/2)dj+=N;if(Math.abs(dj)<=2&&Math.abs(lateral(k)-pd.lat)<16&&k.boost<.9){k.boost=Math.max(k.boost,1.0);if(k===camT)shake(.25);if(k===player)SFX.pad();}}
+  for(const pd of pads){let dj=k.idx-pd.j;if(dj>N/2)dj-=N;if(dj<-N/2)dj+=N;if(Math.abs(dj)<=2&&Math.abs(lateral(k)-pd.lat)<(pd.w||16)&&k.boost<.9){k.boost=Math.max(k.boost,1.0);if(k===camT)shake(.25);if(k===player)SFX.pad();}}
 }
 function startGlide(k){const gd=GLIDERS[k.spec.g];k.air=true;k.glide=true;k.big=false;k.trick=false;k.drift=0;k.speed=Math.max(k.speed,BASE_MAX*.85);k.wvy=55+k.speed*.08;k.gRings=0;k.gsink=gd.sink;k.gair=gd.air;if(k===player){SFX.glide();showBanner('Glide!',.9);}}
 function glideRings(k){const G=GLIDE;if(!G||!G.rings)return;for(let i=0;i<G.rings.length;i++){if(k.gRings&(1<<i))continue;const r=G.rings[i],dx=k.x-r.x,dz=k.y-r.z,al=dx*G.ux+dz*G.uy;if(Math.abs(al)>7)continue;
