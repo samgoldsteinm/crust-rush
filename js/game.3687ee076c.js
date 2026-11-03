@@ -824,6 +824,261 @@ const BODY_FN={
     addPlates(S,M,idx,rc,[[1.6,1.75,2.72,.65]]);
     return {rw:[-3.1,3.25,1.4],fw:[3.4,3.1,1.2],wz:1.2,drv:[.75,2.35],steer:[2.75,3.4],pipes,lo:[10,3,4.8,2.6],bubY:3.6,bubS:1.05,glY:10.5,top:7.2,smoke:[-1.6,6.9,0]};}
 };
+/* ================= HAND-BUILT KARTS (v51) =================
+   Seven original karts modelled from primitives: smooth spline profiles, lathed shells, bevelled panels,
+   tubes, rivets, vents and lamps. Paint, stripe and trim parts follow the player's colours and liveries;
+   themed parts (brick, cheese, leaves, wood) keep their own look. Everything is merged by material when the kart is built. */
+const KB={};let _kGlass=null;const kGlass=()=>{if(!_kGlass){_kGlass=new THREE.MeshPhysicalMaterial({color:'#cfeeff',roughness:.04,metalness:0,transparent:true,opacity:.32,depthWrite:false,side:THREE.DoubleSide,envMapIntensity:1.4});SHSET.add(_kGlass);}return _kGlass;};
+/* smooth side profile from points, extruded across the kart with a soft bevel */
+const KQ=()=>HQB?1:.35;
+function kProf(pts,depth,bev,curve){const s=new THREE.Shape();s.moveTo(pts[0][0],pts[0][1]);s.splineThru(pts.slice(1).map(p=>new THREE.Vector2(p[0],p[1])));s.closePath();
+  const g=new THREE.ExtrudeGeometry(s,{depth,bevelEnabled:bev>0,bevelThickness:bev,bevelSize:bev*.9,bevelSegments:HQB?4:2,curveSegments:Math.max(6,Math.round((curve||40)*KQ())),steps:1});g.translate(0,0,-depth/2);return g;}
+/* rounded box (x length, y height, z width) */
+function kRBox(w,h,d,r){r=Math.min(r,w/2-.01,h/2-.01);const s=new THREE.Shape(),x=-w/2+r,y=-h/2+r;s.moveTo(x,-h/2);s.lineTo(w/2-r,-h/2);s.quadraticCurveTo(w/2,-h/2,w/2,y);s.lineTo(w/2,h/2-r);s.quadraticCurveTo(w/2,h/2,w/2-r,h/2);
+  s.lineTo(x,h/2);s.quadraticCurveTo(-w/2,h/2,-w/2,h/2-r);s.lineTo(-w/2,y);s.quadraticCurveTo(-w/2,-h/2,x,-h/2);const b=Math.min(r*.8,d/2-.01);
+  const g=new THREE.ExtrudeGeometry(s,{depth:Math.max(.01,d-2*b),bevelEnabled:true,bevelThickness:b,bevelSize:b*.95,bevelSegments:HQB?4:2,curveSegments:HQB?8:3});g.translate(0,0,-(d-2*b)/2);return g;}
+/* lathe along the kart's length: pts are [radius, x] pairs, nose at +x */
+function kLathe(pts,seg){const g=new THREE.LatheGeometry(pts.map(([r,x])=>new THREE.Vector2(Math.max(.001,r),x)),Math.max(8,Math.round((seg||36)*(HQB?1:.5))));g.rotateZ(-Math.PI/2);return g;}
+function kTube(pts,r,seg,rad){return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p=>new THREE.Vector3(...p))),Math.max(4,Math.round((seg||24)*(HQB?1:.5))),r,HQB?(rad||8):Math.max(4,(rad||8)>>1),false);}
+const kAdd=(geo,mat,x,y,z,S,rx,ry,rz,sx,sy,sz)=>{const m=P3(geo,mat,x,y,z,S);if(rx||ry||rz)m.rotation.set(rx||0,ry||0,rz||0);if(sx)m.scale.set(sx,sy??sx,sz??sx);return m;};
+/* a row of round rivet heads */
+function kRivets(S,mat,a,b,n,r){const g=KB.rivet||(KB.rivet=new THREE.SphereGeometry(1,8,6,0,Math.PI*2,0,Math.PI/2));for(let i=0;i<n;i++){const t=n>1?i/(n-1):.5,m=P3(g,mat,a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t,S);m.scale.setScalar(r||.07);if(a[3])m.rotation.set(a[3],a[4]||0,a[5]||0);}}
+/* slotted vent: a dark recess with chrome slats */
+function kVent(S,x,y,z,w,h,n,face,matIn,matSlat){const G=new THREE.Group();G.position.set(x,y,z);if(face)G.rotation.y=face;S.add(G);
+  P3(kRBox(w,h,.12,.06),matIn||cm('#141110',.6),0,0,0,G);for(let i=0;i<n;i++)P3(kRBox(w*.92,h/(n*2.2),.16,.02),matSlat||SH.chrome,0,-h/2+h*(i+.5)/n,.04,G);return G;}
+/* headlamp: chrome cup, glowing lens, little visor */
+function kLamp(S,x,y,z,r,ry,mat){const G=new THREE.Group();G.position.set(x,y,z);G.rotation.y=ry||0;S.add(G);
+  const cup=P3(KB.cup||(KB.cup=new THREE.SphereGeometry(1,20,12,0,Math.PI*2,0,Math.PI/2)),SH.chrome,0,0,0,G);cup.rotation.z=-Math.PI/2;cup.scale.set(r*1.15,r*1.1,r*1.1);
+  const ln=P3(KB.lens||(KB.lens=new THREE.SphereGeometry(1,18,10,0,Math.PI*2,0,Math.PI/2)),mat||SH.light,.02,0,0,G);ln.rotation.z=-Math.PI/2;ln.scale.set(r*.35,r*.92,r*.92);
+  const rim=P3(KB.rim2||(KB.rim2=new THREE.TorusGeometry(1,.09,8,24)),SH.chrome,0,0,0,G);rim.rotation.y=Math.PI/2;rim.scale.setScalar(r*1.02);return G;}
+/* tyre-style bolt pattern hub cap for decorative wheels */
+function kSeat(S,x,y,mat,w){const G=new THREE.Group();G.position.set(x,y,0);S.add(G);const W=w||1.9;
+  P3(kRBox(1.3,.42,W,.18),mat,0,0,0,G);const back=P3(kRBox(.38,1.9,W,.17),mat,-.55,.95,0,G);back.rotation.z=.2;
+  for(const s of [-1,1])P3(kRBox(1.0,.7,.3,.12),mat,-.1,.42,(W/2-.05)*s,G);P3(kRBox(.3,.62,W*.62,.14),mat,-.95,2.05,0,G).rotation.z=.2;return G;}
+
+Object.assign(BODY_FN,{
+/* ---------- CLASSIC: the house kart, rebuilt with a sculpted shell, side pods, a velocity-stack engine and a proper wing ---------- */
+classic(S,M,rc,idx){
+  const shell=[[5.2,.95],[5.45,1.55],[4.6,2.05],[2.6,2.35],[1.2,2.6],[-.6,2.7],[-2.4,2.75],[-4.0,2.6],[-4.6,1.8],[-4.4,.9],[0,.75]];
+  P3(kProf(shell,3.4,.42),M.paint,0,0,0,S);P3(kProf(shell,.62,.44),M.stripe,0,0,0,S);
+  P3(kRBox(9.6,.36,5.0,.16),SH.carbon,.2,.78,0,S);
+  /* cockpit opening rim */
+  const cr=P3(new THREE.TorusGeometry(1,.14,10,40),SH.black,-.6,2.92,0,S);cr.rotation.x=Math.PI/2;cr.scale.set(1.9,1.25,1);
+  /* nose: chrome grille ring with slats, twin pod lamps */
+  kAdd(new THREE.TorusGeometry(.62,.1,10,32),SH.chrome,5.42,1.45,0,S,0,Math.PI/2);kAdd(new THREE.CircleGeometry(.6,28),cm('#111',.5),5.4,1.45,0,S,0,Math.PI/2);
+  for(let i=-2;i<=2;i++)kAdd(kRBox(.06,.95,.08,.02),SH.chrome,5.45,1.45,i*.2,S);
+  for(const s of [-1,1]){kAdd(kLathe([[0,0],[.34,-.05],[.38,-.6],[.3,-1.1],[0,-1.2]],18),M.dark,4.95,1.95,1.25*s,S);kLamp(S,4.98,1.95,1.25*s,.3);}
+  /* front wing with end plates */
+  P3(kProf([[6.15,.55],[5.9,.82],[5.0,.86],[4.7,.62]],6.4,.05),M.paint,0,0,0,S);P3(kProf([[5.95,.88],[5.4,1.08],[4.95,.9]],6.0,.04),M.stripe,0,0,0,S);
+  for(const s of [-1,1])P3(kRBox(1.6,.9,.1,.08),M.dark,5.4,.9,3.25*s,S);
+  /* side pods with intake vents and number plates */
+  for(const s of [-1,1]){const pod=kAdd(kLathe([[0,2.1],[.48,1.9],[.62,1.2],[.62,-1.2],[.5,-1.8],[.28,-2.1]],24),M.paint,-.3,1.38,2.55*s,S,0,0,0,1,1,1.05);
+    kVent(S,1.55,1.4,2.55*s,.12,.72,4,0,null,SH.chrome).rotation.y=Math.PI/2;kAdd(new THREE.TorusGeometry(.58,.05,8,28),SH.chrome,1.62,1.38,2.55*s,S,0,Math.PI/2);
+    kRivets(S,SH.chrome,[-2.1,1.85,2.55*s+.42*s],[1.2,1.85,2.55*s+.42*s],7,.06);
+    /* mirrors on stalks */
+    P3(kTube([[1.2,2.55,1.35*s],[1.45,3.1,1.95*s],[1.4,3.35,2.35*s]],.06,12,6),SH.chrome,0,0,0,S);const mi=kAdd(kRBox(.25,.42,.72,.12),M.dark,1.42,3.38,2.4*s,S);kAdd(new THREE.PlaneGeometry(.6,.32),SH.lens,1.55,3.38,2.4*s,S,0,Math.PI/2);
+    /* suspension: wishbones and chrome coil-overs */
+    for(const y of [1.15,1.6])limb(KG.rod,SH.metal,[2.6,y,1.3*s],[3.15,y-.3,2.25*s],S);
+    for(let i=0;i<5;i++)kAdd(KG.spring,SH.chrome,2.55,1.25+i*.15,1.8*s,S,Math.PI/2);
+    for(let i=0;i<5;i++)kAdd(KG.spring,SH.chrome,-2.3,1.35+i*.15,2.05*s,S,Math.PI/2);
+    P3(KG.tail,M.tailM,-4.5,2.05,1.4*s,S);}
+  /* engine bay behind the seat: block, valve cover, four velocity stacks */
+  P3(kRBox(1.9,1.0,1.7,.18),SH.metal,-3.15,3.05,0,S);P3(kRBox(1.6,.3,1.2,.14),M.stripe,-3.15,3.65,0,S);
+  for(let i=0;i<4;i++){const z=-.66+i*.44;kAdd(kLathe([[.17,.0],[.17,-.5],[.24,-.62],[.27,-.66]],14),SH.chrome,-2.65,3.55,z,S,0,0,Math.PI/2+.25);}
+  kAdd(new THREE.CylinderGeometry(.38,.38,.5,18),SH.chrome,-3.75,3.55,0,S,Math.PI/2);for(let i=0;i<5;i++)kAdd(new THREE.TorusGeometry(.4,.03,6,18),SH.metal,-3.75,3.55,-.2+i*.1,S);
+  /* roll hoop with padding */
+  P3(kTube([[-2.05,2.6,-1.1],[-2.15,4.3,-.95],[-2.2,4.75,0],[-2.15,4.3,.95],[-2.05,2.6,1.1]],.12,24,8),SH.chrome,0,0,0,S);kAdd(new THREE.CapsuleGeometry(.26,1.3,6,12),SH.seat,-2.15,4.6,0,S,Math.PI/2);
+  /* swan-neck rear wing */
+  P3(kProf([[-3.6,4.55],[-4.2,4.95],[-5.25,4.85],[-5.35,4.45],[-4.3,4.4]],5.4,.06),M.paint,0,0,0,S);P3(kProf([[-4.0,5.05],[-4.9,5.3],[-5.15,5.05],[-4.35,4.95]],5.2,.05),M.stripe,0,0,0,S);
+  for(const s of [-1,1]){P3(kTube([[-3.4,3.0,.55*s],[-3.9,4.0,.62*s],[-4.4,4.75,.6*s]],.09,16,6),SH.metal,0,0,0,S);P3(kRBox(1.9,1.3,.1,.1),M.dark,-4.5,4.7,2.75*s,S);}
+  /* diffuser fins, tow hook, fuel cap */
+  for(let i=-2;i<=2;i++)P3(kRBox(1.0,.5,.08,.04),SH.carbon,-4.55,1.05,i*.62,S);kAdd(new THREE.TorusGeometry(.18,.06,6,14),SH.chrome,-4.75,1.0,0,S,0,Math.PI/2);
+  kAdd(new THREE.CylinderGeometry(.22,.22,.08,18),SH.chrome,2.2,2.42,.8,S);
+  const pipes=[exhaust(S,-4.75,2.25,.75),exhaust(S,-4.75,2.25,-.75)];
+  kSeat(S,-1.25,2.4,SH.seat,1.9);addPlates(S,M,idx,rc,[[-.3,1.42,3.2,.6]]);
+  return {rw:[-2.95,3.0,1.32],fw:[3.15,2.75,1.05],drv:[-.55,2.85],steer:[1.55,3.55],pipes,lo:[9.6,2.4,4.6,1.9],bubY:3.4,glY:10,top:7.2};},
+
+/* ---------- ROCKET: a polished 1950s rocket on wheels, with portholes, rivets, three fins and glowing thrusters ---------- */
+rocket(S,M,rc,idx){
+  const hull=[[0,6.3],[.28,6.15],[.85,5.6],[1.35,4.6],[1.7,3.2],[1.85,1.4],[1.86,-.6],[1.75,-2.6],[1.5,-4.2],[1.2,-5.1]];
+  const fus=kAdd(kLathe(hull,48),M.paint,0,2.35,0,S,0,0,0,1,1,1.12);
+  kAdd(kLathe([[0,6.32],[.3,6.15],[.62,5.75],[.66,5.6],[0,5.55]],24),SH.chrome,0,2.35,0,S,0,0,0,1,1,1.12);
+  /* panel seams and stripe bands */
+  for(const [x,r,w,mat] of [[3.4,1.73,.32,M.stripe],[2.9,1.79,.06,SH.chrome],[-1.0,1.885,.06,SH.chrome],[-3.3,1.72,.32,M.stripe],[-3.75,1.66,.06,SH.chrome]])kAdd(kLathe([[r,x+w/2],[r+.03,x],[r,x-w/2]],48),mat,0,2.35,0,S,0,0,0,1,1,1.12);
+  for(const x of [2.85,-.95])for(let i=0;i<16;i++){const a=i/16*Math.PI*2,r=x>0?1.78:1.89;if(Math.sin(a)<-.5)continue;kAdd(KB.rivet||(KB.rivet=new THREE.SphereGeometry(1,8,6,0,Math.PI*2,0,Math.PI/2)),SH.chrome,x,2.35+Math.sin(a)*r,Math.cos(a)*r*1.12,S,a-Math.PI/2,0,0,.07);}
+  /* portholes */
+  for(const s of [-1,1])for(const x of [2.0,.6]){kAdd(new THREE.TorusGeometry(.36,.09,8,24),SH.chrome,x,2.55,1.97*s,S);kAdd(new THREE.CircleGeometry(.33,20),SH.lens,x,2.55,1.975*s,S,0,s<0?Math.PI:0);}
+  /* bubble canopy with ribs */
+  kAdd(new THREE.SphereGeometry(1.2,32,16,0,Math.PI,0,Math.PI/2),kGlass(),.75,3.95,0,S,0,Math.PI/2,0,1.1,1.1,1.25);kAdd(new THREE.TorusGeometry(1.2,.09,8,32,Math.PI),SH.chrome,.75,3.95,0,S,-Math.PI/2,0,Math.PI/2,1.25,1.1,1);
+  const cr=kAdd(new THREE.TorusGeometry(1.0,.16,8,40),SH.chrome,-.9,3.98,0,S,Math.PI/2);cr.scale.set(1.9,1.35,1);kAdd(new THREE.CircleGeometry(1,32),cm('#151112',.7),-.9,3.94,0,S,-Math.PI/2,0,0,1.85,1.3,1);
+  /* tail fins (two side, one top) with chrome tips */
+  const fin=[[1.6,0],[-3.6,0],[-5.0,0],[-5.6,2.9],[-4.4,3.1],[-1.6,.6]];
+  for(const s of [-1,1]){kAdd(kProf(fin,.2,.07),M.stripe,0,2.4,1.45*s,S,-Math.PI/2*s);kAdd(new THREE.SphereGeometry(.22,12,8),SH.chrome,-5.0,2.4,(1.45+3.0)*s,S);}
+  kAdd(kProf(fin,.2,.07),M.stripe,0,3.4,0,S,0,0,0,1,.75,1);kAdd(new THREE.SphereGeometry(.2,12,8),SH.chrome,-5.0,5.6,0,S);
+  /* main thruster bell, glowing core, heat rings */
+  kAdd(kLathe([[1.15,-5.05],[1.25,-5.2],[1.6,-6.2],[1.48,-6.25],[1.08,-5.4],[.9,-5.3]],36),SH.metal,0,2.35,0,S,0,0,0,1,1,1.05);
+  kAdd(new THREE.CircleGeometry(1.3,32),SH.glowC,-6.05,2.35,0,S,0,-Math.PI/2);kAdd(new THREE.CircleGeometry(.7,24),SH.glowO,-6.0,2.35,0,S,0,-Math.PI/2);
+  for(let i=0;i<3;i++)kAdd(new THREE.TorusGeometry(1.28+i*.12,.05,6,36),SH.chrome,-5.35-i*.3,2.35,0,S,0,Math.PI/2);
+  /* side boosters on struts */
+  for(const s of [-1,1]){const z=3.75*s;kAdd(kLathe([[0,1.6],[.35,1.3],[.52,.6],[.55,-1.2],[.62,-1.5],[.55,-1.6]],24),M.paint,-3.0,2.6,z,S);
+    kAdd(new THREE.CircleGeometry(.48,20),SH.glowC,-4.62,2.6,z,S,0,-Math.PI/2);kAdd(new THREE.TorusGeometry(.56,.05,6,24),SH.chrome,-3.6,2.6,z,S,0,Math.PI/2);
+    kAdd(kProf([[-2.2,0],[-4.4,0],[-4.6,1.2],[-3.9,1.2]],.12,.04),M.stripe,0,2.6,z,S,-Math.PI/2*s,0,0);
+    P3(kTube([[-2.4,2.4,1.6*s],[-2.8,2.55,2.8*s],[-3.0,2.6,3.3*s]],.11,10,8),SH.chrome,0,0,0,S);P3(kTube([[-3.9,2.3,1.5*s],[-3.9,2.5,2.8*s],[-3.6,2.6,3.3*s]],.11,10,8),SH.chrome,0,0,0,S);}
+  /* antenna with blinking bulb, nose lamps */
+  P3(kTube([[-2.4,4.1,0],[-2.7,5.4,0],[-2.95,6.6,0]],.05,10,6),SH.chrome,0,0,0,S);kAdd(new THREE.SphereGeometry(.2,14,10),SH.glowO,-2.97,6.7,0,S);
+  for(const s of [-1,1])kLamp(S,5.15,2.05,.72*s,.28);
+  for(const s of [-1,1])P3(KG.tail,M.tailM,-5.0,3.2,1.0*s,S);
+  kSeat(S,-1.2,3.25,SH.seat,1.6);
+  return {rw:[-3.0,3.0,1.2],fw:[3.2,2.3,1.0],drv:[-.4,3.55],steer:[1.35,4.15],pipes:[[-6.4,2.35,0],[-4.75,2.6,3.75],[-4.75,2.6,-3.75]],lo:[11.5,2.6,3.6,2.3],bubY:3.6,glY:10.5,top:7.6};},
+
+/* ---------- BRICK OVEN: a wood-fired oven on a timber cart, iron door, ember glow, chimney, logs and a peel ---------- */
+oven(S,M,rc,idx){
+  const wood=cm('#8a5a34',.75),woodD=cm('#5e3a1e',.8),iron=cm('#2a2624',.45,.6),copper=cm('#c8763a',.28,.85);
+  /* timber deck: planks with dark seams and iron corner brackets */
+  for(let i=0;i<7;i++){const z=-2.25+i*.75;P3(kRBox(9.8,.34,.7,.08),i%2?wood:woodD,0,1.25,z,S);}
+  for(const s of [-1,1])P3(kRBox(9.9,.5,.24,.08),M.paint,0,1.0,2.55*s,S);
+  for(const x of [-4.6,4.6])for(const s of [-1,1]){P3(kRBox(.5,.6,.5,.08),iron,x,1.25,2.45*s,S);kRivets(S,SH.chrome,[x-.18,1.4,2.72*s],[x+.18,1.4,2.72*s],2,.06);}
+  /* oven base, brick dome, copper band, mortar lip */
+  P3(kRBox(5.6,.9,4.6,.25),M.paint,-2.2,1.85,0,S);P3(kRBox(5.7,.14,4.7,.06),copper,-2.2,2.32,0,S);
+  const dome=kAdd(new THREE.SphereGeometry(2.6,40,20,0,Math.PI*2,0,Math.PI/2),M.brick,-2.4,2.38,0,S,0,0,0,1.02,1.04,.92);
+  kAdd(new THREE.TorusGeometry(2.62,.13,8,48),copper,-2.4,2.42,0,S,Math.PI/2,0,0,1.02,.92,1);
+  /* arched mouth: brick arch, iron door frame, hinged door ajar, embers inside */
+  kAdd(new THREE.TorusGeometry(1.15,.32,10,24,Math.PI),M.brick,-4.9,2.4,0,S,0,Math.PI/2);
+  kAdd(new THREE.CircleGeometry(1.0,24,0,Math.PI),SH.glowO,-4.95,2.42,0,S,0,-Math.PI/2);
+  for(let i=0;i<9;i++)kAdd(new THREE.SphereGeometry(.13+Math.random()*.08,8,6),i%3?SH.glowO:SH.glowC,-4.75,2.48+Math.random()*.15,(Math.random()-.5)*1.4,S);
+  const door=new THREE.Group();door.position.set(-5.05,2.4,1.1);door.rotation.y=-.9;S.add(door);P3(kRBox(.12,1.05,1.0,.06),iron,0,.5,-.5,door);kAdd(new THREE.TorusGeometry(.18,.04,6,14),SH.chrome,-.08,.55,-.75,door,0,Math.PI/2);
+  for(const y of [2.55,3.25])kAdd(new THREE.CylinderGeometry(.06,.06,.3,8),iron,-5.0,y,1.12,S);
+  /* chimney with spark cap */
+  kAdd(new THREE.CylinderGeometry(.42,.5,2.6,18),copper,-1.4,5.3,0,S);kAdd(new THREE.TorusGeometry(.5,.07,6,20),SH.chrome,-1.4,4.4,0,S,Math.PI/2);
+  kAdd(new THREE.ConeGeometry(.85,.55,18,1,true),iron,-1.4,6.95,0,S);for(let i=0;i<6;i++){const a=i/6*Math.PI*2;limb(KG.rod,iron,[-1.4+Math.cos(a)*.45,6.6,Math.sin(a)*.45],[-1.4+Math.cos(a)*.7,6.75,Math.sin(a)*.7],S);}
+  /* thermometer dial on the dome */
+  kAdd(new THREE.CylinderGeometry(.42,.42,.12,24),SH.chrome,-.1,3.5,0,S,0,0,Math.PI/2+.5);kAdd(new THREE.CircleGeometry(.34,20),SH.white,-.05,3.53,0,S,0,Math.PI/2,-.5);
+  kAdd(kRBox(.05,.28,.04,.01),cm('#c0301c',.4),-.02,3.55,0,S,0,0,-.5);
+  /* front: cab hood with grille, lanterns */
+  const hood=[[2.3,1.45],[5.1,1.45],[5.35,2.1],[4.9,2.95],[3.2,3.25],[2.3,3.25]];P3(kProf(hood,4.0,.22),M.paint,0,0,0,S);P3(kProf(hood,.6,.24),M.stripe,0,0,0,S);
+  kVent(S,5.32,2.05,0,1.6,.9,5,Math.PI/2,null,SH.chrome);
+  for(const s of [-1,1]){const L=new THREE.Group();L.position.set(5.0,3.2,1.55*s);S.add(L);P3(kRBox(.5,.6,.5,.08),iron,0,0,0,L);P3(new THREE.BoxGeometry(.42,.48,.42),SH.light,0,.0,0,L);kAdd(new THREE.ConeGeometry(.38,.3,4),iron,0,.45,0,L,0,Math.PI/4);
+    kAdd(new THREE.TorusGeometry(.14,.03,6,12),iron,0,.66,0,L);}
+  hrx(P3(KG.bumper,iron,5.45,1.05,0,S)).scale.set(1,1,1.05);
+  /* firewood rack on the right, peel on the left */
+  for(let i=0;i<5;i++){const y=1.75+(i%3)*.36,z=2.9+(i>2?.32:0),x=.6+(i%2)*.25;kAdd(new THREE.CylinderGeometry(.17,.17,2.6,10),woodD,x,y,z,S,0,0,Math.PI/2);kAdd(new THREE.CircleGeometry(.15,10),cm('#c8a070',.8),x+1.31,y,z,S,0,Math.PI/2);}
+  for(const x of [-.6,1.9])P3(kRBox(.12,1.3,.12,.03),iron,x,2.1,3.2,S);
+  P3(kRBox(4.2,.08,.18,.04),wood,1.0,2.0,-2.92,S).rotation.z=.05;kAdd(new THREE.CylinderGeometry(.95,.95,.06,24),cm('#b07a46',.7),3.4,2.13,-2.95,S,Math.PI/2);
+  for(const s of [-1,1])P3(KG.tail,M.tailM,-5.0,1.6,2.1*s,S);
+  const pipes=[exhaust(S,-4.6,1.25,1.6),exhaust(S,-4.6,1.25,-1.6)];
+  kSeat(S,1.05,2.5,cm('#6a3a1e',.7),2.1);addPlates(S,M,idx,rc,[[1.8,1.55,2.72,.65]]);
+  return {rw:[-3.1,3.25,1.4],fw:[3.4,3.1,1.2],wz:1.2,drv:[1.6,2.75],steer:[3.35,3.6],pipes,lo:[10,3,4.8,2.6],bubY:3.6,bubS:1.05,glY:10.5,top:7.2,smoke:[-1.4,7.2,0]};},
+
+/* ---------- PRONTO: a bubbly little delivery van with a stack of pizza boxes on the roof ---------- */
+delivery(S,M,rc,idx){
+  const card=cm('#d8b48a',.85),cardD=cm('#b8916a',.85),sauce=cm('#c53b22',.4);
+  /* chassis and skirt */
+  P3(kRBox(9.6,.5,4.8,.22),M.dark,-.2,1.2,0,S);
+  /* rounded nose with a friendly face: big lamps, a smiling grille, a little chrome brow */
+  const nose=[[5.15,1.35],[5.35,2.3],[4.7,3.05],[3.0,3.3],[1.6,3.25],[1.6,1.35]];P3(kProf(nose,4.4,.35),M.paint,0,0,0,S);P3(kProf(nose,.7,.37),M.stripe,0,0,0,S);
+  for(const s2 of [-1,1]){kLamp(S,4.95,2.45,1.45*s2,.46);kAdd(new THREE.TorusGeometry(.5,.07,8,24),M.stripe,5.0,2.45,1.45*s2,S,0,Math.PI/2);kAdd(new THREE.TorusGeometry(.55,.08,6,20,Math.PI*.8),SH.chrome,5.0,2.62,1.45*s2,S,0,Math.PI/2,Math.PI*.1);}
+  kAdd(new THREE.TorusGeometry(.7,.13,8,24,Math.PI),SH.black,5.32,1.95,0,S,Math.PI,Math.PI/2,0);
+  hrx(P3(KG.bumper,SH.chrome,5.4,1.2,0,S));
+  /* low windscreen in a chrome frame, cab sides with round mirrors */
+  kAdd(kRBox(.1,1.0,3.6,.3),kGlass(),2.0,3.75,0,S,0,0,-.35);P3(kTube([[1.7,3.25,-1.85],[2.1,4.25,-1.8],[2.1,4.25,1.8],[1.7,3.25,1.85]],.08,24,6),SH.chrome,0,0,0,S);
+  for(const s2 of [-1,1]){P3(kProf([[1.7,1.35],[1.7,3.25],[-.8,3.0],[-.9,1.35]],.25,.1),M.paint,0,0,2.2*s2,S);
+    P3(kTube([[1.8,3.3,2.2*s2],[2.15,3.75,2.65*s2]],.05,6,6),SH.chrome,0,0,0,S);kAdd(new THREE.CylinderGeometry(.3,.3,.1,18),SH.chrome,2.2,3.85,2.75*s2,S,0,0,Math.PI/2);kAdd(new THREE.CircleGeometry(.26,18),SH.lens,2.26,3.85,2.75*s2,S,0,Math.PI/2);}
+  /* insulated cargo box: rounded, with a door seam, handle, latches and a slice decal */
+  P3(kRBox(4.4,3.0,4.6,.5),M.paint,-3.0,2.95,0,S);P3(kRBox(4.5,.32,4.7,.12),M.stripe,-3.0,2.0,0,S);P3(kRBox(4.5,.18,4.7,.08),M.stripe,-3.0,4.25,0,S);
+  P3(kRBox(.06,2.3,3.2,.03),M.dark,-5.22,3.05,0,S);P3(kRBox(.12,.14,1.2,.06),SH.chrome,-5.25,3.25,0,S);for(const z of [-1.6,1.6])P3(kRBox(.16,.5,.22,.06),SH.chrome,-5.24,3.1,z,S);
+  for(const s2 of [-1,1]){const sl=kAdd(KG.slice,SH.cheese,-3.0,2.6,2.31*s2,S,0,s2>0?0:Math.PI,-Math.PI/2,.2,.2,.06);
+    for(const [dx,dy] of [[-.25,.12],[.3,.25],[0,-.3]])kAdd(new THREE.CylinderGeometry(.15,.15,.04,14),sauce,-3.0+dx,2.6+dy,2.35*s2,S,Math.PI/2);
+    kRivets(S,SH.chrome,[-4.9,4.0,2.32*s2],[-1.1,4.0,2.32*s2],6,.05);}
+  /* stack of pizza boxes strapped on top, and the light-up slice sign */
+  for(let i=0;i<3;i++){const b=new THREE.Group();b.position.set(-3.0,4.6+i*.44,0);b.rotation.y=(i-1)*.1;S.add(b);P3(kRBox(3.4,.4,3.4,.06),i%2?cardD:card,0,0,0,b);P3(kRBox(3.2,.02,3.2,.01),sauce,0,.21,0,b);P3(kRBox(1.3,.02,.55,.01),SH.white,0,.225,0,b);}
+  for(const x of [-3.8,-2.2])P3(kRBox(.22,1.55,3.75,.05),cm('#2a2420',.7),x,5.05,0,S);
+  const sign=new THREE.Group();sign.position.set(-3.0,6.35,0);S.add(sign);kAdd(KG.slice,SH.cheese,0,.1,0,sign,0,Math.PI/2,0,.3,.3,.25);P3(kRBox(.2,.6,.2,.05),SH.metal,0,-.35,0,sign);
+  for(const [y,z] of [[.7,.3],[.95,-.2],[.45,-.35]])kAdd(new THREE.CylinderGeometry(.13,.13,.08,14),sauce,.12,y,z,sign,0,0,Math.PI/2);
+  for(const s2 of [-1,1])P3(kRBox(.12,.7,.45,.1),M.tailM,-5.22,2.15,1.8*s2,S);hrx(P3(KG.bumper,SH.chrome,-5.45,1.2,0,S));
+  const pipes=[exhaust(S,-4.6,1.0,1.3)];
+  kSeat(S,.15,2.0,SH.seat,2.0);addPlates(S,M,idx,rc,[[3.4,2.2,2.35,.55]]);
+  return {rw:[-3.0,2.95,1.25],fw:[3.2,2.95,1.2],wz:1.15,drv:[.85,2.45],steer:[2.4,3.35],pipes,lo:[10,4.2,4.8,2.9],bubY:3.8,bubS:1.15,glY:11.5,top:8.2};},
+
+/* ---------- SLICER: a long low kart built around a giant chrome pizza cutter ---------- */
+cutter(S,M,rc,idx){
+  /* spine: the cutter's handle, with rubber grip rings and a bolster */
+  kAdd(kLathe([[0,4.0],[.45,3.8],[.62,3.0],[.7,-1.5],[.8,-3.6],[.7,-4.6],[0,-4.8]],32),M.paint,0,2.1,0,S,0,0,0,1,1,1.25);
+  for(let i=0;i<6;i++)kAdd(new THREE.TorusGeometry(.74,.07,8,28),SH.black,-1.5-i*.45,2.1,0,S,0,Math.PI/2,0,1,1.25,1);
+  kAdd(new THREE.CylinderGeometry(.85,.85,.55,24),SH.chrome,3.75,2.1,0,S,0,0,Math.PI/2,1,1,1.25);
+  /* the blade: a big chrome disc in a fork at the nose */
+  const bl=new THREE.Group();bl.position.set(5.3,2.15,0);S.add(bl);kAdd(new THREE.CylinderGeometry(1.75,1.75,.12,48),SH.chrome,0,0,0,bl,Math.PI/2);kAdd(new THREE.CylinderGeometry(1.5,1.5,.16,48),SH.disc,0,0,0,bl,Math.PI/2);
+  kAdd(new THREE.CylinderGeometry(.42,.42,.6,20),M.stripe,0,0,0,bl,Math.PI/2);for(let i=0;i<6;i++){const a=i/6*Math.PI*2;kAdd(new THREE.CylinderGeometry(.08,.08,.64,8),SH.chrome,Math.cos(a)*.28,Math.sin(a)*.28,0,bl,Math.PI/2);}
+  for(const s of [-1,1])P3(kProf([[3.7,1.6],[3.7,2.65],[5.3,2.45],[5.5,2.15],[5.3,1.85]],.14,.05),M.paint,0,0,.42*s,S);
+  /* low floor pan and side pods shaped like blade guards */
+  P3(kRBox(9.2,.3,4.4,.14),SH.carbon,-.2,.8,0,S);
+  for(const s of [-1,1]){P3(kProf([[3.0,.95],[2.4,1.85],[-2.5,2.05],[-4.3,1.55],[-4.4,.95]],.9,.18),M.paint,0,0,1.85*s,S);P3(kProf([[2.6,1.75],[-2.5,1.95],[-2.6,1.75],[2.4,1.6]],.95,.06),M.stripe,0,0,1.85*s,S);
+    kVent(S,-.4,1.35,2.33*s,2.4,.45,4,0,null,SH.chrome);kRivets(S,SH.chrome,[-3.8,1.9,2.32*s],[2.0,1.9,2.32*s],8,.05);
+    for(const y of [1.15,1.5])limb(KG.rod,SH.metal,[2.6,y,1.4*s],[3.1,y-.25,2.3*s],S);for(let i=0;i<4;i++)kAdd(KG.spring,SH.chrome,-2.4,1.3+i*.16,2.0*s,S,Math.PI/2);
+    P3(KG.tail,M.tailM,-4.45,1.35,1.4*s,S);}
+  /* low windscreen and head fairing */
+  kAdd(kRBox(.08,.75,1.7,.2),SH.lens,1.5,3.0,0,S,0,0,-.55);P3(kProf([[-1.8,2.6],[-2.4,3.6],[-3.4,3.3],[-3.9,2.6]],1.0,.2),M.paint,0,0,0,S);
+  /* rear: a wide flat wing like a cheese slice, twin pipes */
+  P3(kProf([[-3.6,3.5],[-4.0,3.85],[-5.0,3.8],[-5.05,3.5]],5.0,.05),M.stripe,0,0,0,S);for(const s of [-1,1])P3(kTube([[-3.4,2.3,.5*s],[-3.8,3.0,.6*s],[-4.2,3.55,.6*s]],.08,12,6),SH.metal,0,0,0,S);
+  for(const s of [-1,1])P3(kRBox(1.4,.9,.08,.06),M.dark,-4.4,3.5,2.5*s,S);
+  for(const s of [-1,1])kLamp(S,3.55,1.5,1.0*s,.26);
+  const pipes=[exhaust(S,-4.55,1.55,.55),exhaust(S,-4.55,1.55,-.55)];
+  kSeat(S,-.9,2.05,SH.seat,1.7);addPlates(S,M,idx,rc,[[-1.0,1.55,2.36,.55]]);
+  return {rw:[-3.0,3.0,1.25],fw:[2.9,2.75,1.0],wz:1.1,drv:[-.25,2.45],steer:[1.4,3.1],pipes,lo:[11.5,2.2,4.4,1.8],bubY:3.2,glY:9.6,top:6.6};},
+
+/* ---------- GOUDA: a wedge of cheese with a waxed rind, holes all over and a cracker wing ---------- */
+wedge(S,M,rc,idx){
+  const cheese=cm('#f0b52e',.4,0,.4),hole=cm('#b47a1c',.65),cracker=cm('#d8a456',.8),crackerD=cm('#b07a36',.8);
+  /* the wedge: tall at the back, sharp at the nose; a waxed rind (the player's colour) wraps the back and sides */
+  const wedge=[[5.4,1.0],[5.2,1.35],[-3.9,3.95],[-4.4,3.7],[-4.5,1.1],[-4.2,.85]];
+  P3(extr(wedge,4.0,.3),cheese,0,0,0,S);
+  P3(kRBox(.5,3.0,4.55,.2),M.paint,-4.35,2.45,0,S);for(const s of [-1,1])P3(kRBox(9.6,.42,.2,.08),M.paint,.45,1.08,2.1*s,S);
+  P3(extr([[5.0,1.32],[-3.8,3.95],[-3.9,4.12],[5.0,1.48]],4.2,.04),M.stripe,0,0,0,S);
+  /* holes: recessed discs with darker walls, on the sides and the top slope */
+  const holes=[[3.0,1.4,.42],[1.2,1.85,.55],[-1.0,2.45,.4],[-2.7,2.55,.62],[-.2,1.55,.3],[-3.2,1.55,.35],[2.0,1.15,.25]];
+  for(const s of [-1,1])for(const [x,y,r] of holes){kAdd(new THREE.CylinderGeometry(r,r*.8,.12,22),hole,x,y,2.27*s,S,Math.PI/2);kAdd(new THREE.TorusGeometry(r,.06,6,22),cheese,x,y,2.31*s,S);}
+  for(const [x,z,r] of [[2.4,.9,.35],[.4,-.8,.45],[-1.9,.6,.32],[-2.9,-1.1,.4]]){const y=1.35+(5.2-x)/9.1*2.6+.28;kAdd(new THREE.CylinderGeometry(r,r*.8,.1,20),hole,x,y,z,S,0,0,.28);}
+  /* cracker rear wing with docking holes, on toothpick struts with olives */
+  P3(kRBox(1.9,.18,5.4,.08),cracker,-4.6,5.0,0,S).rotation.z=.12;for(let i=0;i<10;i++)kAdd(new THREE.CylinderGeometry(.06,.06,.2,8),crackerD,-4.6+((i%2)-.5)*.8,5.08,-2.2+Math.floor(i/2)*1.1,S);
+  for(const s of [-1,1]){P3(kTube([[-4.2,3.7,1.3*s],[-4.5,4.95,1.4*s]],.06,6,6),cm('#e8d2a6',.7),0,0,0,S);kAdd(new THREE.SphereGeometry(.28,14,10),cm('#3a4a1a',.3),-4.35,4.35,1.35*s,S,0,0,0,1,1.25,1);kAdd(new THREE.SphereGeometry(.1,10,8),cm('#c53b22',.4),-4.35,4.62,1.35*s,S);}
+  /* nose: a chrome splitter, slim lamps in the rind */
+  P3(kProf([[5.9,.7],[5.6,.95],[4.4,.95],[4.4,.7]],4.6,.05),SH.chrome,0,0,0,S);for(const s of [-1,1])kLamp(S,5.1,1.12,1.6*s,.22);
+  for(const s of [-1,1])P3(KG.tail,M.tailM,-4.65,2.0,1.6*s,S);
+  for(const s of [-1,1])for(const y of [1.15,1.5])limb(KG.rod,SH.metal,[2.6,y,1.4*s],[3.1,y-.25,2.35*s],S);
+  const pipes=[exhaust(S,-4.75,1.35,.9),exhaust(S,-4.75,1.35,-.9)];
+  kSeat(S,-1.3,2.15,SH.seat,1.8);addPlates(S,M,idx,rc,[[-2.5,3.1,2.42,.6]]);
+  return {rw:[-3.0,3.0,1.3],fw:[3.1,2.8,1.05],drv:[-.6,2.55],steer:[1.3,3.4],pipes,lo:[10,2.8,4.6,2.2],bubY:3.5,glY:10,top:7.4};},
+
+/* ---------- TOMATINO: a round tomato bubble car with a leafy crown and a stalk antenna ---------- */
+tomato(S,M,rc,idx){
+  const leaf=cm('#3f9a35',.45,0,.3),leafD=cm('#2c6e24',.5),stalk=cm('#4a7a2a',.55);
+  /* lobed tomato body: a sphere with gentle ribs pushed in */
+  const g=new THREE.SphereGeometry(3.0,56,32);const p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),a=Math.atan2(z,x),rib=1-.045*Math.pow(Math.abs(Math.cos(a*3)),.6)*(1-Math.abs(y)/3);p.setXYZ(i,x*rib*1.45,y*.86,z*rib*1.12);}g.computeVertexNormals();
+  P3(g,M.paint,-.2,3.15,0,S);
+  /* skirt, bumpers and wheel spats */
+  P3(kRBox(8.6,.5,4.4,.24),M.dark,-.2,1.05,0,S);hrx(P3(KG.bumper,SH.chrome,4.25,1.25,0,S)).scale.set(1,1,.8);hrx(P3(KG.bumper,SH.chrome,-4.6,1.25,0,S)).scale.set(1,1,.8);
+  /* bubble windscreen opening and cabin */
+  const ws=kAdd(new THREE.SphereGeometry(1.7,32,16,0,Math.PI*2,0,Math.PI/2),kGlass(),1.2,4.55,0,S,0,0,-.5,1.25,.9,1.15);
+  kAdd(new THREE.TorusGeometry(1.7,.1,8,40),SH.chrome,1.2,4.55,0,S,Math.PI/2,-.5,0,1.25,1.15,1);
+  /* green calyx crown: five pointed leaves and a curly stalk with a bud lamp */
+  const lf=new THREE.Shape();lf.moveTo(0,-.35);lf.quadraticCurveTo(1.4,-.45,2.4,0);lf.quadraticCurveTo(1.4,.45,0,.35);lf.closePath();const lg=new THREE.ExtrudeGeometry(lf,{depth:.08,bevelEnabled:true,bevelThickness:.04,bevelSize:.04,bevelSegments:2,curveSegments:12});
+  for(let i=0;i<5;i++){const a=i/5*Math.PI*2+.3,m=P3(lg,i%2?leaf:leafD,-1.6,5.68,0,S);m.rotation.set(Math.PI/2,0,0);m.rotation.order='YXZ';m.rotation.y=a;m.rotation.x=Math.PI/2+.38;}
+  P3(kTube([[-1.6,5.6,0],[-1.7,6.4,0],[-2.2,6.9,.1],[-2.6,6.7,.2]],.13,16,8),stalk,0,0,0,S);kAdd(new THREE.SphereGeometry(.24,14,10),SH.glowO,-2.68,6.62,.2,S);
+  /* cheeky face up front: big round lamps with chrome lids, little smile grille */
+  for(const s of [-1,1]){kLamp(S,3.85,2.75,1.25*s,.42);kAdd(new THREE.TorusGeometry(.45,.06,6,20,Math.PI),SH.chrome,3.95,2.95,1.25*s,S,0,Math.PI/2,0);}
+  kAdd(new THREE.TorusGeometry(.6,.1,8,24,Math.PI),SH.black,4.15,2.15,0,S,Math.PI,Math.PI/2,0);
+  /* side highlights: a soft sheen stripe and round porthole doors */
+  for(const s of [-1,1]){kAdd(new THREE.TorusGeometry(.95,.09,8,32),SH.chrome,-.6,3.05,3.35*s,S);kAdd(new THREE.CircleGeometry(.88,28),SH.lens,-.6,3.05,3.36*s,S,0,s<0?Math.PI:0);
+    P3(KG.tail,M.tailM,-4.35,2.4,1.3*s,S);}
+  const pipes=[exhaust(S,-4.4,1.35,.9)];
+  addPlates(S,M,idx,rc,[[1.8,2.5,3.1,.6]]);
+  return {rw:[-2.75,3.0,1.2],fw:[2.75,3.0,1.2],wz:1.15,drv:[.3,4.3],steer:[1.95,4.95],pipes,lo:[9,5,6.5,3.2],bubY:4.2,bubS:1.2,glY:12,top:8.6,noCockpit:0};}
+});
+BODIES.push(
+  {id:'delivery',name:'Pronto',desc:'A bubbly delivery van with dinner stacked on the roof. Heavy and sure-footed, slow to wind up.',st:[0,-1,0,2,1]},
+  {id:'cutter',name:'Slicer',desc:'Built around a giant pizza cutter. Long, low and razor quick once it gets going.',st:[2,0,1,-1,-2]},
+  {id:'wedge',name:'Gouda',desc:'A wedge of cheese with a cracker wing. Darts into corners, light on its feet.',st:[0,1,2,-1,-1]},
+  {id:'tomato',name:'Tomatino',desc:'A round, bouncy tomato bubble car. Rolls over the rough stuff, a little lazy on the straights.',st:[-1,1,0,0,2]});
+
 /* ---------- imported car models (pre-simplified and baked to compact binary; geometry is shared by every kart that uses it) ---------- */
 const CAR_PACKS={"formula":{"h":{"meta":[{"n":"b_vc","v":5830,"i":21240},{"n":"b_paint","v":4072,"i":18123},{"n":"b_tail","v":62,"i":180},{"n":"l_vc","v":460,"i":2046},{"n":"l_paint","v":313,"i":1701},{"n":"l_tail","v":3,"i":3},{"n":"w0","v":2001,"i":6705},{"n":"w1","v":2240,"i":7050},{"n":"w2","v":2284,"i":7212},{"n":"w3","v":1975,"i":6732}],"wheels":[{"c":[3.657,0.887,1.939],"r":0.886,"f":1},{"c":[-4.854,0.891,1.842],"r":0.886,"f":0},{"c":[-4.854,0.891,-1.842],"r":0.886,"f":0},{"c":[3.657,0.886,-1.939],"r":0.886,"f":1}]}},"gt":{"h":{"meta":[{"n":"b_vc","v":1717,"i":13917},{"n":"b_paint","v":7313,"i":26997},{"n":"b_glass","v":166,"i":561},{"n":"b_light","v":165,"i":1803},{"n":"b_tail","v":53,"i":231},{"n":"l_vc","v":283,"i":2472},{"n":"l_paint","v":426,"i":2640},{"n":"l_glass","v":35,"i":90},{"n":"l_light","v":20,"i":162},{"n":"l_tail","v":3,"i":3},{"n":"w0","v":2520,"i":8661},{"n":"w1","v":2877,"i":9402},{"n":"w2","v":2876,"i":9402},{"n":"w3","v":2529,"i":8691}],"wheels":[{"c":[3.282,0.868,2.05],"r":0.866,"f":1},{"c":[-3.001,0.872,2.02],"r":0.872,"f":0},{"c":[-3.001,0.872,-2.02],"r":0.871,"f":0},{"c":[3.282,0.867,-2.05],"r":0.867,"f":1}]}},"hyper":{"h":{"meta":[{"n":"b_vc","v":2714,"i":12345},{"n":"b_paint","v":3116,"i":17943},{"n":"b_glass","v":245,"i":1194},{"n":"b_tail","v":327,"i":900},{"n":"b_light","v":454,"i":1389},{"n":"l_vc","v":336,"i":1410},{"n":"l_paint","v":497,"i":2115},{"n":"l_glass","v":38,"i":150},{"n":"l_light","v":25,"i":117},{"n":"w0","v":1179,"i":6693},{"n":"w1","v":1161,"i":6705},{"n":"w2","v":1139,"i":6612},{"n":"w3","v":1196,"i":6759}],"wheels":[{"c":[-3.623,0.977,2.188],"r":0.953,"f":0},{"c":[3.204,0.929,2.082],"r":0.929,"f":1},{"c":[3.204,0.929,-2.005],"r":0.929,"f":1},{"c":[-3.623,0.975,-2.045],"r":0.953,"f":0}]}},"roadster":{"h":{"meta":[{"n":"b_vc","v":4782,"i":16218},{"n":"b_glass","v":196,"i":600},{"n":"b_paint","v":3366,"i":17997},{"n":"b_light","v":192,"i":1071},{"n":"b_tail","v":75,"i":429},{"n":"l_vc","v":425,"i":1659},{"n":"l_glass","v":38,"i":60},{"n":"l_paint","v":391,"i":1797},{"n":"l_tail","v":11,"i":39},{"n":"w0","v":3296,"i":8268},{"n":"w1","v":3186,"i":7920},{"n":"w2","v":3197,"i":7974},{"n":"w3","v":3175,"i":7953}],"wheels":[{"c":[-2.254,0.78,1.338],"r":0.78,"f":0},{"c":[2.876,0.78,1.338],"r":0.78,"f":1},{"c":[-2.254,0.78,-1.338],"r":0.78,"f":0},{"c":[2.876,0.78,-1.338],"r":0.78,"f":1}]}},"tourer":{"h":{"meta":[{"n":"b_glass","v":112,"i":591},{"n":"b_paint","v":8511,"i":20976},{"n":"b_vc","v":5715,"i":21906},{"n":"b_light","v":285,"i":900},{"n":"b_tail","v":55,"i":240},{"n":"l_glass","v":34,"i":177},{"n":"l_paint","v":247,"i":1851},{"n":"l_vc","v":513,"i":2397},{"n":"w0","v":1330,"i":6768},{"n":"w1","v":1416,"i":6588},{"n":"w2","v":1416,"i":6585},{"n":"w3","v":1338,"i":6831}],"wheels":[{"c":[5.339,1.098,1.729],"r":1.093,"f":1},{"c":[-4.563,1.115,1.763],"r":1.115,"f":0},{"c":[-4.563,1.115,-1.763],"r":1.115,"f":0},{"c":[5.339,1.098,-1.73],"r":1.093,"f":1}]}},"concept":{"h":{"meta":[{"n":"b_paint","v":6370,"i":31497},{"n":"b_vc","v":2523,"i":12984},{"n":"b_glass","v":392,"i":1797},{"n":"b_light","v":250,"i":900},{"n":"b_tail","v":205,"i":897},{"n":"l_paint","v":735,"i":3039},{"n":"l_vc","v":326,"i":1215},{"n":"l_glass","v":59,"i":174},{"n":"l_tail","v":24,"i":81},{"n":"w0","v":2293,"i":10491},{"n":"w1","v":2238,"i":10554},{"n":"w2","v":2200,"i":10527},{"n":"w3","v":2239,"i":10551}],"wheels":[{"c":[3.513,0.849,2.315],"r":0.846,"f":1},{"c":[-3.743,0.906,2.363],"r":0.906,"f":0},{"c":[-3.743,0.906,-2.363],"r":0.906,"f":0},{"c":[3.513,0.849,-2.315],"r":0.846,"f":1}]}},"interceptor":{"h":{"meta":[{"n":"b_vc","v":8908,"i":15192},{"n":"b_paint","v":5560,"i":20997},{"n":"b_blue","v":92,"i":168},{"n":"b_tail","v":297,"i":696},{"n":"b_light","v":639,"i":1365},{"n":"b_glass","v":216,"i":708},{"n":"l_vc","v":205,"i":1251},{"n":"l_paint","v":394,"i":2073},{"n":"l_blue","v":24,"i":36},{"n":"l_light","v":14,"i":60},{"n":"l_glass","v":42,"i":90},{"n":"w0","v":2498,"i":6588},{"n":"w1","v":2513,"i":6651},{"n":"w2","v":2513,"i":6651},{"n":"w3","v":2498,"i":6588}],"wheels":[{"c":[-3.476,0.893,2.015],"r":0.89,"f":0},{"c":[3.276,0.852,2.159],"r":0.852,"f":1},{"c":[3.275,0.853,-2.16],"r":0.852,"f":1},{"c":[-3.476,0.892,-2.016],"r":0.89,"f":0}]}},"monster":{"h":{"meta":[{"n":"b_glass","v":477,"i":894},{"n":"b_paint","v":2074,"i":6012},{"n":"b_vc","v":7770,"i":15708},{"n":"l_glass","v":20,"i":30},{"n":"l_paint","v":777,"i":1656},{"n":"l_vc","v":666,"i":2268},{"n":"w0","v":969,"i":2949},{"n":"w1","v":791,"i":2511},{"n":"w2","v":970,"i":2826},{"n":"w3","v":785,"i":2445}],"wheels":[{"c":[-3.86,1.655,-2.466],"r":1.655,"f":0},{"c":[4.098,1.655,-2.554],"r":1.653,"f":1},{"c":[-3.861,1.655,2.554],"r":1.654,"f":0},{"c":[4.096,1.655,2.554],"r":1.652,"f":1}]}},"muscle":{"h":{"meta":[{"n":"b_tail","v":586,"i":1494},{"n":"b_light","v":439,"i":1194},{"n":"b_vc","v":3842,"i":10635},{"n":"b_paint","v":7344,"i":26997},{"n":"b_glass","v":428,"i":1497},{"n":"l_tail","v":28,"i":189},{"n":"l_light","v":31,"i":117},{"n":"l_vc","v":372,"i":1995},{"n":"l_paint","v":481,"i":2667},{"n":"l_glass","v":41,"i":147},{"n":"w0","v":3865,"i":8541},{"n":"w1","v":3885,"i":8610},{"n":"w2","v":3867,"i":8559},{"n":"w3","v":3876,"i":8577}],"wheels":[{"c":[3.603,0.897,2.009],"r":0.897,"f":1},{"c":[-3.451,0.909,2.01],"r":0.909,"f":0},{"c":[3.603,0.897,-2.009],"r":0.897,"f":1},{"c":[-3.451,0.909,-2.01],"r":0.909,"f":0}]}},"wheelset":{"h":{"meta":[{"n":"w0","v":2621,"i":15777},{"n":"w1","v":2910,"i":15525},{"n":"w2","v":2886,"i":15264},{"n":"w3","v":3177,"i":15096},{"n":"w4","v":3806,"i":15951}],"wheels":[]}},"gokart":{"h":{"meta":[{"n":"b_vc","v":2704,"i":9744},{"n":"b_paint","v":3307,"i":14658},{"n":"l_vc","v":585,"i":1722},{"n":"l_paint","v":450,"i":1803},{"n":"w0","v":1312,"i":5328},{"n":"w1","v":1312,"i":5328},{"n":"w2","v":1292,"i":5136},{"n":"w3","v":1292,"i":5136}],"wheels":[{"c":[-5.859,1.459,5.027],"r":1.459,"f":0},{"c":[-5.859,1.459,-5.027],"r":1.459,"f":0},{"c":[3.864,1.266,4.585],"r":1.121,"f":1},{"c":[3.864,1.266,-4.585],"r":1.121,"f":1}]}},"chariot":{"h":{"meta":[{"n":"b_vc","v":8840,"i":10272},{"n":"b_paint","v":4050,"i":4419},{"n":"l_vc","v":559,"i":1923},{"n":"l_paint","v":436,"i":1512},{"n":"w0","v":2629,"i":2964},{"n":"w1","v":2624,"i":2964},{"n":"w2","v":1474,"i":1698},{"n":"w3","v":1428,"i":1689}],"wheels":[{"c":[5.471,2.497,4.477],"r":2.423,"f":1},{"c":[5.471,2.497,-4.477],"r":2.423,"f":1},{"c":[-2.395,1.097,2.775],"r":1.097,"f":0},{"c":[-2.395,1.097,-2.775],"r":1.097,"f":0}]}},"hatch":{"h":{"meta":[{"n":"b_paint","v":6882,"i":23994},{"n":"b_vc","v":3763,"i":8409},{"n":"b_light","v":458,"i":900},{"n":"b_tail","v":92,"i":564},{"n":"b_glass","v":465,"i":1194},{"n":"l_paint","v":963,"i":2106},{"n":"l_vc","v":263,"i":1191},{"n":"l_light","v":25,"i":81},{"n":"l_tail","v":26,"i":180},{"n":"l_glass","v":32,"i":126},{"n":"w0","v":1672,"i":5793},{"n":"w1","v":1674,"i":5796},{"n":"w2","v":1707,"i":5958},{"n":"w3","v":1708,"i":5955}],"wheels":[{"c":[-3.342,0.864,1.896],"r":0.864,"f":0},{"c":[3.471,0.864,1.896],"r":0.864,"f":1},{"c":[-3.342,0.864,-1.911],"r":0.864,"f":0},{"c":[3.471,0.864,-1.911],"r":0.864,"f":1}]}},"coupe":{"h":{"meta":[{"n":"b_tail","v":641,"i":1512},{"n":"b_light","v":751,"i":2061},{"n":"b_vc","v":3476,"i":8559},{"n":"b_paint","v":7310,"i":25497},{"n":"b_glass","v":237,"i":840},{"n":"l_tail","v":28,"i":57},{"n":"l_light","v":43,"i":147},{"n":"l_vc","v":253,"i":1407},{"n":"l_paint","v":396,"i":2541},{"n":"l_glass","v":54,"i":90},{"n":"w0","v":2236,"i":5691},{"n":"w1","v":2229,"i":5688},{"n":"w2","v":2236,"i":5691},{"n":"w3","v":2232,"i":5691}],"wheels":[{"c":[-3.3,0.909,2.067],"r":0.909,"f":0},{"c":[3.644,0.909,2.067],"r":0.909,"f":1},{"c":[-3.3,0.909,-2.067],"r":0.909,"f":0},{"c":[3.644,0.909,-2.067],"r":0.909,"f":1}]}},"scissor":{"h":{"meta":[{"n":"b_vc","v":3563,"i":17811},{"n":"b_glass","v":399,"i":1200},{"n":"b_tail","v":167,"i":852},{"n":"b_light","v":541,"i":1116},{"n":"b_paint","v":5964,"i":26976},{"n":"l_vc","v":418,"i":2100},{"n":"l_glass","v":26,"i":117},{"n":"l_tail","v":21,"i":90},{"n":"l_paint","v":572,"i":2661},{"n":"w0","v":1926,"i":6867},{"n":"w1","v":1925,"i":6885},{"n":"w2","v":1964,"i":6894},{"n":"w3","v":1969,"i":6900}],"wheels":[{"c":[-3.654,0.895,2.073],"r":0.893,"f":0},{"c":[-3.654,0.895,-2.073],"r":0.893,"f":0},{"c":[3.096,0.83,2.176],"r":0.83,"f":1},{"c":[3.096,0.83,-2.176],"r":0.83,"f":1}]}},"suv":{"h":{"meta":[{"n":"b_vc","v":5970,"i":17076},{"n":"b_glass","v":314,"i":1374},{"n":"b_paint","v":5136,"i":23997},{"n":"b_light","v":376,"i":546},{"n":"b_tail","v":144,"i":711},{"n":"l_vc","v":429,"i":1569},{"n":"l_glass","v":38,"i":189},{"n":"l_paint","v":700,"i":2397},{"n":"l_tail","v":31,"i":156},{"n":"w0","v":1515,"i":5043},{"n":"w1","v":1517,"i":5145},{"n":"w2","v":1541,"i":5202},{"n":"w3","v":1537,"i":5223}],"wheels":[{"c":[-3.41,1.045,2.152],"r":1.045,"f":0},{"c":[4.248,1.045,2.152],"r":1.045,"f":1},{"c":[-3.407,1.045,-2.152],"r":1.045,"f":0},{"c":[4.251,1.045,-2.152],"r":1.045,"f":1}]}},"formula_hq":{"h":{"meta":[{"n":"b_vc","v":13756,"i":53205},{"n":"b_paint","v":9189,"i":45402},{"n":"b_tail","v":133,"i":450}],"wheels":[{"c":[3.657,0.887,1.939],"r":0.886,"f":1},{"c":[-4.854,0.891,1.842],"r":0.886,"f":0},{"c":[-4.854,0.891,-1.842],"r":0.886,"f":0},{"c":[3.657,0.886,-1.939],"r":0.886,"f":1}]}},"gt_hq":{"h":{"meta":[{"n":"b_vc","v":8317,"i":36126},{"n":"b_paint","v":15654,"i":67497},{"n":"b_glass","v":757,"i":2247},{"n":"b_light","v":730,"i":5133},{"n":"b_tail","v":247,"i":504}],"wheels":[{"c":[3.282,0.868,2.05],"r":0.866,"f":1},{"c":[-3.001,0.872,2.02],"r":0.872,"f":0},{"c":[-3.001,0.872,-2.02],"r":0.871,"f":0},{"c":[3.282,0.867,-2.05],"r":0.867,"f":1}]}},"hyper_hq":{"h":{"meta":[{"n":"b_vc","v":6352,"i":31326},{"n":"b_paint","v":15704,"i":67479},{"n":"b_glass","v":573,"i":2997},{"n":"b_tail","v":617,"i":2247},{"n":"b_light","v":898,"i":3000}],"wheels":[{"c":[-3.623,0.977,2.188],"r":0.953,"f":0},{"c":[3.204,0.929,2.082],"r":0.929,"f":1},{"c":[3.204,0.929,-2.005],"r":0.929,"f":1},{"c":[-3.623,0.975,-2.045],"r":0.953,"f":0}]}},"tourer_hq":{"h":{"meta":[{"n":"b_glass","v":663,"i":1494},{"n":"b_paint","v":18095,"i":52482},{"n":"b_vc","v":20105,"i":61995},{"n":"b_light","v":641,"i":2250},{"n":"b_tail","v":186,"i":597}],"wheels":[{"c":[5.339,1.098,1.729],"r":1.093,"f":1},{"c":[-4.563,1.115,1.763],"r":1.115,"f":0},{"c":[-4.563,1.115,-1.763],"r":1.115,"f":0},{"c":[5.339,1.098,-1.73],"r":1.093,"f":1}]}},"concept_hq":{"h":{"meta":[{"n":"b_paint","v":14721,"i":78744},{"n":"b_vc","v":7434,"i":33594},{"n":"b_glass","v":904,"i":4497},{"n":"b_light","v":486,"i":2250},{"n":"b_tail","v":456,"i":2244}],"wheels":[{"c":[3.513,0.849,2.315],"r":0.846,"f":1},{"c":[-3.743,0.906,2.363],"r":0.906,"f":0},{"c":[-3.743,0.906,-2.363],"r":0.906,"f":0},{"c":[3.513,0.849,-2.315],"r":0.846,"f":1}]}},"interceptor_hq":{"h":{"meta":[{"n":"b_vc","v":11387,"i":22353},{"n":"b_paint","v":11359,"i":25272},{"n":"b_blue","v":92,"i":168},{"n":"b_tail","v":582,"i":1500},{"n":"b_light","v":1136,"i":2994},{"n":"b_glass","v":216,"i":708}],"wheels":[{"c":[-3.476,0.893,2.015],"r":0.89,"f":0},{"c":[3.276,0.852,2.159],"r":0.852,"f":1},{"c":[3.275,0.853,-2.16],"r":0.852,"f":1},{"c":[-3.476,0.892,-2.016],"r":0.89,"f":0}]}},"gokart_hq":{"h":{"meta":[{"n":"b_vc","v":4836,"i":21009},{"n":"b_paint","v":4457,"i":21162}],"wheels":[{"c":[-5.859,1.459,5.027],"r":1.459,"f":0},{"c":[-5.859,1.459,-5.027],"r":1.459,"f":0},{"c":[3.864,1.266,4.585],"r":1.121,"f":1},{"c":[3.864,1.266,-4.585],"r":1.121,"f":1}]}},"hatch_hq":{"h":{"meta":[{"n":"b_paint","v":9131,"i":29916},{"n":"b_vc","v":16205,"i":34485},{"n":"b_light","v":792,"i":1734},{"n":"b_tail","v":316,"i":1830},{"n":"b_glass","v":928,"i":2994}],"wheels":[{"c":[-3.342,0.864,1.896],"r":0.864,"f":0},{"c":[3.471,0.864,1.896],"r":0.864,"f":1},{"c":[-3.342,0.864,-1.911],"r":0.864,"f":0},{"c":[3.471,0.864,-1.911],"r":0.864,"f":1}]}},"scissor_hq":{"h":{"meta":[{"n":"b_vc","v":14024,"i":44982},{"n":"b_glass","v":843,"i":2994},{"n":"b_tail","v":1614,"i":2976},{"n":"b_light","v":1815,"i":3747},{"n":"b_paint","v":14056,"i":67494}],"wheels":[{"c":[-3.654,0.895,2.073],"r":0.893,"f":0},{"c":[-3.654,0.895,-2.073],"r":0.893,"f":0},{"c":[3.096,0.83,2.176],"r":0.83,"f":1},{"c":[3.096,0.83,-2.176],"r":0.83,"f":1}]}},"suv_hq":{"h":{"meta":[{"n":"b_vc","v":17161,"i":47013},{"n":"b_glass","v":1860,"i":3747},{"n":"b_paint","v":12001,"i":59997},{"n":"b_light","v":1558,"i":2652},{"n":"b_tail","v":706,"i":1212}],"wheels":[{"c":[-3.41,1.045,2.152],"r":1.045,"f":0},{"c":[4.248,1.045,2.152],"r":1.045,"f":1},{"c":[-3.407,1.045,-2.152],"r":1.045,"f":0},{"c":[4.251,1.045,-2.152],"r":1.045,"f":1}]}}};
 const CAR_CLS=['paint','dark','stripe','tail','light','glass','carbon','metal','rubber','seat','chrome','rim','disc','caliper','blue','gunmetal','green','red','bluem','bronze','white'];
