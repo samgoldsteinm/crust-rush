@@ -478,10 +478,10 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 
 /* layout: ability up in the top-left, both item slots stacked top-right under the pause button, nothing near the thumbs */
 .ibtn{top:auto;bottom:auto;right:max(8px,calc(var(--btn)*.12))}
-#itemBtn{top:calc(var(--hudTop,66px) + var(--btn)*.82 + 14px);width:calc(var(--btn)*1.08);height:calc(var(--btn)*1.08)}
-#itemBtn2{top:var(--hudTop,66px);width:calc(var(--btn)*.78);height:calc(var(--btn)*.78);right:max(8px,calc(var(--btn)*.27))}
-#itemBtn2 .s2i{width:60%;height:60%;display:grid;place-items:center}#itemBtn2 .s2i svg,#itemBtn2 .s2i img{width:100%;height:100%;object-fit:contain}
-#itemBtn2 .empty{width:58%;height:58%;border:2px dashed rgba(255,244,220,.3);border-radius:9px}
+#itemBtn{top:calc(var(--hudTop,66px) + var(--btn)*.94 + 12px);width:calc(var(--btn)*.94);height:calc(var(--btn)*.94)}
+#itemBtn2{top:var(--hudTop,66px);width:calc(var(--btn)*.94);height:calc(var(--btn)*.94)}
+#itemBtn2 .s2i{width:62%;height:62%;display:grid;place-items:center}#itemBtn2 .s2i svg{width:100%;height:100%}#itemBtn2 .s2i img{width:118%;height:118%;object-fit:contain;filter:drop-shadow(0 3px 5px rgba(0,0,0,.5))}
+#itemBtn2 .empty{width:60%;height:60%;border:2px dashed rgba(255,244,220,.3);border-radius:9px}
 #itemBtn2:not(.has){opacity:.72}
 .abtn{bottom:auto;top:var(--hudTop,66px);left:max(8px,calc(var(--btn)*.12));width:calc(var(--btn)*.95);height:calc(var(--btn)*.95)}
 .ihint{top:calc(var(--hudTop,66px) + var(--btn)*1.95 + 26px)!important;right:max(8px,calc(var(--btn)*.12))!important;bottom:auto!important}
