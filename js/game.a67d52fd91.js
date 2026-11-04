@@ -3581,7 +3581,7 @@ function useItem(k,back){
     else{const v=Math.max(0,k.speed)+170;projectiles.push({type:'flour',x:k.x+ca*10,y:k.y+sa*10,vx:ca*v,vy:sa*v,t:.75,t0:.75,owner:k,safe:9,b:0,mesh:itemMesh('flour')});}}
   else if(it==='wheel'){projectiles.push({type:'wheel',x:k.x,y:k.y,vx:0,vy:0,t:16,owner:k,safe:9,b:0,target:st[0]===k?null:st[0],prog:k.prog+2,lat:lateral(k),spin:0,dir:k.a,mesh:itemMesh('wheel')});}
   else if(it==='rush'){k.rush=3.2;k.boost=Math.max(k.boost,3.2);k.drift=0;}
-  else if(it==='freezer'){for(let j=0;j<i;j++){const o=st[j];if(o.shield>0||o.rush>0||o.loop||o.absT>0)continue;if(absorb(o))continue;o.frozen=2.8;burst(o.x,o.rz||o.wy,o.y,18,['#bfe6ff','#ffffff','#7fd0ff'],50,2.6);spawnRing(o.x,(o.wy||0)+.6,o.y,'#8fd8ff',26,.5);}spawnRing(k.x,(k.wy||0)+.6,k.y,'#bfe6ff',60,.7);}
+  else if(it==='freezer'){const sf=standings(),fi=sf.indexOf(k);for(let j=0;j<fi;j++){const o=sf[j];if(o===k||o.finished)continue;if(o.shield>0||o.rush>0||o.loop||o.absT>0)continue;if(absorb(o))continue;o.frozen=2.8;burst(o.x,o.rz||o.wy,o.y,18,['#bfe6ff','#ffffff','#7fd0ff'],50,2.6);spawnRing(o.x,(o.wy||0)+.6,o.y,'#8fd8ff',26,.5);}spawnRing(k.x,(k.wy||0)+.6,k.y,'#bfe6ff',60,.7);}
   if(it==='chili'||it==='rush'){if(k===player)SFX.chili();}else if(it==='garlic'){if(near(k)>0)SFX.garlic(near(k));}else if(it==='freezer'){SFX.freeze();}else if(it==='wheel'){SFX.wheel(near(k)||.4);}else if(near(k)>0)(back?SFX.throwB:SFX.throwF)();
 }
 function stepKart(k,inp,dt){
@@ -3712,7 +3712,7 @@ function update(dt){
 const tv=new THREE.Vector3(),tv2=new THREE.Vector3(),v2=new THREE.Vector2();
 function syncKart(k,dt,time){
   const m=k.m,x=k.px+(k.x-k.px)*alpha,y=k.py+(k.y-k.py)*alpha,z=k.pwy+(k.wy-k.pwy)*alpha,a=lerpA(k.pa,k.a,alpha);k.rx=x;k.ry=y;k.rz=z;k.rma=lerpA(k.pma,k.ma,alpha);
-  const lth=k.loopTh?(k.pth>0?k.pth+(k.loopTh-k.pth)*alpha:k.loopTh):0;k.rth=lth;{let rg=groundAt(x,y);if(GLIDE){const gyy=glideY(x,y);if(rg<gyy-20)rg=Math.min(z,gyy);}k.rg=rg;}
+  const lth=k.loopTh?(k.pth>0?k.pth+(k.loopTh-k.pth)*alpha:k.loopTh):0;k.rth=lth;{let rg=groundAt(x,y)+(MULTI?kEy(k):0);if(GLIDE){const gyy=glideY(x,y);if(rg<gyy-20)rg=Math.min(z,gyy);}k.rg=rg;}
   m.g.position.set(x,z,y);
   if(!lth){if(!k.air){const ca=Math.cos(a),sa=Math.sin(a),fF=Math.max(6,m.axF||6),fR=Math.min(-6,m.axR||-6),fW=Math.max(5,m.axW||5),J=k.idx,hF=surfH(x+ca*fF,y+sa*fF,J),hB=surfH(x+ca*fR,y+sa*fR,J),hL=surfH(x-sa*fW,y+ca*fW,J),hRt=surfH(x+sa*fW,y-ca*fW,J),hC=surfH(x,y,J),
       sF=(hF-hB)/(fF-fR),sR=(hL-hRt)/(2*fW),ff=Math.min(1,16*dt),mid=hB+(hF-hB)*(-fR)/(fF-fR),base=Math.max(hC,mid,(hL+hRt)/2);m.g.position.y=k.onRamp||k.z>.4?Math.max(z,base):clamp(base,z-1.2,z+6);
@@ -3772,7 +3772,8 @@ function render(time,dt){
       cam.base.lerp(tv2,1-Math.exp(-16*dt));cam.look.lerp(tv,1-Math.exp(-18*dt));camera.up.lerp(cam.U,1-Math.exp(-12*dt)).normalize();cam.a=p.ang;}
     else{camera.up.lerp(UPV,1-Math.exp(-8*dt)).normalize();
     if(camSnap){cam.base.copy(tv2);cam.look.copy(tv);camSnap=false;}
-    else{cam.base.lerp(tv2,1-Math.exp(-12*dt));cam.look.lerp(tv,1-Math.exp(-16*dt));}}
+    else{cam.base.lerp(tv2,1-Math.exp(-12*dt));cam.look.lerp(tv,1-Math.exp(-16*dt));}
+    {const fl=groundAt(cam.base.x,cam.base.z)+3;if(cam.base.y<fl)cam.base.y=fl;}}
     const spn=Math.min(1.4,Math.abs(camT.speed)/BASE_MAX);let amp=.03+.09*spn+(camT.sf===0&&spn>.25?.32:camT.sf===1&&spn>.25?.12:0)+(camT.boost>0?(CL?.24:.12):0)+(camT.z>0&&!camT.air?0:0)+shakeImp;
     shakeImp*=Math.exp(-6*dt);{const bo=camT.boost>0;if(bo&&!cam.bo&&state==='race')shake(.75);cam.bo=bo;}if(state==='countdown')amp=.02;if(RM)amp*=.25;if(!CFG.shake)amp=0;
     const n1=Math.sin(time*29)*.5+Math.sin(time*47.3+1.3)*.3+Math.sin(time*11.7+.7)*.2,n2=Math.sin(time*33.1+2)*.5+Math.sin(time*53+.4)*.3+Math.sin(time*9.3+1.1)*.2,n3=Math.sin(time*26.7+4)*.5+Math.sin(time*41+2.2)*.5;
