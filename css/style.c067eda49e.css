@@ -275,6 +275,9 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .g-tabs button[aria-selected="true"]{background:linear-gradient(135deg,#ff8a1f,#e0452c);color:var(--cream);box-shadow:0 4px 14px rgba(224,69,44,.4)}
 .g-side{display:flex;flex-direction:column;gap:8px;min-height:0;min-width:0}
 .g-panel{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding:2px}
+.g-side{position:relative}.g-side::after{content:"";position:absolute;left:0;right:0;bottom:0;height:34px;pointer-events:none;border-radius:0 0 12px 12px;background:linear-gradient(180deg,rgba(22,12,9,0),rgba(22,12,9,.9));opacity:0;transition:opacity .2s}.g-side.more::after{opacity:1}
+.g-side .g-more{position:absolute;left:50%;bottom:4px;transform:translateX(-50%);width:22px;height:22px;border-radius:50%;background:rgba(255,244,220,.14);color:var(--cream);display:grid;place-items:center;font-size:12px;font-weight:800;pointer-events:none;opacity:0;transition:opacity .2s;animation:gmore 1.4s ease-in-out infinite}.g-side.more .g-more{opacity:.9}
+@keyframes gmore{50%{transform:translate(-50%,3px)}}
 .g-desc{margin:0;font-size:13px;line-height:1.4;color:var(--muted);min-height:2.8em}.g-desc b{color:var(--cream)}
 .g-sub{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:2px 2px 6px}.g-sub small{letter-spacing:0;text-transform:none;font-weight:600;margin-left:6px}
 .swatches+.g-sub{margin-top:12px}
@@ -565,3 +568,31 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 #itemBtn.robbed,#itemBtn2.robbed{animation:robbed .6s ease-out}
 @keyframes robbed{0%,100%{transform:none;box-shadow:none}20%{transform:translateX(-5px) scale(1.06);box-shadow:0 0 0 4px #b26bff,0 0 24px #b26bff}45%{transform:translateX(5px)}70%{transform:translateX(-3px)}}
 @media (prefers-reduced-motion:reduce){.edgefx{animation-duration:.3s}#itemBtn.robbed,#itemBtn2.robbed{animation:none}}
+
+/* ---- HUD controls: warm arcade style shared with the menu (replaces the brushed-steel pedals) ---- */
+.brk{border-radius:26%/22%;width:calc(var(--btn)*1.0);height:calc(var(--btn)*1.28);overflow:visible;color:var(--cream);border:2px solid rgba(255,244,220,.42);
+  background:radial-gradient(circle at 50% 18%,rgba(255,244,220,.16),rgba(255,244,220,0) 42%),linear-gradient(170deg,rgba(74,38,22,.92),rgba(22,11,7,.94));
+  box-shadow:0 0 0 2px rgba(20,10,6,.55),0 8px 18px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.14),inset 0 -8px 14px rgba(0,0,0,.35);transition:transform .08s,background .12s,box-shadow .12s,border-color .12s}
+.brk::before{display:none}
+.brk::after{content:"";position:absolute;left:14%;right:14%;top:7%;height:10%;border-radius:40%;background:linear-gradient(180deg,rgba(255,255,255,.22),rgba(255,255,255,0));pointer-events:none}
+.brk svg{color:var(--cheese);filter:drop-shadow(0 2px 2px rgba(0,0,0,.5))}
+.brk span{color:var(--cream);text-shadow:0 2px 3px rgba(0,0,0,.6)}
+.brk small{color:var(--muted);text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.brk.on{background:radial-gradient(circle at 50% 18%,rgba(255,255,255,.2),rgba(255,255,255,0) 45%),linear-gradient(170deg,#e0452c,#9a2412);border-color:#ffd9b0;transform:scale(.94) translateY(2px);box-shadow:0 0 0 2px rgba(20,10,6,.55),0 3px 8px rgba(0,0,0,.4),inset 0 3px 8px rgba(0,0,0,.35)}
+.brk.on::before{display:none}
+.brk.on svg,.brk.on span{color:#fff}.brk.on small{color:#ffd9b0}
+.brk.drifting{filter:none;border-color:#fff1b8;background:radial-gradient(circle at 50% 18%,rgba(255,255,255,.28),rgba(255,255,255,0) 45%),linear-gradient(170deg,#ffb53a,#e8541c 70%,#b4300f);box-shadow:0 0 0 3px rgba(255,200,80,.45),0 0 14px rgba(255,150,40,.55),0 8px 18px rgba(0,0,0,.4);animation:dpulse2 .9s ease-in-out infinite}
+.brk.drifting svg{color:#fff}.brk.drifting span{color:#fff}.brk.drifting small{color:#5a2206}
+@keyframes dpulse2{50%{box-shadow:0 0 0 5px rgba(255,200,80,.25),0 0 18px rgba(255,150,40,.7),0 8px 18px rgba(0,0,0,.4)}}
+/* item slots and ability: the same dark glass with a cream ring */
+.ibtn{background:radial-gradient(circle at 50% 22%,rgba(255,255,255,.22),rgba(255,255,255,0) 34%),radial-gradient(circle at 50% 120%,rgba(255,170,60,.35),rgba(255,170,60,0) 55%),radial-gradient(circle at 50% 35%,#4a2616,#120805 72%);
+  box-shadow:0 0 0 3px rgba(255,244,220,.85),0 0 0 5px rgba(20,10,6,.55),inset 0 -10px 18px rgba(0,0,0,.5),inset 0 4px 10px rgba(255,255,255,.12),0 10px 20px rgba(0,0,0,.4)}
+.ibtn.rolling{box-shadow:0 0 0 3px var(--cheese),0 0 0 5px rgba(20,10,6,.55),0 0 12px rgba(247,201,72,.4)}
+.ibtn.has{box-shadow:0 0 0 3px var(--cheese),0 0 0 5px rgba(20,10,6,.55),0 0 14px rgba(247,201,72,.45),inset 0 -8px 16px rgba(0,0,0,.4)}
+.ibtn.back{box-shadow:0 0 0 3px var(--sauce),0 0 0 5px rgba(20,10,6,.55),0 0 14px rgba(224,69,44,.45)}
+@keyframes glow{50%{box-shadow:0 0 0 3px #ffe9a0,0 0 0 5px rgba(20,10,6,.55),0 0 20px rgba(247,201,72,.6),inset 0 -8px 16px rgba(0,0,0,.4)}}
+.abtn.ready{box-shadow:0 0 0 3px var(--ac,#ffe066),0 0 14px var(--ac,#ffe066),0 8px 18px rgba(0,0,0,.4)}
+/* speedometer: the number sits on its own dark pill so it reads on snow as well as on sauce */
+.g-num b{padding:1px 8px 0;border-radius:10px;background:rgba(20,10,6,.5);box-shadow:0 0 0 1px rgba(255,244,220,.14);text-shadow:0 1px 2px rgba(0,0,0,.8)}
+.g-num small{color:var(--cream);opacity:.85;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+.g-track{stroke:rgba(20,10,6,.72)}
