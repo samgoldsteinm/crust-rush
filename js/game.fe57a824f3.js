@@ -3612,11 +3612,11 @@ function stepKart(k,inp,dt){
     let dRel=false;if(k.spin>0||k.sink!=null)k.dLatch=false;if(dPress&&k.air&&!k.drift){k.dLatch=!k.dLatch;k.dWant=0;}/* tapped mid-air (jump or glide): stay armed and drift the moment you land */else if(dPress&&k.drift&&!k.air)dRel=true;else{if(dPress&&!k.drift)k.dWant=.6;if(k.dWant>0&&inp.brake)k.dWant=Math.max(k.dWant,.12);
       if(k.dLatch&&!k.drift&&!k.air){if(sp>40){k.dLatch=false;k.dWant=0;k.drift=1;k.charge=0;k.dAmt=.35;k.tier=0;k.dTime=0;k.sT=0;if(k===player)SFX.hop();}else if(sp<30)k.dLatch=false;}
       if(k.dWant>0&&!k.drift&&!k.air&&sp>55&&!(k.boost>0&&k.bAge<.8)){k.dWant=0;k.drift=1;k.charge=0;k.dAmt=0;k.tier=0;k.dTime=0;k.sT=0;k.air=true;k.big=false;k.airT=0;k.wvy=(k.gRate||0)+18;if(k===player)SFX.hop();}}
-    if(k.drift&&!dRel){k.dTime+=dt;const sl=Math.abs(angDiff(k.a,k.ma));if(k.dTime>.45&&Math.abs(k.steer)<.3&&sl<.14){k.sT+=dt;if(k.sT>.3)dRel=true;}else k.sT=0;}
+    if(k.drift&&!dRel){k.dTime+=dt;const sl=Math.abs(angDiff(k.a,k.ma));if(k.dTime>.45&&Math.abs(k.steer)<.3&&sl<.14){k.sT+=dt;if(k.sT>(k.isPlayer&&!k.auto?1.5:.3))dRel=true;}else k.sT=0;}/* you can let go of the steering mid-drift for a moment: the drift only ends after 1.5 s straight */
     if(k.drift){
       if(dRel||sp<35){const tier=k.charge>2.6?3:k.charge>1.6?2:k.charge>.8?1:0;
         if(tier){k.boost=Math.max(k.boost,[0,.55,.9,1.3][tier]);k.pBoost=k.boost;k.bAge=9;if(k===player){SFX.boost(tier);if(tier===3&&achMe(k))achAdd('drift3');}if(k===camT)shake(.15+tier*.05);}k.drift=0;k.charge=0;k.gripT=.5;}
-      else{k.dAmt=Math.min(1,(k.dAmt||0)+dt*1.75);const da=k.dAmt*k.dAmt*(3-2*k.dAmt);k.a+=k.steer*TURN*(tfN+(tfD-tfN)*da)*dt*dir;k.speed-=3*dt;k.charge+=dt*(.5+1*Math.abs(k.steer))*(.35+.65*da);
+      else{k.dAmt=Math.min(1,(k.dAmt||0)+dt*1.75);const da=k.dAmt*k.dAmt*(3-2*k.dAmt);k.a+=k.steer*TURN*(tfN+(tfD-tfN)*da)*dt*dir;k.speed-=3*dt;k.charge+=dt*(.5+1*Math.abs(k.steer))*(.35+.65*da)*(k.sT>0?0:1);
         const tr=k.charge>2.6?3:k.charge>1.6?2:k.charge>.8?1:0;if(tr>(k.tier||0)){k.tier=tr;if(k===player)SFX.tier(tr);}}
     }else k.a+=k.steer*TURN*tfN*dt*dir;
     {const dA=k.dAmt||0,da=dA*dA*(3-2*dA);k.ma+=angDiff(k.a,k.ma)*Math.min(1,(k.drift?9-5*da:k.gripT>0?5:9)*dt);const sl=angDiff(k.a,k.ma);if(Math.abs(sl)>.5)k.ma=k.a-Math.sign(sl)*.5;}
