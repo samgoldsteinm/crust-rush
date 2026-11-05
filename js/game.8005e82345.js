@@ -3565,14 +3565,14 @@ let introT=0,introSkip=false;const INTRO_SHOT=2.4,INTRO_N=3;
 function startIntro(){introT=0;introSkip=false;state='intro';stage.classList.add('cinema');const m=MAPS[mapIdx],ci=$('cine');ci.hidden=false;ci.classList.remove('out');void ci.offsetWidth;ci.classList.add('on');
   $('cineName').textContent=m.name;$('cineSub').textContent=(gp?CUPS[gp.cup].name+' · Race '+(gp.race+1)+' of 4':'Single race')+' · '+CLASSES[clsKey].label;$('cineSkip').hidden=false;}
 function endIntro(){stage.classList.remove('cinema');const ci=$('cine');ci.classList.remove('on');ci.classList.add('out');setTimeout(()=>{ci.hidden=true;},450);state='countdown';cd=3.4;lastCd=4;camSnap=true;acc=0;}
-function introCam(dt){const t=introT,sh=Math.min(INTRO_N-1,Math.floor(t/INTRO_SHOT)),f=Math.min(1,(t-sh*INTRO_SHOT)/INTRO_SHOT),e=f*f*(3-2*f),gl=(x,z)=>groundAt(x,z);
+function introCam(dt){const t=introT,sh=Math.min(INTRO_N-1,Math.floor(t/INTRO_SHOT)),f=Math.min(1,(t-sh*INTRO_SHOT)/INTRO_SHOT),e=f*f*(3-2*f),gl=(x,z)=>groundAt(x,z),ey=j=>MULTI?(track[((Math.round(j)%N)+N)%N].ey||0):0;
   const P=(s,lat)=>trackAt(s,lat);
   if(sh===0){/* low dolly down the road ahead of the start, like riding along at eye level */
-    const s=22+e*16,a=P(s,0),b=P(s+22,0);camera.position.set(a.x,gl(a.x,a.y)+10+e*3,a.y);camera.lookAt(b.x,gl(b.x,b.y)+8,b.y);}
+    const s=22+e*16,a=P(s,0),b=P(s+22,0);camera.position.set(a.x,gl(a.x,a.y)+ey(s)+10+e*3,a.y);camera.lookAt(b.x,gl(b.x,b.y)+ey(s+22)+8,b.y);}
   else if(sh===1){/* a crane shot drifting across the starting grid from the side */
-    const g=P(N-6,0),q=track[(N-6)%N],side=1,off=110-e*20,along=-40+e*80;const cx=g.x+q.nx*off*side+q.tx*along,cz=g.y+q.ny*off*side+q.ty*along;camera.position.set(cx,gl(cx,cz)+40-e*10,cz);camera.lookAt(g.x+q.tx*10,gl(g.x,g.y)+4,g.y+q.ty*10);}
+    const g=P(N-6,0),q=track[(N-6)%N],side=1,off=110-e*20,along=-40+e*80;const cx=g.x+q.nx*off*side+q.tx*along,cz=g.y+q.ny*off*side+q.ty*along;camera.position.set(cx,Math.max(gl(cx,cz),gl(g.x,g.y)+ey(N-6))+40-e*10,cz);camera.lookAt(g.x+q.tx*10,gl(g.x,g.y)+ey(N-6)+4,g.y+q.ty*10);}
   else{/* swing in from in front of your kart to the chase camera */
-    const k=player||camT,fx=Math.cos(k.ma),fy=Math.sin(k.ma),gy=gl(k.x,k.y),a0=Math.PI*(1-e),d=34-e*6,h=7+e*4;const dx=Math.cos(k.ma+a0),dz=Math.sin(k.ma+a0);
+    const k=player||camT,fx=Math.cos(k.ma),fy=Math.sin(k.ma),gy=gl(k.x,k.y)+(player&&MULTI?kEy(player):0),a0=Math.PI*(1-e),d=34-e*6,h=7+e*4;const dx=Math.cos(k.ma+a0),dz=Math.sin(k.ma+a0);
     camera.position.set(k.x-dx*d,gy+h,k.y-dz*d);camera.lookAt(k.x+fx*8*e,gy+5,k.y+fy*8*e);}
   camera.up.set(0,1,0);if(Math.abs(camera.fov-58)>.1){camera.fov=58;camera.updateProjectionMatrix();}snapSun(camera.position.x,gl(camera.position.x,camera.position.z),camera.position.z);}
 
@@ -3647,7 +3647,7 @@ function stepKart(k,inp,dt){
     let dRel=false;if(k.spin>0||k.sink!=null)k.dLatch=false;if(dPress&&k.air&&!k.drift){k.dLatch=!k.dLatch;k.dWant=0;}/* tapped mid-air (jump or glide): stay armed and drift the moment you land */else if(dPress&&k.drift&&!k.air)dRel=true;else{if(dPress&&!k.drift)k.dWant=.6;if(k.dWant>0&&inp.brake)k.dWant=Math.max(k.dWant,.12);
       if(k.dLatch&&!k.drift&&!k.air){if(sp>40){k.dLatch=false;k.dWant=0;k.drift=1;k.charge=0;k.dAmt=.35;k.tier=0;k.dTime=0;k.sT=0;if(k===player)SFX.hop();}else if(sp<30)k.dLatch=false;}
       if(k.dWant>0&&!k.drift&&!k.air&&sp>55&&!(k.boost>0&&k.bAge<.8)){k.dWant=0;k.drift=1;k.charge=0;k.dAmt=0;k.tier=0;k.dTime=0;k.sT=0;k.air=true;k.big=false;k.airT=0;k.wvy=(k.gRate||0)+18;if(k===player)SFX.hop();}}
-    if(k.drift&&!dRel){k.dTime+=dt;const sl=Math.abs(angDiff(k.a,k.ma));if(k.dTime>.45&&Math.abs(k.steer)<.3&&sl<.14){k.sT+=dt;if(k.sT>(k.isPlayer&&!k.auto?.75:.3))dRel=true;}else k.sT=0;}/* you can let go of the steering mid-drift for a moment: the drift only ends after 1.5 s straight */
+    if(k.drift&&!dRel){k.dTime+=dt;const sl=Math.abs(angDiff(k.a,k.ma));if(k.dTime>.45&&Math.abs(k.steer)<.3&&sl<.14){k.sT+=dt;if(k.sT>(k.isPlayer&&!k.auto?.45:.3))dRel=true;}else k.sT=0;}/* you can let go of the steering mid-drift for a moment: the drift only ends after 1.5 s straight */
     if(k.drift){
       if(dRel||sp<35){const tier=k.charge>2.6?3:k.charge>1.6?2:k.charge>.8?1:0;
         if(tier){k.boost=Math.max(k.boost,[0,.55,.9,1.3][tier]);k.pBoost=k.boost;k.bAge=9;if(k===player){SFX.boost(tier);if(tier===3&&achMe(k))achAdd('drift3');}if(k===camT)shake(.15+tier*.05);}k.drift=0;k.charge=0;k.gripT=.5;}
