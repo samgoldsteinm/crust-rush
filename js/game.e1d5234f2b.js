@@ -1200,7 +1200,7 @@ function carGeos(id){const p=CAR_PACKS[id];if(p.g)return p.g;const bin=p.b?new U
     const isVC=m.n.endsWith('vc')||m.n[0]==='w';if(isVC||m.n.endsWith('paint')){const C=new Float32Array(v*3),U=new Float32Array(v*2);for(let i=0;i<v;i++){const c=isVC?cc[cls[i]]:cc[0],a=ao[i]/255;C[i*3]=c.r*a;C[i*3+1]=c.g*a;C[i*3+2]=c.b*a;U[i*2]=(cls[i]+.5)/32;U[i*2+1]=.5;}geo.setAttribute('color',new THREE.BufferAttribute(C,3));if(isVC)geo.setAttribute('uv',new THREE.BufferAttribute(U,2));else if(UVa)geo.setAttribute('uv',new THREE.BufferAttribute(UVa,2));}
     geo.setIndex(new THREE.BufferAttribute(new Uint16Array(idx),1));geo.computeBoundingSphere();CARGEO.add(geo);g[m.n]=geo;}
   p.d=null;p.b=null;p.g=g;return g;}
-let HQB=false;let LODM=0,LODF=200;
+let HQB=false;let LODM=0,LODF=120;
 function carBody(id,M,B){const g=carGeos(HQB&&hqReady(id)?id+'_hq':id);M.carPaint=new THREE.MeshPhysicalMaterial({color:M.paint.color.clone(),vertexColors:true,metalness:.5,roughness:.34,clearcoat:1,clearcoatRoughness:.04,envMapIntensity:1.2});
   M.blue=new THREE.MeshStandardMaterial({color:'#2a5bff',emissive:'#2a5bff',emissiveIntensity:2});const mats={paint:M.carPaint,tail:M.tailM,light:SH.carLight,glass:SH.carGlass,vc:SH.carVC,blue:M.blue};
   for(const k in g){if(!k.startsWith('b_'))continue;const me=new THREE.Mesh(g[k],mats[k.slice(2)]);me.castShadow=k!=='b_glass';me.receiveShadow=true;B.add(me);if(k==='b_paint')M.paintMesh=me;}}
@@ -1603,7 +1603,7 @@ function liveryMaterial(lv,box,belt,numIdx,numPos){if(lv.tex){const t=propTex(lv
   mat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,U);
     sh.vertexShader=LIV_VERT+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n vLivP=position;vLivN=normal;');
     sh.fragmentShader=LIV_FRAG+sh.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n'+LIV_BODY).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\n if(livR>=0.)roughnessFactor=livR;');};
-  mat.customProgramCacheKey=()=>'livery2';return mat;}
+  mat.customProgramCacheKey=()=>'livery2';mat.userData.livA=lv.A;return mat;}
 const carBox={};
 function carDims(id){if(carBox[id])return carBox[id];const g=carGeos(id),p=g.b_paint.attributes.position.array;let x0=1e9,x1=-1e9,zw=0,yt=0;
   for(let i=0;i<p.length;i+=3){x0=Math.min(x0,p[i]);x1=Math.max(x1,p[i]);zw=Math.max(zw,Math.abs(p[i+2]));yt=Math.max(yt,p[i+1]);}return carBox[id]=[x0,x1,zw,yt];}
@@ -1669,6 +1669,27 @@ const tyreR=R=>Math.min(R,1.35);
 /* cabin fits for the newer cars: [roof, beltline, seat x, seat floor] */
 const FITQ={hatch:[3.42,2.3,.6,1.15],suv:[4.7,3.1,.3,1.55],coupe:[3.05,2.25,.3,1.1],scissor:[2.6,1.75,.6,.45]};
 const _tw={};function packTyreW(car,wi,full){const k=car+wi+(full?'f':'');if(_tw[k])return _tw[k];const a=carGeos(car)['w'+wi].attributes.position;let R=0;for(let i=0;i<a.count;i++)R=Math.max(R,Math.hypot(a.getX(i),a.getY(i)));let z0=1e9,z1=-1e9;for(let i=0;i<a.count;i++)if(full||Math.hypot(a.getX(i),a.getY(i))>R*.86){z0=Math.min(z0,a.getZ(i));z1=Math.max(z1,a.getZ(i));}return _tw[k]=Math.max(.3,z1-z0);}
+
+/* bake every visible mesh of a kart into one geometry in the kart's own space, with each part's colour in the vertex colours */
+const _texAvg=new WeakMap();
+/* average colour of a texture, for baking textured parts into the far model */
+function texAvg(t){const im=t&&t.image;if(!im)return null;if(_texAvg.has(im))return _texAvg.get(im);let c=null;try{const cv=cnv(8,8),g=cv.getContext('2d');g.drawImage(im,0,0,8,8);const d=g.getImageData(0,0,8,8).data;let r=0,gg=0,b=0,n=0;
+  for(let i=0;i<d.length;i+=4){if(d[i+3]<40)continue;r+=d[i];gg+=d[i+1];b+=d[i+2];n++;}if(n){c=new THREE.Color(r/n/255,gg/n/255,b/n/255);if(t.encoding===THREE.sRGBEncoding)c.convertSRGBToLinear();}}catch(e){}_texAvg.set(im,c);return c;}
+const FAR_MATS=[new THREE.MeshStandardMaterial({vertexColors:true,roughness:.5,metalness:.1}),new THREE.MeshPhysicalMaterial({vertexColors:true,roughness:.3,metalness:.12,clearcoat:1,clearcoatRoughness:.08}),new THREE.MeshPhysicalMaterial({vertexColors:true,roughness:.16,metalness:.9,clearcoat:1,clearcoatRoughness:.05,envMapIntensity:1.2})];FAR_MATS.forEach(m=>m.userData.shared=true);
+/* bake every visible mesh of a kart into at most three meshes (matte, gloss, metal) in the kart's own space, with each part's colour in the vertex colours */
+function bakeFar(g,tilt,skip){try{g.updateMatrixWorld(true);const inv=new THREE.Matrix4().copy(g.matrixWorld).invert(),parts=[[],[],[]],n=[0,0,0];
+  tilt.traverse(o=>{if(!o.isMesh||o.isInstancedMesh||!o.geometry)return;let p=o;while(p&&p!==g){if(!p.visible||skip.has(p))return;p=p.parent;}
+    const mats=Array.isArray(o.material)?o.material:[o.material];const m0=mats[0];if(!m0||m0===SHADOW_ONLY||m0.transparent&&m0.opacity<.5)return;const g0=o.geometry;if(!g0.attributes.position)return;
+    const m=new THREE.Matrix4().multiplyMatrices(inv,o.matrixWorld);const c=new THREE.Color(m0.userData.livA||(m0.color?m0.color:'#888'));if(m0.map&&!m0.userData.livA){const t=texAvg(m0.map);if(t)c.multiply(t);}if(m0.emissive&&m0.emissiveIntensity>.5&&(m0.emissive.r+m0.emissive.g+m0.emissive.b)>.3)c.copy(m0.emissive);
+    const b=(m0.metalness||0)>=.5?2:((m0.clearcoat||0)>.4?1:0);parts[b].push({g0,m,c,vc:m0.vertexColors&&g0.attributes.color});n[b]+=g0.index?g0.index.count:g0.attributes.position.count;});
+  const out=new THREE.Group(),v=new THREE.Vector3(),nm=new THREE.Matrix3();
+  for(let b=0;b<3;b++){if(!n[b])continue;const P=new Float32Array(n[b]*3),Nn=new Float32Array(n[b]*3),C=new Float32Array(n[b]*3);let o=0;
+    for(const q of parts[b]){const pa=q.g0.attributes.position,na=q.g0.attributes.normal,ca=q.vc,ix=q.g0.index,cnt=ix?ix.count:pa.count,flip=q.m.determinant()<0;nm.getNormalMatrix(q.m);
+      for(let t=0;t<cnt;t+=3){for(let k=0;k<3;k++){const kk=flip?(k===0?0:3-k):k,i=ix?ix.getX(t+kk):t+kk;v.fromBufferAttribute(pa,i).applyMatrix4(q.m);P[o*3]=v.x;P[o*3+1]=v.y;P[o*3+2]=v.z;
+        if(na){v.fromBufferAttribute(na,i).applyMatrix3(nm).normalize();Nn[o*3]=v.x;Nn[o*3+1]=v.y;Nn[o*3+2]=v.z;}let r=q.c.r,gg=q.c.g,bb=q.c.b;if(ca){r*=ca.getX(i);gg*=ca.getY(i);bb*=ca.getZ(i);}C[o*3]=r;C[o*3+1]=gg;C[o*3+2]=bb;o++;}}}
+    const fg=new THREE.BufferGeometry();fg.setAttribute('position',new THREE.BufferAttribute(P,3));fg.setAttribute('normal',new THREE.BufferAttribute(Nn,3));fg.setAttribute('color',new THREE.BufferAttribute(C,3));fg.computeBoundingSphere();
+    const me=new THREE.Mesh(fg,FAR_MATS[b]);me.castShadow=true;me.receiveShadow=true;out.add(me);}
+  out.userData.far=true;return out.children.length?out:null;}catch(e){console.warn('far bake',e);return null;}}
 function buildKart(spec){HQB=spec.hq!==0;
   const rc=RACERS[spec.ri],idx=spec.ri,body=BODIES[spec.b],gd=GLIDERS[spec.g];let wt=WHEELS[spec.w];let lv=spec.t?livOf(spec.t):null;if(lv&&!spec.pv&&livLocked(lv))lv=null;if(lv&&lv.only&&lv.only!==body.id)lv=null;const col=lv?lv.A:(PAINTS[spec.p]||rc.color);
   const paint=new THREE.MeshPhysicalMaterial({color:col,roughness:.38,metalness:.12,clearcoat:1,clearcoatRoughness:.08,envMapIntensity:1});
@@ -1728,6 +1749,8 @@ function buildKart(spec){HQB=spec.hq!==0;
   const gl=buildGlider(gd.id,M,rc);gl.position.y=cfg.glY+L;gl.visible=false;gl.scale.setScalar(.01);tilt.add(gl);
   const fxP=cfg.pipes.map(([x,y,z])=>new THREE.Vector3(x-.4,y+L,z)),rz=cfg.rw[1]+.3,fxL=[new THREE.Vector3(cfg.rw[0]-.5,.35,rz),new THREE.Vector3(cfg.rw[0]-.5,.35,-rz)];
   mergeKartBody(tilt,wheels,flames,drv);
+  /* far model: the whole detailed kart baked into one vertex-coloured mesh (one draw, still casts its shadow) */
+  {const far=bakeFar(g,tilt,new Set([gl,lo,bub,ice,...flames]));if(far){if(cfg.car)far.traverse(o=>{o.castShadow=false;});/* cars keep their proxy-shadow setup */lo.children.forEach(c=>c.visible=false);lo.add(far);}}
   return {g,tilt,wheels,front,flames,drv,drvY:0,sf:body.sf||1,axF:cfg.fw[0]*KS*(body.sf||1),axR:cfg.rw[0]*KS*(body.sf||1),axW:Math.max(cfg.fw[1],cfg.rw[1])*KS*(body.sf||1),ice,iceS:cfg.bubS||1,tailM:M.tailM,lo,bub,gl,ga:0,fxP,fxL,flash:cfg.flash?M.blue:null,top:(cfg.top+L)*(body.sf||1),smoke:cfg.smoke?new THREE.Vector3(cfg.smoke[0],cfg.smoke[1]+L,cfg.smoke[2]):null,spec};
 }
 function mergeKartBody(tilt,wheels,flames,drv){try{tilt.updateMatrixWorld(true);const skip=new Set();for(const w of wheels){let p=w.spin,d=0;while(p&&p!==tilt&&d++<64){skip.add(p);p=p.parent;}}
@@ -3228,6 +3251,7 @@ function resetRace(demo){
   player=demo?null:karts[4];camT=karts[4];
   for(const k of karts){if(k.cutM)k.cutM.forEach(m=>scene.remove(m));if(k.held)dropHeld(k);}if(typeof sauceFx==='function'&&_sauceEl)sauceFx(false);projectiles.forEach(p=>scene.remove(p.mesh));hazards.forEach(h=>scene.remove(h.mesh));projectiles=[];hazards=[];
   boxes.forEach(b=>b.r=0);resetHazards();raceTime=0;finishCount=0;lapShown=1;resultsAt=0;cam.a=camT.ma;camSnap=true;acc=0;camera.up.set(0,1,0);standCache=standings();
+  if(ladPending!=null){applyLad(ladPending,true);ladPending=null;}
   warmScene();
 }
 /* upload every texture and buffer and compile every shader before the lights go green, so nothing hitches the first time it scrolls into view */
@@ -3235,6 +3259,10 @@ let _warmG=null;
 function warmScene(){try{if(!_warmG){_warmG=new THREE.Group();for(const k of Object.keys(ITEM_BUILD)){try{_warmG.add(itemProto(k).clone());}catch(e){}}for(const k in ITEM_GLOW){const sp=new THREE.Sprite(glowMat(ITEM_GLOW[k]));sp.scale.setScalar(4);_warmG.add(sp);}}
   scene.add(_warmG);const saved=[];scene.traverse(o=>{saved.push(o,o.visible,o.frustumCulled);o.visible=true;o.frustumCulled=false;});
   renderer.compile(scene,camera);const sm=renderer.shadowMap.autoUpdate;renderer.shadowMap.needsUpdate=true;
+  /* draw everything once into the very targets the race uses: GPU drivers (Metal on iPhones, ANGLE, SwiftShader) build a separate pipeline per target format and sample count,
+     so warming into a small plain target still left every material to compile on its first real frame, a visible hitch the first time a rival switched to its far model */
+  try{postInit();const sz=renderer.getDrawingBufferSize(v2);postSize(sz.x,sz.y);renderer.setRenderTarget(POST.rt);renderer.render(scene,camera);}catch(e){}
+  renderer.setRenderTarget(null);renderer.render(scene,camera);
   const rt=_warmRT||(_warmRT=new THREE.WebGLRenderTarget(64,64));renderer.setRenderTarget(rt);renderer.render(scene,camera);renderer.setRenderTarget(null);
   for(let i=0;i<saved.length;i+=3){saved[i].visible=saved[i+1];saved[i].frustumCulled=saved[i+2];}scene.remove(_warmG);renderer.shadowMap.needsUpdate=true;}catch(e){console.warn('warm',e);}}
 let _warmRT=null;
@@ -4219,7 +4247,7 @@ async function goRace(mi){if(raceLoading)return;raceLoading=true;const rev=!!CLA
     BASE_MAX=BASE0*CLASSES[clsKey].mul;startRace();state='loading';await step(78,'Firing up the oven…');
     /* draw a few real frames at full size so every shader, texture, shadow and glow buffer is ready before the lights */
     try{const wg=new THREE.Group();for(const kk of ITEM_KEYS){try{const o=itemProto(kk);if(o)wg.add(o.clone());}catch(e){}}scene.add(wg);renderer.compile(scene,camera);scene.remove(wg);}catch(e){}
-    try{mergeWorld();}catch(e){console.warn('merge',e);}
+    try{mergeWorld();}catch(e){console.warn('merge',e);}warmScene();
     fit();for(let i=0;i<3;i++){render(0,1/60);renderer.shadowMap.needsUpdate=true;try{if(qKey!=='fast')postRender();else{renderer.setRenderTarget(null);renderer.render(scene,camera);}}catch(e){}await paint();}
     await step(100,'Ready!');}catch(e){console.warn('race load',e);}
   perfSum=perfN=perfT=0;slowN=fastN=0;abilityHudFor(selected);startIntro();last=performance.now();acc=0;
@@ -4624,7 +4652,7 @@ async function boot(){const ld=document.getElementById('loader'),bar=document.ge
   await step(74,'Building the track…');if(mode==='gp')mapIdx=CUP_TRACKS[cupIdx][0];loadMap(mapIdx,false);fit();refreshMenu();
   if(window.ResizeObserver)new ResizeObserver(fit).observe(stage);else addEventListener('resize',fit);
   applySettings();
-  await step(88,'Lining up the grid…');resetRace(true);try{mergeWorld();}catch(e){console.warn('merge',e);}
+  await step(88,'Lining up the grid…');resetRace(true);try{mergeWorld();}catch(e){console.warn('merge',e);}warmScene();
   await step(96,'Firing up the oven…');try{renderer.compile(scene,camera);}catch(e){}
   booted=true;bar.style.width='100%';menu.hidden=false;last=performance.now();setTimeout(()=>{ld.classList.add('done');setTimeout(()=>ld.remove(),600);},120);
   setTimeout(()=>{loadHQ().finally(()=>{window.dispatchEvent(new Event('cr-booted'));});},1500);}
@@ -4643,13 +4671,16 @@ function ladKey(){return 'crust-lad-'+qKey;}
 function applyLad(n,save){LAD=clamp(n,0,LADS.length-1);LADV=LADS[LAD];const q=QUAL[qKey],fl=Math.min(DPR,q.floor);
   const np=Math.max(fl,Math.min(DPR,q.start)-LADV.p);if(Math.abs(np-pr)>.01){pr=np;fitPending=true;}
   const sm=Math.max(512,Math.round(q.sm*(LADV.sm||1)));if(sun.shadow.mapSize.x!==sm){sun.shadow.mapSize.set(sm,sm);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}}
-  LODM=0;LODF=LADV.lod?150:200;if(save)store.set(ladKey(),String(LAD));}
+  LODM=0;LODF=LADV.lod?100:120;if(save)store.set(ladKey(),String(LAD));}
 function adaptQuality(dt,time){perfSum+=dt;perfN++;perfT+=dt;if(perfT<1)return;const avg=perfSum/perfN;perfT=perfSum=perfN=0;
   bestDt=Math.min(bestDt*1.01,avg);let P=1/60;for(const h of HZ)if(h>=bestDt*.93){P=h;break;}if(CFG.fps==='60')P=Math.max(P,1/60);
   if(state!=='race'&&state!=='countdown')return;
   slowN=avg>P*1.1?slowN+1:0;fastN=avg<P*1.03?fastN+1:0;
-  if((slowN>=2||(slowN>=1&&avg>P*1.5))&&LAD<LADS.length-1){if(raisedAt>0&&time-raisedAt<12)ladBest=LAD+1;applyLad(LAD+(avg>P*1.6&&LAD<4?2:1),true);droppedAt=time;slowN=0;}
-  else if(fastN>=10&&LAD>ladBest&&time-droppedAt>25){applyLad(LAD-1,true);raisedAt=time;fastN=0;}}
+  /* never change quality mid-race: a switch rebuilds GPU targets (a hitch) and visibly pops the picture. The measurement is kept and applied on the next loading screen. */
+  const cur=ladPending??LAD;
+  if((slowN>=2||(slowN>=1&&avg>P*1.5))&&cur<LADS.length-1){if(raisedAt>0&&time-raisedAt<12)ladBest=cur+1;ladPending=cur+(avg>P*1.6&&cur<4?2:1);store.set(ladKey(),String(ladPending));droppedAt=time;slowN=0;}
+  else if(fastN>=10&&cur>ladBest&&time-droppedAt>25){ladPending=cur-1;store.set(ladKey(),String(ladPending));raisedAt=time;fastN=0;}}
+let ladPending=null;
 let slowN=0,fastN=0,droppedAt=-99,fitPending=false;
 {const v=+store.get(ladKey());if(v>0)applyLad(v,false);}
 let lastFrameT=0,fpsN=0,fpsT=0;
