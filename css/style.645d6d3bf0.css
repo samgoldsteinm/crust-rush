@@ -603,3 +603,31 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .ibtn.held{box-shadow:0 0 0 3px rgba(255,244,220,.35),inset 0 -8px 16px rgba(0,0,0,.5);animation:none}
 .ibtn.held #itemIcon,.ibtn.held .s2i{opacity:.38;filter:grayscale(.6)}
 .ibtn.held::before{content:"HELD";position:absolute;left:50%;bottom:-18px;transform:translateX(-50%);font:800 10px/1 system-ui,sans-serif;letter-spacing:.12em;color:rgba(255,244,220,.75);text-shadow:0 1px 2px rgba(0,0,0,.8)}
+
+/* cheap HUD effects: no animated or per-frame filters over the 3D view (each one made Safari re-blur on the CPU every frame) */
+#mini{filter:none}
+.gauge.boost .g-val{filter:none;stroke:#9ae8ff}
+.brk.drifting{filter:none;animation:none;box-shadow:0 0 0 3px rgba(255,200,80,.4),0 8px 18px rgba(0,0,0,.4)}
+.brk::before{display:block;content:"";position:absolute;inset:-7px;border-radius:inherit;background:none;transform:none;box-shadow:0 0 16px 5px rgba(255,150,40,.85);opacity:0;pointer-events:none;will-change:opacity}
+.brk.drifting::before{animation:hudglow .55s ease-in-out infinite alternate}
+@keyframes hudglow{from{opacity:.25}to{opacity:1}}
+.abtn.ready{will-change:transform}
+.ibtn #itemIcon img,#itemBtn2 .s2i img{filter:drop-shadow(0 4px 5px rgba(0,0,0,.5));will-change:transform}
+
+/* incoming threat alert: the item's icon in a ring that pulses faster as it closes, with an arrow toward it */
+#incoming{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 26%);transform:translateX(-50%);z-index:6;pointer-events:none;--near:0;width:clamp(56px,13vmin,84px);height:clamp(56px,13vmin,84px)}
+#incoming .inc-ring{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 50% 40%,rgba(255,255,255,.95),rgba(255,244,220,.85) 55%,rgba(255,244,220,.0) 72%);box-shadow:0 0 0 4px var(--ic),0 0 0 7px rgba(20,10,6,.55);animation:incpulse calc(.6s - var(--near)*.42s) ease-in-out infinite alternate;will-change:transform}
+#incoming .inc-ic{position:absolute;inset:14%}
+#incoming .inc-ic img,#incoming .inc-ic svg{width:100%;height:100%;object-fit:contain}
+#incoming .inc-arr{position:absolute;left:50%;top:50%;width:0;height:0;margin:-10px 0 0 -10px;border:10px solid transparent;border-left:16px solid var(--ic);transform-origin:10px 10px;filter:none}
+#incoming .inc-arr{margin:0;left:calc(50% - 8px);top:calc(50% - 10px);transform-origin:8px 10px}
+#incoming .inc-arr::after{content:"";position:absolute}
+@keyframes incpulse{from{transform:scale(.92)}to{transform:scale(1.1)}}
+/* hit callout: which item hit you and who threw it */
+#hitby{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 30%);transform:translate(-50%,-10px) scale(.8);opacity:0;z-index:7;pointer-events:none;display:flex;align-items:center;gap:10px;padding:8px 16px 8px 8px;border-radius:999px;background:rgba(26,12,6,.86);box-shadow:0 0 0 3px var(--ic),0 8px 22px rgba(0,0,0,.45);color:#fff4dc;font-family:var(--display);transition:opacity .18s,transform .18s}
+#hitby.on{opacity:1;transform:translate(-50%,0) scale(1)}
+#hitby .hb-ic{width:44px;height:44px;display:block}
+#hitby .hb-ic img,#hitby .hb-ic svg{width:100%;height:100%;object-fit:contain}
+#hitby .hb-t{display:flex;flex-direction:column;line-height:1.05}
+#hitby b{font-size:22px;color:var(--ic);letter-spacing:.02em}
+#hitby i{font-style:normal;font-family:system-ui,sans-serif;font-size:12px;font-weight:700;opacity:.8;letter-spacing:.06em;text-transform:uppercase}

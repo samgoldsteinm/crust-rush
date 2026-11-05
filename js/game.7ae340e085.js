@@ -3460,6 +3460,48 @@ function addShield(k,n){k.shL=Math.min(2,(k.shL||0)+n);const gy=(k.wy||0)+7;spaw
 function absorb(k){if(!(k.shL>0))return false;k.shL--;if(achMe(k))achAdd('blocks');k.absT=.6;k.inv=Math.max(k.inv||0,.6);const gy=(k.wy||0)+7;
   burst(k.x,gy,k.y,40,['#7fe07a','#f4ecdc','#ffffff'],110,3.2);spawnRing(k.x,gy,k.y,'#c8ffc0',60,.5);if(k===camT)shake(.35);
   if(k===player){SFX.garlic(1);SFX.clash(.8);edgeFx('#fff3c4');shake(.25);}else if(near(k)>0)SFX.garlic(near(k));return true;}
+
+/* ================= INCOMING ITEMS AND HITS =================
+   Every projectile maps to the item that threw it, so the player can see and hear what is coming and what hit them. */
+const PROJ_ITEM={pep:'pepperoni',dough:'dough',lob:'oil',flour:'flour',wheel:'wheel',meat2:'meatball',torp:'torpedo',bomb:'bomb',twist:'twister'};
+const PROJ_COL={pep:'#ff5a2a',dough:'#ffe2a0',lob:'#e8b23a',flour:'#ffffff',wheel:'#ff3b1a',meat2:'#b8743e',torp:'#8fd8ff',bomb:'#ff3030',twist:'#c99aff'};
+/* approach sound per item: base pitch and waveform, so each threat sounds different */
+const PROJ_TONE={pep:[880,'square'],dough:[520,'triangle'],lob:[420,'sine'],flour:[1250,'triangle'],wheel:[300,'sawtooth'],meat2:[220,'square'],torp:[1500,'sine'],bomb:[660,'square'],twist:[980,'sawtooth']};
+const itemLabel=k=>(HELP[k]&&HELP[k][0])||(NEWITEMS[k]&&NEWITEMS[k][0])||k;
+let _incEl=null,_incBeep=0,_hitEl=null,_hitT=0;
+function incomingTick(dt){if(!player||state!=='race'){if(_incEl)_incEl.hidden=true;return;}
+  let best=null,bd=1e9;const k=player,ca=Math.cos(k.ma),sa=Math.sin(k.ma);
+  for(const p of projectiles){if(p.dead||(p.owner===k&&p.safe>0)||!PROJ_ITEM[p.type])continue;const dx=k.x-p.x,dy=k.y-p.y,d=Math.hypot(dx,dy);if(d>260||d<4)continue;
+    const vx=(p.vx||0)-(k.vx||ca*k.speed),vy=(p.vy||0)-(k.vy||sa*k.speed),closing=(vx*dx+vy*dy)/d;if(p.target!==k&&closing<25&&!(p.type==='bomb'&&d<60))continue;if(d<bd){bd=d;best=p;}}
+  if(!_incEl){_incEl=document.createElement('div');_incEl.id='incoming';_incEl.innerHTML='<div class="inc-ring"><div class="inc-ic"></div></div><div class="inc-arr"></div>';stage.appendChild(_incEl);}
+  if(!best){_incEl.hidden=true;_incBeep=0;return;}
+  const it=PROJ_ITEM[best.type];if(_incEl.dataset.it!==it){_incEl.dataset.it=it;_incEl.querySelector('.inc-ic').innerHTML=SVG[it]||'';}
+  _incEl.style.setProperty('--ic',PROJ_COL[best.type]||'#ffe066');
+  /* arrow points where the threat is, relative to the way you face: straight down means right behind you */
+  const rel=Math.atan2(best.y-k.y,best.x-k.x)-k.ma,ang=Math.atan2(Math.sin(rel),Math.cos(rel));_incEl.querySelector('.inc-arr').style.transform='rotate('+(-ang*180/Math.PI+90).toFixed(1)+'deg)';
+  const near=1-Math.min(1,bd/260);_incEl.style.setProperty('--near',near.toFixed(2));_incEl.hidden=false;
+  _incBeep-=dt;if(_incBeep<=0){const T=PROJ_TONE[best.type]||[800,'triangle'];beep(T[0]*(1+near*.35),.07,T[1],.03+.05*near);_incBeep=.55-.42*near;}}
+function hitBy(p){const it=PROJ_ITEM[p.type];if(!it||!player)return;const col=PROJ_COL[p.type]||'#ffe066',k=player,gy=(k.rg??groundAt(k.x,k.y));
+  /* the item itself smacks into the kart: it pops up big against the body, then bursts */
+  try{const m=itemMesh(p.type==='lob'?'lob':p.type==='meat2'?'meatball':p.type==='torp'?'torpedo':p.type==='twist'?'twister':p.type);const t0=raceTime;
+    m.position.set((p.x+k.x)/2,gy+6,(p.y+k.y)/2);
+    const an=t=>{const u=(raceTime-t0)/.45;if(u>=1||u<0||!scene.children.includes(m)){scene.remove(m);return true;}const s=1+u*1.8;m.scale.setScalar(s);m.position.set(k.x+(p.x-k.x)*.25*(1-u),gy+6+u*7,k.y+(p.y-k.y)*.25*(1-u));m.rotation.y+=.4;m.rotation.x+=.3;return false;};hitAnims.push(an);}catch(e){}
+  burst(k.x,gy+6,k.y,26,[col,'#fff4dc',col],90,2.6);burst(k.x,gy+3,k.y,12,['#ffffff'],40,1.6);
+  edgeFx(col);shake(.8);SFX.clash&&SFX.clash(1);
+  const T=PROJ_TONE[p.type]||[600,'square'];tone(T[0]*.5,.25,T[1],.09,T[0]*.18);
+  if(!_hitEl){_hitEl=document.createElement('div');_hitEl.id='hitby';stage.appendChild(_hitEl);}
+  const who=p.owner&&p.owner!==k&&RACERS[p.owner.ri]?RACERS[p.owner.ri].name:'';
+  _hitEl.innerHTML='<span class="hb-ic">'+(SVG[it]||'')+'</span><span class="hb-t"><b>'+itemLabel(it)+'!</b>'+(who?'<i>from '+who+'</i>':'')+'</span>';_hitEl.style.setProperty('--ic',col);
+  _hitEl.classList.remove('on');void _hitEl.offsetWidth;_hitEl.classList.add('on');clearTimeout(_hitT);_hitT=setTimeout(()=>_hitEl.classList.remove('on'),1600);}
+const hitAnims=[];
+/* an incoming item that reaches the item you are holding behind you hits that instead: both burst where they meet */
+function heldBlock(k,p){const H=k.held;if(!H||H.wx==null||p.owner===k&&p.safe>0)return false;const dx=p.x-H.wx,dz=p.y-H.wz;if(dx*dx+dz*dz>11*11)return false;
+  const col=PROJ_COL[p.type]||'#ffe066',y=(k.rg??groundAt(H.wx,H.wz))+3;dropHeld(k);burst(H.wx,y,H.wz,22,[col,'#fff4dc','#ffe066'],70,2.4);burst(H.wx,y,H.wz,10,['#ffffff'],35,1.5);
+  if(k===player){shake(.35);SFX.clash&&SFX.clash(.7);edgeFx('#ffe066',true);blockedCallout(p);}return true;}
+function blockedCallout(p){const it=PROJ_ITEM[p.type];if(!it)return;if(!_hitEl){_hitEl=document.createElement('div');_hitEl.id='hitby';stage.appendChild(_hitEl);}
+  _hitEl.innerHTML='<span class="hb-ic">'+(SVG[it]||'')+'</span><span class="hb-t"><b>Blocked!</b><i>'+itemLabel(it)+' stopped by your held item</i></span>';_hitEl.style.setProperty('--ic','#7fe07f');
+  _hitEl.classList.remove('on');void _hitEl.offsetWidth;_hitEl.classList.add('on');clearTimeout(_hitT);_hitT=setTimeout(()=>_hitEl.classList.remove('on'),1400);}
+
 function spinOut(k,kind,world){if(k.inv>0||k.shield>0||k.rush>0||k.ghostT>0||k.absT>0)return;if(!world&&absorbHeld(k))return;if(!world&&absorb(k))return;if(k===camT)shake(1.1);k.spin=1.1*(1.25-.25*k.sm.wgt);k.inv=1.9;k.speed*=.3;k.drift=0;k.charge=0;k.boost=0;if(!k.air&&!k.loop){k.air=true;k.big=false;k.airT=0;k.wvy=(k.gRate||0)+40;}
   const cols=HITC[kind]||['#fff4dc','#ffe066','#ff3b1a'],y=6*KS;burst(k.x,y,k.y,34,cols,70,3.4);
   for(let i=0;i<12;i++){const a=i/12*Math.PI*2;FXA.spawn(k.x,y,k.y,Math.cos(a)*90,8,Math.sin(a)*90,'#ffffff',2.4,.3,.35,0,4);}
@@ -3554,7 +3596,7 @@ const ITEM_BUILD={
     IMesh(new THREE.IcosahedronGeometry(1,1),ice,null,[6.4,3.9,4.2],null,G).castShadow=false;
     [[4.2,2.4,1.6,.42],[-3.8,2.6,-1.5,.36],[.8,3.6,2.2,.32],[-1.4,3.7,-1.9,.34]].forEach(([x,y,z,s])=>IMesh(new THREE.OctahedronGeometry(1,0),ice,[x,y,z],[s*1.3,s*2.2,s*1.3],[x*.1,0,-x*.08],G).castShadow=false);return G;}
 };
-const ITEM_PROTO={};function itemProto(k){if(!ITEM_PROTO[k]){const o=ITEM_BUILD[k]();o.traverse(m=>{if(m.geometry)KGSET.add(m.geometry);if(m.material)SHSET.add(m.material);});ITEM_PROTO[k]=o;}return ITEM_PROTO[k];}
+const ITEM_PROTO={};function itemProto(k){if(!ITEM_PROTO[k]){const o=ITEM_BUILD[k]();/* one draw per material for every thrown item: a flying item was several separate meshes */try{o.updateMatrixWorld(true);const skip=new Set();o.traverse(c=>{if(c.name)skip.add(c);});mergeRigid(o,skip);}catch(e){}o.traverse(m=>{if(m.geometry)KGSET.add(m.geometry);if(m.material)SHSET.add(m.material);});ITEM_PROTO[k]=o;}return ITEM_PROTO[k];}
 /* garlic shield and rush aura: fresnel glow bubble */
 function bubbleShader(c1,c2){return new THREE.ShaderMaterial({uniforms:{uC:{value:new THREE.Color(c1)},uC2:{value:new THREE.Color(c2)},uT:{value:0}},transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
   vertexShader:'varying vec3 vN;varying vec3 vV;varying vec3 vP;void main(){vec4 mv=modelViewMatrix*vec4(position,1.);vN=normalize(normalMatrix*normal);vV=normalize(-mv.xyz);vP=position;gl_Position=projectionMatrix*mv;}',
@@ -3717,7 +3759,7 @@ function itemsProj(p,dt){p.t-=dt;p.safe-=dt;
   p.x+=p.vx*dt;p.y+=p.vy*dt;const d=Math.hypot(p.x,p.y);if(d>RIM){const nx=p.x/d,ny=p.y/d,dot=p.vx*nx+p.vy*ny;p.vx-=2*dot*nx;p.vy-=2*dot*ny;p.x=nx*(RIM-1);p.y=ny*(RIM-1);if(++p.b>4)p.t=0;}
   if(p.type==='bomb')return false;
   const R=p.type==='meat2'?22:16;
-  for(const k of karts){if(k.loop||(k===p.owner&&p.safe>0)||k.ghostT>0)continue;if((k.x-p.x)**2+(k.y-p.y)**2<R*R&&k.inv<=0&&sameLvl(k,p)){spinOut(k,p.type==='meat2'?'meat':'pep');if(p.type==='meat2'){p.hits++;if(p.hits>=3)return true;const sp=Math.hypot(p.vx,p.vy);p.vx*=.85;p.vy*=.85;if(sp<60)return true;}else return true;}}
+  for(const k of karts){if(k.loop||(k===p.owner&&p.safe>0)||k.ghostT>0)continue;if(heldBlock(k,p))return true;if((k.x-p.x)**2+(k.y-p.y)**2<R*R&&k.inv<=0&&sameLvl(k,p)){if(k===player)hitBy(p);spinOut(k,p.type==='meat2'?'meat':'pep');if(p.type==='meat2'){p.hits++;if(p.hits>=3)return true;const sp=Math.hypot(p.vx,p.vy);p.vx*=.85;p.vy*=.85;if(sp<60)return true;}else return true;}}
   for(const h of hazards){if((h.x-p.x)**2+(h.y-p.y)**2<R*R*.6){h.t=0;if(p.type!=='meat2')return true;}}
   return p.t<=0;}
 function itemsTick(dt){for(const k of karts){
@@ -3785,7 +3827,9 @@ function abilityRender(time,dt){for(const k of karts){const m=k.m;if(k.megaT>0){
 let abilBtn=null,abilQueued=false;
 /* every racer starts each race with an empty special meter: it fills over ABIL_TIME seconds of racing */
 function abilReset(){for(const k of karts){k.abC=0;k.abWait=null;}abilQueued=false;if(abilBtn){abilBtn._c=-1;abilBtn.classList.remove('ready');abilBtn.style.setProperty('--ab','0%');}}
-function edgeFx(col,soft){const e=document.createElement('div');e.className='edgefx'+(soft?' soft':'');e.style.setProperty('--c',col);stage.appendChild(e);setTimeout(()=>e.remove(),700);}
+/* edge flash lives in the post-process pass: a page layer with a 70px inset blur made iPhones re-blur the whole screen every frame of every boost and hit */
+const EDGE={t0:-1e9,dur:300,a:0,c:new THREE.Color()};
+function edgeFx(col,soft){if(qKey==='fast'||!POST.M){return;}EDGE.c.set(col).convertSRGBToLinear();EDGE.a=soft?.5:.8;EDGE.dur=300;EDGE.t0=performance.now();}
 function slotPing(cls){for(const id of ['itemBtn','itemBtn2']){const b=$(id);if(!b)continue;b.classList.remove(cls);void b.offsetWidth;b.classList.add(cls);setTimeout(()=>b.classList.remove(cls),700);}}
 function abilFlash(col){const e=document.createElement('div');e.className='abilfx';e.style.setProperty('--c',col);stage.appendChild(e);setTimeout(()=>e.remove(),900);}
 function setupAbilityHud(){abilBtn=document.getElementById('abilBtn');if(!abilBtn)return;
@@ -4003,7 +4047,7 @@ function update(dt){
         spawnRing(p.x,fy+.8,p.y,'#ffffff',50,.6);FXA.spawn(p.x,fy+6,p.y,0,0,0,'#ffffff',46,10,.2,0,0);SFX.boom(near({x:p.x,y:p.y}));if(Math.hypot(p.x-camera.position.x,p.y-camera.position.z)<120)shake(.5);
         scene.remove(p.mesh);projectiles.splice(i,1);}continue;}
     if(p.type==='lob'){if(p.t<=0&&overPit(p.x,p.y)){scene.remove(p.mesh);projectiles.splice(i,1);continue;}if(p.t<=0){hazards.push({x:p.x,y:p.y,t:30,born:0,owner:p.owner,armed:false,mesh:itemMesh('oil')});scene.remove(p.mesh);projectiles.splice(i,1);}continue;}
-    let hit=false;for(const k of karts){if(k.loop||(k===p.owner&&p.safe>0))continue;if((k.x-p.x)**2+(k.y-p.y)**2<200&&k.inv<=0&&sameLvl(k,p)){spinOut(k,p.type);hit=true;break;}}
+    let hit=false;for(const k of karts){if(k.loop||(k===p.owner&&p.safe>0))continue;if(heldBlock(k,p)){hit=true;break;}if((k.x-p.x)**2+(k.y-p.y)**2<200&&k.inv<=0&&sameLvl(k,p)){if(k===player)hitBy(p);spinOut(k,p.type);hit=true;break;}}
     for(const h of hazards){if((h.x-p.x)**2+(h.y-p.y)**2<100){h.t=0;hit=true;}}
     if(hit||p.t<=0){scene.remove(p.mesh);projectiles.splice(i,1);}}
   for(let i=hazards.length-1;i>=0;i--){const h=hazards[i];if(h.born===0&&overPit(h.x,h.y))h.t=0;h.t-=dt;h.born+=dt;
@@ -4176,9 +4220,10 @@ function render(time,dt){
     for(const m of IBX.body[0].concat(IBX.body[1],IBX.rings))m.instanceMatrix.needsUpdate=true;}
   for(const p of projectiles){let pg=pGround(p);if(GLIDE){const gyy=glideY(p.x,p.y);if(pg<gyy-20)pg=gyy+6;}if(p.type==='wheel'){p.mesh.position.set(p.x,pg+7,p.y);p.mesh.rotation.y=-p.dir;p.mesh.userData.disc.rotation.set(Math.PI/2,p.spin,0);if(Math.random()<.6)FXA.spawn(p.x,pg+1,p.y,(Math.random()-.5)*30,10+Math.random()*20,(Math.random()-.5)*30,'#ffb347',1.6,.3,.25,60,1);continue;}if(p.type==='flour'){const f=1-p.t/p.t0;p.mesh.position.set(p.x,pg+3.4+Math.sin(Math.PI*f)*20,p.y);p.mesh.rotation.y+=dt*6;p.mesh.rotation.z=Math.sin(f*Math.PI*2)*.5;continue;}if(p.type==='lob'){const f=1-p.t/p.t0;p.mesh.position.set(p.x,pg+2+Math.sin(Math.PI*f)*16,p.y);}else p.mesh.position.set(p.x,pg+2.7,p.y);if(p.type==='pep')p.mesh.rotation.y+=dt*16;else p.mesh.rotation.z-=dt*8;}
   for(const h of hazards){h.mesh.position.set(h.x,groundAt(h.x,h.y)+.12,h.y);h.mesh.rotation.y=h.born*.05;h.mesh.scale.setScalar(Math.max(.01,Math.min(1,h.born*5)));}
+  for(let i=hitAnims.length-1;i>=0;i--)if(hitAnims[i]())hitAnims.splice(i,1);try{incomingTick(dt);}catch(e){}
   /* held items ride right behind the kart, swaying a little */
-  for(const k of karts){const H=k.held;if(!H||!H.mesh)continue;const L=(k.m.lo?k.m.lo[0]:10)*.5*KS+5,ca=Math.cos(k.rma),sa=Math.sin(k.rma),sw=Math.sin(time*5+k.ri)*1.2,x=k.rx-ca*L-sa*sw,z=k.ry-sa*L+ca*sw,flat=H.it==='oil'||H.it==='forks'||H.it==='boxes';
-    H.mesh.position.set(x,(k.air?(k.rz||0)+1:(k.rg??groundAt(x,z)))+(flat?.3:2.4),z);H.mesh.rotation.set(0,-k.rma+(H.it==='pepperoni'?time*6:0),0);H.mesh.visible=k.m.g.visible;}
+  for(const k of karts){const H=k.held;if(!H||!H.mesh)continue;const L=11*(k.m.sf||1)*KS*.62+4,ca=Math.cos(k.rma),sa=Math.sin(k.rma),sw=Math.sin(time*5+k.ri)*1.2,x=k.rx-ca*L-sa*sw,z=k.ry-sa*L+ca*sw,flat=H.it==='oil'||H.it==='forks'||H.it==='boxes';
+    H.mesh.position.set(x,(k.air?(k.rz||0)+1:(k.rg??groundAt(x,z)))+(flat?.3:2.4),z);H.wx=x;H.wz=z;H.mesh.scale.setScalar(H.it==='pepperoni'||H.it==='dough'?1.15:1);H.mesh.rotation.set(0,-k.rma+(H.it==='pepperoni'?time*6:0),0);H.mesh.visible=k.m.g.visible;}
   renderHazards(time,dt);itemsRender(time,dt);abilityRender(time,dt);for(const r of rollers){const p=track[r.j];r.m.position.set(r.x,groundAt(r.x,r.y)+8,r.y);tv.set(p.tx,0,p.ty);r.m.quaternion.setFromAxisAngle(tv,-r.lat/8);}
   for(const an of animators)an(time,dt);
   FXA.update(dt);FXN.update(dt);updRings(dt);
@@ -4595,14 +4640,16 @@ function postInit(){if(POST.qs)return;POST.qs=new THREE.Scene();POST.qc=new THRE
   POST.q=new THREE.Mesh(g);POST.q.frustumCulled=false;POST.qs.add(POST.q);
   POST.M.bright=postMat('uniform sampler2D tex;uniform float thr;uniform vec2 px;varying vec2 vUv;void main(){vec3 c=vec3(0.);for(int i=0;i<4;i++){vec2 o=vec2(i==1||i==3?1.:-1.,i>1?1.:-1.)*px;c+=texture2D(tex,vUv+o).rgb;}c*=.25;float l=dot(c,vec3(.2126,.7152,.0722));c*=smoothstep(thr,thr+.02+(1.-thr)*.5,l);gl_FragColor=vec4(min(c,vec3(8.)),1.);}',{tex:{value:null},thr:{value:.85},px:{value:new THREE.Vector2()}});
   POST.M.blur=postMat('uniform sampler2D tex;uniform vec2 dir;varying vec2 vUv;void main(){vec3 c=texture2D(tex,vUv).rgb*.227027;c+=(texture2D(tex,vUv+dir*1.3846).rgb+texture2D(tex,vUv-dir*1.3846).rgb)*.316216;c+=(texture2D(tex,vUv+dir*3.2308).rgb+texture2D(tex,vUv-dir*3.2308).rgb)*.070270;gl_FragColor=vec4(c,1.);}',{tex:{value:null},dir:{value:new THREE.Vector2()}});
-  POST.M.final=postMat(`uniform sampler2D tex,b1,b2;uniform float exposure,bloom,sat,con,vig,aspect;uniform vec3 tint;varying vec2 vUv;
+  POST.M.final=postMat(`uniform sampler2D tex,b1,b2;uniform float exposure,bloom,sat,con,vig,aspect,edgeA;uniform vec3 tint,edgeC;varying vec2 vUv;
     vec3 RRT(vec3 v){vec3 a=v*(v+.0245786)-.000090537;vec3 b=v*(.983729*v+.4329510)+.238081;return a/b;}
     vec3 aces(vec3 c){const mat3 I=mat3(.59719,.07600,.02840,.35458,.90834,.13383,.04823,.01566,.83777);const mat3 O=mat3(1.60475,-.10208,-.00327,-.53108,1.10813,-.07276,-.07367,-.00605,1.07602);c*=exposure/.6;c=I*c;c=RRT(c);c=O*c;return clamp(c,0.,1.);}
     vec3 srgb(vec3 c){return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(vec3(.0031308),c));}
     void main(){vec3 c=texture2D(tex,vUv).rgb+(texture2D(b1,vUv).rgb*.65+texture2D(b2,vUv).rgb*.6)*bloom;c=clamp(c*tint,0.,1.);/* the scene is already tone-mapped by the material shaders; mapping it twice greyed every white */
       float l=dot(c,vec3(.2126,.7152,.0722));c=mix(vec3(l),c,sat);c=clamp((c-.5)*con+.5,0.,1.);
       vec2 d=(vUv-.5)*vec2(aspect,1.);c*=1.-vig*smoothstep(.35,1.05,length(d));
-      gl_FragColor=vec4(srgb(c),1.);}`,{tex:{value:null},b1:{value:null},b2:{value:null},exposure:{value:1},bloom:{value:.55},sat:{value:1.08},con:{value:1.06},vig:{value:.28},aspect:{value:1},tint:{value:new THREE.Vector3(1,1,1)}});}
+  /* screen-edge flash (boost, hit, pickup) drawn here instead of as a blurred page layer */
+  vec2 e=abs(vUv-.5)*2.;float ed=max(e.x,e.y);c=mix(c,edgeC,edgeA*smoothstep(.62,1.,ed)*(.55+.45*smoothstep(.85,1.,ed)));
+      gl_FragColor=vec4(srgb(c),1.);}`,{tex:{value:null},b1:{value:null},b2:{value:null},exposure:{value:1},bloom:{value:.55},sat:{value:1.08},con:{value:1.06},vig:{value:.28},aspect:{value:1},edgeA:{value:0},edgeC:{value:new THREE.Color()},tint:{value:new THREE.Vector3(1,1,1)}});}
 function postSize(w,h){const msN=LADV.ms===0?0:pr>=1.25?2:4;if(POST.w===w&&POST.h===h&&POST.rt&&POST.ms===msN)return;POST.ms=msN;POST.w=w;POST.h=h;for(const k of ['rt','b1','b2','b3','b4'])if(POST[k])POST[k].dispose();
   const ht=renderer.capabilities.isWebGL2?THREE.HalfFloatType:THREE.UnsignedByteType,opt={type:ht,depthBuffer:false};
   POST.rt=new THREE.WebGLRenderTarget(w,h,{type:ht,stencilBuffer:true/* forces a 24-bit depth buffer: three gives depth-only targets 16 bits, which let thin hulls show through on phones */,samples:renderer.capabilities.isWebGL2?msN:0});POST.pr=pr;
@@ -4614,7 +4661,7 @@ function postRender(){postInit();const sz=renderer.getDrawingBufferSize(v2);post
   M.bright.uniforms.tex.value=POST.rt.texture;M.bright.uniforms.thr.value=G.thr;M.bright.uniforms.px.value.set(1/sz.x,1/sz.y);pass(M.bright,POST.b1);
   const bl=(a,b,w,h)=>{M.blur.uniforms.tex.value=a.texture;M.blur.uniforms.dir.value.set(1/w,0);pass(M.blur,b);M.blur.uniforms.tex.value=b.texture;M.blur.uniforms.dir.value.set(0,1/h);pass(M.blur,a);};
   bl(POST.b1,POST.b2,POST.b1.width,POST.b1.height);M.blur.uniforms.tex.value=POST.b1.texture;M.blur.uniforms.dir.value.set(.5/POST.b1.width,0);pass(M.blur,POST.b3);bl(POST.b3,POST.b4,POST.b3.width,POST.b3.height);bl(POST.b3,POST.b4,POST.b3.width,POST.b3.height);
-  const F=M.final.uniforms;F.tex.value=POST.rt.texture;F.b1.value=POST.b1.texture;F.b2.value=POST.b3.texture;F.exposure.value=renderer.toneMappingExposure;F.bloom.value=G.bloom;F.sat.value=G.sat;F.con.value=G.con;F.vig.value=G.vig;F.aspect.value=sz.x/sz.y;F.tint.value.set(...G.tint);
+  const F=M.final.uniforms;F.tex.value=POST.rt.texture;F.b1.value=POST.b1.texture;F.b2.value=POST.b3.texture;F.exposure.value=renderer.toneMappingExposure;F.bloom.value=G.bloom;F.sat.value=G.sat;F.con.value=G.con;F.vig.value=G.vig;F.aspect.value=sz.x/sz.y;{const t=(performance.now()-EDGE.t0)/EDGE.dur,a=t<0||t>1?0:(t<.15?t/.15:1-(t-.15)/.85);F.edgeA.value=a*EDGE.a;F.edgeC.value.copy(EDGE.c);}F.tint.value.set(...G.tint);
   pass(M.final,null);}
 function fit(){const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;renderer.setPixelRatio(pr);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
 
