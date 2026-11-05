@@ -3271,7 +3271,21 @@ function standings(){return karts.slice().sort((a,b)=>a.finished&&b.finished?a.p
 const ROLL=[{pepperoni:25,oil:22,trio:10,garlic:12,dough:8,flour:15,chili:8},
   {pepperoni:14,oil:10,trio:14,garlic:10,dough:14,flour:12,chili:16,freezer:4,wheel:3,rush:3},
   {chili:22,dough:12,trio:12,flour:8,garlic:8,rush:14,wheel:12,freezer:12}];
-function rollItem(pos){const f=pos/7,t=ROLL[f<.2?0:f<.62?1:2];let sum=0;for(const k in t)sum+=t[k];let r=Math.random()*sum;for(const k in t){r-=t[k];if(r<=0)return k;}return 'chili';}
+/* ===== item odds by race position =====
+   Every item has a power rank from 1 (traps and basic shots) to 5 (the comeback bombs). The further back you are,
+   the higher the rank the odds centre on: the leader mostly gets traps and single shots, last place mostly gets the big catch-up items.
+   Items that only work on someone ahead never go to the leader, and the strongest items never reach the front of the pack. */
+const ITEM_POWER={oil:1,forks:1,boxes:1,garlic:1,pepperoni:1,flour:1.5,
+  trio:2,garlic2:2,dough:2,meatball:2,bomb:2,cutter:2.2,chili:2.4,
+  torpedo:3,jalapeno:3,shroom:3,sauce:3,twister:3,swap:3.2,magnet:3.4,
+  freezer:4,heat:4,ghost:4,rush:4.4,
+  cannon:5,wheel:5};
+const NEEDS_TARGET=new Set(['dough','torpedo','magnet','swap','ghost','wheel','freezer','sauce']);
+function itemOdds(pos,n){const f=n>1?pos/(n-1):0,target=1+f*4,out={};
+  for(const k in ITEM_POWER){if(typeof useItem2==='undefined'&&!HELP[k])continue;const w=ITEM_POWER[k];if(pos===0&&NEEDS_TARGET.has(k))continue;if(f<.35&&w>=4)continue;if(f<.15&&w>=3)continue;
+    const d=w-target;out[k]=Math.exp(-d*d/(2*.85*.85));}
+  return out;}
+function rollItem(pos){const t=itemOdds(pos,(typeof karts!=='undefined'&&karts.length)||8);let sum=0;for(const k in t)sum+=t[k];let r=Math.random()*sum;for(const k in t){r-=t[k];if(r<=0)return k;}return 'pepperoni';}
 
 /* ---------- input ---------- */
 const keys={left:false,right:false,drift:false,brake:false};let itemQueued=null;
@@ -3489,15 +3503,14 @@ function hitBy(p){const it=PROJ_ITEM[p.type];if(!it||!player)return;const col=PR
   burst(k.x,gy+6,k.y,26,[col,'#fff4dc',col],90,2.6);burst(k.x,gy+3,k.y,12,['#ffffff'],40,1.6);
   edgeFx(col);shake(.8);SFX.clash&&SFX.clash(1);
   const T=PROJ_TONE[p.type]||[600,'square'];tone(T[0]*.5,.25,T[1],.09,T[0]*.18);
-  if(!_hitEl){_hitEl=document.createElement('div');_hitEl.id='hitby';stage.appendChild(_hitEl);}
+  /* no on-screen callout: the incoming alert already shows what is coming */
   const who=p.owner&&p.owner!==k&&RACERS[p.owner.ri]?RACERS[p.owner.ri].name:'';
-  _hitEl.innerHTML='<span class="hb-ic">'+(SVG[it]||'')+'</span><span class="hb-t"><b>'+itemLabel(it)+'!</b>'+(who?'<i>from '+who+'</i>':'')+'</span>';_hitEl.style.setProperty('--ic',col);
-  _hitEl.classList.remove('on');void _hitEl.offsetWidth;_hitEl.classList.add('on');clearTimeout(_hitT);_hitT=setTimeout(()=>_hitEl.classList.remove('on'),1600);}
+}
 const hitAnims=[];
 /* an incoming item that reaches the item you are holding behind you hits that instead: both burst where they meet */
 function heldBlock(k,p){const H=k.held;if(!H||H.wx==null||p.owner===k&&p.safe>0)return false;const dx=p.x-H.wx,dz=p.y-H.wz;if(dx*dx+dz*dz>11*11)return false;
   const col=PROJ_COL[p.type]||'#ffe066',y=(k.rg??groundAt(H.wx,H.wz))+3;dropHeld(k);burst(H.wx,y,H.wz,22,[col,'#fff4dc','#ffe066'],70,2.4);burst(H.wx,y,H.wz,10,['#ffffff'],35,1.5);
-  if(k===player){shake(.35);SFX.clash&&SFX.clash(.7);edgeFx('#ffe066',true);blockedCallout(p);}return true;}
+  if(k===player){shake(.35);SFX.clash&&SFX.clash(.7);edgeFx('#ffe066',true);}return true;}
 function blockedCallout(p){const it=PROJ_ITEM[p.type];if(!it)return;if(!_hitEl){_hitEl=document.createElement('div');_hitEl.id='hitby';stage.appendChild(_hitEl);}
   _hitEl.innerHTML='<span class="hb-ic">'+(SVG[it]||'')+'</span><span class="hb-t"><b>Blocked!</b><i>'+itemLabel(it)+' stopped by your held item</i></span>';_hitEl.style.setProperty('--ic','#7fe07f');
   _hitEl.classList.remove('on');void _hitEl.offsetWidth;_hitEl.classList.add('on');clearTimeout(_hitT);_hitT=setTimeout(()=>_hitEl.classList.remove('on'),1400);}
