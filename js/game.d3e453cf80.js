@@ -3212,6 +3212,8 @@ function aiInput(k,dt){
     if(k.item==='pepperoni'&&!aClose&&!bClose&&Math.random()<.6){use=false;ai.itemDelay=.5;}}}
   return {steer,drift:false,brake:false,mul,use,back};
 }
+/* jump tricks as turns about [roll, spin, flip]: barrel roll, front flip, flat 360, back flip, corkscrew, double roll */
+const TRICK_T=.5,TRICKS=[[1,0,0],[0,0,-1],[0,1,0],[0,0,1],[1,1,0],[2,0,0]];
 function land(k){if(k===camT)shake(.55);const tr=k.trick;k.trick=false;if(tr){k.boost=Math.max(k.boost,.8);if(k===player)SFX.boost(1);}else SFX.land(near(k));
   for(let i=0;i<10;i++){const a=Math.random()*Math.PI*2;FXN.spawn(k.x+Math.cos(a)*4,1,k.y+Math.sin(a)*4,Math.cos(a)*18,4+Math.random()*6,Math.sin(a)*18,'#f2e3c4',3,9,.7,-1,2);}}
 const rings=[];
@@ -3629,7 +3631,8 @@ function stepKart(k,inp,dt){
   k.inv=Math.max(0,k.inv-dt);if(k.trickT>0)k.trickT-=dt;
   const dPress=inp.brake&&!k.pd;k.pd=inp.brake;if(k.gripT>0)k.gripT-=dt;
   if(k.loop){loopStep(k,dt);return;}
-  if(k.air&&k.big&&dPress&&!k.trick){k.trick=true;k.trickT=.45;if(k===player)SFX.trick();}
+  /* first tap mid-air = trick (a different one each jump); a later tap arms the drift for landing */
+  let trickNow=false;if(k.air&&k.big&&dPress&&!k.trick){k.trick=true;k.trickT=TRICK_T;let n=(Math.random()*TRICKS.length)|0;if(n===k.trickK)n=(n+1)%TRICKS.length;k.trickK=n;trickNow=true;if(k===player)SFX.trick();}
   const lat=Math.abs(lateral(k)),sm=k.sm;let tp=lat<RW?1:lat<CURB?.86+.02*sm.off:clamp(.58+.06*sm.off,.4,.82);if(k.glide)tp=1;if(k.sc)tp=k.sc.route?1:.96;if(k.boost>0)tp=Math.max(tp,.93);k.sf=k.sc?1:lat<RW?2:lat<CURB?1:0;
   k.pen+=(tp-k.pen)*Math.min(1,dt*(tp<k.pen?3.5:6));
   let max=BASE_MAX*inp.mul*k.pen*sm.spd*(k.glide?k.gair||1:1);if(k.boost>0){k.bAge=(k.pBoost>0?(k.bAge||0)+dt:0);max*=1.58;k.boost-=dt;}else k.bAge=9;k.pBoost=k.boost;if(k.dWant>0)k.dWant-=dt;if(k.shield>0){k.shield-=dt;max*=1.08;}if(k.absT>0)k.absT-=dt;if(k.rush>0){k.rush-=dt;max*=1.12;k.pen=Math.max(k.pen,.95);}if(k.cannonT>0)max*=1.22;if(k.shrinkT>0)max*=.78;if(k.sauceT>0)max*=.93;if(k.frozen>0){k.frozen-=dt;max*=.55;}
@@ -3646,7 +3649,7 @@ function stepKart(k,inp,dt){
     if(!k.air){const ca=Math.cos(k.ma),sa=Math.sin(k.ma),sl=(groundAt(k.x+ca*5,k.y+sa*5)-groundAt(k.x-ca*5,k.y-sa*5))/10;k.speed-=sl*165*dt;}
     const sp=Math.abs(k.speed),dir=(k.speed<0?-1:1)*(k.air&&k.big?.35:1);
     const hs=clamp((sp-40)/(BASE_MAX-40),0,1),lo=sp<1?0:Math.min(1,sp/35),tfN=lo*(1-.66*hs)*((k.isPlayer&&!k.auto)?1:1.4)*sm.hnd,tfD=lo*(1-.4*hs)*sm.hnd;
-    let dRel=false;if(k.spin>0||k.sink!=null)k.dLatch=false;if(dPress&&k.air&&!k.drift){k.dLatch=!k.dLatch;k.dWant=0;}/* tapped mid-air (jump or glide): stay armed and drift the moment you land */else if(dPress&&k.drift&&!k.air)dRel=true;else{if(dPress&&!k.drift)k.dWant=.6;if(k.dWant>0&&inp.brake)k.dWant=Math.max(k.dWant,.12);
+    let dRel=false;if(k.spin>0||k.sink!=null)k.dLatch=false;if(dPress&&k.air&&!k.drift){if(!trickNow){k.dLatch=!k.dLatch;k.dWant=0;}}/* tapped mid-air (jump or glide): stay armed and drift the moment you land */else if(dPress&&k.drift&&!k.air)dRel=true;else{if(dPress&&!k.drift)k.dWant=.6;if(k.dWant>0&&inp.brake)k.dWant=Math.max(k.dWant,.12);
       if(k.dLatch&&!k.drift&&!k.air){if(sp>40){k.dLatch=false;k.dWant=0;k.drift=1;k.charge=0;k.dAmt=.35;k.tier=0;k.dTime=0;k.sT=0;if(k===player)SFX.hop();}else if(sp<30)k.dLatch=false;}
       if(k.dWant>0&&!k.drift&&!k.air&&sp>55&&!(k.boost>0&&k.bAge<.8)){k.dWant=0;k.drift=1;k.charge=0;k.dAmt=0;k.tier=0;k.dTime=0;k.sT=0;k.air=true;k.big=false;k.airT=0;k.wvy=(k.gRate||0)+18;if(k===player)SFX.hop();}}
     if(k.drift&&!dRel){k.dTime+=dt;const sl=Math.abs(angDiff(k.a,k.ma));if(k.dTime>.45&&Math.abs(k.steer)<.3&&sl<.14){k.sT+=dt;if(k.sT>(k.isPlayer&&!k.auto?.45:.3))dRel=true;}else k.sT=0;}/* you can let go of the steering mid-drift for a moment: the drift only ends after 1.5 s straight */
@@ -3808,7 +3811,7 @@ function syncKart(k,dt,time){
   if(m.ice){const fz=k.frozen>0;if(fz!==m.ice.visible)m.ice.visible=fz;if(fz){m.ice.scale.setScalar(m.iceS*Math.min(1,.25+(2.8-k.frozen)*6)*(k.frozen<.25?k.frozen*4:1));m.ice.rotation.y=Math.sin(time*1.5)*.05;}}
   {const gt=k.glide?1:0;m.ga+=(gt-m.ga)*Math.min(1,dt*(gt?5:8));const gv=m.ga>.02;if(gv!==m.gl.visible)m.gl.visible=gv;if(gv){m.gl.scale.setScalar(m.ga);m.gl.rotation.set(-k.steer*.18,0,Math.sin(time*2.2+k.ri)*.06);}}
   if(far)return;
-  const f=Math.min(1,8*dt);if(k.trickT>0){m.tilt.rotation.x=(1-k.trickT/.45)*Math.PI*2;m.trickOn=true;}else{if(m.trickOn){m.tilt.rotation.x=0;m.trickOn=false;}m.tilt.rotation.x+=(((k.drift?k.steer*.08*(k.dAmt||0):0)+k.steer*.04)-m.tilt.rotation.x)*f;}
+  const f=Math.min(1,8*dt);if(k.trickT>0){const u=1-k.trickT/TRICK_T,e=u*u*(3-2*u),T=TRICKS[k.trickK|0];m.tilt.rotation.set(T[0]*e*Math.PI*2,T[1]*e*Math.PI*2,T[2]*e*Math.PI*2);m.trickOn=true;}else{if(m.trickOn){m.tilt.rotation.set(0,0,0);m.trickOn=false;}m.tilt.rotation.x+=(((k.drift?k.steer*.08*(k.dAmt||0):0)+k.steer*.04)-m.tilt.rotation.x)*f;}
   m.tilt.rotation.z+=(clamp(k.acc*.0006,-.07,.05)-m.tilt.rotation.z)*f;
   for(const w of m.wheels)w.spin.rotation.z-=k.speed*dt/(w.r*KS);
   for(const fw of m.front)fw.rotation.y=-k.steer*.42;
