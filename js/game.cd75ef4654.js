@@ -3527,7 +3527,7 @@ const ABIL={pep:['Pepperoni Storm','Fires a fan of six spinning pepperoni slices
   anchovy:['School of Fish','Launches three homing anchovies at the racers ahead.','#8fc8e8']};
 const ABIL_TIME=30;
 const abilKey=k=>k.r.name.toLowerCase();
-function useAbility(k){const id=abilKey(k),A=ABIL[id];if(!A||k.abC<1||k.loop||k.finished)return;k.abC=0;const st=standCache,i=st.indexOf(k),v=near(k);
+function useAbility(k){const id=abilKey(k),A=ABIL[id];if(!A||!(k.abC>=1)||k.loop||k.finished)return;k.abC=0;const st=standCache,i=st.indexOf(k),v=near(k);
   itemFx(k,A[2],50);spawnRing(k.x,(k.wy||0)+.6,k.y,A[2],70,.8);if(k===player){SFX.ability();showBanner(A[0],1.1,'sm');shake(.6);abilFlash(A[2]);}else if(v>0)SFX.ability();
   if(id==='pep'){fireItem(k,'trio',false);k.abQ=[[.25,()=>fireItem(k,'trio',false)]];}
   else if(id==='basil'){k.boost=Math.max(k.boost,2.8);k.abFx=2.8;k.abCol=A[2];if(k===player)SFX.boost(3);}
@@ -3537,7 +3537,7 @@ function useAbility(k){const id=abilKey(k),A=ABIL[id];if(!A||k.abC<1||k.loop||k.
   else if(id==='shroom'){k.rush=4;k.boost=Math.max(k.boost,1.5);k.megaT=4;k.drift=0;}
   else if(id==='pineapple'){blast(k.x,k.y,80,k,'pep','#ffd23a');k.inv=Math.max(k.inv,.6);}
   else if(id==='anchovy'){for(let j=1;j<=3;j++){const tg=st[i-j];const sp=360+Math.max(0,k.speed),an=k.a+(j-2)*.25;projectiles.push({type:'torp',custom:1,x:k.x+Math.cos(an)*12,y:k.y+Math.sin(an)*12,vx:Math.cos(an)*sp,vy:Math.sin(an)*sp,t:6,owner:k,safe:.3,b:0,target:tg||null,mesh:itemMesh('torpedo')});}SFX.torpedo(v||.4);}}
-function abilityTick(dt){for(const k of karts){if(state==='race'&&!k.finished&&k.abC<1){k.abC=Math.min(1,(k.abC||0)+dt/ABIL_TIME);if(k===player&&k.abC>=1){SFX.ready();abilBtn&&abilBtn.classList.add('ready');}}
+function abilityTick(dt){for(const k of karts){if(state==='race'&&!k.finished&&!(k.abC>=1)){k.abC=Math.min(1,(k.abC||0)+dt/ABIL_TIME);if(k===player&&k.abC>=1){SFX.ready();abilBtn&&abilBtn.classList.add('ready');}}
     if(k.abQ&&k.abQ.length){for(const q of k.abQ)q[0]-=dt;while(k.abQ.length&&k.abQ[0][0]<=0)k.abQ.shift()[1]();}
     if(k.fireT>0){k.fireT-=dt;k.fireAcc=(k.fireAcc||0)+dt;if(k.fireAcc>.12){k.fireAcc=0;hazards.push({x:k.x-Math.cos(k.ma)*16,y:k.y-Math.sin(k.ma)*16,t:2.2,born:0,owner:k,armed:false,kind:'fire',mesh:fireMesh()});}}
     if(k.megaT>0)k.megaT-=dt;if(k.abFx>0)k.abFx-=dt;
@@ -3552,6 +3552,8 @@ function abilityRender(time,dt){for(const k of karts){const m=k.m;if(k.megaT>0){
   for(const h of hazards)if(h.kind==='fire'){h.mesh.scale.setScalar(Math.max(.01,Math.min(1,h.t*1.4))*(1+Math.sin(time*20+h.x)*.1));if(Math.random()<.3)FXA.spawn(h.x,groundAt(h.x,h.y)+4,h.y,0,26,0,'#ff7a1a',3,.3,.4,0,0);}
   if(player&&abilBtn){const c=player.abC||0,rd=c>=.999;if(rd!==abilBtn.classList.contains('ready')||Math.abs(c-(abilBtn._c??-1))>.004){abilBtn._c=c;abilBtn.style.setProperty('--ab',(rd?100:c*100).toFixed(1)+'%');abilBtn.classList.toggle('ready',rd);}}}
 let abilBtn=null,abilQueued=false;
+/* every racer starts each race with an empty special meter: it fills over ABIL_TIME seconds of racing */
+function abilReset(){for(const k of karts){k.abC=0;k.abWait=null;}abilQueued=false;if(abilBtn){abilBtn._c=-1;abilBtn.classList.remove('ready');abilBtn.style.setProperty('--ab','0%');}}
 function edgeFx(col,soft){const e=document.createElement('div');e.className='edgefx'+(soft?' soft':'');e.style.setProperty('--c',col);stage.appendChild(e);setTimeout(()=>e.remove(),700);}
 function slotPing(cls){for(const id of ['itemBtn','itemBtn2']){const b=$(id);if(!b)continue;b.classList.remove(cls);void b.offsetWidth;b.classList.add(cls);setTimeout(()=>b.classList.remove(cls),700);}}
 function abilFlash(col){const e=document.createElement('div');e.className='abilfx';e.style.setProperty('--c',col);stage.appendChild(e);setTimeout(()=>e.remove(),900);}
@@ -3564,7 +3566,7 @@ function abilityHudFor(ri){if(!abilBtn)return;const A=ABIL[RACERS[ri].name.toLow
 let introT=0,introSkip=false;const INTRO_SHOT=2.4,INTRO_N=3;
 function startIntro(){introT=0;introSkip=false;state='intro';stage.classList.add('cinema');const m=MAPS[mapIdx],ci=$('cine');ci.hidden=false;ci.classList.remove('out');void ci.offsetWidth;ci.classList.add('on');
   $('cineName').textContent=m.name;$('cineSub').textContent=(gp?CUPS[gp.cup].name+' · Race '+(gp.race+1)+' of 4':'Single race')+' · '+CLASSES[clsKey].label;$('cineSkip').hidden=false;}
-function endIntro(){stage.classList.remove('cinema');const ci=$('cine');ci.classList.remove('on');ci.classList.add('out');setTimeout(()=>{ci.hidden=true;},450);state='countdown';cd=3.4;lastCd=4;camSnap=true;acc=0;}
+function endIntro(){stage.classList.remove('cinema');const ci=$('cine');ci.classList.remove('on');ci.classList.add('out');setTimeout(()=>{ci.hidden=true;},450);state='countdown';cd=3.4;lastCd=4;camSnap=true;abilReset();acc=0;}
 function introCam(dt){const t=introT,sh=Math.min(INTRO_N-1,Math.floor(t/INTRO_SHOT)),f=Math.min(1,(t-sh*INTRO_SHOT)/INTRO_SHOT),e=f*f*(3-2*f),gl=(x,z)=>groundAt(x,z),ey=j=>MULTI?(track[((Math.round(j)%N)+N)%N].ey||0):0;
   const P=(s,lat)=>trackAt(s,lat);
   if(sh===0){/* low dolly down the road ahead of the start, like riding along at eye level */
@@ -3945,7 +3947,7 @@ function goFullscreen(){const el=document.documentElement;try{const p=el.request
   if(p&&p.then)p.then(()=>{try{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{});}catch(e){}}).catch(()=>{});}catch(e){}}
 function buildProg(){const el=$('tbProg');if(!el)return;el.querySelectorAll('i,.tb-lap').forEach(n=>n.remove());for(let l=1;l<LAPS;l++){const t=document.createElement('span');t.className='tb-lap';t.style.left='calc(8px + (100% - 16px)*'+(l/LAPS).toFixed(4)+')';t.innerHTML='<b>L'+(l+1)+'</b>';el.appendChild(t);}for(const k of karts){const n=document.createElement('i');if(k===player)n.className='me';n.style.setProperty('--c',k.r.color);if(PORTRAITS[k.ri])n.style.backgroundImage='url('+PORTRAITS[k.ri]+')';el.appendChild(n);k.pm=n;}}
 let _abSetup=false;function startRace(){if(!_abSetup){_abSetup=true;setupAbilityHud();const ci=$('cine');ci.addEventListener('pointerdown',e=>{e.preventDefault();introSkip=true;});addEventListener('keydown',()=>{if(state==='intro')introSkip=true;});}if(window.__clearInput)window.__clearInput();initAudio();if(ac&&ac.state==='suspended')ac.resume();goFullscreen();
-  menu.hidden=true;results.hidden=true;pauseOv.hidden=true;resetRace(false);state='countdown';cd=3.4;lastCd=4;stage.classList.remove('demo');raceDone=false;
+  menu.hidden=true;results.hidden=true;pauseOv.hidden=true;resetRace(false);state='countdown';cd=3.4;lastCd=4;abilReset();stage.classList.remove('demo');raceDone=false;
   buildProg();ghostStart();{const r=loadRecs()[recKey()],e=$('hudPB');if(e){e.hidden=!r;if(r)e.textContent='Best '+fmt(r.t);}}lastPos=lastLap=lastItem=lastTimeStr='';lastSpd=-1;hud.ch=-1;hud.bst=null;hud.dr=null;banner.textContent='';hintShown=false;itemQueued=null;}
 const paint=()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
 let raceLoading=false;
