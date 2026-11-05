@@ -3770,7 +3770,7 @@ let introT=0,introSkip=false;const INTRO_SHOT=2.4,INTRO_N=3;
 function startIntro(){introT=0;introSkip=false;state='intro';stage.classList.add('cinema');const m=MAPS[mapIdx],ci=$('cine');ci.hidden=false;ci.classList.remove('out');void ci.offsetWidth;ci.classList.add('on');
   $('cineName').textContent=m.name;$('cineSub').textContent=(gp?CUPS[gp.cup].name+' · Race '+(gp.race+1)+' of 4':'Single race')+' · '+CLASSES[clsKey].label;$('cineSkip').hidden=false;}
 function endIntro(){stage.classList.remove('cinema');const ci=$('cine');ci.classList.remove('on');ci.classList.add('out');setTimeout(()=>{ci.hidden=true;},450);state='countdown';cd=3.4;lastCd=4;camSnap=true;abilReset();acc=0;}
-function introCam(dt){const t=introT,sh=Math.min(INTRO_N-1,Math.floor(t/INTRO_SHOT)),f=Math.min(1,(t-sh*INTRO_SHOT)/INTRO_SHOT),e=f*f*(3-2*f),gl=(x,z)=>groundAt(x,z),ey=j=>MULTI?(track[((Math.round(j)%N)+N)%N].ey||0):0;
+function introCam(dt){const t=introT,sh=Math.min(INTRO_N-1,Math.floor(t/INTRO_SHOT)),f=Math.min(1,(t-sh*INTRO_SHOT)/INTRO_SHOT),e=f*f*(3-2*f),gl=(x,z)=>groundAt(x,z),ey=j=>{if(!MULTI)return 0;const f=Math.floor(j);return eyAt(((f%N)+N)%N,j-f);};/* smooth deck height between track points, so the dolly up the spiral doesn't step */
   const P=(s,lat)=>trackAt(s,lat);
   if(sh===0){/* low dolly down the road ahead of the start, like riding along at eye level */
     const s=22+e*16,a=P(s,0),b=P(s+22,0);camera.position.set(a.x,gl(a.x,a.y)+ey(s)+10+e*3,a.y);camera.lookAt(b.x,gl(b.x,b.y)+ey(s+22)+8,b.y);}
