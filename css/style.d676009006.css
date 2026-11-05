@@ -300,7 +300,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .g-name{margin:0;font-family:var(--display);font-size:clamp(18px,3vw,24px);color:var(--cheese)}
 .g-stats{display:grid;gap:7px;padding:12px 14px;border-radius:14px;background:linear-gradient(160deg,rgba(255,244,220,.07),rgba(255,244,220,.015));border:1px solid rgba(255,244,220,.12)}
 .st-row{display:grid;grid-template-columns:76px minmax(0,1fr) 30px;gap:10px;align-items:center;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.st-bar{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}.st-bar i{height:9px;border-radius:3px;background:rgba(255,244,220,.12)}
+.st-bar{display:grid;grid-template-columns:repeat(12,1fr);gap:2px}.st-bar i{height:9px;border-radius:3px;background:rgba(255,244,220,.12)}
 .st-bar i.on{background:linear-gradient(90deg,#f7c948,#ff8a1f)}.st-bar i.mid{box-shadow:0 0 0 1px rgba(255,244,220,.45)}
 .st-d{text-align:right;color:var(--cream);font-variant-numeric:tabular-nums;font-size:13px}.st-d.up{color:#8ff08a}.st-d.dn{color:#ff9a88}
 .g-stats.off{opacity:.55}.g-stats.off .st-bar i.on{background:rgba(255,244,220,.35)}
@@ -596,3 +596,10 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .g-num b{padding:1px 8px 0;border-radius:10px;background:rgba(20,10,6,.5);box-shadow:0 0 0 1px rgba(255,244,220,.14);text-shadow:0 1px 2px rgba(0,0,0,.8)}
 .g-num small{color:var(--cream);opacity:.85;text-shadow:0 1px 3px rgba(0,0,0,.9)}
 .g-track{stroke:rgba(20,10,6,.72)}
+
+/* item slots side by side: slot 1 at the edge, slot 2 just inside it; a held item dims its slot */
+#itemBtn,#itemBtn2{top:var(--hudTop,66px)}
+#itemBtn2{right:calc(max(8px,calc(var(--btn)*.12)) + var(--btn)*.94 + 12px)}
+.ibtn.held{box-shadow:0 0 0 3px rgba(255,244,220,.35),inset 0 -8px 16px rgba(0,0,0,.5);animation:none}
+.ibtn.held #itemIcon,.ibtn.held .s2i{opacity:.38;filter:grayscale(.6)}
+.ibtn.held::before{content:"HELD";position:absolute;left:50%;bottom:-18px;transform:translateX(-50%);font:800 10px/1 system-ui,sans-serif;letter-spacing:.12em;color:rgba(255,244,220,.75);text-shadow:0 1px 2px rgba(0,0,0,.8)}
