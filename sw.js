@@ -135,7 +135,7 @@ const SHELL = [
   "./assets/shots/grid-m.31de56a1bf.jpg",
   "./assets/shots/grid-a.c36c42a4dd.jpg",
   "./css/style.8909919990.css",
-  "./js/game.71062b7a99.js",
+  "./js/game.8166541cff.js",
   "./vendor/three-0.149.0.min.js"
 ];
 
