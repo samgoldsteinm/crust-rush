@@ -2763,7 +2763,8 @@ function loadMap(mi,rev){
     animators.push((t,dt)=>{lt.offset.y-=dt*2.2;});
     const railM=wm('#f7c948',{metalness:.6,roughness:.25});for(const e of [eL,eR]){const tm=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(e),160,1.1,8,false),railM);tm.castShadow=true;tm.userData.noLift=true;world.add(tm);}
     const top=new THREE.Vector3(p.x,g0+2*LOOPR,p.y),bm=wm('#3a3a44',{metalness:.6,roughness:.35}),G=new THREE.Group();G.userData.noLift=true;world.add(G);
-    for(const sd of [-1,1]){const sw=LOOP.full?LOOP.S+LOOP.W+14:RW+16,bx=p.x+p.nx*sw*sd,bz=p.y+p.ny*sw*sd;limb(new THREE.CylinderGeometry(1.8,2.4,1,10),bm,[bx,g0-2,bz],[top.x+p.nx*(W+3)*sd,top.y,top.z+p.ny*(W+3)*sd],G);
+    /* full loops have no support struts: from the driver's seat a strut crossing over the entry lane looked like a pole standing in the road */
+    if(!LOOP.full)for(const sd of [-1,1]){const sw=LOOP.full?LOOP.S+LOOP.W+14:RW+16,bx=p.x+p.nx*sw*sd,bz=p.y+p.ny*sw*sd;limb(new THREE.CylinderGeometry(1.8,2.4,1,10),bm,[bx,g0-2,bz],[top.x+p.nx*(W+3)*sd,top.y,top.z+p.ny*(W+3)*sd],G);
       put(new THREE.CylinderGeometry(5,6,3,14),bm,bx,g0,bz,G);obstacles.push({x:bx,y:bz,r:4,h:60,j:LOOP.j,lat:LOOP.full?999:(RW+16)*sd});}
     G.children.forEach(c=>c.castShadow=true);
     if(LOOP.full){/* a solid divider down the middle: the way in and the way out never touch, so the only way through is round the loop */
@@ -3833,7 +3834,7 @@ function abilityTick(dt){for(const k of karts){if(state==='race'&&!k.finished&&!
     if(k.fireT>0){k.fireT-=dt;k.fireAcc=(k.fireAcc||0)+dt;if(k.fireAcc>.12){k.fireAcc=0;hazards.push({x:k.x-Math.cos(k.ma)*16,y:k.y-Math.sin(k.ma)*16,t:2.2,born:0,owner:k,armed:false,kind:'fire',mesh:fireMesh()});}}
     if(k.megaT>0)k.megaT-=dt;if(k.abFx>0)k.abFx-=dt;
     /* rivals fire their ability when it makes sense */
-    if(!k.isPlayer&&k.abC>=1&&state==='race'){k.abWait=(k.abWait==null?1+Math.random()*4:k.abWait)-dt;if(k.abWait<=0){const id=abilKey(k),st=standCache,i=st.indexOf(k);let go=true;
+    if(!isHuman(k)&&!k.isPlayer&&k.abC>=1&&state==='race'){k.abWait=(k.abWait==null?1+Math.random()*4:k.abWait)-dt;if(k.abWait<=0){const id=abilKey(k),st=standCache,i=st.indexOf(k);let go=true;
       if(id==='pineapple')go=karts.some(o=>o!==k&&(o.x-k.x)**2+(o.y-k.y)**2<70*70);else if(id==='anchovy'||id==='pep')go=i>0;else if(id==='olive')go=i<st.length-1;
       if(go){useAbility(k);k.abWait=null;}else k.abWait=.8;}}}}
 let _fireProto=null;function fireMesh(){if(!_fireProto){_fireProto=new THREE.Group();for(let i=0;i<3;i++){const c=new THREE.Mesh(KG.flame,flameMat);c.scale.set(3,3+i,3);c.position.set((i-1)*2.5,3,0);_fireProto.add(c);}
@@ -3948,6 +3949,8 @@ function useItem(k,back){
   else if(it==='freezer'){const sf=standings(),fi=sf.indexOf(k);for(let j=0;j<fi;j++){const o=sf[j];if(o===k||o.finished)continue;if(o.shield>0||o.rush>0||o.loop||o.absT>0)continue;if(absorb(o))continue;o.frozen=2.8;burst(o.x,o.rz||o.wy,o.y,18,['#bfe6ff','#ffffff','#7fd0ff'],50,2.6);spawnRing(o.x,(o.wy||0)+.6,o.y,'#8fd8ff',26,.5);}spawnRing(k.x,(k.wy||0)+.6,k.y,'#bfe6ff',60,.7);}
   if(it==='chili'||it==='rush'){if(k===player)SFX.chili();}else if(it==='garlic'){if(near(k)>0)SFX.garlic(near(k));}else if(it==='freezer'){SFX.freeze();}else if(it==='wheel'){SFX.wheel(near(k)||.4);}else if(near(k)>0)(back?SFX.throwB:SFX.throwF)();
 }
+/* a person drives this kart: the local player, or (on the host) a friend's kart. Their karts must get identical physics on every phone, or the host's copy drives a different line and corrections make the kart jump. */
+function isHuman(k){return (k.isPlayer||!!k.netId)&&!k.auto;}
 function stepKart(k,inp,dt){
   k.inv=Math.max(0,k.inv-dt);if(k.trickT>0)k.trickT-=dt;
   const dPress=inp.brake&&!k.pd;k.pd=inp.brake;if(k.gripT>0)k.gripT-=dt;
@@ -3969,11 +3972,11 @@ function stepKart(k,inp,dt){
     else k.speed+=(max-k.speed)*Math.min(1,dt*1.5);
     if(!k.air){const ca=Math.cos(k.ma),sa=Math.sin(k.ma),sl=(groundAt(k.x+ca*5,k.y+sa*5)-groundAt(k.x-ca*5,k.y-sa*5))/10;k.speed-=sl*165*dt;}
     const sp=Math.abs(k.speed),dir=(k.speed<0?-1:1)*(k.air&&k.big?.35:1);
-    const hs=clamp((sp-40)/(BASE_MAX-40),0,1),lo=sp<1?0:Math.min(1,sp/35),tfN=lo*(1-.66*hs)*((k.isPlayer&&!k.auto)?1:1.4)*sm.hnd,tfD=lo*(1-.4*hs)*sm.hnd;
+    const hs=clamp((sp-40)/(BASE_MAX-40),0,1),lo=sp<1?0:Math.min(1,sp/35),tfN=lo*(1-.66*hs)*(isHuman(k)?1:1.4)*sm.hnd,tfD=lo*(1-.4*hs)*sm.hnd;
     let dRel=false;if(k.spin>0||k.sink!=null)k.dLatch=false;if(dPress&&k.air&&!k.drift){if(!trickNow){k.dLatch=!k.dLatch;k.dWant=0;}}/* tapped mid-air (jump or glide): stay armed and drift the moment you land */else if(dPress&&k.drift&&!k.air)dRel=true;else{if(dPress&&!k.drift)k.dWant=.6;if(k.dWant>0&&inp.brake)k.dWant=Math.max(k.dWant,.12);
       if(k.dLatch&&!k.drift&&!k.air){if(sp>40){k.dLatch=false;k.dWant=0;k.drift=1;k.charge=0;k.dAmt=.35;k.tier=0;k.dTime=0;k.sT=0;if(k===player)SFX.hop();}else if(sp<30)k.dLatch=false;}
       if(k.dWant>0&&!k.drift&&!k.air&&sp>55&&!(k.boost>0&&k.bAge<.8)){k.dWant=0;k.drift=1;k.charge=0;k.dAmt=0;k.tier=0;k.dTime=0;k.sT=0;k.air=true;k.big=false;k.airT=0;k.wvy=(k.gRate||0)+18;if(k===player)SFX.hop();}}
-    if(k.drift&&!dRel){k.dTime+=dt;const sl=Math.abs(angDiff(k.a,k.ma));if(k.dTime>.45&&Math.abs(k.steer)<.3&&sl<.14){k.sT+=dt;if(k.sT>(k.isPlayer&&!k.auto?.45:.3))dRel=true;}else k.sT=0;}/* you can let go of the steering mid-drift for a moment: the drift only ends after 1.5 s straight */
+    if(k.drift&&!dRel){k.dTime+=dt;const sl=Math.abs(angDiff(k.a,k.ma));if(k.dTime>.45&&Math.abs(k.steer)<.3&&sl<.14){k.sT+=dt;if(k.sT>(isHuman(k)?.45:.3))dRel=true;}else k.sT=0;}/* you can let go of the steering mid-drift for a moment: the drift only ends after 1.5 s straight */
     if(k.drift){
       if(dRel||sp<35){const tier=k.charge>2.6?3:k.charge>1.6?2:k.charge>.8?1:0;
         if(tier){k.boost=Math.max(k.boost,[0,.55,.9,1.3][tier]);k.pBoost=k.boost;k.bAge=9;if(k===player){SFX.boost(tier);if(tier===3&&achMe(k))achAdd('drift3');}if(k===camT)shake(.15+tier*.05);}k.drift=0;k.charge=0;k.gripT=.5;}
@@ -4045,7 +4048,7 @@ function update0(dt){
     if(d2<361&&d2>0&&!a.loop&&!b.loop){const sa2=a.shield>0||a.rush>0,sb2=b.shield>0||b.rush>0;if(sa2&&!sb2)spinOut(b,'garlic');else if(sb2&&!sa2)spinOut(a,'garlic');const d=Math.sqrt(d2),p=(19-d)/2,nx=dx/d,ny=dy/d,wa=a.sm.wgt,wb=b.sm.wgt,ra=1.6*wb/(wa+wb),rb=1.6*wa/(wa+wb);a.x-=nx*p*ra;a.y-=ny*p*ra;b.x+=nx*p*rb;b.y+=ny*p*rb;if(wa>wb*1.15)b.speed*=.992;else if(wb>wa*1.15)a.speed*=.992;
       if(a.boost>0&&b.boost<=0)b.speed*=.97;else if(b.boost>0&&a.boost<=0)a.speed*=.97;}}
   for(const b of boxes){if(b.r>0){b.r-=dt;continue;}for(const k of karts){if((k.x-b.x)**2+(k.y-b.y)**2<270&&(!MULTI||Math.abs((k.wy||0)-b.gy)<18)){b.r=4;burst(b.x,6,b.y,26,['#ffe066','#e0452c','#fff4dc','#7fd0ff'],60,2.4);
-    const cap=2-(k.item?1:0)-(k.item2?1:0)-(k.held?1:0)-k.pend.length,give=Math.min(cap,b.dbl?2:1);for(let g2=0;g2<give;g2++)k.pend.push(rollItem(standCache.indexOf(k)));if(give>0&&k.roll<=0)k.roll=k===player?1.1:.5;boxFx(b,k);break;}}}
+    const cap=2-(k.item?1:0)-(k.item2?1:0)-(k.held?1:0)-k.pend.length,give=Math.min(cap,b.dbl?2:1);for(let g2=0;g2<give;g2++)k.pend.push(rollItem(standCache.indexOf(k)));if(give>0&&k.roll<=0)k.roll=isHuman(k)?1.1:.5;boxFx(b,k);break;}}}
   /* two items from different racers that meet cancel out, so a slice dropped behind you can stop whatever is chasing you */
   for(let i=projectiles.length-1;i>=0;i--){const a=projectiles[i];if(a.type==='flour'||a.type==='lob')continue;for(let j=i-1;j>=0;j--){const b=projectiles[j];if(b.owner===a.owner||b.type==='flour'||b.type==='lob')continue;
       const r=(a.type==='wheel'||b.type==='wheel')?20:15;if((a.x-b.x)**2+(a.y-b.y)**2<r*r){const gy=groundAt(a.x,a.y)+6;burst((a.x+b.x)/2,gy,(a.y+b.y)/2,26,['#ffe066','#ff8a1f','#ffffff'],90,3);spawnRing((a.x+b.x)/2,gy-5,(a.y+b.y)/2,'#ffcf6a',30,.4);SFX.clash(near({x:a.x,y:a.y}));a.t=0;b.t=0;a.dead=b.dead=1;break;}}}
