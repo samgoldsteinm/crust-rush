@@ -3412,7 +3412,7 @@ addEventListener('blur',()=>{keys.left=keys.right=keys.brake=false;if(window.__c
   window.__clearInput=()=>{steerT.clear();brakeT.clear();act.clear();brakes.clear();fromTouches([]);upd();keys.left=keys.right=keys.brake=false;bEls.forEach(b=>b.classList.remove('on'));zl.classList.remove('on');zr.classList.remove('on');};
   document.addEventListener('visibilitychange',()=>{if(document.hidden)window.__clearInput();});
   document.querySelectorAll('#stage button,.tz').forEach(b=>b.addEventListener('contextmenu',e=>e.preventDefault()));})();
-function playerInput(){const it=itemQueued;itemQueued=null;const o={steer:clamp((keys.right?1:0)-(keys.left?1:0)+(PAD.act?PAD.steer:0),-1,1),brake:keys.brake||(PAD.act&&PAD.brake),mul:PAD.act&&!PAD.gas&&performance.now()-PAD.lastUse<20000?0:1,use:false,back:false,hold:false,holdSl:1,release:null};
+function playerInput(){const it=itemQueued;itemQueued=null;const o={steer:clamp((keys.right?1:0)-(keys.left?1:0)+(PAD.act?PAD.steer:0),-1,1),brake:keys.brake||(PAD.act&&PAD.brake),nb:!keys.brake&&PAD.act&&!!PAD.nb,mul:PAD.act&&!PAD.gas&&performance.now()-PAD.lastUse<20000?0:1,use:false,back:false,hold:false,holdSl:1,release:null};
   /* tap the dimmed slot to fire the item you are holding; swipe it down to leave it on the track. In a friends' race the host does this for you. */
   if(NET.role==='guest'&&NET.cfg){o.ev=it||0;return o;}
   if(it&&player)itemIntent(player,it,o);
@@ -4041,7 +4041,7 @@ function stepKart(k,inp,dt){
     const rate=inp.steer===0?5:(k.steer!==0&&Math.sign(inp.steer)!==Math.sign(k.steer)?7:3.2);
     k.steer+=clamp(inp.steer-k.steer,-rate*dt,rate*dt);
     if(!inp.brake)k.bLock=false;if(dPress&&!k.air&&Math.abs(k.speed)>55)k.bLock=true;
-    k.brake+=((inp.brake&&!k.drift&&!k.bLock?1:0)-k.brake)*Math.min(1,dt*9);
+    k.brake+=((inp.brake&&!inp.nb&&!k.drift&&!k.bLock?1:0)-k.brake)*Math.min(1,dt*9);
     if(k.brake>.04){if(k.speed>2)k.speed-=200*k.brake*dt;else k.speed=Math.max(-55,k.speed-100*k.brake*dt);}
     else if(k.speed<max){const f=1-.72*clamp(k.speed/max,0,1);k.speed=Math.min(max,k.speed+(ACCEL*sm.acc*(k.boost>0?2.8:1)*f+(k.speed<0?220:0))*dt);}
     else k.speed+=(max-k.speed)*Math.min(1,dt*1.5);
@@ -4969,7 +4969,7 @@ function musTick(){if(!ac||!master)return;musInit();if(!MUS.bus)return;
    Phones find each other through a short room code over a relay server; the race data uses a direct link when one opens. */
 const NET={role:null,code:'',peer:null,conns:[],me:0,pl:[],cfg:null,fromNet:false,loaded:new Set(),tick:0,seq:0,hist:[],outQ:[],inQ:{},inS:{},inLast:{},ack:{},
   snaps:[],mir:new Map(),mirH:new Map(),mirList:[],fxQ:[],nid:0,inUpd:false,finSeen:false,lastRecv:0,goT:0,waitTimer:0,replay:false,abQ:false,relay:null,lastFl:0,unack:[],ackRx:0};
-const NET_PROTO=73;/* bump when race messages or kart physics change: friends on different versions would drive differently */
+const NET_PROTO=74;/* bump when race messages or kart physics change: friends on different versions would drive differently */
 const NET_SLOTS=[4,3,5,2],NET_ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const netId=c=>'crustrush-v1-'+c.toUpperCase();
 const NET_REM=['x','y','a','ma','z','wy','speed','steer','drift','charge','boost','spin','air','glide','loopTh','onRamp','rush','shL','shield','mzH','sink','sinkT','trickK','trickT','frozen','acc','brake','dAmt','fx','prog','finished','place','finishTime','inv','big','ghostT','shrinkT','absT','idx','gRings','trick'];
@@ -5062,16 +5062,23 @@ function netDirectGuest(code,ch){const R=NET.relay;netLoadLib().then(()=>{if(NET
 const RTC_ICE=[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']},{urls:'stun:stun.cloudflare.com:3478'}];
 function rtcWrap(dc,ch){const w={get open(){return dc.readyState==='open';},send(m){dc.send(JSON.stringify(m));},close(){try{dc.close();}catch(e){}}};
   dc.onmessage=e=>{let d;try{d=JSON.parse(e.data);}catch(_){return;}ch.recv(d);};dc.onopen=()=>{if(ch.open){ch.dc=w;netBadge();}};dc.onclose=()=>{if(ch.dc===w)ch.dc=null;};return w;}
-function rtcIce(ch,c){if(!c)return;if(ch.pc&&ch.pc.remoteDescription)ch.pc.addIceCandidate(c).catch(()=>{});else(ch.iceQ||(ch.iceQ=[])).push(c);}
-function rtcFlush(ch){for(const c of ch.iceQ||[])ch.pc.addIceCandidate(c).catch(()=>{});ch.iceQ=[];}
-function rtcGuestStart(ch){if(!window.RTCPeerConnection||!ch.open)return;try{const pc=new RTCPeerConnection({iceServers:RTC_ICE});ch.pc=pc;rtcWrap(pc.createDataChannel('race',{ordered:true}),ch);
-  pc.onicecandidate=e=>{if(e.candidate)ch.send({t:'rtc',ice:e.candidate.toJSON()});};
-  pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=>ch.send({t:'rtc',sdp:pc.localDescription.toJSON()})).catch(()=>{});}catch(e){}}
-function rtcOnGuest(ch,d){if(!ch.pc)return;if(d.sdp)ch.pc.setRemoteDescription(d.sdp).then(()=>rtcFlush(ch)).catch(()=>{});rtcIce(ch,d.ice);}
-function rtcOnHost(ch,d){if(!window.RTCPeerConnection)return;try{if(d.sdp&&d.sdp.type==='offer'){if(ch.pc){try{ch.pc.close();}catch(e){}}const pc=new RTCPeerConnection({iceServers:RTC_ICE});ch.pc=pc;
-    pc.ondatachannel=e=>rtcWrap(e.channel,ch);pc.onicecandidate=e=>{if(e.candidate)ch.send({t:'rtc',ice:e.candidate.toJSON()});};
-    pc.setRemoteDescription(d.sdp).then(()=>{rtcFlush(ch);return pc.createAnswer();}).then(a=>pc.setLocalDescription(a)).then(()=>ch.send({t:'rtc',sdp:pc.localDescription.toJSON()})).catch(()=>{});}
-  rtcIce(ch,d.ice);}catch(e){}}
+/* setup is sent as ONE complete message each way (all network routes gathered first), and the guest keeps re-offering
+   until the link opens: a single lost relay message used to leave the race on the slow relay for good */
+function rtcGather(pc,ms){return new Promise(res=>{if(pc.iceGatheringState==='complete')return res();const to=setTimeout(res,ms);pc.addEventListener('icegatheringstatechange',()=>{if(pc.iceGatheringState==='complete'){clearTimeout(to);res();}});});}
+function rtcGuestStart(ch){if(!window.RTCPeerConnection||!ch.open)return;ch.rtcN=0;ch.rtcSt='connecting';
+  const attempt=()=>{if(!ch.open||ch.direct)return;const pc0=ch.pc;
+    if(pc0&&pc0.signalingState==='stable'&&/connecting|new|checking/.test(pc0.connectionState||pc0.iceConnectionState)&&performance.now()-(ch.rtcT||0)<14000){setTimeout(attempt,2000);return;}/* answered and still finding a route: give it time */
+    if(++ch.rtcN>12){ch.rtcSt='failed';return;}ch.rtcT=performance.now();
+    try{if(ch.pc){try{ch.pc.close();}catch(e){}}const pc=new RTCPeerConnection({iceServers:RTC_ICE});ch.pc=pc;const id=ch.rtcN;ch.rtcId=id;rtcWrap(pc.createDataChannel('race',{ordered:true}),ch);
+      pc.onconnectionstatechange=()=>{if(ch.pc===pc)ch.rtcSt=pc.connectionState;};
+      pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=>rtcGather(pc,2500)).then(()=>{if(ch.pc===pc&&!ch.direct)ch.send({t:'rtc',id,sdp:pc.localDescription.toJSON()});}).catch(()=>{});}catch(e){ch.rtcSt='error';}
+    setTimeout(attempt,ch.rtcN<4?4000:8000);};
+  attempt();}
+function rtcOnGuest(ch,d){if(!ch||!ch.pc||d.id!==ch.rtcId||!d.sdp||d.sdp.type!=='answer')return;if(ch.pc.signalingState==='have-local-offer')ch.pc.setRemoteDescription(d.sdp).catch(()=>{});}
+function rtcOnHost(ch,d){if(!window.RTCPeerConnection||!d.sdp||d.sdp.type!=='offer')return;if(ch.direct)return;
+  try{if(ch.pc){try{ch.pc.close();}catch(e){}}const pc=new RTCPeerConnection({iceServers:RTC_ICE});ch.pc=pc;ch.rtcSt='connecting';pc.onconnectionstatechange=()=>{if(ch.pc===pc)ch.rtcSt=pc.connectionState;};
+    pc.ondatachannel=e=>rtcWrap(e.channel,ch);
+    pc.setRemoteDescription(d.sdp).then(()=>pc.createAnswer()).then(a=>pc.setLocalDescription(a)).then(()=>rtcGather(pc,2500)).then(()=>{if(ch.pc===pc)ch.send({t:'rtc',id:d.id,sdp:pc.localDescription.toJSON()});}).catch(()=>{});}catch(e){}}
 const netFast=()=>NET.conns.length>0&&NET.conns.every(c=>!c.open||c.direct);
 /* ---------- hosting ---------- */
 async function netHost(){netReset();NET.role='host';NET.me=0;const R=new NetRelay();NET.relay=R;
@@ -5092,10 +5099,13 @@ function netOnHost(c,d){if(!d||!d.t)return;const P=NET.pl.find(q=>q.id===c._id);
   if(d.t==='hello'){if(d.v!==NET_PROTO){netSend(c,{t:'full',why:'You and the host have different versions of the game. Both close the game, open it again so it updates, then try again.'});setTimeout(()=>{try{c.close();}catch(e){}},600);return;}if(P)P.name=String(d.name||P.name).slice(0,14);netLobbySync();}
   else if(d.t==='pick'){if(P){P.ri=d.ri|0;P.build=d.build;P.ready=!!d.ready;}netLobbySync();}
   else if(d.t==='loaded'){NET.loaded.add(c._id);netMaybeGo();}
-  else if(d.t==='in'){const q=NET.inQ[c._id]||(NET.inQ[c._id]=[]);const done=NET.ack[c._id]||0;for(const e of d.a){if(e[0]<=done)continue;const L=q.length?q[q.length-1][0]:0;if(e[0]>L)q.push(e);else if(!q.some(x=>x[0]===e[0])){q.push(e);q.sort((x,y)=>x[0]-y[0]);}}}
+  else if(d.t==='in'){const q=NET.inQ[c._id]||(NET.inQ[c._id]=[]);const done=NET.ack[c._id]||0;
+    const A=d.a||(()=>{const o=d.v.map((n,i)=>[d.s+i,(Math.floor(n/8)-100)/100,(n>>1)&1,0,0,n&1,(n>>2)&1]);for(const [i,ev,ab] of d.x||[]){if(o[i]){o[i][3]=ev;o[i][4]=ab;}}return o;})();
+    for(const e of A){if(e[0]<=done)continue;const L=q.length?q[q.length-1][0]:0;if(e[0]>L)q.push(e);else if(!q.some(x=>x[0]===e[0])){q.push(e);q.sort((x,y)=>x[0]-y[0]);}}}
   else if(d.t==='quit'){for(const k of karts)if(k.netId===c._id){k.netId=null;k.auto=true;}if(P)P.ready=false;netLobbySync();}
   else if(d.t==='bye'){try{c.close();}catch(e){}netDrop(c);}
-  else if(d.t==='rtc')rtcOnHost(c,d);}
+  else if(d.t==='rtc')rtcOnHost(c,d);
+  else if(d.t==='pg')netSend(c,{t:'po',ts:d.ts});}
 /* the host builds the grid: host in slot 4, friends next to them, rivals in the rest */
 function netBuildCfg(mi){const pl=NET.pl.filter(p=>p.id===0||p.conn&&p.conn.open);const used=new Set(pl.map(p=>p.ri));const others=RACERS.map((_,i)=>i).filter(i=>!used.has(i));
   for(let i=others.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[others[i],others[j]]=[others[j],others[i]];}
@@ -5120,7 +5130,8 @@ function netOnGuest(d){if(!d||!d.t)return;NET.lastRecv=performance.now();
   else if(d.t==='away'){NET.hostAway=true;}else if(d.t==='back'){NET.hostAway=false;}
   else if(d.t==='s'){netOnSnap(d);}
   else if(d.t==='menu'){if(state!=='menu'){toMenu();}netShowLobby();}
-  else if(d.t==='rtc')rtcOnGuest(NET.conns[0],d);}
+  else if(d.t==='rtc')rtcOnGuest(NET.conns[0],d);
+  else if(d.t==='po'){const r=performance.now()-d.ts;NET.ping=NET.ping==null?r:NET.ping*.6+r*.4;}}
 function netLost(msg){if(!NET.role)return;const wasRace=state!=='menu';netReset();if(wasRace)toMenu();netShowLobby(msg);}
 function netLeave(){if(NET.role==='guest')netSend(NET.conns[0],{t:'bye'});else if(NET.role==='host')netAll({t:'menu'});setTimeout(netReset,150);netLobbyRender();}
 /* ---------- loading and starting a race together ---------- */
@@ -5150,7 +5161,7 @@ function netSteps(k){const id=k.netId,q=NET.inQ[id]||(NET.inQ[id]=[]),cn=NET.con
   /* a host that falls behind (a slow frame, a busy phone) catches up by playing several inputs per step instead of skipping any */
   return q.length>120?4:q.length>40?3:q.length>st.T*2+4?2:1;}
 function netInput(k){const q=NET.inQ[k.netId];while(q.length>1&&q[0][0]<=(NET.ack[k.netId]||0))q.shift();const e=q.shift();NET.ack[k.netId]=e[0];
-  const o={steer:+e[1]||0,brake:!!e[2],mul:e[5]===0?0:1,use:false,back:false,hold:false,holdSl:1,release:null};if(e[3]&&k.spin<=0)itemIntent(k,e[3],o);if(e[4]&&state==='race')try{useAbility(k);}catch(_){}return o;}
+  const o={steer:+e[1]||0,brake:!!e[2],nb:!!e[6],mul:e[5]===0?0:1,use:false,back:false,hold:false,holdSl:1,release:null};if(e[3]&&k.spin<=0)itemIntent(k,e[3],o);if(e[4]&&state==='race')try{useAbility(k);}catch(_){}return o;}
 const r3=v=>typeof v==='number'?Math.round(v*100)/100:v;
 const r5=v=>Math.round(v*1e5)/1e5;
 function netKScal(k){const o={};for(const key in k){if(NET_SKIP.has(key))continue;const v=k[key];const t=typeof v;if(t==='number')o[key]=r5(v);else if(t==='boolean'||t==='string'||v===null)o[key]=v;}
@@ -5164,6 +5175,7 @@ function netSnapshot(){const base={t:'s',n:++NET.sn,st:r3(simTime),rt:r3(raceTim
   for(const c of NET.conns){if(!c.open)continue;const k=karts.find(q=>q.netId===c._id);netSend(c,Object.assign({},base,{me:k?netKScal(k):null,mi:k?karts.indexOf(k):-1,ack:NET.ack[c._id]||0}));}}
 setInterval(()=>{if(NET.role)netBadge();
   if(NET.role==='host'&&NET.cfg&&(state==='loading'||state==='netwait'))for(const c of NET.conns)if(c.open&&!NET.loaded.has(c._id))netSend(c,{t:'load',cfg:NET.cfg});
+  if(NET.role==='guest'&&NET.conns[0])netSend(NET.conns[0],{t:'pg',ts:performance.now()});
   if(NET.role==='guest'&&NET.conns[0]){if(state==='netwait')netSend(NET.conns[0],{t:'loaded'});else if(!NET.cfg&&state==='menu')netSend(NET.conns[0],{t:'pick',ri:selected,build:playerBuild,ready:!!NET.ready});}},2000);
 function netHostTick(){if(NET.role!=='host'||!NET.cfg||!NET.conns.length)return;if(++NET.tick%(netFast()?4:6)===0)netSnapshot();}
 /* bursts and rings made by race logic on the host are replayed on guests */
@@ -5179,8 +5191,8 @@ function netGuestStep(dt){simTime+=dt;standCache=standings();const k=player;
   if((NET.hostAway||quiet)&&state==='race'&&!k.finished){if(!NET.awayShown){NET.awayShown=true;showBanner('Waiting for the host…',600,'sm');}}else if(NET.awayShown){NET.awayShown=false;banner.textContent='';bannerT=0;}
   const hostRacing=LS&&LS.gs==='race'&&!NET.hostAway&&!quiet;
   if(state==='race'&&!k.finished&&hostRacing){const raw=playerInput();const ev=raw.ev||0,ab=abilQueued?1:0;abilQueued=false;
-    const stq=Math.round(raw.steer*100)/100,mq=raw.mul===0?0:1;const inp={steer:stq,brake:raw.brake,mul:mq,use:false,back:false,hold:false,holdSl:1,release:null};NET.seq++;NET.hist.push({seq:NET.seq,inp});if(NET.hist.length>480)NET.hist.shift();
-    NET.outQ.push([NET.seq,stq,raw.brake?1:0,ev,ab,mq]);stepKart(k,inp,dt);}
+    const stq=Math.round(raw.steer*100)/100,mq=raw.mul===0?0:1;const inp={steer:stq,brake:raw.brake,nb:!!raw.nb,mul:mq,use:false,back:false,hold:false,holdSl:1,release:null};NET.seq++;NET.hist.push({seq:NET.seq,inp});if(NET.hist.length>480)NET.hist.shift();
+    NET.outQ.push([NET.seq,stq,raw.brake?1:0,ev,ab,mq,raw.nb?1:0]);stepKart(k,inp,dt);}
   netInterp(k.finished?null:k);if(state==='race'&&(hostRacing||k.finished))raceTime+=dt;}
 /* relay servers may drop a message now and then: every input message repeats all inputs the host hasn't confirmed yet,
    so a lost packet costs nothing (the host ignores the copies it already has). A direct link never loses messages. */
@@ -5188,7 +5200,9 @@ function netFlush(){const c=NET.conns[0];if(NET.role!=='guest'||!c||!NET.cfg)ret
   if(c.direct){if(NET.outQ.length){netSend(c,{t:'in',a:NET.outQ});NET.unack.push(...NET.outQ);NET.outQ=[];}return;}
   if(!NET.outQ.length&&!(NET.unack.length&&now-NET.lastFl>120))return;if(now-NET.lastFl<40)return;NET.lastFl=now;
   NET.unack.push(...NET.outQ);NET.outQ=[];const a=NET.ackRx||0;let i=0;while(i<NET.unack.length&&NET.unack[i][0]<=a)i++;if(i)NET.unack.splice(0,i);
-  if(NET.unack.length>90)NET.unack.splice(0,NET.unack.length-90);netSend(c,{t:'in',a:NET.unack});}
+  if(NET.unack.length>72)NET.unack.splice(0,NET.unack.length-72);const U=NET.unack;if(!U.length)return;
+  const v=[],x=[];for(let i=0;i<U.length;i++){const e=U[i];v.push((Math.round((+e[1]||0)*100)+100)*8+(e[6]?4:0)+(e[2]?2:0)+(e[5]===0?0:1));if(e[3]||e[4])x.push([i,e[3]||0,e[4]?1:0]);}
+  netSend(c,{t:'in',s:U[0][0],v,x});}
 /* remote karts are timed by the host's own clock, not by when packets happen to arrive: the offset follows the fastest
    arrivals and the buffer grows only as much as the connection's jitter needs, so a good link shows friends with very little delay */
 function netClock(d){if(d.gs!=='race'){NET.off=null;NET.jit=0;NET.jq=[];return;}const o=d.at-d.st*1000;if(NET.off==null||o<NET.off||o-NET.off>1500){NET.off=o;}else NET.off+=(o-NET.off)*.004;
@@ -5255,8 +5269,9 @@ function softGlNote(){if(!SOFTGL||softGlNote.done)return;softGlNote.done=true;co
 /* shown with the frame counter during a friends' race: link type, round trip, lost updates and big position fixes per second */
 function netStat(ms){if(!NET.role||!NET.cfg)return '';const c=NET.conns[0];const link=netFast()?'direct':'relay';
   if(NET.role==='host')return ' · host '+link+' · '+NET.conns.filter(x=>x.open).length+' friend'+(NET.conns.length===1?'':'s');
-  const rtt=Math.round(Math.max(0,NET.seq-(NET.ackRx||0))*STEP*1000),fx=((NET.fixN||0)*1000/ms).toFixed(1),lost=NET.snGap||0;NET.fixN=0;NET.snGap=0;
-  return ' · '+link+' '+rtt+' ms · lost '+lost+' · fixes '+fx+'/s';}
+  const lag=Math.round(Math.max(0,NET.seq-(NET.ackRx||0))*STEP*1000),fx=((NET.fixN||0)*1000/ms).toFixed(1),lost=NET.snGap||0;NET.fixN=0;NET.snGap=0;
+  const st=c&&!c.direct?' ('+(c.rtcSt==='failed'?'direct failed':'direct '+(c.rtcSt||'off')+' #'+(c.rtcN||0))+')':'';
+  return ' · '+link+st+' · ping '+(NET.ping!=null?Math.round(NET.ping):'?')+' ms · lag '+lag+' ms · lost '+lost+' · fixes '+fx+'/s';}
 function netBadge(){document.body.classList.toggle('netguest',NET.role==='guest');const b=$('mpBadge');if(!b)return;if(!NET.role){b.hidden=true;return;}b.hidden=false;b.textContent=(NET.role==='host'?'Hosting ':'Room ')+NET.code+' · '+NET.pl.length+(NET.pl.length===1?' racer':' racers')+(NET.conns.length?(netFast()?' · direct':' · relay'):'');
   const gd=$('gDone');if(gd)gd.textContent=NET.role==='guest'?'Ready ✓':'Choose track ›';}
 
@@ -5279,7 +5294,7 @@ function padPoll(){let gps;try{gps=navigator.getGamepads?navigator.getGamepads()
   const racing=(state==='race'||state==='countdown')&&!document.querySelector('.overlay:not([hidden])')&&pauseOv.hidden;
   const dl=pr(M.LEFT),dr=pr(M.RIGHT);
   if(racing){document.body.classList.remove('padnav');
-    PAD.steer=clamp(sx+(dr?1:0)-(dl?1:0),-1,1);PAD.gas=pr(M.A);PAD.brake=pr(M.B)||M.D.some(pr);PAD.look=pr(M.X)||pr(M.BACK);
+    PAD.steer=clamp(sx+(dr?1:0)-(dl?1:0),-1,1);PAD.gas=pr(M.A);PAD.brake=pr(M.B)||M.D.some(pr);PAD.nb=PAD.gas&&!pr(M.B)&&M.D.some(pr);/* drift button with the throttle held: drift only, never brake */PAD.look=pr(M.X)||pr(M.BACK);
     if(edge(M.Y))abilQueued=true;
     /* items: slot 1 and slot 2 */
     [[M.I1,1],[M.I2,2]].forEach(([btns,sl])=>{const down=btns.some(pr),was=PAD.held[sl];if(down===was)return;PAD.held[sl]=down;const k=player;if(!k)return;
@@ -5291,7 +5306,8 @@ function padPoll(){let gps;try{gps=navigator.getGamepads?navigator.getGamepads()
     const dir=(pr(M.UP)||ay<-.6)?'u':(pr(M.DOWN)||ay>.6)?'d':(dl||ax<-.6)?'l':(dr||ax>.6)?'r':'';
     if(dir&&now>PAD.navT){PAD.navT=now+(PAD.navDir===dir?140:260);PAD.navDir=dir;padNav(dir);}else if(!dir){PAD.navT=0;PAD.navDir='';}
     {const ry=gp.axes[3]||0;if(Math.abs(ry)>.25)padScroll(ry*22);}
-    if(edge(M.A)){const el=document.activeElement;if(el&&el!==document.body&&el.click){el.click();}else padNav('d');}
+    if(edge(M.A)){const el=document.activeElement;if(el&&el!==document.body&&el.click){padRemember(el);el.click();}else padNav('d');}
+    padRestore();
     if(edge(M.B))padBack();}
   if(edge(M.START))togglePause();
   PAD.prev=gp.buttons.map(b=>!!b&&(b.pressed||b.value>.5));}
@@ -5299,13 +5315,21 @@ function padVisible(el){if(el.disabled||el.hidden)return false;const r=el.getBou
   const s=getComputedStyle(el);return s.visibility!=='hidden'&&s.display!=='none'&&+s.opacity>.05;}
 function padScope(){const ovs=[...document.querySelectorAll('.overlay:not([hidden]), #results:not([hidden]), #pauseOv:not([hidden]), #garage:not([hidden])')];
   return ovs.length?ovs.sort((a,b)=>(+getComputedStyle(b).zIndex||0)-(+getComputedStyle(a).zIndex||0))[0]:document.body;}
+/* a button is remembered by what it is (its panel, data attributes, label and position), so when a screen redraws
+   (picking a livery rebuilds the list) the controller lands back on the same button instead of jumping to the top */
+function padKey(el){const p=el.parentElement,ds=el.dataset?Object.entries(el.dataset).map(([k,v])=>k+'='+v).join(','):'';return [p&&(p.id||p.className),ds,(el.getAttribute('aria-label')||el.textContent||'').trim().slice(0,40),p?[...p.children].indexOf(el):0].join('|');}
+function padRemember(el){if(el&&el!==document.body){PAD.focEl=el;PAD.focKey=padKey(el);}}
+function padRestore(){const el=PAD.focEl;if(!PAD.focKey||!document.body.classList.contains('padnav'))return;if(el&&document.contains(el)&&padVisible(el)){if(document.activeElement!==el)el.focus({focusVisible:true,preventScroll:true});return;}
+  const sc=padScope();const c=[...sc.querySelectorAll('button,a[href],input,select,[tabindex]:not([tabindex="-1"]),.mapc,.cupc')].filter(padVisible);
+  let m=c.find(e=>padKey(e)===PAD.focKey);if(!m){const [pc,ds,lab]=PAD.focKey.split('|');m=c.find(e=>{const k=padKey(e).split('|');return k[1]===ds&&k[2]===lab;})||c.find(e=>{const k=padKey(e).split('|');return k[0]===pc&&k[2]===lab;});}
+  if(m){m.focus({focusVisible:true,preventScroll:true});PAD.focEl=m;}}
 function padNav(dir){document.body.classList.add('padnav');const sc=padScope();
   const els=[...sc.querySelectorAll('button,a[href],input,select,[tabindex]:not([tabindex="-1"]),.mapc,.cupc')].filter(padVisible);if(!els.length)return;
-  const cur=document.activeElement;if(!cur||!els.includes(cur)){const onScr=els.find(e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;})||els[0];onScr.focus({focusVisible:true,preventScroll:true});onScr.scrollIntoView({block:'nearest'});return;}
+  const cur=document.activeElement;if(!cur||!els.includes(cur)){const onScr=els.find(e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;})||els[0];onScr.focus({focusVisible:true,preventScroll:true});padRemember(onScr);onScr.scrollIntoView({block:'nearest'});return;}
   const a=cur.getBoundingClientRect(),ax=a.left+a.width/2,ay=a.top+a.height/2;let best=null,bs=1e9;
   for(const el of els){if(el===cur)continue;const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2,dx=x-ax,dy=y-ay;
     const along=dir==='r'?dx:dir==='l'?-dx:dir==='d'?dy:-dy,side=dir==='r'||dir==='l'?Math.abs(dy):Math.abs(dx);if(along<4)continue;const sc2=along+side*2.2;if(sc2<bs){bs=sc2;best=el;}}
-  if(best){best.focus({focusVisible:true,preventScroll:true});best.scrollIntoView({block:'center',inline:'nearest',behavior:'smooth'});}
+  if(best){best.focus({focusVisible:true,preventScroll:true});padRemember(best);best.scrollIntoView({block:'center',inline:'nearest',behavior:'smooth'});}
   else if(dir==='d'||dir==='u')padScroll(dir==='d'?260:-260);}
 /* scroll whatever actually scrolls on the open screen: the focused element's scrolling parent, else any scrollable box in it */
 function padScroll(dy){const sc=padScope();let el=document.activeElement&&sc.contains(document.activeElement)?document.activeElement:sc;
@@ -5315,6 +5339,7 @@ function padBack(){const sc=padScope();const b=sc.querySelector('.back,[data-bac
   if(b&&padVisible(b)){b.click();return;}dispatchEvent(new KeyboardEvent('keydown',{code:'Escape',key:'Escape'}));}
 function padRumble(ms,str){try{const gp=[...(navigator.getGamepads?navigator.getGamepads():[])].find(g=>g&&g.connected);const v=gp&&gp.vibrationActuator;
   if(v&&v.playEffect)v.playEffect('dual-rumble',{duration:ms,strongMagnitude:str,weakMagnitude:str*.6}).catch(()=>{});}catch(e){}}
+addEventListener('pointerdown',()=>{document.body.classList.remove('padnav');PAD.focKey=null;},true);
 addEventListener('gamepadconnected',e=>{PAD.id=e.gamepad.id;showBanner('Controller connected',1.4,'sm');});
 
 function frame(now){
