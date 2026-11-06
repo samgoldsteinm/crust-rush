@@ -412,7 +412,8 @@ function placeTunnel(len){const step=T.L/N,K=Math.round(len/step),near=(j,list,r
   const G=propGeos('tunnel'),sx=.5,sy=.5;const mk=(src,mat)=>{const g=src.clone(),pa=g.attributes.position,na=g.attributes.normal;g.computeBoundingBox();const zb=g.boundingBox,Z0=-1469.25,Z1=1469.25;
     for(let i=0;i<pa.count;i++){const t=(pa.getZ(i)-Z0)/(Z1-Z0)*K,j0=Math.floor(t),f=t-j0,a=track[(best+j0)%N],b=track[(best+j0+1)%N];
       const cx=a.x+(b.x-a.x)*f,cz=a.y+(b.y-a.y)*f,nx=a.nx+(b.nx-a.nx)*f,nz=a.ny+(b.ny-a.ny)*f,tx=a.tx+(b.tx-a.tx)*f,tz=a.ty+(b.ty-a.ty)*f,x=pa.getX(i)*sx;
-      pa.setXYZ(i,cx+nx*x,groundAt(cx,cz)-3+pa.getY(i)*sy,cz+nz*x);const lx=na.getX(i),ly=na.getY(i),lz=na.getZ(i);na.setXYZ(i,nx*lx+tx*lz,ly,nz*lx+tz*lz);}
+      const wx=cx+nx*x,wz=cz+nz*x,ly0=pa.getY(i)*sy,base=groundAt(cx,cz),dip=Math.max(0,base-groundAt(wx,wz)),wf=ly0<=0?1:ly0>=10?0:1-ly0/10;/* the tunnel's feet follow the ground beside the road down, instead of hanging in the air where it falls away */
+      pa.setXYZ(i,wx,base-3+ly0-dip*wf,wz);const lx=na.getX(i),ly=na.getY(i),lz=na.getZ(i);na.setXYZ(i,nx*lx+tx*lz,ly,nz*lx+tz*lz);}
     g.computeBoundingSphere();const m=new THREE.Mesh(g,mat);m.userData.noLift=true;world.add(m);return m;};
   const body=mk(G.body,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.45,metalness:.55,envMapIntensity:.9,side:THREE.DoubleSide}));body.castShadow=true;body.receiveShadow=true;
   mk(G.glow,new THREE.MeshBasicMaterial({color:'#2fa6d6'}));
@@ -423,7 +424,8 @@ function placeTunnel(len){const step=T.L/N,K=Math.round(len/step),near=(j,list,r
    Extra ground detail between the track and the horizon: thousands of small instanced pieces per theme.
    Purely decorative: nothing here is an obstacle, and it uses its own random stream, so the race itself
    (and online play against phones on other settings) is exactly the same as on every other quality. */
-function ultraDetail(def){if(!QUAL[qKey].hqAll||def.arena)return;const R=mrand(90210+(MAPS.indexOf(def)+1)*131),th=def.theme;
+function ultraDetail(def){if(!QUAL[qKey].hqAll||def.arena)return;HQG.pause();try{return ultraDetail0(def);}finally{HQG.resume();}}
+function ultraDetail0(def){const R=mrand(90210+(MAPS.indexOf(def)+1)*131),th=def.theme;
   const keepOff=(x,z,pad)=>{if(nearTrack(x,z,CURB+pad))return true;for(const sc of SHORTS){const W=(sc.w||SCW)+pad;for(let i=0;i<sc.pts.length;i+=2){const p=sc.pts[i];if((p.x-x)**2+(p.y-z)**2<W*W)return true;}}
     if(PITS.length&&pitAt(x,z)>2)return true;if(WATER_Y!=null&&groundAt(x,z)<WATER_Y+.5)return true;return x*x+z*z>(def.R*.97)**2;};
   const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),e=new THREE.Euler(),v=new THREE.Vector3(),sv=new THREE.Vector3();
@@ -444,7 +446,7 @@ function ultraDetail(def){if(!QUAL[qKey].hqAll||def.arena)return;const R=mrand(9
   if(th==='bay'){
     place(tuft(),lit('#ffffff'),spots(16000,3,420,5),[3.4,6.8],{cols:['#5f9f3a','#6fb043','#4f8a30','#86b84c','#a3b85a'],tilt:.25});
     place(new THREE.IcosahedronGeometry(1,1),lit('#ffffff',{roughness:.6}),spots(3200,5,420,6),[.9,1.8],{cols:['#ffffff','#ffd84a','#ff7aa8','#c58cff','#ff9442'],y:1.4});
-    place(new THREE.DodecahedronGeometry(1,1),lit('#ffffff',{roughness:.95,flatShading:true}),spots(1600,8,460,10),[2,7],{cols:['#9b8f80','#857a6c','#b3a796'],sy:.55,tilt:.6});
+    place(hqBlob(1,.2,1.9,51,true),lit('#ffffff',{roughness:.95}),spots(1600,8,460,10),[2,7],{cols:['#9b8f80','#857a6c','#b3a796'],sy:.55,tilt:.6});
     trees(['tree_round1','tree_round2','tree_shrub'],420,null,null);
   }else if(th==='freezer'){
     place(new THREE.SphereGeometry(1,14,8,0,Math.PI*2,0,Math.PI/2),lit('#ffffff',{roughness:.55}),spots(2600,6,460,8),[5,16],{cols:['#e3eefb','#d4e4f7','#eef5ff'],sy:.38});
@@ -452,12 +454,12 @@ function ultraDetail(def){if(!QUAL[qKey].hqAll||def.arena)return;const R=mrand(9
     place(new THREE.ConeGeometry(1,3,7).translate(0,1.5,0),lit('#ffffff',{roughness:.9}),spots(1800,10,460,10),[2,4.5],{cols:['#2f5d46','#3b6e52','#294f3c']});
     trees(['tree_pine1','tree_pine2'],520,.75,null);
   }else if(th==='night'){
-    place(new THREE.DodecahedronGeometry(1,1),lit('#ffffff',{roughness:.9,flatShading:true}),spots(5000,3,420,5),[.8,2.6],{cols:['#3d3550','#2e2a40','#4a4060'],sy:.6,tilt:.6});
+    place(hqBlob(1,.2,1.9,52,true),lit('#ffffff',{roughness:.9}),spots(5000,3,420,5),[.8,2.6],{cols:['#3d3550','#2e2a40','#4a4060'],sy:.6,tilt:.6});
     place(new THREE.OctahedronGeometry(1,0),new THREE.MeshBasicMaterial({color:'#ffffff',toneMapped:false}),spots(2400,5,420,6),[.7,1.6],{cols:['#ff3df0','#3df5ff','#ffe066','#7cff6b'],sy:2.4,tilt:.5});
     place(tuft(),lit('#ffffff'),spots(9000,3,400,5),[2.8,5.5],{cols:['#4a3c86','#2d6a7e','#5a3a96','#3b4f8a'],tilt:.3});
     trees(['tree_round1','tree_round2'],300,null,[.42,.4,.7]);
   }else if(th==='kitchen'){
-    place(new THREE.DodecahedronGeometry(1,1),lit('#ffffff',{roughness:.95,flatShading:true}),spots(8000,3,360,5),[.7,2.2],{cols:['#c98c4a','#b5763a','#d9a463','#8f5a2a'],sy:.7,tilt:.8});
+    place(hqBlob(1,.2,1.9,51,true),lit('#ffffff',{roughness:.95}),spots(8000,3,360,5),[.7,2.2],{cols:['#c98c4a','#b5763a','#d9a463','#8f5a2a'],sy:.7,tilt:.8});
     place(new THREE.CircleGeometry(1,18).rotateX(-Math.PI/2).translate(0,.08,0),lit('#ffffff',{roughness:1,transparent:true,opacity:.55,depthWrite:false}),spots(1200,6,360,8),[6,16],{cols:['#fffaf0','#f8f1e2']});
     place(new THREE.PlaneGeometry(1,.55).rotateX(-Math.PI/2).translate(0,.12,0),lit('#ffffff',{roughness:.7,side:THREE.DoubleSide}),spots(2600,4,360,6),[1.6,3.2],{cols:['#3f8a2c','#4d9b33','#2f6e22']});
     place(new THREE.BoxGeometry(1,.25,.6),lit('#ffffff',{roughness:.6}),spots(2600,4,360,6),[.7,1.4],{cols:['#c4241a','#e0452c','#9e1b12']});
@@ -2115,13 +2117,165 @@ const OBST={
     for(const y of [8,18]){const t=P3(new THREE.TorusGeometry(5.6,.6,8,28),glow,0,y,0,pr0);t.rotation.x=Math.PI/2;}bake(pr0);return ()=>pr0.clone();}
 };
 const CELL=560;
-function lowPoly(g){const p=g.parameters||{},T=g.type;let n=null;
+function lowPoly(g){if(HQG.active)return g;const p=g.parameters||{},T=g.type;let n=null;
   if(T==='SphereGeometry'&&(p.widthSegments>12||p.heightSegments>8))n=new THREE.SphereGeometry(p.radius,Math.min(12,p.widthSegments),Math.min(8,p.heightSegments),p.phiStart,p.phiLength,p.thetaStart,p.thetaLength);
   else if(T==='CylinderGeometry'&&p.radialSegments>14)n=new THREE.CylinderGeometry(p.radiusTop,p.radiusBottom,p.height,14,1,p.openEnded);
   else if(T==='TorusGeometry'&&(p.radialSegments>8||p.tubularSegments>18))n=new THREE.TorusGeometry(p.radius,p.tube,Math.min(8,p.radialSegments),Math.min(18,p.tubularSegments),p.arc);
   if(n){g.dispose();return n;}return g;}
+/* ===== Ultra (computers): smoother scenery geometry =====
+   while a map is built on Ultra the geometry constructors are swapped for detailed versions: boxes get rounded edges, cylinders get bevelled rims
+   and round shapes get many more segments. Positions, sizes, collisions and the seeded random stream are untouched: only vertex detail changes */
+const HQG=(()=>{const O={};for(const k of ['BoxGeometry','CylinderGeometry','SphereGeometry','ConeGeometry','TorusGeometry','CapsuleGeometry','LatheGeometry','CircleGeometry','TubeGeometry','ExtrudeGeometry','DodecahedronGeometry'])O[k]=THREE[k];
+  const TAU=Math.PI*2,PL=[['z','y',-1,-1,2,1],['z','y',1,-1,2,1],['x','z',1,1,0,2],['x','z',1,-1,0,2],['x','y',1,-1,0,1],['x','y',-1,-1,0,1]];
+  /* a rounded box: every face keeps its material group and its texture mapping, so printed boards and signs read exactly as before */
+  class RBox extends O.BoxGeometry{constructor(w=1,h=1,d=1,ws=1,hs=1,ds=1){const m=Math.min(w,h,d),r=Math.min(m*.16,1.6);
+      if(ws>1||hs>1||ds>1||!(r>=.045)){super(w,h,d,ws,hs,ds);return;}
+      const n=(!LITE&&Math.max(w,h,d)>6&&r>.3)?5:3;super(1,1,1,n,n,n);
+      const pa=this.attributes.position,na=this.attributes.normal,ua=this.attributes.uv,hsz=.5/n,B=[w/2-r,h/2-r,d/2-r],D=[w,h,d],per=(n+1)*(n+1),P={x:0,y:0,z:0};
+      for(let i=0;i<pa.count;i++){const p=[pa.getX(i),pa.getY(i),pa.getZ(i)],s=p.map(Math.sign);let q=p.map((v,k)=>v-s[k]*hsz);const l=Math.hypot(q[0],q[1],q[2])||1;q=q.map(v=>v/l);
+        P.x=s[0]*B[0]+q[0]*r;P.y=s[1]*B[1]+q[1]*r;P.z=s[2]*B[2]+q[2]*r;pa.setXYZ(i,P.x,P.y,P.z);na.setXYZ(i,q[0],q[1],q[2]);
+        const pl=PL[Math.min(5,Math.floor(i/per))],W=D[pl[4]],H=D[pl[5]];ua.setXY(i,(P[pl[0]]*pl[2]+W/2)/W,1-(P[pl[1]]*pl[3]+H/2)/H);}
+      this.parameters={width:w,height:h,depth:d,widthSegments:ws,heightSegments:hs,depthSegments:ds};}}
+  let LITE=false;const segUp=(s,min,lim)=>s>=lim?Math.max(s,LITE?Math.min(min,Math.max(s,Math.round(min*.55))):min):s;
+  /* a closed cylinder with rounded rims: the side keeps group 0, and each rim curls into its cap (groups 1 and 2) so a printed top (pepperoni, coins, lids) wraps over the edge */
+  function bevelCyl(g,rt,rb,h,rs,b){const A=LITE?2:3,pos=[],nor=[],uv=[],idx=[],sl=(rb-rt)/h,sn=Math.hypot(1,sl),SN=[1/sn,sl/sn];
+    const ring=(r,y,nr,ny,ux,vv)=>{const s=pos.length/3;for(let i=0;i<=rs;i++){const t=i/rs*TAU,si=Math.sin(t),co=Math.cos(t);pos.push(r*si,y,r*co);nor.push(nr*si,ny,nr*co);uv.push(ux==null?i/rs:ux(si,co,r),vv==null?0:vv);}return s;};
+    const capUV=(sg,R)=>(si,co,r)=>co*.5*r/R+.5;
+    const band=(a,c,flip)=>{for(let i=0;i<rs;i++){const p=a+i,q=a+i+1,u=c+i,v=c+i+1;if(flip)idx.push(p,u,q,q,u,v);else idx.push(p,q,u,q,v,u);}};
+    g.clearGroups();
+    /* side */const s0=ring(rb,-h/2+b,SN[0],SN[1],null,b/h),s1=ring(rt,h/2-b,SN[0],SN[1],null,1-b/h);const i0=idx.length;band(s1,s0,false);g.addGroup(i0,idx.length-i0,0);
+    for(const [sg,R,grp] of [[1,rt,1],[-1,rb,2]]){const j0=idx.length;let prev=-1;const cuv=(si,co,r)=>co*.5*r/R+.5,cv=(si,co,r)=>si*.5*sg*r/R+.5;
+      for(let k=0;k<=A;k++){const a=k/A*Math.PI/2,nr=k===0?SN[0]:Math.cos(a),ny=k===0?SN[1]:Math.sin(a)*sg,r=R-b+b*Math.cos(a),y=sg*(h/2-b+b*Math.sin(a));
+        const s=pos.length/3;for(let i=0;i<=rs;i++){const t=i/rs*TAU,si=Math.sin(t),co=Math.cos(t);pos.push(r*si,y,r*co);nor.push(nr*si,ny,nr*co);uv.push(co*.5*r/R+.5,si*.5*sg*r/R+.5);}
+        if(prev>=0)band(prev,s,sg<0);prev=s;}
+      const c=pos.length/3;pos.push(0,sg*h/2,0);nor.push(0,sg,0);uv.push(.5,.5);for(let i=0;i<rs;i++){if(sg>0)idx.push(prev+i,prev+i+1,c);else idx.push(prev+i+1,prev+i,c);}
+      g.addGroup(j0,idx.length-j0,grp);}
+    g.setIndex(idx);g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+    /* winding: make every triangle face the way its normals point */
+    const P=g.attributes.position.array,Nn=g.attributes.normal.array,I=g.index.array,e1=new THREE.Vector3(),e2=new THREE.Vector3(),fn=new THREE.Vector3();
+    for(let t=0;t<I.length;t+=3){const a=I[t]*3,bb=I[t+1]*3,c=I[t+2]*3;e1.set(P[bb]-P[a],P[bb+1]-P[a+1],P[bb+2]-P[a+2]);e2.set(P[c]-P[a],P[c+1]-P[a+1],P[c+2]-P[a+2]);fn.crossVectors(e1,e2);
+      if(fn.x*(Nn[a]+Nn[bb]+Nn[c])+fn.y*(Nn[a+1]+Nn[bb+1]+Nn[c+1])+fn.z*(Nn[a+2]+Nn[bb+2]+Nn[c+2])<0){const x=I[t+1];I[t+1]=I[t+2];I[t+2]=x;}}}
+  class HCyl extends O.CylinderGeometry{constructor(rt=1,rb=1,h=1,rs=8,hs=1,open=false,ts=0,tl=TAU){const mr=Math.max(rt,rb),rs2=segUp(rs,mr>40?80:mr>8?48:28,9),b=Math.min(Math.min(rt,rb)*.14,h*.16,1.1);
+      if(open||hs>1||Math.abs(tl-TAU)>1e-4||ts!==0||!(b>=.035)||Math.min(rt,rb)<.08){super(rt,rb,h,rs2,hs,open,ts,tl);return;}
+      super(rt,rb,h,3,1,true);bevelCyl(this,rt,rb,h,rs2,b);this.parameters={radiusTop:rt,radiusBottom:rb,height:h,radialSegments:rs2,heightSegments:1,openEnded:false,thetaStart:0,thetaLength:TAU};}}
+  class HSph extends O.SphereGeometry{constructor(r=1,ws=32,hs=16,ps,pl,ts,tl){super(r,segUp(ws,32,8),segUp(hs,20,6),ps,pl,ts,tl);}}
+  class HCone extends O.ConeGeometry{constructor(r=1,h=1,rs=32,hs=1,open,ts,tl){super(r,h,segUp(rs,36,9),hs,open,ts,tl);}}
+  class HTor extends O.TorusGeometry{constructor(r=1,t=.4,rs=12,ts=48,arc){super(r,t,segUp(rs,14,6),segUp(ts,Math.min(128,Math.max(48,Math.round(ts*1.5))),12),arc);}}
+  class HCap extends O.CapsuleGeometry{constructor(r=1,l=1,cs=4,rs=8){super(r,l,Math.max(cs,6),segUp(rs,24,6));}}
+  class HLathe extends O.LatheGeometry{constructor(pts,seg=12,ps,pl){super(pts,segUp(seg,40,9),ps,pl);}}
+  class HCirc extends O.CircleGeometry{constructor(r=1,seg=32,ts,tl){super(r,segUp(seg,48,10),ts,tl);}}
+  class HTube extends O.TubeGeometry{constructor(path,ts=64,r=1,rs=8,cl=false){super(path,Math.min(320,Math.max(ts,Math.round(ts*1.5))),r,segUp(rs,14,5),cl);}}
+  class HExt extends O.ExtrudeGeometry{constructor(sh,o){if(LITE){super(sh,o);return;}o=Object.assign({},o||{});o.curveSegments=Math.max(o.curveSegments||12,24);if(o.bevelEnabled!==false&&o.bevelSegments!=null)o.bevelSegments=Math.max(o.bevelSegments,5);super(sh,o);}}
+  /* boulders, crusts and sausage slices: a weathered lump instead of a twelve-sided solid */
+  function HDod(r=1,det=0){if(det>1)return new O.DodecahedronGeometry(r,det);const g=hqBlob(LITE?2:3,.18,1.7,61,true);if(r!==1)g.scale(r,r,r);return g;}
+  const H={DodecahedronGeometry:HDod,BoxGeometry:RBox,CylinderGeometry:HCyl,SphereGeometry:HSph,ConeGeometry:HCone,TorusGeometry:HTor,CapsuleGeometry:HCap,LatheGeometry:HLathe,CircleGeometry:HCirc,TubeGeometry:HTube,ExtrudeGeometry:HExt};
+  let depth=0,paused=0;
+  /* a big batch of one small piece (thousands of pebbles, hundreds of cheese drops) keeps a moderate segment count so the merged scenery stays light */
+  function mid(g){const p=g.parameters||{},T=g.type;let n=null;
+    if(T==='SphereGeometry'&&p.widthSegments>20)n=new O.SphereGeometry(p.radius,20,Math.min(12,p.heightSegments),p.phiStart,p.phiLength,p.thetaStart,p.thetaLength);
+    else if(T==='CylinderGeometry'&&p.radialSegments>20)n=new O.CylinderGeometry(p.radiusTop,p.radiusBottom,p.height,20,p.heightSegments,p.openEnded,p.thetaStart,p.thetaLength);
+    else if(T==='TorusGeometry'&&(p.radialSegments>10||p.tubularSegments>32))n=new O.TorusGeometry(p.radius,p.tube,Math.min(10,p.radialSegments),Math.min(32,p.tubularSegments),p.arc);
+    else if(T==='ConeGeometry'&&p.radialSegments>20)n=new O.ConeGeometry(p.radius,p.height,20,p.heightSegments,p.openEnded,p.thetaStart,p.thetaLength);
+    if(n){g.dispose();return n;}return g;}
+  return {on(){if(depth++===0)Object.assign(THREE,H);},off(){if(depth>0&&--depth===0){paused=0;Object.assign(THREE,O);}},pause(){if(depth>0){paused++;Object.assign(THREE,O);}},resume(){if(depth>0&&paused>0&&--paused===0)Object.assign(THREE,H);},set lite(v){LITE=!!v;},get active(){return depth>0&&!paused;},mid,O,H};})();
+/* ===== Ultra (computers): surface detail on the scenery =====
+   one shared shader addition for every lit scenery material: world-space noise gives large surfaces gentle colour variation, foliage leafy mottling,
+   bread, crust and wood a porous grain, and stone and paint fine speckle, each with a matching surface bump that fades out with distance.
+   A height map of the ground darkens the base of every object where it meets the ground. Cosmetic only: the race never reads any of it */
+const HQS=(()=>{const U={hqN:{value:null},hqH:{value:null},hqHB:{value:new THREE.Vector4(0,0,1,1)},hqOn:{value:1}};
+  function noiseTex(){const S=64,D=new Uint8Array(S*S*S*4),hash=(x,y,z,s)=>{let h=(x*374761393+y*668265263+z*1274126177+s*2246822519)|0;h=Math.imul(h^(h>>>13),1274126177);h^=h>>>16;return (h>>>0)/4294967295;};
+    /* tileable value noise: one lattice per octave, sampled on the 64-texel grid */
+    const oct=(P,s)=>{const L=new Float32Array(P*P*P);for(let i=0;i<L.length;i++)L[i]=hash(i%P,Math.floor(i/P)%P,Math.floor(i/P/P),s);const F=new Float32Array(S*S*S),k=P/S,fd=new Float32Array(S),i0=new Int32Array(S);
+      for(let x=0;x<S;x++){const u=x*k,xi=Math.floor(u),t=u-xi;i0[x]=xi;fd[x]=t*t*t*(t*(t*6-15)+10);}
+      let o=0;for(let z=0;z<S;z++){const z0=i0[z],z1=(z0+1)%P,fz=fd[z];for(let y=0;y<S;y++){const y0=i0[y],y1=(y0+1)%P,fy=fd[y];for(let x=0;x<S;x++){const x0=i0[x],x1=(x0+1)%P,fx=fd[x];
+        const c=(a,b,d)=>L[(d*P+b)*P+a],l=(a,b,t)=>a+(b-a)*t;
+        F[o++]=l(l(l(c(x0,y0,z0),c(x1,y0,z0),fx),l(c(x0,y1,z0),c(x1,y1,z0),fx),fy),l(l(c(x0,y0,z1),c(x1,y0,z1),fx),l(c(x0,y1,z1),c(x1,y1,z1),fx),fy),fz);}}}return F;};
+    const o4=oct(4,1),o8=oct(8,2),o8b=oct(8,3),o16=oct(16,4),o32=oct(32,5),o32b=oct(32,6);
+    /* cellular edges (distance to the second-nearest feature point minus the nearest) for cracks and pores */
+    const W=12,FP=new Float32Array(W*W*W*3);for(let z=0;z<W;z++)for(let y=0;y<W;y++)for(let x=0;x<W;x++){const i=((z*W+y)*W+x)*3;FP[i]=x+hash(x,y,z,91);FP[i+1]=y+hash(x,y,z,92);FP[i+2]=z+hash(x,y,z,93);}
+    const k=W/S;let o=0,v=0;
+    for(let z=0;z<S;z++)for(let y=0;y<S;y++)for(let x=0;x<S;x++,v++){const px=x*k,py=y*k,pz=z*k,cx=Math.floor(px),cy=Math.floor(py),cz=Math.floor(pz);let f1=9,f2=9;
+      for(let dz=-1;dz<=1;dz++){const Z=cz+dz,mz=(Z+W)%W,oz=Z-mz;for(let dy=-1;dy<=1;dy++){const Y=cy+dy,my=(Y+W)%W,oy=Y-my;for(let dx=-1;dx<=1;dx++){const X=cx+dx,mxx=(X+W)%W,ox=X-mxx,i=((mz*W+my)*W+mxx)*3;
+        const ex=FP[i]+ox-px,ey=FP[i+1]+oy-py,ez=FP[i+2]+oz-pz,d=ex*ex+ey*ey+ez*ez;if(d<f1){f2=f1;f1=d;}else if(d<f2)f2=d;}}}
+      D[o++]=(o4[v]*.62+o8[v]*.38)*255;D[o++]=(o8b[v]*.5+o16[v]*.3+o32[v]*.2)*255;D[o++]=(o32b[v]*.62+hash(x,y,z,7)*.38)*255;D[o++]=Math.min(1,(Math.sqrt(f2)-Math.sqrt(f1))*1.6)*255;}
+    const t=new THREE.Data3DTexture(D,S,S,S);t.format=THREE.RGBAFormat;t.type=THREE.UnsignedByteType;t.wrapS=t.wrapT=t.wrapR=THREE.RepeatWrapping;
+    t.magFilter=THREE.LinearFilter;t.minFilter=THREE.LinearMipmapLinearFilter;t.generateMipmaps=true;t.unpackAlignment=1;t.needsUpdate=true;return t;}
+  function heightTex(R){const n=384,D=new Uint16Array(n*n),E=R+40,sc=2*E/(n-1),toH=THREE.DataUtils.toHalfFloat;
+    for(let j=0;j<n;j++)for(let i=0;i<n;i++){D[j*n+i]=toH(groundAt(-E+i*sc,-E+j*sc));}
+    const t=new THREE.DataTexture(D,n,n,THREE.RedFormat,THREE.HalfFloatType);t.magFilter=t.minFilter=THREE.LinearFilter;t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping;t.needsUpdate=true;
+    U.hqHB.value.set(-E-sc/2,-E-sc/2,1/(n*sc),1/(n*sc));return t;}
+  const VD='varying vec3 vHqW;\n',VB=`#include <project_vertex>
+  {vec4 hqP=vec4(transformed,1.0);
+  #ifdef USE_INSTANCING
+  hqP=instanceMatrix*hqP;
+  #endif
+  vHqW=(modelMatrix*hqP).xyz;}`;
+  const FD=`precision highp sampler3D;
+uniform sampler3D hqN;uniform sampler2D hqH;uniform vec4 hqHB;uniform float hqOn;varying vec3 vHqW;
+vec3 hqBump(vec3 sp,vec3 sn,vec2 dh,float fd){vec3 sx=dFdx(sp),sy=dFdy(sp),r1=cross(sy,sn),r2=cross(sn,sx);float det=dot(sx,r1)*fd;vec3 g=sign(det)*(dh.x*r1+dh.y*r2);return normalize(abs(det)*sn-g);}
+`;
+  const FB=(flat)=>`#include <normal_fragment_maps>
+  float hqAO=1.0;
+  if(hqOn>.5){
+    float hqD=length(vViewPosition),hqF=1.0-smoothstep(60.0,230.0,hqD),hqM=1.0-smoothstep(600.0,1600.0,hqD);
+    vec4 nA=texture(hqN,vHqW*.0034),nB=texture(hqN,vHqW*.021),nC=texture(hqN,vHqW*.12);
+    vec3 hc=diffuseColor.rgb;float mx=max(hc.r,max(hc.g,hc.b)),mn=min(hc.r,min(hc.g,hc.b)),sat=(mx-mn)/(mx+.0001);
+    float wLeaf=smoothstep(.02,.12,hc.g-max(hc.r,hc.b)*.92)*smoothstep(.2,.45,sat);
+    float wWarm=smoothstep(.04,.18,hc.r-hc.g)*smoothstep(.02,.1,hc.g-hc.b)*(1.0-wLeaf)*smoothstep(.06,.2,mx);
+    float wStone=(1.0-smoothstep(.1,.3,sat))*(1.0-wLeaf);
+    float wPaint=clamp(1.0-wLeaf-wWarm-wStone,0.0,1.0);
+    float mac=(nA.r-.5)*.9+(nB.g-.5)*.55;
+    float grain=nC.b-.5;
+    vec3 wN=inverseTransformDirection(normal,viewMatrix);
+    #ifdef HQ_FLAT
+    diffuseColor.rgb*=1.0+mac*.12*hqM;
+    diffuseColor.rgb*=1.0+grain*.08*hqF;
+    {float hf=nC.b*.6+nC.g*.4;float am=.03*hqF;if(am>.0005)normal=hqBump(-vViewPosition,normal,vec2(dFdx(hf),dFdy(hf))*am,faceDirection);}
+    #else
+    diffuseColor.rgb*=1.0+mac*hqM*(.18-.08*wPaint);
+    diffuseColor.rgb*=1.0+grain*hqF*(wLeaf*.30+wWarm*.20+wStone*.13+wPaint*.06);
+    diffuseColor.rgb*=mix(vec3(1.0),vec3(1.16,1.07,.62),wLeaf*smoothstep(.45,.8,nB.r)*.55);
+    diffuseColor.rgb*=1.0-wWarm*hqF*smoothstep(.6,.78,nC.g)*.28;
+    diffuseColor.rgb*=1.0-wStone*hqF*(1.0-smoothstep(.0,.07,nB.a))*.14;
+    float hqH0=(nC.b*.55+nC.g*.45)*(wLeaf*1.25+wWarm*1.0+wStone*.6+wPaint*.22)+(1.0-nB.a)*wStone*.35;
+    float hqAmp=.085*hqF;
+    if(hqAmp>.0005)normal=hqBump(-vViewPosition,normal,vec2(dFdx(hqH0),dFdy(hqH0))*hqAmp,faceDirection);
+    float hg=texture(hqH,(vHqW.xz-hqHB.xy)*hqHB.zw).r,above=vHqW.y-hg;
+    float hqC=1.0-smoothstep(0.0,7.5,above),hqSd=1.0-.8*clamp(wN.y,0.0,1.0);
+    hqAO=1.0-hqC*.55*hqSd;
+    diffuseColor.rgb*=1.0-hqC*.18*hqSd;
+    diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.9,.82,.7),(1.0-smoothstep(0.0,2.2,above))*.35*(1.0-wPaint*.5));
+    #endif
+    roughnessFactor=clamp(roughnessFactor*(1.0+mac*.35*hqM)+wWarm*.04+wLeaf*.03,.04,1.0);
+  }`;
+  const FA=`#include <aomap_fragment>
+  reflectedLight.indirectDiffuse*=hqAO;reflectedLight.indirectSpecular*=mix(1.0,hqAO,.7);`;
+  function shader(sh,flat){Object.assign(sh.uniforms,U);
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\n'+VD).replace('#include <project_vertex>',VB);
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\n'+FD).replace('#include <normal_fragment_maps>',FB(flat)).replace('#include <aomap_fragment>',FA);
+    if(flat)sh.fragmentShader='#define HQ_FLAT\n'+sh.fragmentShader;}
+  const DEF_OBC=THREE.Material.prototype.onBeforeCompile,DEF_KEY=THREE.Material.prototype.customProgramCacheKey;
+  function patch(m,flat){const prev=m.onBeforeCompile,own=prev!==DEF_OBC,pk=m.customProgramCacheKey,base=pk===DEF_KEY?(own?prev.toString():''):null,tag=flat?'|hqF':'|hqS';
+    m.onBeforeCompile=function(sh,r){if(own)prev.call(this,sh,r);shader(sh,flat);};m.customProgramCacheKey=base!=null?()=>base+tag:function(){return pk.call(this)+tag;};
+    m.userData.hq=flat?2:1;m.needsUpdate=true;}
+  const ok=m=>m&&m.isMeshStandardMaterial&&!m.transparent&&!m.userData.noHQ&&!m.wireframe;
+  /* a mesh lying flat on the ground (terrain, road, kerbs, paths) only gets the gentle colour variation: no base darkening */
+  const _v=new THREE.Vector3(),_b=new THREE.Box3();
+  function isFlat(o){if(o.isInstancedMesh)return false;const g=o.geometry,pa=g&&g.attributes.position;if(!pa||pa.count<3)return false;
+    if(!g.boundingBox)g.computeBoundingBox();_b.copy(g.boundingBox).applyMatrix4(o.matrixWorld);if(Math.max(_b.max.x-_b.min.x,_b.max.z-_b.min.z)<30)return false;
+    const st=Math.max(1,Math.floor(pa.count/240));let hi=-1e9;for(let i=0;i<pa.count;i+=st){_v.fromBufferAttribute(pa,i).applyMatrix4(o.matrixWorld);hi=Math.max(hi,_v.y-groundAt(_v.x,_v.z));if(hi>2.2)return false;}return true;}
+  function apply(){const on=!!(QUAL[qKey]&&QUAL[qKey].hqAll)&&renderer.capabilities.isWebGL2;U.hqOn.value=on?1:0;if(!on||!world||world.userData.hq)return;world.userData.hq=true;
+    try{if(!U.hqN.value)U.hqN.value=noiseTex();if(U.hqH.value)U.hqH.value.dispose();U.hqH.value=heightTex(RIM+38);}catch(e){console.warn('hq tex',e);U.hqOn.value=0;return;}
+    world.updateMatrixWorld(true);const clones=new Map();
+    world.traverse(o=>{if(!o.isMesh||o.userData.noHQ)return;const arr=Array.isArray(o.material),ms=arr?o.material:[o.material];if(!ms.some(ok))return;const flat=isFlat(o),gg=o.geometry&&(o.geometry.userData.wrapOf||o.geometry),blob=gg&&gg.userData.hqBlob;
+      const out=ms.map(m=>{if(!ok(m)||m.userData.hq)return m;if(blob&&m.flatShading){const key=m.uuid+'b';let c=clones.get(key);if(!c){c=m.clone();c.onBeforeCompile=m.onBeforeCompile;c.customProgramCacheKey=m.customProgramCacheKey;c.userData.shared=false;c.flatShading=false;patch(c,flat);clones.set(key,c);}return c;}
+        const shared=m.userData.shared||SHSET.has(m)||m===pepMat;if(!shared){patch(m,flat);return m;}
+        const key=m.uuid+(flat?'f':'s');let c=clones.get(key);if(!c){c=m.clone();c.onBeforeCompile=m.onBeforeCompile;c.customProgramCacheKey=m.customProgramCacheKey;c.userData.shared=false;patch(c,flat);clones.set(key,c);}return c;});
+      o.material=arr?out:out[0];});}
+  return {apply,U};})();
+
 function chunkInst(geo,mat,items,opt){opt=opt||{};if(!items.length){geo.dispose();return;}
-  if(DBK&&canVC(mat)&&!opt.inst){const t=tplOf([[lowPoly(geo),mat.color]]);for(const it of items)dbAddM(t,it.m,it.c,!opt.noLift);geo.dispose();mat.dispose();return;}
+  if(DBK&&canVC(mat)&&!opt.inst){if(HQG.active&&(geo.index?geo.index.count:geo.attributes.position.count)*items.length>250000)geo=HQG.mid(geo);const t=tplOf([[lowPoly(geo),mat.color]]);for(const it of items)dbAddM(t,it.m,it.c,!opt.noLift);geo.dispose();mat.dispose();return;}
   const cells=new Map();
   /* a sparse set (flags, a few lamps) goes into one instanced mesh with a real bounding sphere: spreading it over map cells cost a draw call per cell for one or two instances each */
   const sparse=items.length<=96;
@@ -2464,7 +2618,13 @@ function buildCity(def,ctx){const {pick,farFrom,used,straight}=ctx,night=def.the
   for(let i=0;i<3;i++){const b=pick(Math.floor((i+.4)*N/3),j=>!segBad(j)&&straight(j,8,.25)&&farFrom(j,20));if(b==null)continue;used.push(b);const p=track[b],G=new THREE.Group();G.position.set(p.x,groundAt(p.x,p.y),p.y);G.rotation.y=-p.ang;G.userData.noLift=true;world.add(G);
     const H=60+rnd()*30,len=70;HAZ.city.push(b);
     for(const sd of [-1,1]){const z=sd*(WALLD+24);for(let k=0;k<3;k++){const h=H*(.7+rnd()*.6),w=len/3-2,bx=-len/2+w/2+k*(w+2);
-        put(new THREE.BoxGeometry(w,h,34),bm(cols[(i+k)%cols.length]),bx,h/2,z,G);put(new THREE.BoxGeometry(w+2,2,36),hzMat('#3a3a44'),bx,h+1,z,G);
+        /* each building stands on the ground under its own footprint, which can sit lower than the road it is lined up with */
+        let gm=0;for(const ex of [-w/2,0,w/2])for(const ez of [-17,0,17]){const lx=bx+ex,lz=z+ez;gm=Math.min(gm,groundAt(p.x+p.tx*lx+p.nx*lz,p.y+p.ty*lx+p.ny*lz)-G.position.y);}const d0=gm-1.5;
+        put(new THREE.BoxGeometry(w,h-d0,34),bm(cols[(i+k)%cols.length]),bx,(h+d0)/2,z,G);put(new THREE.BoxGeometry(w+2,2,36),hzMat('#3a3a44'),bx,h+1,z,G);
+        if(HQG.active){/* Ultra: a stone plinth, corner pilasters, a ledge between the floors and kit on the roof */const tr=hzMat('#3a3a44'),st=hzMat(night?'#4a4458':'#bfae96',{roughness:.85});
+          put(new THREE.BoxGeometry(w+1.2,5-d0,35.2),st,bx,(5+d0)/2,z,G);for(const cx of [-1,1])for(const cz of [-1,1])put(new THREE.BoxGeometry(1.6,h-6,1.6),st,bx+cx*(w/2+.2),3+(h-6)/2,z+cz*17.2,G);
+          for(let fy=18;fy<h-8;fy+=18)put(new THREE.BoxGeometry(w+.8,.9,34.8),st,bx,fy,z,G);
+          put(new THREE.BoxGeometry(w*.35,4,8),tr,bx-w*.18,h+4,z+sd*6,G);put(new THREE.CylinderGeometry(3.2,3.2,7,20),hzMat('#8a6a4a',{roughness:.8}),bx+w*.22,h+5.5,z-sd*7,G);put(new THREE.ConeGeometry(3.6,2.4,20),tr,bx+w*.22,h+10.2,z-sd*7,G);}
         if(k===1){const aw=put(new THREE.BoxGeometry(w-4,1,10),hzMat(['#e0452c','#2f7fd8','#3f9a35'][i%3]),bx,14,z-sd*20,G);aw.rotation.x=sd*.3;}}}
     /* bridge with a glowing sign over the road */
     const BY=Math.max(H*.75,58);put(new THREE.BoxGeometry(len*.6,12,2*(WALLD+24)),bm(cols[i%cols.length]),0,BY,0,G);
@@ -2677,7 +2837,8 @@ function buildHall(def,j,K){(window.__hallJ=window.__hallJ||[]).push(j);const th
   const quad=(arr,A,B,C,D2)=>{arr.push(...A,...B,...C,...A,...C,...D2);};
   for(let a=j-K;a<j+K;a++){const p=P(a),q=P(a+1),la=Math.hypot(q.x-p.x,q.y-p.y),ub=ua+la/64;
     for(const sd of [-1,1])for(const w of [wI,wO]){const px=p.x+p.nx*w*sd,pz=p.y+p.ny*w*sd,qx=q.x+q.nx*w*sd,qz=q.y+q.ny*w*sd,g0=gy(a),g1=gy(a+1);
-      quad(pos,[px,g0-3,pz],[qx,g1-3,qz],[qx,g1+H,qz],[px,g0+H,pz]);uv.push(ua,0,ub,0,ub,1,ua,0,ub,1,ua,1);}
+      const b0=Math.min(g0,groundAt(px,pz))-3,b1=Math.min(g1,groundAt(qx,qz))-3;/* walls reach down to the ground beside the road, which can sit lower than the road */
+      quad(pos,[px,b0,pz],[qx,b1,qz],[qx,g1+H,qz],[px,g0+H,pz]);uv.push(ua,0,ub,0,ub,1,ua,0,ub,1,ua,1);}
     /* roof: underside and top */
     for(const yo of [0,4]){const g0=gy(a)+H+yo,g1=gy(a+1)+H+yo;quad(rp,[p.x-p.nx*wO,g0,p.y-p.ny*wO],[p.x+p.nx*wO,g0,p.y+p.ny*wO],[q.x+q.nx*wO,g1,q.y+q.ny*wO],[q.x-q.nx*wO,g1,q.y-q.ny*wO]);}
     ua=ub;}
@@ -2691,7 +2852,8 @@ function buildHall(def,j,K){(window.__hallJ=window.__hallJ||[]).push(j);const th
   for(const e of [-1,1]){const a=j+e*K,p=P(a),g0=gy(a),ang=-p.ang;
     const lin=put(new THREE.BoxGeometry(3,H-36+4,2*wO),[roofM,roofM,roofM,roofM,roofM,roofM],p.x,g0+36+(H-36+4)/2,p.y,world);lin.rotation.y=ang;lin.userData.noLift=true;lin.castShadow=true;
     const sg=new THREE.Mesh(new THREE.PlaneGeometry(64,16),sM);sg.position.set(p.x+p.tx*e*1.8,g0+42,p.y+p.ty*e*1.8);sg.rotation.y=Math.atan2(p.tx*e,p.ty*e);sg.userData.noLift=true;world.add(sg);
-    for(const sd of [-1,1]){const pil=put(new THREE.BoxGeometry(5,H+4,wO-wI+6),roofM,p.x+p.nx*(wI+wO)/2*sd,g0+(H+4)/2-2,p.y+p.ny*(wI+wO)/2*sd,world);pil.rotation.y=ang;pil.userData.noLift=true;pil.castShadow=true;}}}
+    for(const sd of [-1,1]){const cx=p.x+p.nx*(wI+wO)/2*sd,cz=p.y+p.ny*(wI+wO)/2*sd,hw=(wO-wI+6)/2;let gb=g0;for(const o of [-hw,0,hw])for(const t of [-2.5,2.5])gb=Math.min(gb,groundAt(cx+p.nx*o*sd+p.tx*t,cz+p.ny*o*sd+p.ty*t));
+      const top=g0+H+2,bot=gb-2,pil=put(new THREE.BoxGeometry(5,top-bot,wO-wI+6),roofM,cx,(top+bot)/2,cz,world);pil.rotation.y=ang;pil.userData.noLift=true;pil.castShadow=true;}}}
 function buildHalls(def,ctx){if(def.arena)return;const {used,straight,farFrom}=ctx,K=11,cd=(a,b)=>{const d=Math.abs(a-b)%N;return Math.min(d,N-d);};let made=0;
   for(const tf of [.32,.74]){let best=null,bd=1e9;for(let j=40;j<N-40;j++){if(!straight(j,K+2,.34)||!farFrom(j,K+6))continue;let ok=true;
       for(let o=-K-4;o<=K+4;o++){const p=track[(j+o)%N];if(p.pond||p.open||p.cut||isDeck(j+o)){ok=false;break;}}if(!ok)continue;
@@ -2744,7 +2906,9 @@ function buildDecks(def){if(!MULTI)return;const th=def.theme,W=WALLD+3;
     const handle=new THREE.Mesh(new THREE.BoxGeometry(12,72,10),wm('#c8321d',{roughness:.4}));handle.position.y=-36-30;cut.add(handle);
     animators.push((tt,dt)=>{blade.rotation.y+=dt*1.6;hub.rotation.y+=dt*1.6;cut.rotation.y+=dt*.25;st.offset.y-=dt*.12;});}}
 
-function loadMap(mi,rev){
+/* on Ultra the scenery is built with the detailed geometry constructors (see HQG) */
+function loadMap(mi,rev){const hq=!!(QUAL[qKey]&&QUAL[qKey].hqAll);if(hq)HQG.on();Object.assign(DG,hq?(DGH||(HQG.lite=true,DGH=mkDG(),HQG.lite=false,DGH)):DGL);try{return loadMap0(mi,rev);}finally{if(hq)HQG.off();}}
+function loadMap0(mi,rev){
   const def=MAPS[mi],th=THEMES[def.theme];seed=1000+mi*7919;CURID=def.id;VAR=Math.max(0,MAPS.filter(m=>m.theme===def.theme).indexOf(def));TUNNEL=null;TUN_RANGE=null;TERR=null;curRev=!!rev;
   T=makeTrack(def,curRev);track=T.pts;N=T.N;RIM=def.R-38;buildGrid();markDecks();
   for(let j=0;j<N;j++){const b=track[j].bend;if(Math.abs(b)>.42){const sd=-Math.sign(b);for(let o=-7;o<=7;o++)track[(j+o+N)%N].wall=sd;}}
@@ -2780,6 +2944,25 @@ function loadMap(mi,rev){
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.computeVertexNormals();
     const m=new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.45,side:THREE.DoubleSide}));m.receiveShadow=true;m.castShadow=true;m.userData.noLift=true;world.add(m);})();
   const buildBarrier=(function(){const pos=[],col=[],H=4.6,TH=2.6,th=THEMES[def.theme],cA=new THREE.Color(def.arena?'#3ff0ff':def.theme==='night'?'#3a6fd8':def.theme==='freezer'?'#4aa8e8':'#d6301e'),cB=new THREE.Color('#f4efe4'),cT=new THREE.Color('#c98b4e'),cK=new THREE.Color('#3a2a20');
+    /* Ultra: the same wall drawn with a rounded crust cap, a moulded band along the face and dark joints between the panels (the face the karts hit stays exactly where it was) */
+    if(QUAL[qKey].hqAll&&!def.arena){const nor=[],r=.9,PR=[],seamC=c=>c.clone().multiplyScalar(.42),bandC=c=>c.clone().multiplyScalar(.8);
+      const add=(o,h,no,nh,k)=>PR.push([o,h,no,nh,k]);const y0=H*.5,y1=H*.68,d=.16,e=.2;add(0,-.5,-1,0,'f');add(0,y0,-1,0,'f');add(0,y0,-.78,.62,'b');add(d,y0+e,-.78,.62,'b');add(d,y0+e,-1,0,'b');add(d,y1,-1,0,'b');add(d,y1,-.78,-.62,'b');add(0,y1+e,-.78,-.62,'b');add(0,y1+e,-1,0,'f');add(0,H-r,-1,0,'f');
+      for(let i=1;i<=6;i++){const a=Math.PI-i/6*Math.PI/2;add(r+r*Math.cos(a),H-r+r*Math.sin(a),Math.cos(a),Math.sin(a),'t');}
+      for(let i=0;i<=6;i++){const a=Math.PI/2-i/6*Math.PI/2;add(TH-r+r*Math.cos(a),H-r+r*Math.sin(a),Math.cos(a),Math.sin(a),'t');}add(TH,-.5,1,0,'k');
+      const P=[],Nn=[],C=[];
+      for(const s of [-1,1])for(let j=0;j<N;j++){const p=track[j],q=track[(j+1)%N];if(p.open||q.open||p.cut)continue;if(p.wall===s&&q.wall===s)continue;if(p.pond===s||q.pond===s)continue;if(SHORTS.some(sc=>sc.s===s&&[sc.a,sc.b].some(e=>{const d=Math.abs(j-e)%N;return Math.min(d,N-d)<=(sc.route?8:3);})))continue;
+        const cl=((j>>2)%2)?cA:cB,ring=pt=>PR.map(([o,h,no,nh])=>{const X=pt.x+pt.nx*(WALLD+o)*s,Z=pt.y+pt.ny*(WALLD+o)*s;return [X,h+groundAt(X,Z)+(pt.ey||0),Z,pt.nx*s*no,nh,pt.ny*s*no];});
+        const A=ring(p),B=ring(q),lerp=(u,v,t)=>u.map((x,i)=>x+(v[i]-x)*t);
+        const parts=j%4===0?[[0,.06,1],[.06,1,0]]:[[0,1,0]];
+        for(const [t0,t1,seam] of parts){const A0=A.map((a,i)=>lerp(a,B[i],t0)),B0=A.map((a,i)=>lerp(a,B[i],t1));
+          for(let i=0;i<PR.length-1;i++){const k=PR[i+1][4],c=seam&&k!=='t'?seamC(k==='k'?cK:cl):k==='t'?cT:k==='k'?cK:k==='b'?bandC(cl):cl;
+            if(PR[i][1]===PR[i+1][1]&&PR[i][0]===PR[i+1][0])continue;
+            for(const v of [A0[i],B0[i],B0[i+1],A0[i],B0[i+1],A0[i+1]]){P.push(v[0],v[1],v[2]);Nn.push(v[3],v[4],v[5]);C.push(c.r,c.g,c.b);}}}}
+      /* face each triangle the way its normals point */
+      for(let t=0;t<P.length;t+=9){const ax=P[t+3]-P[t],ay=P[t+4]-P[t+1],az=P[t+5]-P[t+2],bx=P[t+6]-P[t],by=P[t+7]-P[t+1],bz=P[t+8]-P[t+2],fx=ay*bz-az*by,fy=az*bx-ax*bz,fz=ax*by-ay*bx;
+        if(fx*(Nn[t]+Nn[t+3]+Nn[t+6])+fy*(Nn[t+1]+Nn[t+4]+Nn[t+7])+fz*(Nn[t+2]+Nn[t+5]+Nn[t+8])<0)for(const arr of [P,Nn,C])for(let i=0;i<3;i++){const x=arr[t+3+i];arr[t+3+i]=arr[t+6+i];arr[t+6+i]=x;}}
+      const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(Nn,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));
+      const m=new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.5,side:THREE.DoubleSide}));m.castShadow=true;m.receiveShadow=true;m.userData.noLift=true;world.add(m);return;}
     const tri=(a,b,c,cl)=>{for(const v of [a,b,c]){pos.push(v[0],v[1],v[2]);col.push(cl.r,cl.g,cl.b);}},quad=(a,b,c,d,cl)=>{tri(a,b,c,cl);tri(a,c,d,cl);};
     for(const s of [-1,1])for(let j=0;j<N;j++){const p=track[j],q=track[(j+1)%N];if(p.open||q.open||p.cut)continue;if(p.wall===s&&q.wall===s)continue;if(p.pond===s||q.pond===s)continue;if(SHORTS.some(sc=>sc.s===s&&[sc.a,sc.b].some(e=>{const d=Math.abs(j-e)%N;return Math.min(d,N-d)<=(sc.route?8:3);})))continue;
       const at=(pt,o,h)=>{const X=pt.x+pt.nx*o*s,Z=pt.y+pt.ny*o*s;return [X,h+groundAt(X,Z)+(pt.ey||0),Z];},cl=((j>>2)%2)?cA:cB;
@@ -2903,7 +3086,7 @@ function flagTex(){const c=cnv(128,80),g=c.getContext('2d');g.fillStyle='#e0452c
   g.fillStyle='#b8311c';[[58,48],[70,56],[64,34]].forEach(([x,y])=>{g.beginPath();g.arc(x,y,5,0,7);g.fill();});for(let i=0;i<8;i++){g.fillStyle=i%2?'#fff4dc':'#1b0f0b';g.fillRect(i*16,0,16,6);g.fillRect(i*16,74,16,6);}return c;}
 /* ================= STATIC DETAIL (baked once per track, merged per area, never animated) ================= */
 const DCELL=420;let detailChunks=[];
-const DG=(()=>{const g={box:new THREE.BoxGeometry(1,1,1),cyl:new THREE.CylinderGeometry(1,1,1,10),cyl6:new THREE.CylinderGeometry(1,1,1,6),cone:new THREE.ConeGeometry(1,1,10),cone6:new THREE.ConeGeometry(1,1,6),
+function mkDG(){const g={box:new THREE.BoxGeometry(1,1,1),cyl:new THREE.CylinderGeometry(1,1,1,10),cyl6:new THREE.CylinderGeometry(1,1,1,6),cone:new THREE.ConeGeometry(1,1,10),cone6:new THREE.ConeGeometry(1,1,6),
   sph:new THREE.SphereGeometry(1,10,7),sphL:new THREE.SphereGeometry(1,6,4),hemi:new THREE.SphereGeometry(1,12,5,0,Math.PI*2,0,Math.PI/2),ico:new THREE.IcosahedronGeometry(1,0),ico1:new THREE.IcosahedronGeometry(1,1),
   dod:new THREE.DodecahedronGeometry(1,0),tor:new THREE.TorusGeometry(1,.42,8,16),plane:new THREE.PlaneGeometry(1,1),disc:new THREE.CircleGeometry(1,10),cap:new THREE.CapsuleGeometry(.5,1,4,8)};
   g.potL=faceOut(new THREE.LatheGeometry([[0,0],[.7,0],[.82,.1],[1,.95],[1.1,1],[1.1,1.12],[0,1.12]].map(([x,y])=>new THREE.Vector2(x,y)),12));
@@ -2911,13 +3094,29 @@ const DG=(()=>{const g={box:new THREE.BoxGeometry(1,1,1),cyl:new THREE.CylinderG
   g.millL=faceOut(new THREE.LatheGeometry([[0,0],[.55,0],[.6,.15],[.42,.7],[.5,1.3],[.38,1.75],[.12,1.95],[0,2]].map(([x,y])=>new THREE.Vector2(x,y)),12));
   const w=new THREE.Shape();w.moveTo(0,0);w.lineTo(1,0);w.lineTo(0,.8);w.closePath();g.wedge=new THREE.ExtrudeGeometry(w,{depth:1,bevelEnabled:false});g.wedge.translate(-.35,0,-.5);
   const st=new THREE.Shape();for(let i=0;i<10;i++){const a=i/10*Math.PI*2,r=i%2?.4:1;st[i?'lineTo':'moveTo'](Math.cos(a)*r,Math.sin(a)*r);}g.star=new THREE.ExtrudeGeometry(st,{depth:.25,bevelEnabled:true,bevelSize:.08,bevelThickness:.08,bevelSegments:1});
-  return g;})();
+  if(HQG.active){/* Ultra: bushes become soft lumpy clumps and rocks become weathered stones instead of plain faceted solids */
+    g.ico1=hqBlob(2,.13,2.3,11,false);g.dod=hqBlob(3,.2,1.7,23,true);g.ico=hqBlob(1,.16,2.8,37,true);}
+  return g;}
+/* a smooth, noise-displaced sphere (indexed, so its normals are soft): ridge=true gives a stony, chipped surface with a flatter underside */
+function hqBlob(det,amp,fr,seed,ridge){const src=new THREE.IcosahedronGeometry(1,det),pa=src.attributes.position,map=new Map(),pos=[],idx=[];
+  const h=(x,y,z)=>{let n=Math.imul(x*73856093^y*19349663^z*83492791^seed*2654435761,1274126177);n^=n>>>15;return ((n>>>0)%10000)/10000;};
+  const vn=(x,y,z)=>{const X=Math.floor(x),Y=Math.floor(y),Z=Math.floor(z),fx=x-X,fy=y-Y,fz=z-Z,u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy),w=fz*fz*(3-2*fz),l=(a,b,t)=>a+(b-a)*t;
+    return l(l(l(h(X,Y,Z),h(X+1,Y,Z),u),l(h(X,Y+1,Z),h(X+1,Y+1,Z),u),v),l(l(h(X,Y,Z+1),h(X+1,Y,Z+1),u),l(h(X,Y+1,Z+1),h(X+1,Y+1,Z+1),u),v),w);};
+  for(let i=0;i<pa.count;i++){const x=pa.getX(i),y=pa.getY(i),z=pa.getZ(i),k=Math.round(x*1e4)+','+Math.round(y*1e4)+','+Math.round(z*1e4);let j=map.get(k);
+    if(j==null){j=pos.length/3;map.set(k,j);let n=vn(x*fr+5,y*fr+5,z*fr+5)*.65+vn(x*fr*2.3+9,y*fr*2.3+9,z*fr*2.3+9)*.35;if(ridge)n=1-Math.abs(n*2-1);let r=1+(n-.5)*2*amp;
+      let Y=y*r;if(ridge&&Y<-.35)Y=-.35+(Y+.35)*.35;pos.push(x*r,Y,z*r);}idx.push(j);}
+  src.dispose();const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeVertexNormals();
+  const uv=new Float32Array(pos.length/3*2);for(let i=0;i<pos.length/3;i++){const x=pos[i*3],y=pos[i*3+1],z=pos[i*3+2];uv[i*2]=(x+z*.6)*.5+.5;uv[i*2+1]=(y+z*.4)*.5+.5;}g.setAttribute('uv',new THREE.BufferAttribute(uv,2));g.userData.hqBlob=1;return g;}
+const DG=mkDG(),DGL=Object.assign({},DG);let DGH=null;
 function tplOf(list){const P=[],N=[],C=[],GP=[],GC=[],m=new THREE.Matrix4(),q=new THREE.Quaternion(),e=new THREE.Euler(),v=new THREE.Vector3(),n=new THREE.Vector3(),nm=new THREE.Matrix3(),sv=new THREE.Vector3();let rad=0,h=0;
-  for(const [g0,col,p,r,s,glow] of list){const g=g0.index?g0.toNonIndexed():g0;const pa=g.attributes.position,na=g.attributes.normal,vc=col==null?g.attributes.color:null,c=new THREE.Color(col==null?'#ffffff':col);
+  for(let [g0,col,p,r,s,glow] of list){
+    /* Ultra: a unit box or post stretched into a board or pole is rebuilt at its real size, so its rounded edges keep an even width instead of stretching into a pillow */
+    let own=null;if(HQG.active&&s&&(g0===DG.box||g0===DG.cyl)){const S=Array.isArray(s)?s:[s,s,s];HQG.lite=Math.min(S[0],S[2])<2.5;if(g0===DG.box)own=new THREE.BoxGeometry(S[0],S[1],S[2]);else if(Math.abs(S[0]-S[2])<1e-6)own=new THREE.CylinderGeometry(S[0],S[0],S[1],10);HQG.lite=false;if(own){g0=own;s=1;}}
+    const g=g0.index?g0.toNonIndexed():g0;const pa=g.attributes.position,na=g.attributes.normal,vc=col==null?g.attributes.color:null,c=new THREE.Color(col==null?'#ffffff':col);
     m.compose(v.set(...(p||[0,0,0])),q.setFromEuler(e.set(...(r||[0,0,0]))),sv.set(...(Array.isArray(s)?s:[s||1,s||1,s||1])));nm.getNormalMatrix(m);
     for(let i=0;i<pa.count;i++){v.fromBufferAttribute(pa,i).applyMatrix4(m);(glow?GP:P).push(v.x,v.y,v.z);rad=Math.max(rad,Math.hypot(v.x,v.z));h=Math.max(h,v.y);
       if(glow)GC.push(c.r,c.g,c.b);else{n.fromBufferAttribute(na,i).applyMatrix3(nm).normalize();N.push(n.x,n.y,n.z);if(vc)C.push(vc.getX(i),vc.getY(i),vc.getZ(i));else C.push(c.r,c.g,c.b);}}
-    if(g!==g0)g.dispose();}
+    if(g!==g0)g.dispose();if(own)own.dispose();}
   return {P:new Float32Array(P),N:new Float32Array(N),C:new Float32Array(C),GP:new Float32Array(GP),GC:new Float32Array(GC),rad,h};}
 let DBK=null;
 function dbAdd(t,x,z,ry,s,tint,yOff,blob){const y=groundAt(x,z)+(yOff||0),key=Math.floor(x/DCELL)+','+Math.floor(z/DCELL);let c=DBK.get(key);if(!c){c={L:[],nv:0,ng:0,nb:0};DBK.set(key,c);}
@@ -2955,12 +3154,17 @@ function detailLib(th){const T=tplOf,L={};
   L.tires=(()=>{const a=[];for(let i=0;i<3;i++)a.push([DG.tor,i%2?'#e0452c':'#1d1a19',[0,1.25+i*2.3,0],[Math.PI/2,0,0],[3,3,2.6]]);a.push([DG.tor,'#fff4dc',[0,1.25+3*2.3,0],[Math.PI/2,0,0],[3,3,2.6]]);return T(a);})();
   L.barrel=T([[DG.cyl,'#c53b22',[0,4,0],0,[3,8,3]],[DG.cyl,'#7d1d0e',[0,1.6,0],0,[3.12,.5,3.12]],[DG.cyl,'#7d1d0e',[0,6.4,0],0,[3.12,.5,3.12]],[DG.cyl,'#f7c948',[0,8.05,0],0,[2.6,.15,2.6]]]);
   L.crate=T([[DG.box,'#a8743e',[0,3,0],0,[6,6,6]],...[[0,3,3.02,0],[0,3,-3.02,0],[3.02,3,0,1],[-3.02,3,0,1]].map(([x,y,z,r])=>[DG.box,'#7a4f26',[x,y,z],[0,r?Math.PI/2:0,.78],[.8,8,.25]]),[DG.box,'#7a4f26',[0,6.02,0],0,[6.1,.25,1]]]);
-  L.lamp=T([[DG.cyl,'#3a3a44',[0,14,0],0,[.7,28,.7]],[DG.cyl,'#2a2a33',[0,.6,0],0,[2,1.2,2]],[DG.box,'#3a3a44',[3,27.6,0],0,[6.5,.6,.6]],[DG.box,'#2a2a33',[6,27,0],0,[2.6,1.2,1.8]],[DG.box,'#fff2c8',[6,26.3,0],0,[2.2,.3,1.4],1]]);
+  L.lamp=HQG.active?(()=>{/* Ultra: a tapered pole on a stepped foot, collars, a braced arm and a domed lantern */
+      const C=(rt,rb,h,n)=>new THREE.CylinderGeometry(rt,rb,h,n),Z=Math.PI/2,br=-Math.atan2(3.2,2.9);HQG.lite=true;
+      try{return T([[C(.36,.6,26.6,16),'#3a3a44',[0,14.3,0]],[C(1.55,1.9,1,24),'#2a2a33',[0,.5,0]],[C(.95,1.45,1.6,24),'#2f2f38',[0,1.8,0]],[C(.75,.75,.5,20),'#55555f',[0,7.5,0]],[C(.62,.62,.4,20),'#55555f',[0,20.5,0]],
+        [new THREE.SphereGeometry(.55,16,10),'#55555f',[0,27.9,0]],[C(.26,.26,6.2,12),'#3a3a44',[3.2,27.55,0],[0,0,Z]],[C(.13,.13,4.3,8),'#3a3a44',[1.9,25.95,0],[0,0,br]],
+        [new THREE.SphereGeometry(1.6,24,10,0,Math.PI*2,0,Math.PI/2),'#2a2a33',[6.2,27.15,0],0,[1,.6,1]],[C(1.62,1.62,.4,24),'#3a3a44',[6.2,26.95,0]],[C(.35,.35,.6,10),'#2a2a33',[6.2,28.2,0]],
+        [C(1.3,1.3,.14,24),'#fff2c8',[6.2,26.72,0],0,1,1]]);}finally{HQG.lite=false;}})():T([[DG.cyl,'#3a3a44',[0,14,0],0,[.7,28,.7]],[DG.cyl,'#2a2a33',[0,.6,0],0,[2,1.2,2]],[DG.box,'#3a3a44',[3,27.6,0],0,[6.5,.6,.6]],[DG.box,'#2a2a33',[6,27,0],0,[2.6,1.2,1.8]],[DG.box,'#fff2c8',[6,26.3,0],0,[2.2,.3,1.4],1]]);
   L.barrier=T([[DG.box,'#e8e2d8',[0,2.2,0],0,[12,4.4,2.4]],[DG.box,'#e0452c',[-3,2.6,0],0,[3,4.5,2.5]],[DG.box,'#e0452c',[3,2.6,0],0,[3,4.5,2.5]],[DG.box,'#d6cfc4',[0,.4,0],0,[12.6,.8,3.4]]]);
   L.bush=T([[DG.ico1,'#3f8a35',[0,3,0],0,[5,4,5]],[DG.ico1,'#4f9e3e',[3,2.4,1.5],0,[3.4,3,3.4]],[DG.ico1,'#367a2e',[-2.6,2.2,-1.6],0,[3.2,2.8,3.2]],[DG.ico1,'#5aa848',[.6,5.2,-.4],0,[2.6,2.4,2.6]]]);
   L.rock=T([[DG.dod,'#8f8577',[0,2.4,0],[.3,.5,.2],[5,3.6,4.2]],[DG.dod,'#a1978a',[4,1.4,2],[.6,.1,.4],[2.6,2,2.4]],[DG.dod,'#7d7468',[-3.4,1.2,-2],[.1,.9,.5],[2.2,1.8,2]]]);
   L.fans=(()=>{const a=[];for(let i=0;i<7;i++){const x=(i-3)*3.4+(rnd()-.5),z=(i%2)*3.2,c=pal[(rnd()*pal.length)|0],sk=['#f6c548','#e8b68a','#a8714a','#7a4a2a'][(rnd()*4)|0];
-    a.push([DG.cyl6,c,[x,2.6,z],0,[1.2,4.2,1.1]],[DG.sphL,sk,[x,5.6,z],0,1.25],[DG.cyl6,c,[x-1.3,5,z],[0,0,.5],[.35,2.4,.35]],[DG.cyl6,c,[x+1.3,5,z],[0,0,-.5],[.35,2.4,.35]]);}
+    const C6=HQG.active?DG.cyl:DG.cyl6,SL=HQG.active?DG.sph:DG.sphL;a.push([C6,c,[x,2.6,z],0,[1.2,4.2,1.1]],[SL,sk,[x,5.6,z],0,1.25],[C6,c,[x-1.3,5,z],[0,0,.5],[.35,2.4,.35]],[C6,c,[x+1.3,5,z],[0,0,-.5],[.35,2.4,.35]]);}
     a.push([DG.box,'#8a7f74',[0,.4,1.6],0,[26,.8,8]]);return T(a);})();
   L.flake=T([[DG.disc,'#4f9e3e',[0,.25,0],[-Math.PI/2,0,0],[1.6,1,1]]]);
   L.crumb=T([[DG.ico,'#d9a55a',[0,.6,0],0,[1.2,.8,1.1]]]);
@@ -3005,7 +3209,11 @@ function detailLib(th){const T=tplOf,L={};
       L.pineA=T([[snowC(propGeos('tree_pine1').tree_pine1,.75),null,[0,0,0],0,1.15]]);L.pineB=T([[snowC(propGeos('tree_pine2').tree_pine2,.75),null,[0,0,0],0,1.2]]);}
     L.props=['cubes','cubes','snowman','pineA','pineB','pineA','pine','pop','peas','crate','rock'];L.ground=['crumb'];}
   return L;}
-function detail(def,R,ctx){const {pick,straight,farFrom,placed,used}=ctx,th=def.theme,L=detailLib(th);
+/* the props' footprints decide where props fit (and so how much of the seeded stream is used), so they must not depend on the quality setting:
+   on Ultra the plain set is built first, only to read its footprints, with the stream rewound afterwards */
+function detailLibQ(th){if(!HQG.active)return detailLib(th);const s0=seed;HQG.pause();Object.assign(DG,DGL);let lo;try{lo=detailLib(th);}finally{Object.assign(DG,DGH);HQG.resume();}seed=s0;
+  const L=detailLib(th);for(const k in L)if(L[k]&&lo[k]&&typeof L[k].rad==='number'){L[k].rad=lo[k].rad;L[k].h=lo[k].h;}return L;}
+function detail(def,R,ctx){const {pick,straight,farFrom,placed,used}=ctx,th=def.theme,L=detailLibQ(th);
   const okPt=(x,z,rad,inner)=>{if(Math.hypot(x,z)>R-70-rad)return false;if(nearTrack(x,z,CURB+(inner==null?14:inner)+rad))return false;if(GLIDE&&pitAt(x,z)>1)return false;
     for(const o of obstacles)if((o.x-x)**2+(o.y-z)**2<(o.r+rad+4)**2)return false;return !placed.some(([px,py,pr])=>(px-x)**2+(py-z)**2<(pr+rad+3)**2);};
   const area=Math.min(3.2,(R/512)*(R/512)*.55);
@@ -3141,7 +3349,7 @@ function mountainRing(o){const {r0,r1,h,cols,base=-60,seed=1,AS=280,RS=22,snow=.
   g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
   const m=new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:true,roughness:rough,flatShading:false}));m.receiveShadow=false;m.castShadow=false;m.userData.noLift=true;m.frustumCulled=false;world.add(m);return m;}
 let _cloudT=null;
-function cloudTex(){if(_cloudT)return _cloudT;const c=cnv(512,256),g=c.getContext('2d');for(let i=0;i<46;i++){const x=60+rnd()*392,y=150-Math.abs(x-256)*.18-rnd()*60,r=26+rnd()*58;
+function cloudTex(){if(_cloudT)return _cloudT;/* its own stream: the texture is built once per session, so drawing it from the seeded stream made later scenery depend on which maps were played first */const rnd=mrand(4242);const c=cnv(512,256),g=c.getContext('2d');for(let i=0;i<46;i++){const x=60+rnd()*392,y=150-Math.abs(x-256)*.18-rnd()*60,r=26+rnd()*58;
     const gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,'rgba(255,255,255,.95)');gr.addColorStop(.55,'rgba(255,255,255,.55)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.beginPath();g.arc(x,y,r,0,7);g.fill();}
   for(let i=0;i<30;i++){const x=80+rnd()*352,y=170+rnd()*30,r=20+rnd()*40,gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,'rgba(150,165,190,.35)');gr.addColorStop(1,'rgba(150,165,190,0)');g.fillStyle=gr;g.beginPath();g.arc(x,y,r,0,7);g.fill();}
   _cloudT=T2(c);_cloudT.userData.shared=true;return _cloudT;}
@@ -3958,13 +4166,18 @@ function arrowTex(dir,night){const c=cnv(320,128),g=c.getContext('2d');g.fillSty
   g.beginPath();g.moveTo(186,14);g.lineTo(244,46);g.lineTo(186,78);g.closePath();g.fill();
   for(let i=0;i<2;i++){const x=258+i*24;g.beginPath();g.moveTo(x-10,24);g.lineTo(x+8,46);g.lineTo(x-10,68);g.lineWidth=9;g.stroke();}g.restore();
   const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=maxAniso;return t;}
+/* Ultra: a rounded metal frame round a sign board, with two bolted brackets at the back */
+function hqFrame(g,W,H,cy,D,mat){if(!HQG.active)return;const t=.75,d=D+.5;
+  for(const sy of [-1,1])put(new THREE.BoxGeometry(W+t*2,t,d),mat,0,cy+sy*(H/2+t/2-.05),0,g);
+  for(const sx of [-1,1])put(new THREE.BoxGeometry(t,H,d),mat,sx*(W/2+t/2-.05),cy,0,g);
+  for(const sy of [-1,1])for(const sx of [-1,1]){const k=put(new THREE.CylinderGeometry(.32,.32,.5,12),mat,sx*W*.36,cy+sy*H*.3,-D/2-.2,g);k.rotation.x=Math.PI/2;}}
 function buildDressing(def,ctx){const {pick,straight,farFrom,used}=ctx,night=def.theme==='night',G=new THREE.Group();G.userData.noLift=true;world.add(G);
   const post=wm('#3a3a44',{metalness:.6,roughness:.4}),texL=chevronTex(-1,night),texR=chevronTex(1,night);
   const signM=d=>new THREE.MeshStandardMaterial({map:d>0?texR:texL,roughness:.5,emissive:'#ffffff',emissiveMap:d>0?texR:texL,emissiveIntensity:night?.9:.12});const mR=signM(1),mL=signM(-1);
   let last=-99;for(let j=0;j<N;j+=2){if(MULTI&&isDeck(j))continue;const p=track[j];if(Math.abs(p.bend)<.45||j-last<30||segBad(j))continue;const sd=-Math.sign(p.bend),q=track[(j-10+N)%N];
     if(SHORTS.some(sc=>[sc.a,sc.b].some(e=>Math.min(Math.abs(e-j),N-Math.abs(e-j))<14)))continue;last=j;
     for(let n=0;n<2;n++){const r=track[(j-4+n*6+N)%N],o=(WALLD+10)*sd,x=r.x+r.nx*o,z=r.y+r.ny*o;if(nearTrack(x,z,WALLD-2))continue;const g=new THREE.Group();g.position.set(x,groundAt(x,z),z);g.rotation.y=-q.ang-Math.PI/2;G.add(g);
-      put(new THREE.BoxGeometry(1.4,22,1.4),post,-12,11,0,g);put(new THREE.BoxGeometry(1.4,22,1.4),post,12,11,0,g);const b=put(new THREE.BoxGeometry(34,13,1),[post,post,post,post,sd>0?mL:mR,post],0,20,0,g);}}
+      put(new THREE.BoxGeometry(1.4,22,1.4),post,-12,11,0,g);put(new THREE.BoxGeometry(1.4,22,1.4),post,12,11,0,g);const b=put(new THREE.BoxGeometry(34,13,1),[post,post,post,post,sd>0?mL:mR,post],0,20,0,g);hqFrame(g,34,13,20,1,post);}}
   /* advance turn warnings: big arrow boards 1-2 s before every real bend, raised above the walls, item boxes and party balloons, angled at the approaching driver; an extra one before any ramp that lands into a bend */
   {SIGN_POS=[];const arrM={},arrMat=d=>arrM[d]||(arrM[d]=(()=>{const t=arrowTex(d,night);return new THREE.MeshStandardMaterial({map:t,roughness:.45,emissive:'#ffffff',emissiveMap:t,emissiveIntensity:night?.95:.28});})());
    const apex=[];for(let j=0;j<N;j++){const b=Math.abs(track[j].bend);if(b<.32)continue;if(b>=Math.abs(track[(j-1+N)%N].bend)&&b>Math.abs(track[(j+1)%N].bend)){const l=apex[apex.length-1];if(l!=null&&j-l<30){if(b>Math.abs(track[l].bend))apex[apex.length-1]=j;}else apex.push(j);}}
@@ -3972,7 +4185,7 @@ function buildDressing(def,ctx){const {pick,straight,farFrom,used}=ctx,night=def
    const okJ=j=>{j=((j%N)+N)%N;if(MULTI&&isDeck(j))return false;if(segBad(j))return false;if(GLIDE&&j>GLIDE.rj-25&&j<GLIDE.j1+25)return false;if(typeof loopNear==='function'&&loopNear(j,24))return false;if(SHORTS.some(sc=>[sc.a,sc.b].some(e=>Math.min(Math.abs(e-j),N-Math.abs(e-j))<10)))return false;return !ramps.some(r=>{const d=Math.min(Math.abs(r.j-j),N-Math.abs(r.j-j));return d<7;});};
    const board=(j,dir,big)=>{j=((j%N)+N)%N;if(!okJ(j))return false;const p=track[j],tg=track[(j-26+N)%N];for(const sd of [-dir,dir]){const o=(WALLD+7)*sd,x=p.x+p.nx*o,z=p.y+p.ny*o;if(nearTrack(x,z,WALLD-2))continue;
        const g=new THREE.Group(),y=groundAt(x,z)+(MULTI?(p.ey||0):0);g.position.set(x,y,z);G.add(g);g.lookAt(tg.x,y,tg.y);SIGN_POS.push(j);const W=big?46:40,H=big?19:16,top=big?36:32;
-       put(new THREE.BoxGeometry(1.6,top,1.6),post,-W*.36,top/2,0,g);put(new THREE.BoxGeometry(1.6,top,1.6),post,W*.36,top/2,0,g);put(new THREE.BoxGeometry(W,H,1.2),[post,post,post,post,arrMat(dir),post],0,top-H/2+1,0,g);return true;}return false;};
+       put(new THREE.BoxGeometry(1.6,top,1.6),post,-W*.36,top/2,0,g);put(new THREE.BoxGeometry(1.6,top,1.6),post,W*.36,top/2,0,g);put(new THREE.BoxGeometry(W,H,1.2),[post,post,post,post,arrMat(dir),post],0,top-H/2+1,0,g);hqFrame(g,W,H,top-H/2+1,1.2,post);return true;}return false;};
    let nAdv=0;for(const a of apex){const dir=track[a].bend>0?1:-1;
      /* first warning about 2 s out, second about 1 s out (whichever spots are clear) */
      for(const back of [40,24]){let k=0;while(k<8&&!board(a-back-k,dir,back===24))k+=2;if(k<8)nAdv++;}
@@ -4397,7 +4610,7 @@ async function goRace(mi){if(raceLoading)return;if(NET.role&&!NET.fromNet){if(NE
     BASE_MAX=BASE0*CLASSES[clsKey].mul;startRace();state='loading';await step(78,'Firing up the oven…');
     /* draw a few real frames at full size so every shader, texture, shadow and glow buffer is ready before the lights */
     try{const wg=new THREE.Group();for(const kk of ITEM_KEYS){try{const o=itemProto(kk);if(o)wg.add(o.clone());}catch(e){}}scene.add(wg);renderer.compile(scene,camera);scene.remove(wg);}catch(e){}
-    try{mergeWorld();}catch(e){console.warn('merge',e);}warmScene();
+    try{mergeWorld();}catch(e){console.warn('merge',e);}try{HQS.apply();}catch(e){console.warn('hq',e);}warmScene();
     fit();for(let i=0;i<3;i++){render(0,1/60);renderer.shadowMap.needsUpdate=true;try{if(qKey!=='fast')postRender();else{renderer.setRenderTarget(null);renderer.render(scene,camera);}}catch(e){}await paint();}
     await step(100,'Ready!');}catch(e){console.warn('race load',e);}
   perfSum=perfN=perfT=0;slowN=fastN=0;abilityHudFor(selected);if(NET.cfg)netLoaded();else startIntro();last=performance.now();acc=0;
@@ -4746,24 +4959,43 @@ function postInit(){if(POST.qs)return;POST.qs=new THREE.Scene();POST.qc=new THRE
   POST.q=new THREE.Mesh(g);POST.q.frustumCulled=false;POST.qs.add(POST.q);
   POST.M.bright=postMat('uniform sampler2D tex;uniform float thr;uniform vec2 px;varying vec2 vUv;void main(){vec3 c=vec3(0.);for(int i=0;i<4;i++){vec2 o=vec2(i==1||i==3?1.:-1.,i>1?1.:-1.)*px;c+=texture2D(tex,vUv+o).rgb;}c*=.25;float l=dot(c,vec3(.2126,.7152,.0722));c*=smoothstep(thr,thr+.02+(1.-thr)*.5,l);gl_FragColor=vec4(min(c,vec3(8.)),1.);}',{tex:{value:null},thr:{value:.85},px:{value:new THREE.Vector2()}});
   POST.M.blur=postMat('uniform sampler2D tex;uniform vec2 dir;varying vec2 vUv;void main(){vec3 c=texture2D(tex,vUv).rgb*.227027;c+=(texture2D(tex,vUv+dir*1.3846).rgb+texture2D(tex,vUv-dir*1.3846).rgb)*.316216;c+=(texture2D(tex,vUv+dir*3.2308).rgb+texture2D(tex,vUv-dir*3.2308).rgb)*.070270;gl_FragColor=vec4(c,1.);}',{tex:{value:null},dir:{value:new THREE.Vector2()}});
-  POST.M.final=postMat(`uniform sampler2D tex,b1,b2;uniform float exposure,bloom,sat,con,vig,aspect,edgeA;uniform vec3 tint,edgeC;varying vec2 vUv;
+  POST.M.final=postMat(`uniform sampler2D tex,b1,b2,aoT;uniform float aoOn;uniform float exposure,bloom,sat,con,vig,aspect,edgeA;uniform vec3 tint,edgeC;varying vec2 vUv;
     vec3 RRT(vec3 v){vec3 a=v*(v+.0245786)-.000090537;vec3 b=v*(.983729*v+.4329510)+.238081;return a/b;}
     vec3 aces(vec3 c){const mat3 I=mat3(.59719,.07600,.02840,.35458,.90834,.13383,.04823,.01566,.83777);const mat3 O=mat3(1.60475,-.10208,-.00327,-.53108,1.10813,-.07276,-.07367,-.00605,1.07602);c*=exposure/.6;c=I*c;c=RRT(c);c=O*c;return clamp(c,0.,1.);}
     vec3 srgb(vec3 c){return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(vec3(.0031308),c));}
-    void main(){vec3 c=texture2D(tex,vUv).rgb+(texture2D(b1,vUv).rgb*.65+texture2D(b2,vUv).rgb*.6)*bloom;c=clamp(c*tint,0.,1.);/* the scene is already tone-mapped by the material shaders; mapping it twice greyed every white */
+    void main(){vec3 c=texture2D(tex,vUv).rgb*(aoOn>.5?texture2D(aoT,vUv).r:1.)+(texture2D(b1,vUv).rgb*.65+texture2D(b2,vUv).rgb*.6)*bloom;c=clamp(c*tint,0.,1.);/* the scene is already tone-mapped by the material shaders; mapping it twice greyed every white */
       float l=dot(c,vec3(.2126,.7152,.0722));c=mix(vec3(l),c,sat);c=clamp((c-.5)*con+.5,0.,1.);
       vec2 d=(vUv-.5)*vec2(aspect,1.);c*=1.-vig*smoothstep(.35,1.05,length(d));
   /* screen-edge flash (boost, hit, pickup) drawn here instead of as a blurred page layer */
   vec2 e=abs(vUv-.5)*2.;float ed=max(e.x,e.y);c=mix(c,edgeC,edgeA*smoothstep(.62,1.,ed)*(.55+.45*smoothstep(.85,1.,ed)));
-      gl_FragColor=vec4(srgb(c),1.);}`,{tex:{value:null},b1:{value:null},b2:{value:null},exposure:{value:1},bloom:{value:.55},sat:{value:1.08},con:{value:1.06},vig:{value:.28},aspect:{value:1},edgeA:{value:0},edgeC:{value:new THREE.Color()},tint:{value:new THREE.Vector3(1,1,1)}});}
-function postSize(w,h){const msN=LADV.ms===0?0:QUAL[qKey].ms||(prE>=1.25?2:4);if(POST.w===w&&POST.h===h&&POST.rt&&POST.ms===msN)return;POST.ms=msN;POST.w=w;POST.h=h;for(const k of ['rt','b1','b2','b3','b4'])if(POST[k])POST[k].dispose();
+      gl_FragColor=vec4(srgb(c),1.);}`,{tex:{value:null},b1:{value:null},b2:{value:null},exposure:{value:1},bloom:{value:.55},sat:{value:1.08},con:{value:1.06},vig:{value:.28},aspect:{value:1},edgeA:{value:0},edgeC:{value:new THREE.Color()},tint:{value:new THREE.Vector3(1,1,1)},aoT:{value:null},aoOn:{value:0}});
+  /* Ultra: screen-space ambient occlusion from the depth buffer (half resolution, then a depth-aware blur): soft contact shading in every corner and crevice */
+  POST.M.ao=postMat(`uniform sampler2D tD;uniform mat4 pM,ipM;uniform vec2 px,asp;uniform float rad,inten;varying vec2 vUv;
+    vec3 vp(vec2 uv){float d=texture2D(tD,uv).r;vec4 v=ipM*vec4(uv*2.-1.,d*2.-1.,1.);return v.xyz/v.w;}
+    float h1(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+    void main(){float d=texture2D(tD,vUv).r;if(d>=.99999){gl_FragColor=vec4(1.);return;}
+      vec3 P=vp(vUv);float z=-P.z;
+      vec3 pr=vp(vUv+vec2(px.x,0.)),pl=vp(vUv-vec2(px.x,0.)),pu=vp(vUv+vec2(0.,px.y)),pd=vp(vUv-vec2(0.,px.y));
+      vec3 dx=abs(pr.z-P.z)<abs(P.z-pl.z)?pr-P:P-pl,dy=abs(pu.z-P.z)<abs(P.z-pd.z)?pu-P:P-pd;vec3 n=normalize(cross(dx,dy));
+      float R=rad*(1.+z/420.),sr=min(R*pM[1][1]*.5/z,.07),a0=h1(gl_FragCoord.xy)*6.2832,ao=0.,bi=.18+z*.0007;/* the bias grows with distance: far, flat ground seen edge-on has too little depth precision to judge small creases */
+      for(int i=0;i<14;i++){float fi=float(i),r=sqrt((fi+.5)/14.)*sr,a=a0+fi*2.39996;vec2 o=vec2(cos(a)*asp.x,sin(a))*r;
+        vec3 v=vp(vUv+o)-P;float vv=dot(v,v);ao+=max(0.,dot(n,v)*inversesqrt(vv+.0001)-bi)*clamp(1.-vv/(R*R*4.),0.,1.);}
+      ao=clamp(1.-inten*ao/14.,0.,1.);ao=mix(1.,ao,1.-smoothstep(650.,1250.,z));gl_FragColor=vec4(ao,ao,ao,1.);}`,{tD:{value:null},pM:{value:new THREE.Matrix4()},ipM:{value:new THREE.Matrix4()},px:{value:new THREE.Vector2()},asp:{value:new THREE.Vector2(1,1)},rad:{value:7},inten:{value:2.3}});
+  POST.M.aob=postMat(`uniform sampler2D tA,tD;uniform vec2 px;uniform mat4 ipM;varying vec2 vUv;
+    float lz(vec2 uv){float d=texture2D(tD,uv).r;vec4 v=ipM*vec4(uv*2.-1.,d*2.-1.,1.);return -v.z/v.w;}
+    void main(){float z0=lz(vUv),s=0.,w=0.;for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){vec2 uv=vUv+vec2(float(x),float(y))*px;float z=lz(uv),wt=1./(1.+abs(z-z0)*6./max(z0*.03,.4));s+=texture2D(tA,uv).r*wt;w+=wt;}
+      float a=s/w;gl_FragColor=vec4(a,a,a,1.);}`,{tA:{value:null},tD:{value:null},px:{value:new THREE.Vector2()},ipM:{value:new THREE.Matrix4()}});}
+function postSize(w,h){const msN=LADV.ms===0?0:QUAL[qKey].ms||(prE>=1.25?2:4),aoW=!!(QUAL[qKey].hqAll&&renderer.capabilities.isWebGL2&&CFG.ao!==false);if(POST.w===w&&POST.h===h&&POST.rt&&POST.ms===msN&&POST.aoW===aoW)return;POST.ms=msN;POST.w=w;POST.h=h;POST.aoW=aoW;for(const k of ['rt','b1','b2','b3','b4','ao1','ao2'])if(POST[k]){POST[k].dispose();POST[k]=null;}
   const ht=renderer.capabilities.isWebGL2?THREE.HalfFloatType:THREE.UnsignedByteType,opt={type:ht,depthBuffer:false};
-  POST.rt=new THREE.WebGLRenderTarget(w,h,{type:ht,stencilBuffer:true/* forces a 24-bit depth buffer: three gives depth-only targets 16 bits, which let thin hulls show through on phones */,samples:renderer.capabilities.isWebGL2?msN:0});POST.pr=pr;
+  POST.rt=new THREE.WebGLRenderTarget(w,h,{type:ht,stencilBuffer:true/* forces a 24-bit depth buffer: three gives depth-only targets 16 bits, which let thin hulls show through on phones */,samples:renderer.capabilities.isWebGL2?msN:0});if(aoW){const dt=new THREE.DepthTexture(w,h);dt.format=THREE.DepthStencilFormat;dt.type=THREE.UnsignedInt248Type;POST.rt.depthTexture=dt;const w2=Math.max(1,w>>1),h2=Math.max(1,h>>1);POST.ao1=new THREE.WebGLRenderTarget(w2,h2,{depthBuffer:false});POST.ao2=new THREE.WebGLRenderTarget(w2,h2,{depthBuffer:false});}POST.pr=pr;
   const w4=Math.max(1,w>>2),h4=Math.max(1,h>>2),w8=Math.max(1,w>>3),h8=Math.max(1,h>>3);
   POST.b1=new THREE.WebGLRenderTarget(w4,h4,opt);POST.b2=new THREE.WebGLRenderTarget(w4,h4,opt);POST.b3=new THREE.WebGLRenderTarget(w8,h8,opt);POST.b4=new THREE.WebGLRenderTarget(w8,h8,opt);}
 function pass(mat,target){POST.q.material=mat;renderer.setRenderTarget(target);renderer.render(POST.qs,POST.qc);}
 function postRender(){postInit();const sz=renderer.getDrawingBufferSize(v2);postSize(sz.x,sz.y);const M=POST.M,G=POST.grade;
   renderer.setRenderTarget(POST.rt);renderer.render(scene,camera);
+  if(POST.aoW&&POST.ao1){const A=M.ao.uniforms;A.tD.value=POST.rt.depthTexture;A.pM.value.copy(camera.projectionMatrix);A.ipM.value.copy(camera.projectionMatrixInverse);A.px.value.set(1/sz.x,1/sz.y);A.asp.value.set(sz.y/sz.x,1);pass(M.ao,POST.ao1);
+    const B=M.aob.uniforms;B.tA.value=POST.ao1.texture;B.tD.value=POST.rt.depthTexture;B.ipM.value.copy(camera.projectionMatrixInverse);B.px.value.set(1/POST.ao1.width,1/POST.ao1.height);pass(M.aob,POST.ao2);M.final.uniforms.aoT.value=POST.ao2.texture;M.final.uniforms.aoOn.value=1;}
+  else M.final.uniforms.aoOn.value=0;
   M.bright.uniforms.tex.value=POST.rt.texture;M.bright.uniforms.thr.value=G.thr;M.bright.uniforms.px.value.set(1/sz.x,1/sz.y);pass(M.bright,POST.b1);
   const bl=(a,b,w,h)=>{M.blur.uniforms.tex.value=a.texture;M.blur.uniforms.dir.value.set(1/w,0);pass(M.blur,b);M.blur.uniforms.tex.value=b.texture;M.blur.uniforms.dir.value.set(0,1/h);pass(M.blur,a);};
   bl(POST.b1,POST.b2,POST.b1.width,POST.b1.height);M.blur.uniforms.tex.value=POST.b1.texture;M.blur.uniforms.dir.value.set(.5/POST.b1.width,0);pass(M.blur,POST.b3);bl(POST.b3,POST.b4,POST.b3.width,POST.b3.height);bl(POST.b3,POST.b4,POST.b3.width,POST.b3.height);
@@ -4806,7 +5038,7 @@ async function boot(){const ld=document.getElementById('loader'),bar=document.ge
   await step(74,'Building the track…');if(mode==='gp')mapIdx=CUP_TRACKS[cupIdx][0];loadMap(mapIdx,false);fit();refreshMenu();
   if(window.ResizeObserver)new ResizeObserver(fit).observe(stage);else addEventListener('resize',fit);
   applySettings();
-  await step(88,'Lining up the grid…');resetRace(true);try{mergeWorld();}catch(e){console.warn('merge',e);}warmScene();
+  await step(88,'Lining up the grid…');resetRace(true);try{mergeWorld();}catch(e){console.warn('merge',e);}try{HQS.apply();}catch(e){console.warn('hq',e);}warmScene();
   await step(96,'Firing up the oven…');try{renderer.compile(scene,camera);}catch(e){}
   booted=true;bar.style.width='100%';menu.hidden=false;setTimeout(softGlNote,900);last=performance.now();setTimeout(()=>{ld.classList.add('done');setTimeout(()=>ld.remove(),600);},120);
   setTimeout(()=>{loadHQ().finally(()=>{window.dispatchEvent(new Event('cr-booted'));});},1500);}
@@ -4969,7 +5201,7 @@ function musTick(){if(!ac||!master)return;musInit();if(!MUS.bus)return;
    Phones find each other through a short room code over a relay server; the race data uses a direct link when one opens. */
 const NET={role:null,code:'',peer:null,conns:[],me:0,pl:[],cfg:null,fromNet:false,loaded:new Set(),tick:0,seq:0,hist:[],outQ:[],inQ:{},inS:{},inLast:{},ack:{},
   snaps:[],mir:new Map(),mirH:new Map(),mirList:[],fxQ:[],nid:0,inUpd:false,finSeen:false,lastRecv:0,goT:0,waitTimer:0,replay:false,abQ:false,relay:null,lastFl:0,unack:[],ackRx:0};
-const NET_PROTO=74;/* bump when race messages or kart physics change: friends on different versions would drive differently */
+const NET_PROTO=76;/* bump when race messages or kart physics change: friends on different versions would drive differently */
 const NET_SLOTS=[4,3,5,2],NET_ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const netId=c=>'crustrush-v1-'+c.toUpperCase();
 const NET_REM=['x','y','a','ma','z','wy','speed','steer','drift','charge','boost','spin','air','glide','loopTh','onRamp','rush','shL','shield','mzH','sink','sinkT','trickK','trickT','frozen','acc','brake','dAmt','fx','prog','finished','place','finishTime','inv','big','ghostT','shrinkT','absT','idx','gRings','trick'];
@@ -5151,7 +5383,7 @@ function itemIntent(k,it,o){const sl=it.endsWith('2')?2:1,isHold=it.startsWith('
    drove on their own screen (otherwise every correction from the host would pull their kart back: the "teleporting").
    A small buffer, sized to the connection's jitter, absorbs packets that arrive in bursts. */
 function netSteps(k){const id=k.netId,q=NET.inQ[id]||(NET.inQ[id]=[]),cn=NET.conns.find(c=>c._id===id),dir=!!(cn&&cn.direct);
-  const st=NET.inS[id]||(NET.inS[id]={wait:true,T:dir?3:6,ok:0});const lo=dir?2:4,hi=dir?10:16;st.T=clamp(st.T,lo,hi);
+  const st=NET.inS[id]||(NET.inS[id]={wait:true,T:dir?2:6,ok:0});const lo=dir?1:4,hi=dir?10:16;/* a direct link starts with the smallest buffer and only grows it if inputs actually arrive late */st.T=clamp(st.T,lo,hi);
   if(q.length>720){q.splice(0,q.length-st.T);}/* far behind (a long stall): skip ahead and let one correction resync */
   /* a gap means an input is still on its way (or was lost and will come again in the next message): wait for it */
   const nx=(NET.ack[id]||0)+1;if(q.length&&q[0][0]>nx){if(!st.gap)st.gap=performance.now();if(performance.now()-st.gap<400&&q.length<st.T*3+30)return 0;}st.gap=0;
