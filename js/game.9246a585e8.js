@@ -3773,10 +3773,12 @@ const ITEM_POWER={oil:1,forks:1,boxes:1,garlic:1,pepperoni:1,flour:1.5,
   cannon:5,wheel:5};
 const NEEDS_TARGET=new Set(['dough','torpedo','magnet','swap','ghost','wheel','freezer','sauce']);
 const ITEM_LIST=Object.keys(ITEM_POWER).filter(k=>k!=='garlic2');
-function renderItemSet(){const el=document.getElementById('itemTg');if(!el)return;
-  el.innerHTML=ITEM_LIST.map(k=>{const un=itemUnlocked(k),on=itemOn(k),a=ITEM_RETIRED[k]?ACH.find(x=>x.id===ITEM_RETIRED[k]):null,col=(typeof ITEM_COL!=='undefined'&&ITEM_COL[k])||'#ffe066';
-    return '<button type="button" data-it="'+k+'" aria-pressed="'+on+'"'+(un?'':' disabled title="Unlock with the '+(a?a.name:'')+' award"')+'><i style="background:'+col+'"></i>'+itemLabel(k)+(un?'':'<small>Locked · '+(a?a.name:'')+'</small>')+'</button>';}).join('');}
-document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('#itemTg button[data-it]');if(b&&!b.disabled){const k=b.dataset.it,on=itemOn(k);
+function renderItemSet(){const el=document.getElementById('guideItems');if(!el)return;const keys=ITEM_KEYS.filter(k=>ITEM_LIST.includes(k)).concat(ITEM_LIST.filter(k=>!ITEM_KEYS.includes(k)));
+  el.innerHTML=keys.map(k=>{const un=itemUnlocked(k),on=itemOn(k),a=ITEM_RETIRED[k]?ACH.find(x=>x.id===ITEM_RETIRED[k]):null,h=HELP[k]||[itemLabel(k),''];
+    return '<li data-it="'+k+'" class="'+(on?'on':'off')+(un?'':' locked')+'" role="button" tabindex="0" aria-pressed="'+on+'"'+(un?'':' aria-disabled="true"')+'><span class="gi">'+(SVG[k]||'')+'</span><span><b>'+h[0]+'</b>'+(DROPS.includes(k)?'<em class="dr">drop</em>':'')
+      +'<small>'+(un?h[1]:'Locked: earn the '+(a?a.name:'')+' award to unlock it.')+'</small></span><span class="itg" aria-hidden="true">'+(un?(on?'On':'Off'):'Locked')+'</span></li>';}).join('');}
+document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest&&e.target.closest('#guideItems li[data-it]')){e.preventDefault();e.target.click();}});
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('#guideItems li[data-it]');if(b&&b.getAttribute('aria-disabled')!=='true'){const k=b.dataset.it,on=itemOn(k);
     if(on&&ITEM_LIST.filter(itemOn).length<=1)return;/* keep at least one item */ITEMSET[k]=!on;saveItemSet();renderItemSet();}
   if(e.target.closest&&e.target.closest('#itemReset')){ITEMSET={};saveItemSet();renderItemSet();}});
 function itemOdds(pos,n){const f=n>1?pos/(n-1):0,target=1+f*4,out={};
@@ -4992,7 +4994,7 @@ const cfgVal=k=>k==='sound'?!muted:k==='stats'?statsOn:CFG[k];
 function openSettings(from){setFrom=from;from.hidden=true;setOv.hidden=false;setOv.scrollTop=0;refreshSettings();}
 function closeSettings(){setOv.hidden=true;(setFrom||menu).hidden=false;refreshMenu();}
 function fillGuide(){const gi=$('guideItems'),ga=$('guideAbil');if(!gi||gi.dataset.done)return;gi.dataset.done=1;
-  gi.innerHTML=ITEM_KEYS.map(k=>'<li><span class="gi">'+(SVG[k]||'')+'</span><span><b>'+HELP[k][0]+'</b>'+(DROPS.includes(k)?'<em class="dr">drop</em>':'')+'<small>'+HELP[k][1]+'</small></span></li>').join('');
+  renderItemSet();
   ga.innerHTML=RACERS.map((r,i)=>{const A=ABIL[r.name.toLowerCase()];if(!A)return '';return '<li><span class="gi pt" style="--c:'+A[2]+';'+(PORTRAITS[i]?'background-image:url('+PORTRAITS[i]+')':'')+'"></span><span><b>'+A[0]+'</b><em>'+r.name+'</em><small>'+A[1]+'</small></span></li>';}).join('');}
 function refreshSettings(){try{fillGuide();}catch(e){}try{renderItemSet();}catch(e){}document.querySelectorAll('#setOv .seg[data-k]').forEach(sg=>{const v=cfgVal(sg.dataset.k),sv=typeof v==='boolean'?(v?'1':'0'):String(v);sg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===sv)));});
   $('volR').value=CFG.vol;$('volO').textContent=CFG.vol;$('mvolR').value=CFG.mvol;$('mvolO').textContent=CFG.mvol;$('camdR').value=CFG.camd||100;$('camdO').textContent=(CFG.camd||100)+'%';refreshMenu();}
