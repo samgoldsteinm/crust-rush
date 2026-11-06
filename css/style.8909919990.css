@@ -248,6 +248,9 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .iconbtn svg{width:20px;height:20px;color:var(--cheese)}.iconbtn:active{transform:scale(.96)}
 @media (max-width:560px){.iconbtn span{display:none}.iconbtn{padding:10px}}
 .sheet{max-width:760px;gap:16px}
+.item-tg{display:flex;flex-wrap:wrap;gap:8px;padding:6px 0 10px}.item-tg button{display:flex;align-items:center;gap:7px;border:1px solid rgba(255,244,220,.16);background:rgba(255,244,220,.05);color:var(--muted);border-radius:999px;padding:7px 12px;font-weight:700;font-size:13px}
+.item-tg button i{width:10px;height:10px;border-radius:50%;flex:none;opacity:.45}.item-tg button[aria-pressed="true"]{background:linear-gradient(135deg,#ff8a1f,#e0452c);color:var(--cream);border-color:transparent}.item-tg button[aria-pressed="true"] i{opacity:1;box-shadow:0 0 0 2px rgba(255,255,255,.7)}
+.item-tg button:disabled{opacity:.55}.item-tg button small{font-weight:600;font-size:11px;opacity:.8;margin-left:2px}.item-reset{align-self:flex-start;border:1px solid rgba(255,244,220,.25);background:transparent;color:var(--cream);border-radius:10px;padding:8px 14px;font-weight:700}.ach-it{color:#ffd27a}
 .set-group{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:16px;background:linear-gradient(160deg,rgba(255,244,220,.06),rgba(255,244,220,.015));border:1px solid rgba(255,244,220,.12)}
 .set-group .label{margin-bottom:4px}
 .set-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,300px);gap:8px 18px;align-items:center;padding:10px 0;border-top:1px solid rgba(255,244,220,.07)}
