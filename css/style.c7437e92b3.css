@@ -653,6 +653,9 @@ body.padnav :focus{outline:3px solid var(--cheese)!important;outline-offset:3px}
 .ctl td{color:#e9d8c2}
 .ctl-note{margin:8px 0 0;color:var(--muted);font-size:12px}
 /* computers: larger menus so they read comfortably from a desk; phones keep their layout */
+@media (pointer:fine) and (min-width:1300px) and (min-height:700px){.garage{max-width:min(2300px,96vw)}#garage .g-head,#garage .g-side,#garage .g-info{zoom:1.25}#garage #pCar .chips em{font-size:9px}#garage .g-grid{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}}
+@media (pointer:fine) and (min-width:1800px) and (min-height:900px){#garage .g-head,#garage .g-side,#garage .g-info{zoom:1.45}}
+@media (pointer:fine) and (min-width:2400px) and (min-height:1200px){#garage .g-head,#garage .g-side,#garage .g-info{zoom:1.75}}
 @media (pointer:fine) and (min-width:1100px) and (min-height:620px){.overlay>.panel,.overlay>.wiz{zoom:1.18}}
 @media (pointer:fine) and (min-width:1500px) and (min-height:800px){.overlay>.panel,.overlay>.wiz{zoom:1.32}}
 @media (pointer:fine) and (min-width:2200px) and (min-height:1100px){.overlay>.panel,.overlay>.wiz{zoom:1.6}}

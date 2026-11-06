@@ -1,6 +1,6 @@
 // Crust Rush service worker: installs the game as an app and keeps every file for offline play.
 // Game files have their content hash in the name, so a saved copy never goes stale; only the page itself is re-checked.
-const VERSION = 'crust-rush-v72';
+const VERSION = 'crust-rush-v73';
 const SHELL = [
   "./",
   "./index.html",
@@ -36,6 +36,11 @@ const SHELL = [
   "./assets/geo/scissor_hq.cfb581826d.bin",
   "./assets/geo/suv_hq.eea66bc13f.bin",
   "./assets/geo/onyx.bd5e8ef3d3.bin",
+  "./assets/geo/bike_moto.6d0d279356.bin",
+  "./assets/geo/bike_mx.d260f3fac9.bin",
+  "./assets/geo/bike_neutron.33a8caa28c.bin",
+  "./assets/geo/bike_rocket.c1d0ba014a.bin",
+  "./assets/geo/bike_june.a357af641e.bin",
   "./assets/geo/tree_pine1.55f1df225a.bin",
   "./assets/geo/tree_pine2.51237a24e1.bin",
   "./assets/geo/tree_round1.cc883fdab7.bin",
@@ -129,8 +134,8 @@ const SHELL = [
   "./assets/shots/grid-h.15003090c1.jpg",
   "./assets/shots/grid-m.31de56a1bf.jpg",
   "./assets/shots/grid-a.c36c42a4dd.jpg",
-  "./css/style.d5cc7eeb32.css",
-  "./js/game.21eeffa697.js",
+  "./css/style.c7437e92b3.css",
+  "./js/game.a793c4de98.js",
   "./vendor/three-0.149.0.min.js"
 ];
 
