@@ -4044,7 +4044,10 @@ function aiInput(k,dt){
   return {steer,drift:false,brake:false,mul,use,back,hold,holdSl:1,release};
 }
 /* jump tricks as turns about [roll, spin, flip]: barrel roll, front flip, flat 360, back flip, corkscrew, double roll */
-const TRICK_T=.5,TRICKS=[[1,0,0],[0,0,-1],[0,1,0],[0,0,1],[1,1,0],[2,0,0]];
+/* mid-air tricks: one clean rotation each, about the kart's middle. Steer left/right for a barrel roll that way; with the stick
+   centred the tricks take turns. Chosen from your input and trick count (not a dice roll), so every player online sees the same one */
+const TRICK_T=.55,TRICKS=[{n:'Backflip',ax:new THREE.Vector3(0,0,1),d:1},{n:'360 Spin',ax:new THREE.Vector3(0,1,0),d:1},{n:'Frontflip',ax:new THREE.Vector3(0,0,1),d:-1},
+  {n:'Barrel roll',ax:new THREE.Vector3(1,0,0),d:-1},{n:'Barrel roll',ax:new THREE.Vector3(1,0,0),d:1}],_tq=new THREE.Quaternion(),_tc=new THREE.Vector3(),_tv=new THREE.Vector3();
 function land(k){if(k===camT)shake(.55);const tr=k.trick;k.trick=false;if(tr){k.boost=Math.max(k.boost,.8);if(k===player)SFX.boost(1);}else SFX.land(near(k));
   for(let i=0;i<10;i++){const a=Math.random()*Math.PI*2;FXN.spawn(k.x+Math.cos(a)*4,1,k.y+Math.sin(a)*4,Math.cos(a)*18,4+Math.random()*6,Math.sin(a)*18,'#f2e3c4',3,9,.7,-1,2);}}
 const rings=[];
@@ -4587,7 +4590,7 @@ function stepKart(k,inp,dt){
   if(k.autoT>0){k.autoT-=dt;if(k.spin<=0&&k.sink==null){const lat=lateral(k),q=track[(k.idx+14)%N],tl=lat*.6,tx=q.x+q.nx*tl,ty=q.y+q.ny*tl;let d=Math.atan2(ty-k.y,tx-k.x)-k.a;d=Math.atan2(Math.sin(d),Math.cos(d));
     k.a+=d*Math.min(1,dt*7);k.ma=k.a;k.drift=0;k.charge=0;k.dLatch=false;k.dWant=0;k.steer=0;inp=Object.assign({},inp,{steer:0,brake:false});}}
   /* first tap mid-air = trick (a different one each jump); a later tap arms the drift for landing */
-  let trickNow=false;if(k.air&&(k.big||(k.airT>.12&&k.z>5))&&!k.glide&&dPress&&!k.trick){k.trick=true;k.trickT=TRICK_T;let n=(Math.random()*TRICKS.length)|0;if(n===k.trickK)n=(n+1)%TRICKS.length;k.trickK=n;trickNow=true;if(k===player)SFX.trick();}
+  let trickNow=false;if(k.air&&(k.big||(k.airT>.12&&k.z>5))&&!k.glide&&dPress&&!k.trick){k.trick=true;k.trickT=TRICK_T;const st=inp.steer||0;k.trickN=(k.trickN||0)+1;const n=st<-.4?3:st>.4?4:(k.trickN%3);k.trickK=n;trickNow=true;if(k===player&&!NET.replay){SFX.trick();showBanner(TRICKS[n].n+'!',.6,'sm');}}
   const lat=Math.abs(lateral(k)),sm=k.sm;let tp=lat<RW?1:lat<CURB?.86+.02*sm.off:clamp(.58+.06*sm.off,.4,.82);if(k.glide)tp=1;if(k.sc)tp=k.sc.route?1:.96;if(k.boost>0)tp=Math.max(tp,.93);k.sf=k.sc?1:lat<RW?2:lat<CURB?1:0;
   k.pen+=(tp-k.pen)*Math.min(1,dt*(tp<k.pen?3.5:6));
   let max=BASE_MAX*inp.mul*k.pen*sm.spd*(k.glide?k.gair||1:1);if(k.boost>(k.pBoost||0)+1e-4){k.bPk=k.boost;k.fTier=0;}/* visual only: which boost is burning (flame size and colour) */if(k.boost>0){k.bAge=(k.pBoost>0?(k.bAge||0)+dt:0);max*=k.pestoT>0?1.66:1.58;k.boost-=dt;}else k.bAge=9;k.pBoost=k.boost;if(k.dWant>0)k.dWant-=dt;if(k.shield>0){k.shield-=dt;max*=1.08;}if(k.absT>0)k.absT-=dt;if(k.rush>0){k.rush-=dt;max*=1.12;k.pen=Math.max(k.pen,.95);}if(k.cannonT>0)max*=1.22;if(k.shrinkT>0)max*=.78;if(k.sauceT>0)max*=.93;if(k.frozen>0){k.frozen-=dt;max*=.55;}
@@ -4653,9 +4656,9 @@ function stepKart(k,inp,dt){
   const oIdx=k.idx;let best=k.idx,bd=1e18;if(!k.sc)for(let o=-12;o<=20;o++){const j=(k.idx+o+N)%N,p=track[j],dd=(p.x-k.x)**2+(p.y-k.y)**2;if(dd<bd){bd=dd;best=j;}}
   let di=best-k.idx;if(di>N/2)di-=N;if(di<-N/2)di+=N;k.prog+=di;k.idx=best;
   for(const L of LOOPS){if(!L.full||k.loop)continue;const P=L.p,al=(k.x-P.x)*P.tx+(k.y-P.y)*P.ty,aa=Math.abs(al);if(aa>LOOP_DIV+LOOP_TAP)continue;const hw=aa<=LOOP_DIV?LOOP_DH:LOOP_DH*(1-(aa-LOOP_DIV)/LOOP_TAP),lim=hw+4,lt=(k.x-P.x)*P.nx+(k.y-P.y)*P.ny;if(Math.abs(lt)>=lim)continue;let dj=L.j-k.idx;if(dj>N/2)dj-=N;if(dj<-N/2)dj+=N;const sd=dj>0?-1:1,push=sd*lim-lt;k.x+=P.nx*push;k.y+=P.ny*push;/* the wall's outward normal leans along the taper, so a glancing touch only steers you; a head-on hit stops you */const tl=aa<=LOOP_DIV?0:(LOOP_DH/LOOP_TAP)*Math.sign(al),ex=P.nx*sd+P.tx*tl,ey=P.ny*sd+P.ty*tl,el=Math.hypot(ex,ey),ox=ex/el,oy=ey/el;wallSlide(k,-ox,-oy);}
-  for(const LOOP of LOOPS)if(!k.loop&&LOOP.full){let dj=LOOP.j-k.idx;if(dj>N/2)dj-=N;if(dj<-N/2)dj+=N;if(dj>=1&&dj<=8){const P=LOOP.p,al=(k.x-P.x)*P.tx+(k.y-P.y)*P.ty,lt=(k.x-P.x)*P.nx+(k.y-P.y)*P.ny;if(al>=-1){k.loop={th:0,p:P,lat0:clamp(lt,-LOOP.S-LOOP.W+5,-LOOP.S+LOOP.W-5),shift:LOOP.shift,g0:LOOP.g0,j:LOOP.j,full:true};k.drift=0;k.spin=0;k.air=false;k.big=false;k.glide=false;if(k===player)SFX.pad();}}}
+  for(const LOOP of LOOPS)if(!k.loop&&LOOP.full){let dj=LOOP.j-k.idx;if(dj>N/2)dj-=N;if(dj<-N/2)dj+=N;if(dj>=1&&dj<=8){const P=LOOP.p,al=(k.x-P.x)*P.tx+(k.y-P.y)*P.ty,lt=(k.x-P.x)*P.nx+(k.y-P.y)*P.ny;if(al>=-1){k.loop={th:0,p:P,lat0:clamp(lt,-LOOP.S-LOOP.W+5,-LOOP.S+LOOP.W-5),shift:LOOP.shift,g0:LOOP.g0,j:LOOP.j,full:true,src:LOOP};k.drift=0;k.spin=0;k.air=false;k.big=false;k.glide=false;if(k===player)SFX.pad();}}}
   for(const LOOP of LOOPS)if(!LOOP.full&&!k.air&&k.speed>50&&k.spin<=0&&!k.loop){let d0=oIdx-LOOP.j,d1=k.idx-LOOP.j;if(d0>N/2)d0-=N;if(d0<-N/2)d0+=N;if(d1>N/2)d1-=N;if(d1<-N/2)d1+=N;
-    if(d0<0&&d1>=0){const lt=lateral(k);if(LOOP.full||Math.abs(lt-LOOP.lat0)<17){k.loop={th:0,p:LOOP.p,lat0:LOOP.full?clamp(lt,LOOP.lat0-LOOP.W+4,LOOP.lat0+LOOP.W-4):LOOP.lat0,shift:LOOP.shift,g0:LOOP.g0};k.drift=0;if(k===player)SFX.pad();}}}
+    if(d0<0&&d1>=0){const lt=lateral(k);if(LOOP.full||Math.abs(lt-LOOP.lat0)<17){k.loop={th:0,p:LOOP.p,lat0:LOOP.full?clamp(lt,LOOP.lat0-LOOP.W+4,LOOP.lat0+LOOP.W-4):LOOP.lat0,shift:LOOP.shift,g0:LOOP.g0,src:LOOP};k.drift=0;if(k===player)SFX.pad();}}}
   for(const pd of pads){let dj=k.idx-pd.j;if(dj>N/2)dj-=N;if(dj<-N/2)dj+=N;if(Math.abs(dj)<=2&&Math.abs(lateral(k)-pd.lat)<(pd.w||16)&&k.boost<.9){k.boost=Math.max(k.boost,1.0);if(k===camT)shake(.25);if(k===player)SFX.pad();}}
 }
 function startGlide(k){const gd=GLIDERS[k.spec.g];k.air=true;k.glide=true;k.big=false;k.trick=false;k.drift=0;k.speed=Math.max(k.speed,BASE_MAX*.85);k.wvy=55+k.speed*.08;k.gRings=0;if(k===player&&GLIDE&&GLIDE.rings)GLIDE.rings.forEach(r=>{r.snap=true;});k.gsink=gd.sink;k.gair=gd.air;if(k===player){SFX.glide();edgeFx('#9fe0ff',1);}}
@@ -4784,9 +4787,9 @@ function mergeWorld(){if(!world||world.userData.merged)return null;const S=snapW
 /* ================= RENDER ================= */
 const tv=new THREE.Vector3(),tv2=new THREE.Vector3(),v2=new THREE.Vector2();
 function syncKart(k,dt,time){
-  if(k.cox||k.coy){k.cox*=.86;k.coy*=.86;if(Math.abs(k.cox)+Math.abs(k.coy)<.02)k.cox=k.coy=0;}
-  const m=k.m,x=k.px+(k.x-k.px)*alpha+(k.cox||0),y=k.py+(k.y-k.py)*alpha+(k.coy||0),z=k.pwy+(k.wy-k.pwy)*alpha,a=lerpA(k.pa,k.a,alpha);k.rx=x;k.ry=y;k.rz=z;k.rma=lerpA(k.pma,k.ma,alpha);
-  const lth=k.loopTh?(k.pth>0?k.pth+(k.loopTh-k.pth)*alpha:k.loopTh):0;k.rth=lth;{let rg=groundAt(x,y)+(MULTI?kEy(k):0);if(GLIDE){const gyy=glideY(x,y);if(rg<gyy-20)rg=Math.min(z,gyy);}k.rg=rg;}
+  if(k.cox||k.coy){k.cox*=.86;k.coy*=.86;if(Math.abs(k.cox)+Math.abs(k.coy)<.02)k.cox=k.coy=0;}if(k.coz){k.coz*=.86;if(Math.abs(k.coz)<.02)k.coz=0;}
+  const m=k.m,x=k.px+(k.x-k.px)*alpha+(k.cox||0),y=k.py+(k.y-k.py)*alpha+(k.coy||0),z=k.pwy+(k.wy-k.pwy)*alpha+(k.coz||0),a=lerpA(k.pa,k.a,alpha);k.rx=x;k.ry=y;k.rz=z;k.rma=lerpA(k.pma,k.ma,alpha);
+  if(k.coth){k.coth*=.85;if(Math.abs(k.coth)<.002||!k.loopTh)k.coth=0;}const lth=k.loopTh?Math.max(.0001,(k.pth>0?k.pth+(k.loopTh-k.pth)*alpha:k.loopTh)+(k.coth||0)):0;k.rth=lth;{let rg=groundAt(x,y)+(MULTI?kEy(k):0);if(GLIDE){const gyy=glideY(x,y);if(rg<gyy-20)rg=Math.min(z,gyy);}k.rg=rg;}
   m.g.position.set(x,z,y);
   if(!lth){if(!k.air){const ca=Math.cos(a),sa=Math.sin(a),fF=Math.max(6,m.axF||6),fR=Math.min(-6,m.axR||-6),fW=Math.max(5,m.axW||5),J=k.idx,hF=surfH(x+ca*fF,y+sa*fF,J),hB=surfH(x+ca*fR,y+sa*fR,J),hL=surfH(x-sa*fW,y+ca*fW,J),hRt=surfH(x+sa*fW,y-ca*fW,J),hC=surfH(x,y,J),
       sF=(hF-hB)/(fF-fR),sR=(hL-hRt)/(2*fW),ff=Math.min(1,16*dt),mid=hB+(hF-hB)*(-fR)/(fF-fR),base=Math.max(hC,mid,(hL+hRt)/2);m.g.position.y=k.onRamp||k.z>.4?Math.max(z,base):clamp(base,z-1.2,z+6);
@@ -4799,8 +4802,8 @@ function syncKart(k,dt,time){
   {const gt=k.glide?1:0;m.ga+=(gt-m.ga)*Math.min(1,dt*(gt?5:8));const gv=m.ga>.02;if(gv!==m.gl.visible)m.gl.visible=gv;if(gv){m.gl.scale.setScalar(m.ga);m.gl.rotation.set(-k.steer*.18,0,Math.sin(time*2.2+k.ri)*.06);}}
   if(far)return;
   {const bl=k.inv>0&&k.spin<=0&&state==='race'&&Math.floor(time*12)%2===1;if(m.tilt.visible===bl)m.tilt.visible=!bl;}
-  const f=Math.min(1,8*dt);if(k.trickT>0){const u=1-k.trickT/TRICK_T,e=u*u*(3-2*u),T=TRICKS[k.trickK|0];m.tilt.rotation.set(T[0]*e*Math.PI*2,T[1]*e*Math.PI*2,T[2]*e*Math.PI*2);m.trickOn=true;}else{if(m.trickOn){m.tilt.rotation.set(0,0,0);m.trickOn=false;}m.tilt.rotation.x+=((m.bike?-(k.steer*(.26+.1*Math.min(1,Math.abs(k.speed)/BASE_MAX))+(k.drift?k.steer*.12*(k.dAmt||0):0)):((k.drift?k.steer*.08*(k.dAmt||0):0)+k.steer*.04))-m.tilt.rotation.x)*f;}
-  if(m.hover){m.tilt.position.y=Math.sin(time*2.4+k.ri*1.7)*.22;if(m.hglow)m.hglow.material.opacity=.55+Math.sin(time*9+k.ri)*.12+(k.boost>0?.3:0);}
+  const f=Math.min(1,8*dt);if(k.trickT>0){const u=clamp(1-k.trickT/TRICK_T,0,1),e=u*u*u*(u*(u*6-15)+10),T=TRICKS[k.trickK|0]||TRICKS[0];_tq.setFromAxisAngle(T.ax,T.d*e*Math.PI*2);m.tilt.quaternion.copy(_tq);_tc.set(0,(m.top||7)*.42,0);_tv.copy(_tc).applyQuaternion(_tq);m.tilt.position.set(_tc.x-_tv.x,_tc.y-_tv.y,_tc.z-_tv.z);m.trickPy=m.tilt.position.y;m.trickOn=true;}else{if(m.trickOn){m.tilt.rotation.set(0,0,0);m.tilt.position.set(0,0,0);m.trickPy=0;m.trickOn=false;}m.tilt.rotation.x+=((m.bike?-(k.steer*(.26+.1*Math.min(1,Math.abs(k.speed)/BASE_MAX))+(k.drift?k.steer*.12*(k.dAmt||0):0)):((k.drift?k.steer*.08*(k.dAmt||0):0)+k.steer*.04))-m.tilt.rotation.x)*f;}
+  if(m.hover){m.tilt.position.y=(m.trickOn?m.trickPy:0)+Math.sin(time*2.4+k.ri*1.7)*.22;if(m.hglow)m.hglow.material.opacity=.55+Math.sin(time*9+k.ri)*.12+(k.boost>0?.3:0);}
   m.tilt.rotation.z+=(clamp(k.acc*.0006,-.07,.05)-m.tilt.rotation.z)*f;
   for(const w of m.wheels)w.spin.rotation.z-=k.speed*dt/(w.r*KS);
   for(const fw of m.front)fw.rotation.y=-k.steer*.42;
@@ -5605,7 +5608,7 @@ const NET_PROTO=78;/* bump when race messages or kart physics change: friends on
 const NET_SLOTS=[4,3,5,2],NET_ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const netId=c=>'crustrush-v1-'+c.toUpperCase();
 const NET_REM=['x','y','a','ma','z','wy','speed','steer','drift','charge','boost','spin','air','glide','loopTh','onRamp','rush','shL','shield','mzH','sink','sinkT','trickK','trickT','frozen','acc','brake','dAmt','fx','prog','finished','place','finishTime','inv','big','ghostT','shrinkT','absT','idx','gRings','trick','bPk','fTier','megaT','pestoT','flatT'];
-const NET_SKIP=new Set(['px','py','pa','pma','pz','pwy','pth','rx','ry','rz','rg','rma','rth','isPlayer','auto','ri','netId','cox','coy','sf','col']);
+const NET_SKIP=new Set(['px','py','pa','pma','pz','pwy','pth','rx','ry','rz','rg','rma','rth','isPlayer','auto','ri','netId','cox','coy','coz','coth','sf','col']);
 const NET_ANG=new Set(['a','ma']),NET_POS=new Set(['x','y','z','wy','loopTh','speed','charge','steer','prog']);
 function netName(){try{return (store.get('crust-netname')||'').slice(0,14)||RACERS[selected].name;}catch(e){return 'Player';}}
 function netLoadLib(){return new Promise((res,rej)=>{if(window.Peer)return res();const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';
@@ -5797,8 +5800,8 @@ function netInput(k){const q=NET.inQ[k.netId];while(q.length>1&&q[0][0]<=(NET.ac
 const r3=v=>typeof v==='number'?Math.round(v*100)/100:v;
 const r5=v=>Math.round(v*1e5)/1e5;
 function netKScal(k){const o={};for(const key in k){if(NET_SKIP.has(key))continue;const v=k[key];const t=typeof v;if(t==='number')o[key]=r5(v);else if(t==='boolean'||t==='string'||v===null)o[key]=v;}
-  o.pend=k.pend.slice();o.loopI=k.loop?LOOPS.indexOf(k.loop):-1;o.scK=k.sc?SHORTS.indexOf(k.sc):-1;o.heldIt=k.held?k.held.it:null;o.heldSl=k.held?k.held.sl:0;return o;}
-function netKRem(k){return [NET_REM.map(f=>r3(k[f])),k.loop?LOOPS.indexOf(k.loop):-1,k.held?k.held.it:null];}
+  o.pend=k.pend.slice();o.loopI=netLoopI(k);o.loopT=k.loop?r5(k.loop.th):0;o.loopL=k.loop?r5(k.loop.lat0):0;o.scK=k.sc?SHORTS.indexOf(k.sc):-1;o.heldIt=k.held?k.held.it:null;o.heldSl=k.held?k.held.sl:0;return o;}
+function netKRem(k){return [NET_REM.map(f=>r3(k[f])),netLoopI(k),k.held?k.held.it:null,k.loop?[r3(k.loop.th),r3(k.loop.lat0)]:null];}
 function netMeshRec(id,m,extra){const p=m.position,r=m.rotation,s=m.scale;return [id,m.userData.mk||'',r3(p.x),r3(p.y),r3(p.z),r3(r.x),r3(r.y),r3(r.z),r3(s.x),m.visible?1:0].concat(extra||[]);}
 function netSnapshot(){const base={t:'s',n:++NET.sn,st:r3(simTime),rt:r3(raceTime),gs:state,k:karts.map(netKRem),
     p:projectiles.map(p=>{if(!p.nid)p.nid=++NET.nid;return netMeshRec(p.nid,p.mesh,[p.type,r3(p.vx||0),r3(p.vy||0),p.target?karts.indexOf(p.target):-1,karts.indexOf(p.owner)]);}),
@@ -5851,21 +5854,27 @@ function netOnSnap(d){if(d.n){if(d.n<=(NET.lastSn||0))return;if(NET.lastSn&&d.n>
   for(const f of d.fx||[]){try{const [kind,...a]=f;if(kind==='b')burst0(...a);else if(kind==='r')spawnRing0(...a);}catch(e){}}
   if(d.me&&player&&!player.finished)netReconcile(d.me,d.ack);else if(d.me&&player)netApplyFull(player,d.me);
   if(player&&player.finished&&!NET.finSeen){NET.finSeen=true;onPlayerFinish();}}
-function netApplyFull(k,S){for(const f in S){if(f==='pend'||f==='loopI'||f==='heldIt'||f==='heldSl'||f==='scK')continue;k[f]=S[f];}k.pend=S.pend||[];k.loop=S.loopI>=0?LOOPS[S.loopI]:null;k.sc=S.scK>=0?SHORTS[S.scK]||null:null;netHeld(k,S.heldIt,S.heldSl);}
+/* a kart's loop state is its own object (progress th, lane lat0) tied to one of the track's loops; the network sends the loop's index,
+   progress and lane so the receiver rebuilds the same state. (It used to look the per-kart object up in LOOPS, never found it, and every
+   snapshot pulled the guest out of the loop: the screen jumped and the kart teleported to the exit.) */
+function netLoopState(i,th,lat0,cur){const D=i>=0?LOOPS[i]:null;if(!D)return null;const L=cur&&cur.src===D?cur:{p:D.p,shift:D.shift,g0:D.g0,src:D};if(D.full){L.j=D.j;L.full=true;}L.th=th||0;L.lat0=lat0!=null?lat0:D.lat0;return L;}
+const netLoopI=k=>k.loop&&k.loop.src?LOOPS.indexOf(k.loop.src):-1;
+function netApplyFull(k,S){for(const f in S){if(f==='pend'||f==='loopI'||f==='loopT'||f==='loopL'||f==='heldIt'||f==='heldSl'||f==='scK')continue;k[f]=S[f];}k.pend=S.pend||[];k.loop=netLoopState(S.loopI,S.loopT,S.loopL,k.loop);k.sc=S.scK>=0?SHORTS[S.scK]||null:null;netHeld(k,S.heldIt,S.heldSl);}
 function netHeld(k,it,sl){if((k.held?k.held.it:null)===it)return;if(k.held)dropHeld(k);if(it&&HOLDABLE[it])k.held={it,sl:sl||1,t:0,mesh:itemMesh(HOLDABLE[it])};}
-function netReconcile(S,ack){const k=player,ox=k.x,oy=k.y,os=k.spin;netApplyFull(k,S);NET.hist=NET.hist.filter(h=>h.seq>ack);
+function netReconcile(S,ack){const k=player,ox=k.x,oy=k.y,ow=k.wy,os=k.spin,oL=k.loop&&k.loop.src,oth=k.loopTh||0;netApplyFull(k,S);NET.hist=NET.hist.filter(h=>h.seq>ack);
   /* replay the inputs the host has not seen yet, silently */
   NET.replay=true;const fa=FXA.spawn,fn=FXN.spawn,mu=muted;FXA.spawn=FXN.spawn=()=>{};muted=true;
   try{for(const h of NET.hist)stepKart(k,h.inp,STEP);}catch(e){}finally{FXA.spawn=fa;FXN.spawn=fn;muted=mu;NET.replay=false;}
   /* hide the correction: the drawn kart eases from where it was to where it should be */
-  const ex=ox-k.x,ey=oy-k.y;if(Math.hypot(ex,ey)>3)NET.fixN=(NET.fixN||0)+1;if(Math.hypot(ex,ey)<60){k.cox=(k.cox||0)+ex;k.coy=(k.coy||0)+ey;}else{k.cox=k.coy=0;k.px=k.x;k.py=k.y;}
+  const ex=ox-k.x,ey=oy-k.y;if(Math.hypot(ex,ey)>3)NET.fixN=(NET.fixN||0)+1;if(k.loop&&oL&&k.loop.src===oL){/* in the same loop: ease the difference in how far round we are, not the x/y */const d=oth-(k.loopTh||0);if(Math.abs(d)<1.2){k.coth=(k.coth||0)+d;k.cox=(k.cox||0)+ex;k.coy=(k.coy||0)+ey;k.coz=(k.coz||0)+(ow-k.wy);}}
+  else if(Math.hypot(ex,ey)<60){k.cox=(k.cox||0)+ex;k.coy=(k.coy||0)+ey;}else{k.cox=k.coy=0;k.px=k.x;k.py=k.y;}
   if(S.spin>0&&!(os>0)){shake(.6);try{SFX.spin&&SFX.spin();}catch(e){}}}
 /* other karts are shown 100 ms in the past, blended between the two snapshots around that moment */
 function netInterp(skip){const S=NET.snaps;if(S.length<1)return;const now=performance.now(),tgt=now-(NET.off||0)-netDelay();let a=S[0],b=S[S.length-1];
   for(let i=S.length-1;i>0;i--){if(S[i-1].ht<=tgt){a=S[i-1];b=S[i];break;}}const f=b.ht>a.ht?clamp((tgt-a.ht)/(b.ht-a.ht),0,1):1;
   karts.forEach((k,i)=>{if(k===skip)return;const A=a.k[i],B=b.k[i];if(!A||!B)return;NET_REM.forEach((fld,j)=>{const va=A[0][j],vb=B[0][j];
       if(typeof vb==='number'&&typeof va==='number'){if(NET_ANG.has(fld))k[fld]=lerpA(va,vb,f);else if(NET_POS.has(fld))k[fld]=va+(vb-va)*f;else k[fld]=vb;}else k[fld]=vb;});
-    k.loop=B[1]>=0?LOOPS[B[1]]:null;if(k!==player)netHeld(k,B[2],1);});
+    k.loop=B[1]>=0?netLoopState(B[1],B[3]?(A[3]&&A[1]===B[1]?A[3][0]+(B[3][0]-A[3][0])*f:B[3][0]):k.loopTh,B[3]?B[3][1]:null,k.loop):null;if(k!==player)netHeld(k,B[2],1);});
   /* thrown items and traps */
   const seen=new Set();for(const r of b.p||[]){seen.add('p'+r[0]);netMirror('p'+r[0],r,a.p&&a.p.find(q=>q[0]===r[0]),f);}for(const r of b.h||[]){seen.add('h'+r[0]);netMirror('h'+r[0],r,a.h&&a.h.find(q=>q[0]===r[0]),f);}
   for(const [id,m] of NET.mir)if(!seen.has(id)){scene.remove(m.mesh);NET.mir.delete(id);}NET.mirList=[...NET.mir.values()].filter(m=>m.type);}
