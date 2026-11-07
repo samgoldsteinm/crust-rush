@@ -212,17 +212,23 @@ try{renderer=new THREE.WebGLRenderer({canvas:cvs,antialias:Q0==='fast'||CFG.post
 catch(e){fail('This device could not start 3D graphics (WebGL).');return;}
 const QUAL={fast:{mp:1.1,cap:1.25,start:1,floor:.85,sm:1024,soft:false,detail:1100,note:'Lower resolution and no glow pass, for the smoothest frame rate on older phones.'},
   balanced:{mp:2.1,cap:1.75,start:1.5,floor:1.0,sm:2048,soft:true,detail:1500,note:'Crisp detail with glow and colour grading at a steady 60 fps. Best for most phones.'},
-  ultra:{mp:6.2,cap:2.5,start:2,floor:1.25,sm:6144,sx:150,bloomHalf:true,soft:true,detail:3000,ms:4,hqAll:true,note:'For computers: full resolution on big screens, every racer in high detail, 4× anti-aliasing and the longest view distance.'},
+  ultra:{mp:6.2,cap:2.5,start:2,floor:1.25,sm:6144,sx:150,bloomHalf:true,soft:true,detail:3600,ms:4,hqAll:true,ss:[1,1.25,1.5],lodf:170,streaks:true,note:'For computers: every racer and building in high detail, ambient occlusion, 4× anti-aliasing and the longest view. When your graphics card has room to spare it also renders above screen resolution for extra clarity.'},
+  /* phone Ultra: the high-detail models, set pieces, surface detail and livery finish of PC Ultra, but tuned for a phone GPU:
+     no ambient-occlusion pass, a 4096 shadow map, half-resolution glow, a smaller pixel budget and a shorter view than the PC preset */
+  ultraM:{mp:3.6,cap:2.5,start:2,floor:1.5,sm:4096,sx:125,bloomHalf:true,soft:true,detail:2600,hqAll:true,mob:true,lodf:130,streaks:true,note:'For the newest phones: rounded, high-detail scenery and set pieces, surface detail, richer paint and real reflections on your kart, tuned to hold 60 fps. Sharp stays the safe choice for long sessions.'},
   sharp:{mp:3.3,cap:2.25,start:2,floor:1.5,sm:4096,soft:true,detail:2100,note:'Highest resolution and the longest scenery distance. Best on newer phones and computers.'}};
 /* a browser with graphics acceleration switched off draws WebGL on the processor, which is many times slower */
 const GLR=(()=>{try{const gl=renderer.getContext();const e=gl.getExtension('WEBGL_debug_renderer_info');return String(gl.getParameter(e?e.UNMASKED_RENDERER_WEBGL:gl.RENDERER)||'');}catch(e){return '';}})();
 const SOFTGL=/swiftshader|llvmpipe|softpipe|software|basic render/i.test(GLR);
-let qKey=store.get('crust-q')||(SOFTGL?'fast':COARSE?'balanced':'ultra');if(!QUAL[qKey]||qKey==='ultra'&&COARSE)qKey='balanced';
+let qKey=store.get('crust-q')||(SOFTGL?'fast':COARSE?'balanced':'ultra');if(qKey==='ultraM'&&!COARSE)qKey='ultra';/* a phone's Ultra on a computer becomes the computer's Ultra */if(!QUAL[qKey]||qKey==='ultra'&&COARSE)qKey='balanced';
 const DPR=window.devicePixelRatio||1;let pr=Math.min(DPR,QUAL[qKey].start),capPR=Math.min(DPR,QUAL[qKey].cap);
 renderer.setPixelRatio(pr);
 renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=QUAL[qKey].soft?THREE.PCFSoftShadowMap:THREE.PCFShadowMap;
 const maxAniso=Math.min(16,renderer.capabilities.getMaxAnisotropy());
+/* shadows fade out over the last few percent of the sun's shadow box instead of stopping on a hard line on the road ahead
+   (a few ALU ops per shadowed pixel, every preset) */
+try{const C=THREE.ShaderChunk,k='shadowmap_pars_fragment',a='\t\t}\n\t\treturn shadow;\n\t}\n\tvec2 cubeToUV';if(C[k].indexOf(a)>=0)C[k]=C[k].replace(a,'\t\t}\n\t\tshadow=mix(1.0,shadow,smoothstep(0.0,0.07,min(min(shadowCoord.x,1.0-shadowCoord.x),min(shadowCoord.y,1.0-shadowCoord.y))));\n\t\treturn shadow;\n\t}\n\tvec2 cubeToUV');}catch(e){}
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(60,16/9,1.6,22000);
 const hemi=new THREE.HemisphereLight('#ffffff','#444444',.7);scene.add(hemi);
@@ -368,7 +374,11 @@ function roadMaterial(id,dark){const sd=ROAD_SURF[id],p=paintSurf(id,dark);
   for(const t of [map,nm,rm]){t.wrapS=THREE.ClampToEdgeWrapping;t.wrapT=THREE.RepeatWrapping;}
   const o={map,normalMap:nm,normalScale:new THREE.Vector2(sd.ns,sd.ns),roughnessMap:rm,roughness:Math.min(1,sd.rough*1.6),metalness:0,envMapIntensity:id==='ice'||id==='marble'?.7:.5,vertexColors:true};
   const m=sd.phys?new THREE.MeshPhysicalMaterial(Object.assign(o,{clearcoat:id==='ice'?.6:.5,clearcoatRoughness:id==='ice'?.08:.12})):new THREE.MeshStandardMaterial(o);
-  if(qKey==='fast'){m.normalMap=null;}else grainify(m,sd.grain,3.0);return m;}
+  if(qKey==='fast'){m.normalMap=null;}else grainify(m,sd.grain,3.0);
+  /* Ultra: fade the paving's fine relief with distance. Cobbles and planks otherwise turn into a shimmering high-frequency
+     pattern far down the road; near the kart the full relief stays */
+  if(QUAL[qKey].hqAll&&m.normalMap){const g0=m.onBeforeCompile,k0=m.customProgramCacheKey();m.onBeforeCompile=sh=>{g0(sh);sh.fragmentShader=sh.fragmentShader.replace('vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;','vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;mapN.xy*=mix(1.,.3,smoothstep(90.,700.,length(vViewPosition)));');};m.customProgramCacheKey=()=>k0+'|rdHQ';}
+  return m;}
 /* road built in sections of different paving; vertex colours carry large-scale tone and edge occlusion */
 function buildRoad(def,SJ0,SJ1){if(def.arena){strip(SJ0,SJ1,-RW,RW,.06,arenaRoadMat(),RW*2,false);ROAD_SEGS=[{a:SJ0,b:SJ1,id:'asphalt'}];return ROAD_SEGS;}const pal=ROAD_THEME[def.theme]||ROAD_THEME.kitchen,h=hashStr(def.id||def.name||'x'),span=SJ1-SJ0;
   const order=[0,1,2].map(i=>pal[(i+h)%pal.length]);const cuts=[SJ0,SJ0+Math.round(span*(.34+((h>>4)%10)*.012)),SJ0+Math.round(span*(.68+((h>>8)%10)*.01)),SJ1];
@@ -437,7 +447,8 @@ function ultraDetail0(def){const R=mrand(90210+(MAPS.indexOf(def)+1)*131),th=def
   const keepOff=(x,z,pad)=>{if(nearTrack(x,z,CURB+pad))return true;for(const sc of SHORTS){const W=(sc.w||SCW)+pad;for(let i=0;i<sc.pts.length;i+=2){const p=sc.pts[i];if((p.x-x)**2+(p.y-z)**2<W*W)return true;}}
     if(PITS.length&&pitAt(x,z)>2)return true;if(WATER_Y!=null&&groundAt(x,z)<WATER_Y+.5)return true;return x*x+z*z>(def.R*.97)**2;};
   const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),e=new THREE.Euler(),v=new THREE.Vector3(),sv=new THREE.Vector3();
-  const spots=(n,near,far,pad)=>{const out=[];let guard=n*6;while(out.length<n&&guard-->0){const p=track[Math.floor(R()*N)],sd=R()<.5?-1:1,off=(CURB+pad+near+Math.pow(R(),1.6)*(far-near))*sd,al=(R()-.5)*30;
+  const DEN=QUAL[qKey].mob?.45:1;/* phone Ultra scatters 60% as many extra props (its own random stream, so nothing else moves) */
+  const spots=(n,near,far,pad)=>{n=Math.round(n*DEN);const out=[];let guard=n*6;while(out.length<n&&guard-->0){const p=track[Math.floor(R()*N)],sd=R()<.5?-1:1,off=(CURB+pad+near+Math.pow(R(),1.6)*(far-near))*sd,al=(R()-.5)*30;
       const x=p.x+p.nx*off+p.tx*al,z=p.y+p.ny*off+p.ty*al;if(keepOff(x,z,pad))continue;out.push([x,z]);}return out;};
   const place=(geo,mat,pts,size,opt)=>{opt=opt||{};const items=pts.map(([x,z])=>{const s=size[0]+R()*(size[1]-size[0]);
       m4.compose(v.set(x,opt.y||0,z),q.setFromEuler(e.set((R()-.5)*(opt.tilt||0),R()*6.283,(R()-.5)*(opt.tilt||0))),sv.set(s*(opt.sx||1)*(.8+R()*.4),s*(opt.sy||1),s*(opt.sz||1)*(.8+R()*.4)));
@@ -475,7 +486,7 @@ function ultraDetail0(def){const R=mrand(90210+(MAPS.indexOf(def)+1)*131),th=def
   }}
 function forest(list,y,snow,rng,hq,tint){/* list: [name,x,z,scale,rot] */const rr=rng||rnd;const by={};for(const t of list)(by[t[0]]=by[t[0]]||[]).push(t);
   const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),e=new THREE.Euler(),v=new THREE.Vector3(),sc=new THREE.Vector3();
-  const U=QUAL[qKey].hqAll;for(const name in by){const ln=!(hq??U)&&PROP_PACKS[name+'_lo']?name+'_lo':name,g0=propGeos(ln)[ln];let g=g0;if(tint){g=g0.clone();const ca=g.attributes.color;for(let i=0;i<ca.count;i++)ca.setXYZ(i,ca.getX(i)*tint[0],ca.getY(i)*tint[1],ca.getZ(i)*tint[2]);}if(snow){g=g===g0?g0.clone():g;const ca=g.attributes.color,na=g.attributes.normal;for(let i=0;i<ca.count;i++){const k=Math.min(1,Math.max(0,(na.getY(i)-.25)*2))*snow;ca.setXYZ(i,ca.getX(i)+(.92-ca.getX(i))*k,ca.getY(i)+(.95-ca.getY(i))*k,ca.getZ(i)+(1-ca.getZ(i))*k);}}
+  const U=QUAL[qKey].hqAll&&!QUAL[qKey].mob;/* phone Ultra keeps the lighter tree and rock models */for(const name in by){const ln=!(hq??U)&&PROP_PACKS[name+'_lo']?name+'_lo':name,g0=propGeos(ln)[ln];let g=g0;if(tint){g=g0.clone();const ca=g.attributes.color;for(let i=0;i<ca.count;i++)ca.setXYZ(i,ca.getX(i)*tint[0],ca.getY(i)*tint[1],ca.getZ(i)*tint[2]);}if(snow){g=g===g0?g0.clone():g;const ca=g.attributes.color,na=g.attributes.normal;for(let i=0;i<ca.count;i++){const k=Math.min(1,Math.max(0,(na.getY(i)-.25)*2))*snow;ca.setXYZ(i,ca.getX(i)+(.92-ca.getX(i))*k,ca.getY(i)+(.95-ca.getY(i))*k,ca.getZ(i)+(1-ca.getZ(i))*k);}}
     const L=by[name],im=new THREE.InstancedMesh(g,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.85}),L.length);
     L.forEach((t,i)=>{q.setFromEuler(e.set(0,t[4]??rr()*6.28,0));m4.compose(v.set(t[1],t[5]??(typeof y==='function'?y(t[1],t[2]):y),t[2]),q,sc.set(t[3],t[3]*(.9+rr()*.25),t[3]));im.setMatrixAt(i,m4);});
     im.castShadow=!!U;im.receiveShadow=false;im.userData.noLift=true;world.add(im);}}
@@ -568,6 +579,11 @@ const KG={};
   KG.pan=new THREE.BoxGeometry(9.4,.4,5.3);KG.pod=new THREE.CapsuleGeometry(.58,3.4,8,16);KG.bumper=new THREE.CapsuleGeometry(.42,5.4,8,16);
   KG.grille=new THREE.BoxGeometry(.25,.62,2.3);KG.bar=new THREE.BoxGeometry(.3,.08,2.2);
   KG.post=new THREE.BoxGeometry(.28,1.7,.28);KG.wing=new THREE.BoxGeometry(1.9,.22,5.9);KG.wingEnd=new THREE.BoxGeometry(2.1,1.2,.18);
+  /* HQ rear wing: a cambered aerofoil (rounded leading edge, thin trailing edge) and endplates with radiused corners */
+  {const f=new THREE.Shape();f.moveTo(.95,.01);f.bezierCurveTo(.96,.13,.62,.2,.2,.19);f.bezierCurveTo(-.38,.17,-.78,.08,-.95,.03);f.lineTo(-.95,-.01);f.bezierCurveTo(-.6,-.04,-.1,-.08,.4,-.08);f.bezierCurveTo(.8,-.07,.95,-.06,.95,.01);
+   KG.wingHQ=new THREE.ExtrudeGeometry(f,{depth:5.74,bevelEnabled:true,bevelThickness:.04,bevelSize:.03,bevelSegments:2,curveSegments:10});KG.wingHQ.translate(0,0,-2.87);
+   const e=new THREE.Shape();/* swept endplate: raked leading edge, rounded corners */e.moveTo(-1.05,-.45);e.quadraticCurveTo(-1.05,-.6,-.88,-.6);e.lineTo(.82,-.6);e.quadraticCurveTo(1.02,-.6,.95,-.42);e.lineTo(.42,.48);e.quadraticCurveTo(.35,.6,.2,.6);e.lineTo(-.82,.6);e.quadraticCurveTo(-1.05,.6,-1.05,.38);e.lineTo(-1.05,-.45);
+   KG.wingEndHQ=new THREE.ExtrudeGeometry(e,{depth:.12,bevelEnabled:true,bevelThickness:.03,bevelSize:.03,bevelSegments:2,curveSegments:8});KG.wingEndHQ.translate(0,0,-.06);}
   KG.engine=new THREE.BoxGeometry(1.8,1.2,2.6);KG.fin=new THREE.BoxGeometry(1.6,.1,2.7);KG.scoop=new THREE.BoxGeometry(1.3,.7,1.1);
   KG.pipe=new THREE.CylinderGeometry(.32,.42,1.9,18,1,true);KG.pipeIn=new THREE.CircleGeometry(.31,18);KG.pipeRing=new THREE.TorusGeometry(.4,.07,8,18);
   KG.seat=new THREE.BoxGeometry(1.1,2.3,2.8);KG.headrest=new THREE.CapsuleGeometry(.45,1.3,6,12);
@@ -577,7 +593,11 @@ const KG={};
   KG.axle=new THREE.CylinderGeometry(.16,.16,5.6,10);KG.spring=new THREE.TorusGeometry(.28,.06,6,14);KG.rod=new THREE.CylinderGeometry(.07,.07,1,6);
   const tp=[[.72,-.72],[1.1,-.72],[1.26,-.62],[1.32,-.35],[1.32,.35],[1.26,.62],[1.1,.72],[.72,.72]].map(([x,y])=>new THREE.Vector2(x,y));
   KG.tire=faceOut(new THREE.LatheGeometry(tp,36));KG.tread=new THREE.TorusGeometry(1.3,.05,4,36);
-  KG.rim=new THREE.CylinderGeometry(.74,.74,1.2,28);KG.spoke=new THREE.BoxGeometry(.16,.62,.14);KG.hub=new THREE.CylinderGeometry(.22,.26,1.48,14);KG.disc=new THREE.CylinderGeometry(.62,.62,.1,24);
+  KG.rim=new THREE.CylinderGeometry(.74,.74,1.2,28);
+  /* high-detail wheel parts (HQ builds only): a dished rim with a rolled lip and a recessed face, lug nuts and a centre cap */
+  {const rp=[[.0,.34],[.28,.37],[.58,.45],[.68,.56],[.76,.6],[.79,.55],[.72,.5],[.71,-.52],[.78,-.56],[.77,-.61],[.64,-.58],[.0,-.56]].map(([x,y])=>new THREE.Vector2(x,y));
+   const a=faceOut(new THREE.LatheGeometry(rp,32)),b=a.clone();b.scale(1,-1,1);b.index.array.reverse?b.index.array.reverse():0;b.computeVertexNormals();KG.rimHQ=[a,faceOut(b)];
+   KG.lug=new THREE.CylinderGeometry(.055,.065,.1,6);KG.cap=new THREE.SphereGeometry(.17,14,8,0,Math.PI*2,0,Math.PI/2);KG.spokeHQ=new THREE.CylinderGeometry(.06,.1,.5,6);}KG.spoke=new THREE.BoxGeometry(.16,.62,.14);KG.hub=new THREE.CylinderGeometry(.22,.26,1.48,14);KG.disc=new THREE.CylinderGeometry(.62,.62,.1,24);
   const sl=new THREE.Shape();sl.moveTo(-2.4,0);sl.lineTo(2.4,0);sl.lineTo(.18,6.1);sl.quadraticCurveTo(0,6.45,-.18,6.1);sl.closePath();
   KG.slice=new THREE.ExtrudeGeometry(sl,{depth:.9,bevelEnabled:true,bevelThickness:.3,bevelSize:.3,bevelSegments:4,curveSegments:10});KG.slice.translate(0,0,-.45);
   KG.crust=new THREE.CapsuleGeometry(.85,4.6,10,20);KG.eye=new THREE.SphereGeometry(.56,24,16);KG.iris=new THREE.SphereGeometry(.34,18,12);KG.pupil=new THREE.SphereGeometry(.19,14,10);KG.shine=new THREE.SphereGeometry(.09,8,6);
@@ -704,9 +724,12 @@ function buildWheel(type,side,M){const wd=WHEELS.find(w=>w.id===type);if(wd&&wd.
   else if(type==='pepperoni'){hrx(P3(KG.tire,SH.rubber,0,0,0,W));for(const s of [-1,1])P3(KG.tread,SH.rubber,0,0,s*.36,W).scale.set(1.005,1.005,1);
     for(const s of [-1,1]){const f=P3(pepFace(),pepFaceMat(),0,0,s*.7,W);if(s<0)f.rotation.y=Math.PI;}hrx(P3(KG.hub,SH.chrome,0,0,0,W)).scale.set(.7,1.02,.7);}
   else{const t=hrx(P3(KG.tire,SH.rubber,0,0,0,W));
-    if(type==='standard'){for(const s of [-1,1])P3(KG.tread,SH.rubber,0,0,s*.36,W).scale.set(1.005,1.005,1);hrx(P3(KG.rim,M.dark,0,0,0,W));
-      for(let i=0;i<5;i++){const a=i*Math.PI*2/5,sp=P3(KG.spoke,M.paint,Math.cos(a)*.36,Math.sin(a)*.36,side*.58,W);sp.rotation.z=a-Math.PI/2;}}
-    else if(type==='slick'){P3(KG.slickRing,M.stripe,0,0,side*.66,W);hrx(P3(KG.rim,SH.chrome,0,0,0,W));
+    if(type==='standard'){for(const s of [-1,1])P3(KG.tread,SH.rubber,0,0,s*.36,W).scale.set(1.005,1.005,1);
+      if(HQB){hrx(P3(KG.rimHQ[side>0?0:1],M.dark,0,0,0,W));for(let i=0;i<5;i++){const a=i*Math.PI*2/5,sp=P3(KG.spokeHQ,M.paint,Math.cos(a)*.42,Math.sin(a)*.42,side*.43,W);sp.rotation.z=a-Math.PI/2;
+          hrx(P3(KG.lug,SH.chrome,Math.cos(a+.63)*.2,Math.sin(a+.63)*.2,side*.4,W));}const c=P3(KG.cap,SH.chrome,0,0,side*.4,W);c.rotation.x=side*Math.PI/2;}
+      else{hrx(P3(KG.rim,M.dark,0,0,0,W));
+      for(let i=0;i<5;i++){const a=i*Math.PI*2/5,sp=P3(KG.spoke,M.paint,Math.cos(a)*.36,Math.sin(a)*.36,side*.58,W);sp.rotation.z=a-Math.PI/2;}}}
+    else if(type==='slick'){P3(KG.slickRing,M.stripe,0,0,side*.66,W);hrx(P3(HQB?KG.rimHQ[side>0?0:1]:KG.rim,SH.chrome,0,0,0,W));if(HQB){const c=P3(KG.cap,M.stripe,0,0,side*.4,W);c.rotation.x=side*Math.PI/2;}
       for(let i=0;i<6;i++){const a=i*Math.PI/3,sp=P3(KG.spoke,SH.metal,Math.cos(a)*.36,Math.sin(a)*.36,side*.58,W);sp.rotation.z=a-Math.PI/2;sp.scale.set(.6,1,1);}}
     else if(type==='monster'){for(let i=0;i<18;i++){const a=i/18*Math.PI*2,k=P3(KG.knob,SH.rubber,Math.cos(a)*1.36,Math.sin(a)*1.36,(i%2?.12:-.12),W);k.rotation.z=a;}
       hrx(P3(KG.rim,SH.black,0,0,0,W));for(let i=0;i<6;i++){const a=i*Math.PI/3;hrx(P3(KG.bolt,SH.chrome,Math.cos(a)*.45,Math.sin(a)*.45,side*.62,W));}}
@@ -854,7 +877,7 @@ const BODY_FN={
   classic(S,M,rc,idx){
     P3(KG.body,M.paint,0,0,0,S);P3(KG.stripe,M.stripe,0,0,0,S);P3(KG.pan,SH.carbon,0,.75,0,S);
     for(const s of [-1,1]){hrz(P3(KG.pod,M.dark,-.2,1.35,2.6*s,S));
-      P3(KG.post,SH.metal,-3.7,3.6,1.6*s,S);P3(KG.wingEnd,M.dark,-3.95,4.45,2.95*s,S);
+      P3(KG.post,SH.metal,-3.7,3.6,1.6*s,S);P3(HQB?KG.wingEndHQ:KG.wingEnd,M.dark,-3.95,4.45,2.95*s,S);
       P3(KG.tail,M.tailM,-4.33,2.15,1.35*s,S);
       limb(KG.stalk,SH.carbon,[1.0,2.6,1.85*s],[1.25,3.3,2.45*s],S);P3(KG.mirror,M.dark,1.25,3.38,2.5*s,S);P3(KG.glassM,SH.lens,1.1,3.38,2.5*s,S);
       limb(KG.rod,SH.metal,[2.5,1.2,1.6*s],[3.15,1.05,2.2*s],S);limb(KG.rod,SH.metal,[2.5,1.75,1.6*s],[3.15,1.35,2.2*s],S);
@@ -863,7 +886,7 @@ const BODY_FN={
     lightPair(S,4.86,1.62,1.35);
     hrx(P3(KG.axle,SH.metal,-2.95,1.32,0,S));hrx(P3(KG.bumper,SH.carbon,5.08,.95,0,S));
     P3(KG.grille,SH.black,4.98,1.28,0,S);for(let i=0;i<3;i++)P3(KG.bar,SH.chrome,5.05,1.1+i*.18,0,S);
-    P3(KG.wing,M.paint,-3.95,4.5,0,S).rotation.z=.12;
+    P3(HQB?KG.wingHQ:KG.wing,M.paint,-3.95,4.5,0,S).rotation.z=.12;
     P3(KG.engine,SH.metal,-3.2,3.45,0,S);for(let i=0;i<4;i++)P3(KG.fin,SH.chrome,-3.2,3.75+i*.18,0,S).scale.set(1-i*.08,1,1);
     P3(KG.scoop,M.dark,-2.55,4.35,0,S);P3(KG.seat,SH.seat,-1.75,3.6,0,S);hrx(P3(KG.headrest,SH.seat,-1.95,5.0,0,S));
     addPlates(S,M,idx,rc,[[-.2,1.38,3.2]]);
@@ -2185,7 +2208,7 @@ const HQG=(()=>{const O={};for(const k of ['BoxGeometry','CylinderGeometry','Sph
         P.x=s[0]*B[0]+q[0]*r;P.y=s[1]*B[1]+q[1]*r;P.z=s[2]*B[2]+q[2]*r;pa.setXYZ(i,P.x,P.y,P.z);na.setXYZ(i,q[0],q[1],q[2]);
         const pl=PL[Math.min(5,Math.floor(i/per))],W=D[pl[4]],H=D[pl[5]];ua.setXY(i,(P[pl[0]]*pl[2]+W/2)/W,1-(P[pl[1]]*pl[3]+H/2)/H);}
       this.parameters={width:w,height:h,depth:d,widthSegments:ws,heightSegments:hs,depthSegments:ds};}}
-  let LITE=false;const segUp=(s,min,lim)=>s>=lim?Math.max(s,LITE?Math.min(min,Math.max(s,Math.round(min*.55))):min):s;
+  let LITE=false,LITEB=false;const segUp=(s,min,lim)=>s>=lim?Math.max(s,LITE?Math.min(min,Math.max(s,Math.round(min*.55))):min):s;
   /* a closed cylinder with rounded rims: the side keeps group 0, and each rim curls into its cap (groups 1 and 2) so a printed top (pepperoni, coins, lids) wraps over the edge */
   function bevelCyl(g,rt,rb,h,rs,b){const A=LITE?2:3,pos=[],nor=[],uv=[],idx=[],sl=(rb-rt)/h,sn=Math.hypot(1,sl),SN=[1/sn,sl/sn];
     const ring=(r,y,nr,ny,ux,vv)=>{const s=pos.length/3;for(let i=0;i<=rs;i++){const t=i/rs*TAU,si=Math.sin(t),co=Math.cos(t);pos.push(r*si,y,r*co);nor.push(nr*si,ny,nr*co);uv.push(ux==null?i/rs:ux(si,co,r),vv==null?0:vv);}return s;};
@@ -2233,7 +2256,7 @@ const HQG=(()=>{const O={};for(const k of ['BoxGeometry','CylinderGeometry','Sph
     else if(T==='TorusGeometry'&&(p.radialSegments>10||p.tubularSegments>32))n=new O.TorusGeometry(p.radius,p.tube,Math.min(10,p.radialSegments),Math.min(32,p.tubularSegments),p.arc);
     else if(T==='ConeGeometry'&&p.radialSegments>20)n=new O.ConeGeometry(p.radius,p.height,20,p.heightSegments,p.openEnded,p.thetaStart,p.thetaLength);
     if(n){g.dispose();return n;}return g;}
-  return {on(){if(depth++===0)Object.assign(THREE,H);},off(){if(depth>0&&--depth===0){paused=0;Object.assign(THREE,O);}},capOn(){if(depth===0&&!capped){capped=true;Object.assign(THREE,C);}},capOff(){if(capped){capped=false;Object.assign(THREE,O);}},pause(){if(depth>0){paused++;Object.assign(THREE,O);}},resume(){if(depth>0&&paused>0&&--paused===0)Object.assign(THREE,H);},set lite(v){LITE=!!v;},get active(){return depth>0&&!paused;},mid,O,H};})();
+  return {on(){if(depth++===0)Object.assign(THREE,H);},off(){if(depth>0&&--depth===0){paused=0;Object.assign(THREE,O);}},capOn(){if(depth===0&&!capped){capped=true;Object.assign(THREE,C);}},capOff(){if(capped){capped=false;Object.assign(THREE,O);}},pause(){if(depth>0){paused++;Object.assign(THREE,O);}},resume(){if(depth>0&&paused>0&&--paused===0)Object.assign(THREE,H);},set lite(v){LITE=!!v||LITEB;},set liteBase(v){LITEB=!!v;LITE=LITEB;},get active(){return depth>0&&!paused;},mid,O,H};})();
 /* ===== Ultra (computers): surface detail on the scenery =====
    one shared shader addition for every lit scenery material: world-space noise gives large surfaces gentle colour variation, foliage leafy mottling,
    bread, crust and wood a porous grain, and stone and paint fine speckle, each with a matching surface bump that fades out with distance.
@@ -2622,11 +2645,28 @@ function chaletHQ_(c){const log=wm('#8a5a30',{roughness:.8}),logD=wm('#6b4222',{
   put(new THREE.PlaneGeometry(36,44),glow,0,250,111,c,false);put(new THREE.BoxGeometry(250,8,46),log,0,150,128,c,false);for(let i=0;i<9;i++)put(new THREE.CylinderGeometry(2.4,2.4,30,10),log,-120+i*30,170,148,c,false);put(new THREE.BoxGeometry(250,5,5),log,0,186,148,c,false);
   put(new THREE.CylinderGeometry(24,28,140,20),stone,70,310,0,c,false);put(new THREE.CylinderGeometry(30,30,10,20),stone,70,382,0,c,false);put(new THREE.CylinderGeometry(31,31,8,20),snow,70,390,0,c,false);}
 function stationHQ(...a){return hqCap(()=>stationHQ_(...a));}
-function stationHQ_(t,P){const wood=wm('#7a5a3a',{roughness:.8}),st=wm('#4a4f58',{metalness:.6,roughness:.4});put(new THREE.BoxGeometry(120,P.y+160,120),wood,0,(P.y+160)/2,0,t,false);
-  for(const sx of [-1,1])for(const sz of [-1,1])put(new THREE.CylinderGeometry(9,9,P.y+160,14),st,sx*64,(P.y+160)/2,sz*64,t,false);
-  put(new THREE.BoxGeometry(270,90,190),wm('#c8261b',{roughness:.5}),0,P.y+200,0,t,false);put(new THREE.BoxGeometry(250,30,170),wm('#28323c',{roughness:.12,metalness:.3}),0,P.y+205,0,t,false);
-  const tri=new THREE.Shape();tri.moveTo(-150,0);tri.lineTo(0,70);tri.lineTo(150,0);tri.closePath();put(new THREE.ExtrudeGeometry(tri,{depth:210,bevelEnabled:true,bevelThickness:4,bevelSize:4,bevelSegments:2}),wm('#f4fbff',{roughness:.7}),0,P.y+245,-105,t,false);
-  const wh=put(new THREE.TorusGeometry(60,6,12,48),st,0,P.y+170,100,t,false);for(let i=0;i<6;i++){const a=i/6*Math.PI*2;vRod(st,[0,P.y+170,100],[Math.cos(a)*60,P.y+170+Math.sin(a)*60,100],t,2);}}
+function stationHQ_(t,P){/* alpine lift station: timber pylon on steel corner posts, a concrete deck, a red timber lodge with ribbon windows,
+   an open bullwheel bay facing the cable, and a snow-loaded gable roof over a dark timber fascia */
+  const wood=wm('#7a5a3a',{roughness:.8}),st=wm('#4a4f58',{metalness:.6,roughness:.4}),red=wm('#b8261a',{roughness:.55}),dk=wm('#3a2618',{roughness:.7}),
+    glass=wm('#2a3a4c',{roughness:.08,metalness:.4}),conc=wm('#9a9ea4',{roughness:.85}),snow=wm('#f4fbff',{roughness:.7}),Y=P.y;
+  put(new THREE.BoxGeometry(120,Y+160,120),wood,0,(Y+160)/2,0,t,false);
+  for(const sx of [-1,1])for(const sz of [-1,1])put(new THREE.CylinderGeometry(9,9,Y+160,14),st,sx*64,(Y+160)/2,sz*64,t,false);
+  put(new THREE.BoxGeometry(300,12,230),conc,0,Y+152,0,t,false);
+  /* lodge: the back two thirds are enclosed, the front third is the open bullwheel bay */
+  put(new THREE.BoxGeometry(270,86,128),red,0,Y+201,-45,t,false);
+  put(new THREE.BoxGeometry(274,24,132),glass,0,Y+214,-45,t,false);
+  for(let i=-3;i<=3;i++)put(new THREE.BoxGeometry(4,26,134),dk,i*44,Y+214,-45,t,false);
+  for(const z of [-111,21])put(new THREE.BoxGeometry(276,6,6),dk,0,Y+201+(z<0?-14:-14),z,t,false);
+  for(const sx of [-1,1]){put(new THREE.BoxGeometry(14,86,14),st,sx*128,Y+201,95,t,false);put(new THREE.BoxGeometry(4,26,90),dk,sx*137,Y+214,60,t,false);}
+  put(new THREE.BoxGeometry(270,16,16),st,0,Y+238,95,t,false);
+  put(new THREE.BoxGeometry(110,24,4),wm('#ffd23a',{roughness:.5}),0,Y+238,104,t,false);put(new THREE.BoxGeometry(116,30,2),dk,0,Y+238,102,t,false);
+  /* roof: dark timber fascia with the snow layer sitting proud on top */
+  const tri=(w,h)=>{const s=new THREE.Shape();s.moveTo(-w,0);s.lineTo(0,h);s.lineTo(w,0);s.closePath();return s;};
+  put(new THREE.ExtrudeGeometry(tri(154,70),{depth:236,bevelEnabled:false}),dk,0,Y+242,-118,t,false);
+  put(new THREE.ExtrudeGeometry(tri(160,74),{depth:244,bevelEnabled:true,bevelThickness:4,bevelSize:4,bevelSegments:2}),snow,0,Y+247,-122,t,false);
+  /* bullwheel with spokes and its axle housing, in the open bay */
+  put(new THREE.TorusGeometry(60,6,12,48),st,0,Y+190,60,t,false);for(let i=0;i<6;i++){const a=i/6*Math.PI*2;vRod(st,[0,Y+190,60],[Math.cos(a)*60,Y+190+Math.sin(a)*60,60],t,2);}
+  const ax=put(new THREE.CylinderGeometry(9,9,40,16),st,0,Y+190,45,t,false);ax.rotation.x=Math.PI/2;}
 function castleHQ(...a){return hqCap(()=>castleHQ_(...a));}
 function castleHQ_(c,ice){const m=ice;for(let i=-5;i<=5;i++)for(const sz of [-1,1])put(new THREE.BoxGeometry(46,46,46),m,i*82,323,sz*250,c,false);for(let i=-2;i<=2;i++)for(const sx of [-1,1])put(new THREE.BoxGeometry(46,46,46),m,sx*450,323,i*96,c,false);
   const glow=new THREE.MeshBasicMaterial({color:'#bfe8ff',toneMapped:false});
@@ -3129,7 +3169,7 @@ function buildDecks(def){if(!MULTI)return;const th=def.theme,W=WALLD+3;
 /* on Ultra the scenery is built with the detailed geometry constructors (see HQG) */
 const HQD={on:false,lite:false};function hqCap(fn){if(!HQD.lite)return fn();HQG.capOn();try{return fn();}finally{HQG.capOff();}}
 /* hand-built set pieces: on for Ultra (full detail) and Sharp (capped detail, baked into few draw calls) */
-function loadMap(mi,rev){const hq=!!(QUAL[qKey]&&QUAL[qKey].hqAll);HQD.on=hq||qKey==='sharp';HQD.lite=HQD.on&&!hq;if(hq)HQG.on();Object.assign(DG,hq?(DGH||(HQG.lite=true,DGH=mkDG(),HQG.lite=false,DGH)):DGL);try{return loadMap0(mi,rev);}finally{if(hq)HQG.off();HQG.capOff();}}
+function loadMap(mi,rev){const hq=!!(QUAL[qKey]&&QUAL[qKey].hqAll);HQD.on=hq||qKey==='sharp';HQD.lite=HQD.on&&!hq;if(hq){HQG.on();HQG.liteBase=!!QUAL[qKey].mob;}/* phone Ultra: rounded, smoother shapes with about half the segments of PC Ultra */Object.assign(DG,hq?(DGH||(HQG.lite=true,DGH=mkDG(),HQG.lite=false,DGH)):DGL);try{return loadMap0(mi,rev);}finally{if(hq){HQG.off();HQG.liteBase=false;}HQG.capOff();}}
 function loadMap0(mi,rev){
   const def=MAPS[mi],th=THEMES[def.theme];seed=1000+mi*7919;CURID=def.id;VAR=Math.max(0,MAPS.filter(m=>m.theme===def.theme).indexOf(def));TUNNEL=null;TUN_RANGE=null;TERR=null;curRev=!!rev;
   T=makeTrack(def,curRev);track=T.pts;N=T.N;RIM=def.R-38;buildGrid();markDecks();
@@ -3668,6 +3708,10 @@ function buildKitchen(R,L1,L2){
 function buildBay(R,L1,L2){
   const wn=T2(waterNormal(),90,90,true);
   const water=put(new THREE.PlaneGeometry(40000,40000),new THREE.MeshStandardMaterial({color:'#157f9b',roughness:.06,metalness:.25,normalMap:wn,normalScale:new THREE.Vector2(.55,.55),envMapIntensity:1.3}),0,-14,0,world,false);water.rotation.x=-Math.PI/2;{const L=VARLOOK[CURID];if(L&&L.water)water.material.color.set(L.water);}
+  /* Ultra (PC and phone): break up the repeating ripple grid on the open sea with a second, rotated, larger-scale ripple sample,
+     and calm the ripples with distance so the horizon reads as smooth water instead of a tiled pattern. One extra texture read on water pixels. */
+  if(QUAL[qKey].hqAll){const wm0=water.material;wm0.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;',
+    'vec2 sUv=mat2(.8,-.6,.6,.8)*vUv*.31+vec2(.37,.11);vec3 mapN=(texture2D(normalMap,vUv).xyz*.55+texture2D(normalMap,sUv).xyz*.45)*2.-1.;mapN.xy*=mix(1.15,.22,smoothstep(500.,7000.,length(vViewPosition)));');};wm0.customProgramCacheKey=()=>'seaHQ';}
   animators.push((t,dt)=>{wn.offset.x+=dt*.01;wn.offset.y+=dt*.006;});
   const sandM=new THREE.MeshStandardMaterial({map:T2(sandTex(),6,6),roughness:.9}),trunkM=wm('#8a6a44',{roughness:.8}),leafM=wm('#2f8a35',{roughness:.5,side:THREE.DoubleSide});
   const leafG=new THREE.SphereGeometry(1,12,6),trunkG=new THREE.CylinderGeometry(4,4.6,1,10),nutG=new THREE.SphereGeometry(5,10,8),nutM=wm('#5a3a1e');
@@ -3757,7 +3801,7 @@ function makeKart(ri,slot,isPlayer,diff,build){
   /* staggered grid across four lanes: every kart has its own row, and the kart directly ahead in your lane starts four rows up */
   const back=5+slot*3,idx=(N-back)%N,p=track[idx],lat=[-30,-10,10,30][slot%4];
   const sk=diff.skill[0]+Math.random()*(diff.skill[1]-diff.skill[0]);
-  const spec={ri,b:build.b,w:build.w,g:build.g,p:build.p,t:build.t||'',hq:(isPlayer||slot===4&&!NET.cfg||QUAL[qKey].hqAll)?1:0,u:build.u||0},m=getModel(spec);m.ga=0;m.gl.visible=false;
+  const spec={ri,b:build.b,w:build.w,g:build.g,p:build.p,t:build.t||'',hq:(isPlayer||slot===4&&!NET.cfg||QUAL[qKey].hqAll&&!QUAL[qKey].mob)?1:0,u:build.u||0},m=getModel(spec);m.ga=0;m.gl.visible=false;
   const k={r:RACERS[ri],ri,m,spec,col:PAINTS[build.p]||RACERS[ri].color,sm:statMods(build),glide:false,gRings:0,x:p.x+p.nx*lat,y:p.y+p.ny*lat,a:p.ang,ma:p.ang,speed:0,steer:0,drift:0,charge:0,boost:0,spin:0,inv:0,z:0,zv:0,pen:1,brake:0,acc:0,sf:2,
     gripT:0,item:null,item2:null,pend:[],roll:0,shield:0,mzH:0,rush:0,frozen:0,idx,prog:idx-N,finished:false,finishTime:0,place:0,isPlayer,auto:!isPlayer,wrongT:0,fx:0,air:false,onRamp:false,trick:false,trickT:0,pd:false,
     ai:{lane:lat,laneTarget:lat,laneT:1+Math.random()*3,skill:sk,itemDelay:0,inBend:false}};
@@ -3772,12 +3816,25 @@ function resetRace(demo){
   const keep=new Set(karts.map(k=>k.m));modelCache.forEach(m=>{m.g.visible=keep.has(m);});pruneModels(keep);
   {const me=demo?null:(karts.find(k=>k.isPlayer)||karts[4]);player=me;camT=me||karts[4];}
   for(const k of karts){if(k.cutM)k.cutM.forEach(m=>scene.remove(m));if(k.held)dropHeld(k);}if(typeof sauceFx==='function'&&_sauceEl)sauceFx(false);projectiles.forEach(p=>scene.remove(p.mesh));hazards.forEach(h=>scene.remove(h.mesh));projectiles=[];hazards=[];
-  boxes.forEach(b=>b.r=0);resetHazards();raceTime=0;WHEEL_N=0;WHEEL_AT=-99;POPS.forEach(q=>scene.remove(q.m));POPS.length=0;finishCount=0;lapShown=1;resultsAt=0;cam.a=camT.ma;camSnap=true;acc=0;camera.up.set(0,1,0);standCache=standings();
-  if(ladPending!=null){applyLad(ladPending,true);ladPending=null;}
+  boxes.forEach(b=>b.r=0);resetHazards();raceTime=0;WHEEL_N=0;WHEEL_AT=-99;BUMPT.clear();POPS.forEach(q=>scene.remove(q.m));POPS.length=0;finishCount=0;lapShown=1;resultsAt=0;cam.a=camT.ma;camSnap=true;acc=0;camera.up.set(0,1,0);standCache=standings();
+  if(ladPending!=null){applyLad(ladPending,true);ladPending=null;}if(ssPending!=null){applySS(ssPending);ssPending=null;fit();}
   warmScene();
 }
 /* upload every texture and buffer and compile every shader before the lights go green, so nothing hitches the first time it scrolls into view */
 let _warmG=null;
+/* Ultra reflection probe: once per race load, render the real map around an open stretch of road into a small cube map,
+   prefilter it, and use it for the karts' own paint and trim. Car paint then reflects the actual sky, horizon and scenery of each map.
+   No per-frame cost (six 256px renders at load); the world keeps its designed environment, the garage keeps its own. */
+let ENVP=null;
+function envProbe(){if(ENVP){try{ENVP.dispose();}catch(e){}ENVP=null;}if(!QUAL[qKey].hqAll||!world||!renderer.capabilities.isWebGL2)return applyEnvProbe();
+  try{const bad=j=>{if(TUN_RANGE&&((j-TUN_RANGE[0]+N)%N)<TUN_RANGE[1]+30)return true;if((window.__hallJ||[]).some(h=>{const d=Math.abs(h-j)%N;return Math.min(d,N-d)<40;}))return true;if(typeof loopNear==='function'&&loopNear(j,40))return true;if(MULTI&&isDeck(j))return true;if(GLIDE&&j>GLIDE.rj-20&&j<GLIDE.j1+20)return true;return false;};
+    let j=Math.floor(N*.5);for(const f of [.5,.3,.7,.15,.85,.6,.4]){const c=Math.floor(N*f);if(!bad(c)){j=c;break;}}
+    const q=track[j],gy=groundAt(q.x,q.y)+(q.ey||0),rt=new THREE.WebGLCubeRenderTarget(256),cc=new THREE.CubeCamera(2,30000,rt);cc.position.set(q.x,gy+22,q.y);scene.add(cc);
+    const hid=[];for(const k of karts){if(k.m&&k.m.g.visible){k.m.g.visible=false;hid.push(k.m.g);}}const au=renderer.shadowMap.autoUpdate;renderer.shadowMap.autoUpdate=false;
+    try{cc.update(renderer,scene);}finally{renderer.shadowMap.autoUpdate=au;hid.forEach(g=>g.visible=true);scene.remove(cc);}
+    const pm=new THREE.PMREMGenerator(renderer);ENVP=pm.fromCubemap(rt.texture).texture;pm.dispose();rt.dispose();}catch(e){console.warn('probe',e);ENVP=null;}
+  applyEnvProbe();}
+function applyEnvProbe(){for(const k of karts){if(!k.m)continue;k.m.g.traverse(o=>{if(!o.isMesh||!o.material)return;for(const m of (Array.isArray(o.material)?o.material:[o.material])){if(!m.isMeshStandardMaterial||SHSET.has(m)||m.userData.shared)continue;const t=ENVP||null;if(m.envMap!==t){m.envMap=t;m.needsUpdate=true;}}});}}
 function warmScene(){try{if(!_warmG){_warmG=new THREE.Group();for(const k of Object.keys(ITEM_BUILD)){try{_warmG.add(itemProto(k).clone());}catch(e){}}for(const k in ITEM_GLOW){const sp=new THREE.Sprite(glowMat(ITEM_GLOW[k]));sp.scale.setScalar(4);_warmG.add(sp);}}
   scene.add(_warmG);const saved=[];scene.traverse(o=>{saved.push(o,o.visible,o.frustumCulled);o.visible=true;o.frustumCulled=false;});
   renderer.compile(scene,camera);const sm=renderer.shadowMap.autoUpdate;renderer.shadowMap.needsUpdate=true;
@@ -4038,7 +4095,7 @@ function hitBy(p){const it=PROJ_ITEM[p.type];if(!it||!player)return;padRumble(26
   /* no on-screen callout: the incoming alert already shows what is coming */
   const who=p.owner&&p.owner!==k&&RACERS[p.owner.ri]?RACERS[p.owner.ri].name:'';
 }
-const hitAnims=[];
+const hitAnims=[];const BUMPT=new Map();
 /* a projectile that hits someone does not just vanish: it smashes (a quick swell, then shrinks away) under the hit burst */
 const POPS=[];function projGone(p){if(p.pop&&p.mesh&&POPS.length<12){POPS.push({m:p.mesh,t:0,s:p.mesh.scale.x||1});}else scene.remove(p.mesh);}
 /* an incoming item that reaches the item you are holding behind you hits that instead: both burst where they meet */
@@ -4617,7 +4674,12 @@ function update0(dt){
   for(const k of karts){k.px=k.x;k.py=k.y;k.pa=k.a;k.pma=k.ma;k.pz=k.z;k.pwy=k.wy;k.pth=k.loopTh||0;if(k.netId&&!k.finished){const n=netSteps(k);for(let s2=0;s2<n;s2++){const inp=netInput(k);if(k.rush>0)inp.use=false;stepKart(k,inp,dt);}continue;}const inp=(k.isPlayer&&!k.auto&&!(k.rush>0))?playerInput():aiInput(k,dt);if(k.rush>0)inp.use=false;stepKart(k,inp,dt);}
   for(let i=0;i<karts.length;i++)for(let j=i+1;j<karts.length;j++){const a=karts[i],b=karts[j];if(MULTI&&Math.abs((a.wy||0)-(b.wy||0))>18)continue;const dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;
     if(d2<361&&d2>0&&!a.loop&&!b.loop){const sa2=a.shield>0||a.rush>0,sb2=b.shield>0||b.rush>0;if(sa2&&!sb2)spinOut(b,'garlic');else if(sb2&&!sa2)spinOut(a,'garlic');const d=Math.sqrt(d2),p=(19-d)/2,nx=dx/d,ny=dy/d,wa=a.sm.wgt,wb=b.sm.wgt,ra=1.6*wb/(wa+wb),rb=1.6*wa/(wa+wb);a.x-=nx*p*ra;a.y-=ny*p*ra;b.x+=nx*p*rb;b.y+=ny*p*rb;if(wa>wb*1.15)b.speed*=.992;else if(wb>wa*1.15)a.speed*=.992;
-      if(a.boost>0&&b.boost<=0)b.speed*=.97;else if(b.boost>0&&a.boost<=0)a.speed*=.97;}}
+      if(a.boost>0&&b.boost<=0)b.speed*=.97;else if(b.boost>0&&a.boost<=0)a.speed*=.97;
+      /* contact feedback (visual only: local particles, no effect on the simulation): sparks where two karts meet with real closing speed */
+      {const cl=(Math.cos(a.ma)*a.speed-Math.cos(b.ma)*b.speed)*nx+(Math.sin(a.ma)*a.speed-Math.sin(b.ma)*b.speed)*ny,key=i*64+j;
+        if(cl>28&&!NET.replay&&simTime-(BUMPT.get(key)||-9)>.45){BUMPT.set(key,simTime);const mx=(a.x+b.x)/2,my=(a.y+b.y)/2,gy=((a.wy||0)+(b.wy||0))/2+3.5,n0=Math.min(14,6+cl/12|0);
+          for(let q=0;q<n0;q++){const an=Math.random()*6.283,sp=40+Math.random()*70;FXA.spawn(mx,gy,my,Math.cos(an)*sp+ny*30*(Math.random()-.5),15+Math.random()*45,Math.sin(an)*sp-nx*30*(Math.random()-.5),q%3?'#ffd36b':'#ffffff',1.7,.3,.22,90,1);}
+          FXA.spawn(mx,gy,my,0,0,0,'#fff2c8',9,3,.12,0,0);if(a===camT||b===camT){shake(.22);SFX.bump(.55);}else{const v=Math.max(near(a),near(b));if(v>0)SFX.bump(v*.5);}}}}}
   for(const b of boxes){if(b.r>0){b.r-=dt;continue;}for(const k of karts){if((k.x-b.x)**2+(k.y-b.y)**2<270&&(!MULTI||Math.abs((k.wy||0)-b.gy)<18)){b.r=4;burst(b.x,6,b.y,26,['#ffe066','#e0452c','#fff4dc','#7fd0ff'],60,2.4);
     const cap=2-(k.item?1:0)-(k.item2?1:0)-(k.held?1:0)-k.pend.length,give=Math.min(cap,b.dbl?2:1);for(let g2=0;g2<give;g2++)k.pend.push(rollItem(standCache.indexOf(k)));if(give>0&&k.roll<=0)k.roll=isHuman(k)?1.1:.5;boxFx(b,k);break;}}}
   /* two items from different racers that meet cancel out, so a slice dropped behind you can stop whatever is chasing you */
@@ -4911,7 +4973,7 @@ async function goRace(mi){if(raceLoading)return;if(NET.role&&!NET.fromNet){if(NE
     BASE_MAX=BASE0*CLASSES[clsKey].mul;startRace();state='loading';await step(78,'Firing up the oven…');
     /* draw a few real frames at full size so every shader, texture, shadow and glow buffer is ready before the lights */
     try{const wg=new THREE.Group();for(const kk of ITEM_KEYS){try{const o=itemProto(kk);if(o)wg.add(o.clone());}catch(e){}}scene.add(wg);renderer.compile(scene,camera);scene.remove(wg);}catch(e){}
-    try{mergeWorld();}catch(e){console.warn('merge',e);}try{HQS.apply();}catch(e){console.warn('hq',e);}warmScene();
+    try{mergeWorld();}catch(e){console.warn('merge',e);}try{HQS.apply();}catch(e){console.warn('hq',e);}try{envProbe();}catch(e){}warmScene();
     fit();for(let i=0;i<3;i++){render(0,1/60);renderer.shadowMap.needsUpdate=true;try{if(qKey!=='fast')postRender();else{renderer.setRenderTarget(null);renderer.render(scene,camera);}}catch(e){}await paint();}
     await step(100,'Ready!');}catch(e){console.warn('race load',e);}
   perfSum=perfN=perfT=0;slowN=fastN=0;abilityHudFor(selected);if(NET.cfg)netLoaded();else startIntro();last=performance.now();acc=0;
@@ -5260,7 +5322,7 @@ function postInit(){if(POST.qs)return;POST.qs=new THREE.Scene();POST.qc=new THRE
   POST.q=new THREE.Mesh(g);POST.q.frustumCulled=false;POST.qs.add(POST.q);
   POST.M.bright=postMat('uniform sampler2D tex;uniform float thr;uniform vec2 px;varying vec2 vUv;void main(){vec3 c=vec3(0.);for(int i=0;i<4;i++){vec2 o=vec2(i==1||i==3?1.:-1.,i>1?1.:-1.)*px;c+=texture2D(tex,vUv+o).rgb;}c*=.25;float l=dot(c,vec3(.2126,.7152,.0722));c*=smoothstep(thr,thr+.02+(1.-thr)*.5,l);gl_FragColor=vec4(min(c,vec3(8.)),1.);}',{tex:{value:null},thr:{value:.85},px:{value:new THREE.Vector2()}});
   POST.M.blur=postMat('uniform sampler2D tex;uniform vec2 dir;varying vec2 vUv;void main(){vec3 c=texture2D(tex,vUv).rgb*.227027;c+=(texture2D(tex,vUv+dir*1.3846).rgb+texture2D(tex,vUv-dir*1.3846).rgb)*.316216;c+=(texture2D(tex,vUv+dir*3.2308).rgb+texture2D(tex,vUv-dir*3.2308).rgb)*.070270;gl_FragColor=vec4(c,1.);}',{tex:{value:null},dir:{value:new THREE.Vector2()}});
-  POST.M.final=postMat(`uniform sampler2D tex,b1,b2,aoT;uniform float aoOn;uniform float exposure,bloom,sat,con,vig,aspect,edgeA;uniform vec3 tint,edgeC;varying vec2 vUv;
+  POST.M.final=postMat(`uniform sampler2D tex,b1,b2,aoT;uniform float aoOn;uniform float exposure,bloom,sat,con,vig,aspect,edgeA,spd,tm;uniform vec3 tint,edgeC;varying vec2 vUv;
     vec3 RRT(vec3 v){vec3 a=v*(v+.0245786)-.000090537;vec3 b=v*(.983729*v+.4329510)+.238081;return a/b;}
     vec3 aces(vec3 c){const mat3 I=mat3(.59719,.07600,.02840,.35458,.90834,.13383,.04823,.01566,.83777);const mat3 O=mat3(1.60475,-.10208,-.00327,-.53108,1.10813,-.07276,-.07367,-.00605,1.07602);c*=exposure/.6;c=I*c;c=RRT(c);c=O*c;return clamp(c,0.,1.);}
     vec3 srgb(vec3 c){return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(vec3(.0031308),c));}
@@ -5269,7 +5331,10 @@ function postInit(){if(POST.qs)return;POST.qs=new THREE.Scene();POST.qc=new THRE
       vec2 d=(vUv-.5)*vec2(aspect,1.);c*=1.-vig*smoothstep(.35,1.05,length(d));
   /* screen-edge flash (boost, hit, pickup) drawn here instead of as a blurred page layer */
   vec2 e=abs(vUv-.5)*2.;float ed=max(e.x,e.y);c=mix(c,edgeC,edgeA*smoothstep(.62,1.,ed)*(.55+.45*smoothstep(.85,1.,ed)));
-      gl_FragColor=vec4(srgb(c),1.);}`,{tex:{value:null},b1:{value:null},b2:{value:null},exposure:{value:1},bloom:{value:.55},sat:{value:1.08},con:{value:1.06},vig:{value:.28},aspect:{value:1},edgeA:{value:0},edgeC:{value:new THREE.Color()},tint:{value:new THREE.Vector3(1,1,1)},aoT:{value:null},aoOn:{value:0}});
+  /* Ultra: thin speed streaks rushing out from the centre while boosting, kept to the outer frame so the road stays clear */
+  if(spd>.001){vec2 q=(vUv-.5)*vec2(aspect,1.);float r=length(q),an=atan(q.y,q.x),ln=floor(an*48.),n=fract(sin(ln*12.9898)*43758.5453),w=1.-abs(fract(an*48.)-.5)*2.;
+    float run=fract(r*1.3-tm*(2.6+n*1.6)+n*9.),st=step(.7,n)*smoothstep(.55,1.,w)*smoothstep(0.,.18,run)*(1.-smoothstep(.18,.5,run))*smoothstep(.3,.75,r);c=mix(c,vec3(1.),st*spd*.32);}
+      gl_FragColor=vec4(srgb(c),1.);}`,{tex:{value:null},b1:{value:null},b2:{value:null},exposure:{value:1},bloom:{value:.55},sat:{value:1.08},con:{value:1.06},vig:{value:.28},aspect:{value:1},edgeA:{value:0},spd:{value:0},tm:{value:0},edgeC:{value:new THREE.Color()},tint:{value:new THREE.Vector3(1,1,1)},aoT:{value:null},aoOn:{value:0}});
   /* Ultra: screen-space ambient occlusion from the depth buffer (half resolution, then a depth-aware blur): soft contact shading in every corner and crevice */
   POST.M.ao=postMat(`uniform sampler2D tD;uniform mat4 pM,ipM;uniform vec2 px,asp;uniform float rad,inten;varying vec2 vUv;
     vec3 vp(vec2 uv){float d=texture2D(tD,uv).r;vec4 v=ipM*vec4(uv*2.-1.,d*2.-1.,1.);return v.xyz/v.w;}
@@ -5286,7 +5351,7 @@ function postInit(){if(POST.qs)return;POST.qs=new THREE.Scene();POST.qc=new THRE
     float lz(vec2 uv){float d=texture2D(tD,uv).r;vec4 v=ipM*vec4(uv*2.-1.,d*2.-1.,1.);return -v.z/v.w;}
     void main(){float z0=lz(vUv),s=0.,w=0.;for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){vec2 uv=vUv+vec2(float(x),float(y))*px;float z=lz(uv),wt=1./(1.+abs(z-z0)*6./max(z0*.03,.4));s+=texture2D(tA,uv).r*wt;w+=wt;}
       float a=s/w;gl_FragColor=vec4(a,a,a,1.);}`,{tA:{value:null},tD:{value:null},px:{value:new THREE.Vector2()},ipM:{value:new THREE.Matrix4()}});}
-function postSize(w,h){const msN=LADV.ms===0?0:QUAL[qKey].ms||(prE>=1.25?2:4),aoW=!!(QUAL[qKey].hqAll&&renderer.capabilities.isWebGL2&&CFG.ao!==false);if(POST.w===w&&POST.h===h&&POST.rt&&POST.ms===msN&&POST.aoW===aoW)return;POST.ms=msN;POST.w=w;POST.h=h;POST.aoW=aoW;for(const k of ['rt','b1','b2','b3','b4','ao1','ao2'])if(POST[k]){POST[k].dispose();POST[k]=null;}
+function postSize(w,h){const msN=LADV.ms===0?0:QUAL[qKey].ms||(prE>=1.25?2:4),aoW=!!(QUAL[qKey].hqAll&&!QUAL[qKey].mob&&renderer.capabilities.isWebGL2&&CFG.ao!==false);if(POST.w===w&&POST.h===h&&POST.rt&&POST.ms===msN&&POST.aoW===aoW)return;POST.ms=msN;POST.w=w;POST.h=h;POST.aoW=aoW;for(const k of ['rt','b1','b2','b3','b4','ao1','ao2'])if(POST[k]){POST[k].dispose();POST[k]=null;}
   const ht=renderer.capabilities.isWebGL2?THREE.HalfFloatType:THREE.UnsignedByteType,opt={type:ht,depthBuffer:false};
   POST.rt=new THREE.WebGLRenderTarget(w,h,{type:ht,stencilBuffer:true/* forces a 24-bit depth buffer: three gives depth-only targets 16 bits, which let thin hulls show through on phones */,samples:renderer.capabilities.isWebGL2?msN:0});if(aoW){const dt=new THREE.DepthTexture(w,h);dt.format=THREE.DepthStencilFormat;dt.type=THREE.UnsignedInt248Type;POST.rt.depthTexture=dt;const w2=Math.max(1,w>>1),h2=Math.max(1,h>>1);POST.ao1=new THREE.WebGLRenderTarget(w2,h2,{depthBuffer:false});POST.ao2=new THREE.WebGLRenderTarget(w2,h2,{depthBuffer:false});}POST.pr=pr;
   const w4=Math.max(1,w>>2),h4=Math.max(1,h>>2),w8=Math.max(1,w>>3),h8=Math.max(1,h>>3);
@@ -5301,9 +5366,23 @@ function postRender(){postInit();const sz=renderer.getDrawingBufferSize(v2);post
   const bl=(a,b,w,h)=>{M.blur.uniforms.tex.value=a.texture;M.blur.uniforms.dir.value.set(1/w,0);pass(M.blur,b);M.blur.uniforms.tex.value=b.texture;M.blur.uniforms.dir.value.set(0,1/h);pass(M.blur,a);};
   bl(POST.b1,POST.b2,POST.b1.width,POST.b1.height);M.blur.uniforms.tex.value=POST.b1.texture;M.blur.uniforms.dir.value.set(.5/POST.b1.width,0);pass(M.blur,POST.b3);bl(POST.b3,POST.b4,POST.b3.width,POST.b3.height);bl(POST.b3,POST.b4,POST.b3.width,POST.b3.height);
   const F=M.final.uniforms;F.tex.value=POST.rt.texture;F.b1.value=POST.b1.texture;F.b2.value=POST.b3.texture;F.exposure.value=renderer.toneMappingExposure;F.bloom.value=G.bloom;F.sat.value=G.sat;F.con.value=G.con;F.vig.value=G.vig;F.aspect.value=sz.x/sz.y;{const t=(performance.now()-EDGE.t0)/EDGE.dur,a=t<0||t>1?0:(t<.15?t/.15:1-(t-.15)/.85);F.edgeA.value=a*EDGE.a;F.edgeC.value.copy(EDGE.c);}F.tint.value.set(...G.tint);
+  {const k=camT,on=QUAL[qKey].streaks&&k&&state==='race'&&k.boost>0&&!k.spin,tg=on?Math.min(1,.45+.55*Math.min(1,(k.bPk||1)/2.5)):0;F.spd.value+=(tg-F.spd.value)*.12;F.tm.value=performance.now()/1000%100;}
   pass(M.final,null);}
 /* big screens (computer monitors, tablets) would otherwise draw several times a phone's pixels: cap the total pixel count per quality level, and lower it a step with each rung of the quality ladder */
-let prE=1;function fit(){const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;const q=QUAL[qKey],bud=q.mp*1e6*Math.max(.45,1-.1*LAD);prE=Math.max(Math.min(pr,.7),Math.min(pr,Math.sqrt(bud/(w*h))));renderer.setPixelRatio(prE);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+/* GPU frame time, measured with a timer query where the browser offers one (most desktop Chrome/Edge/Firefox on WebGL2).
+   Results arrive a few frames late; only one query is in flight at a time, so the cost is negligible. Used to decide
+   whether PC Ultra has room to render above screen resolution, and shown in the FPS readout. */
+const GPUT=(()=>{try{if(!renderer.capabilities.isWebGL2)return null;const gl=renderer.getContext(),ext=gl.getExtension('EXT_disjoint_timer_query_webgl2');return ext?{gl,ext,pend:[],cur:null,ms:-1,n:0}:null;}catch(e){return null;}})();
+function gpuT0(){const G=GPUT;if(!G||G.cur||G.pend.length>2)return;try{const q=G.gl.createQuery();G.gl.beginQuery(G.ext.TIME_ELAPSED_EXT,q);G.cur=q;}catch(e){}}
+function gpuT1(){const G=GPUT;if(!G)return;try{if(G.cur){G.gl.endQuery(G.ext.TIME_ELAPSED_EXT);G.pend.push(G.cur);G.cur=null;}
+  while(G.pend.length){const q=G.pend[0];if(!G.gl.getQueryParameter(q,G.gl.QUERY_RESULT_AVAILABLE))break;G.pend.shift();if(!G.gl.getParameter(G.ext.GPU_DISJOINT_EXT)){const ms=G.gl.getQueryParameter(q,G.gl.QUERY_RESULT)/1e6;if(ms>0&&ms<200){G.ms=G.ms<0?ms:G.ms*.92+ms*.08;G.n++;}}G.gl.deleteQuery(q);}}catch(e){}}
+let CPUMS=0;/* smoothed CPU time per frame: simulation steps plus scene submission */
+/* supersampling steps for presets that list them (PC Ultra): raised only after sustained measured GPU and CPU headroom,
+   lowered quickly when the GPU gets busy, changed only between races, and remembered per device */
+let SSI=Math.max(0,+store.get('crust-ss')||0),ssPending=null,ssUp=0,ssDn=0;
+const ssMul=()=>{const q=QUAL[qKey];return q.ss&&LAD===0?(q.ss[Math.min(SSI,q.ss.length-1)]||1):1;};
+function applySS(i){const q=QUAL[qKey];if(!q.ss)return;SSI=clamp(i,0,q.ss.length-1);store.set('crust-ss',String(SSI));fitPending=true;}
+let prE=1;function fit(){const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;const q=QUAL[qKey],bud=q.mp*1e6*Math.max(.45,1-.1*LAD),prS=pr*ssMul();prE=Math.max(Math.min(prS,.7),Math.min(prS,Math.sqrt(bud/(w*h))));renderer.setPixelRatio(prE);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
 
 /* ================= BOOT ================= */
 let booted=false;
@@ -5339,7 +5418,7 @@ async function boot(){const ld=document.getElementById('loader'),bar=document.ge
   await step(74,'Building the track…');if(mode==='gp')mapIdx=CUP_TRACKS[cupIdx][0];loadMap(mapIdx,false);fit();refreshMenu();
   if(window.ResizeObserver)new ResizeObserver(fit).observe(stage);else addEventListener('resize',fit);
   applySettings();
-  await step(88,'Lining up the grid…');resetRace(true);try{mergeWorld();}catch(e){console.warn('merge',e);}try{HQS.apply();}catch(e){console.warn('hq',e);}warmScene();
+  await step(88,'Lining up the grid…');resetRace(true);try{mergeWorld();}catch(e){console.warn('merge',e);}try{HQS.apply();}catch(e){console.warn('hq',e);}try{envProbe();}catch(e){}warmScene();
   await step(96,'Firing up the oven…');try{renderer.compile(scene,camera);}catch(e){}
   booted=true;bar.style.width='100%';menu.hidden=false;setTimeout(softGlNote,900);last=performance.now();setTimeout(()=>{ld.classList.add('done');setTimeout(()=>ld.remove(),600);},120);
   setTimeout(()=>{loadHQ().finally(()=>{window.dispatchEvent(new Event('cr-booted'));});},1500);}
@@ -5358,7 +5437,7 @@ function ladKey(){return 'crust-lad-'+qKey;}
 function applyLad(n,save){LAD=clamp(n,0,LADS.length-1);LADV=LADS[LAD];const q=QUAL[qKey],fl=Math.min(DPR,q.floor);
   const np=Math.max(fl,Math.min(DPR,q.start)-LADV.p);if(Math.abs(np-pr)>.01)pr=np;fitPending=true;
   const sm=Math.max(512,Math.round(q.sm*(LADV.sm||1)));if(sun.shadow.mapSize.x!==sm){sun.shadow.mapSize.set(sm,sm);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}}
-  LODM=0;LODF=LADV.lod?100:120;if(save)store.set(ladKey(),String(LAD));}
+  LODM=0;LODF=LADV.lod?100:(q.lodf||120);if(save)store.set(ladKey(),String(LAD));}
 function adaptQuality(dt,time){perfSum+=dt;perfN++;perfT+=dt;if(perfT<1)return;const avg=perfSum/perfN;perfT=perfSum=perfN=0;
   bestDt=Math.min(bestDt*1.01,avg);let P=1/60;for(const h of HZ)if(h>=bestDt*.93){P=h;break;}if(CFG.fps==='60')P=Math.max(P,1/60);else P=Math.max(P,1/120);
   const inMenu=state==='menu'&&!menu.hidden&&time>6;if(state!=='race'&&state!=='countdown'&&!inMenu)return;
@@ -5368,7 +5447,13 @@ function adaptQuality(dt,time){perfSum+=dt;perfN++;perfT+=dt;if(perfT<1)return;c
   if((slowN>=2||(slowN>=1&&avg>P*1.5))&&cur<LADS.length-1){if(raisedAt>0&&time-raisedAt<12)ladBest=cur+1;ladPending=cur+(avg>P*1.6&&cur<4?2:1);store.set(ladKey(),String(ladPending));droppedAt=time;slowN=0;}
   else if(fastN>=10&&cur>ladBest&&time-droppedAt>25){ladPending=cur-1;store.set(ladKey(),String(ladPending));raisedAt=time;fastN=0;}
   /* in the menu a change can apply straight away */
-  if(inMenu&&ladPending!=null){applyLad(ladPending,true);ladPending=null;}}
+  if(inMenu&&ladPending!=null){applyLad(ladPending,true);ladPending=null;}
+  /* PC Ultra headroom: GPU under ~42% and CPU under ~60% of the frame budget for 8 s running -> one supersampling step up; GPU over 80% for 2 s -> step down */
+  const q=QUAL[qKey];if(q.ss&&GPUT&&GPUT.n>30&&LAD===0&&ladPending==null){const bud=P*1000,g=GPUT.ms,cs=ssPending??SSI;
+    ssUp=(g>0&&g<bud*.42&&CPUMS<bud*.6&&avg<P*1.04)?ssUp+1:0;ssDn=g>bud*.8?ssDn+1:0;
+    if(ssUp>=8&&cs<q.ss.length-1){ssPending=cs+1;ssUp=0;}else if(ssDn>=2&&cs>0){ssPending=cs-1;ssDn=0;}
+    if(inMenu&&ssPending!=null){applySS(ssPending);ssPending=null;}}
+  else if(q.ss&&slowN>=1&&SSI>0&&ladPending==null){ssPending=SSI-1;}/* no GPU timer: a slow second still backs supersampling off */}
 let ladPending=null;
 let slowN=0,fastN=0,droppedAt=-99,fitPending=false;
 {const v=+store.get(ladKey());if(v>0)applyLad(v,false);}
@@ -5879,15 +5964,15 @@ function frame(now){
   if(!booted){requestAnimationFrame(frame);return;}
   padPoll();
   if(CFG.fps==='60'){if(now<frame.due-2.5){requestAnimationFrame(frame);return;}frame.due+=1000/60;if(now-frame.due>1000/60)frame.due=now;}{const fd=now-lastFrameT;if(fd>fpsMax&&fd<1000)fpsMax=fd;}lastFrameT=now;
-  fpsN++;if(now-fpsT>500){const show=CFG.showfps&&state!=='menu';fpsEl.hidden=!show;if(show)fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' FPS · '+((now-fpsT)/fpsN).toFixed(1)+' ms · worst '+Math.round(fpsMax)+' ms'+netStat(now-fpsT);fpsN=0;fpsT=now;fpsMax=0;}
-  let dt=(now-last)/1000;last=now;if(dt>.1)dt=.1;if(dt<0)dt=0;const time=now/1000;
+  fpsN++;if(now-fpsT>500){const show=CFG.showfps&&state!=='menu';fpsEl.hidden=!show;if(show)fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' FPS · '+((now-fpsT)/fpsN).toFixed(1)+' ms · worst '+Math.round(fpsMax)+' ms · CPU '+CPUMS.toFixed(1)+(GPUT&&GPUT.ms>0?' · GPU '+GPUT.ms.toFixed(1):'')+(ssMul()>1?' · '+ssMul()+'×':'')+netStat(now-fpsT);fpsN=0;fpsT=now;fpsMax=0;}
+  let dt=(now-last)/1000;last=now;if(dt>.1)dt=.1;if(dt<0)dt=0;const time=now/1000;const cw0=performance.now();
   if(state==='menu'||state==='race'){acc+=dt;let n=0;const gs=NET.role==='guest'&&NET.cfg&&state==='race';while(acc>=STEP&&n<12){if(gs)netGuestStep(STEP);else update(STEP);acc-=STEP;n++;}if(n>=12)acc=0;alpha=acc/STEP;netFlush();
     if(state==='race'){if(resultsAt>0){resultsAt-=dt;if(resultsAt<=0){results.hidden=false;renderResults();}}}}
   else if(state==='netwait'){alpha=1;if(NET.role==='host'&&performance.now()-NET.waitTimer>45000){netAll({t:'go'});netGo();}if(NET.role==='guest'){const gs=NET.snaps.length;if(gs)netInterp(null);}}
   else if(state==='intro'){alpha=1;introT+=dt;if(introSkip||introT>=INTRO_SHOT*INTRO_N)endIntro();}
   else if(state==='countdown'){alpha=1;cd-=dt;const n=Math.ceil(cd-.4);if(n!==lastCd&&n>=1&&n<=3){lastCd=n;showBanner(String(n),.9,'md');SFX.count(false);}
     if(cd<=.4){state='race';showBanner('Go!',1,'md');SFX.count(true);acc=0;}standCache=standings();if(NET.role==='host')netHostTick();else if(NET.role==='guest'&&NET.snaps.length)netInterp(player);}
-  if(state!=='paused'){if(garageOpen)renderGarage(dt);else{if(fitPending){fitPending=false;fit();}if(state!=='loading'){render(time,dt);adaptQuality(dt,time);}}}
+  if(state!=='paused'){if(garageOpen)renderGarage(dt);else{if(fitPending){fitPending=false;fit();}if(state!=='loading'){gpuT0();render(time,dt);gpuT1();CPUMS=CPUMS*.95+(performance.now()-cw0)*.05;adaptQuality(dt,time);}}}
   hud(dt,time);
   try{musTick();}catch(e){console.warn('music',e);CFG.music=false;}
   if(ac&&eng){const on=!muted&&(state==='race'||state==='countdown')&&!!player;

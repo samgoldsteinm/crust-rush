@@ -648,7 +648,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .mp-head .ghost{min-width:44px;min-height:44px}
 .mp-lead{opacity:.88;line-height:1.45;margin:10px 0}
 .softgl{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:60;max-width:min(560px,calc(100% - 32px));background:#2a1610;border:1px solid var(--sauce);border-radius:14px;padding:12px 40px 12px 14px;color:var(--cream);font-size:14px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,.45)}.softgl b{color:var(--cheese)}.softgl button{position:absolute;right:8px;top:8px;background:none;border:0;color:var(--muted);font-size:20px;cursor:pointer}
-@media (pointer:coarse){.pc-only{display:none!important}}
+@media (pointer:coarse){.pc-only{display:none!important}}@media not (pointer:coarse){.mob-only{display:none!important}}
 body.padnav :focus{outline:3px solid var(--cheese)!important;outline-offset:3px}
 .ctl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:4px}
 .ctl{width:100%;min-width:560px;border-collapse:collapse;font-size:13px;line-height:1.35}
