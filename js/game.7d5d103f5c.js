@@ -4111,7 +4111,7 @@ const hitAnims=[];
    so everyone in an online race sees the squash. Returns true while the big kart should pass through b. */
 const FLAT_T=3;function megaCrush(a,b){if(b.flatT>0)return true;if(b.flatImm>0||b.glide||b.loop)return false;
   if(b.inv>0||b.rush>0||abInv(b)||b.ghostT>0||b.absT>0)return false;if(b.shield>0){spinOut(b,'mega',true);return false;}
-  b.flatT=FLAT_T;b.flatImm=FLAT_T+.6;b.air=false;b.wvy=0;b.big=false;b.speed*=.5;b.drift=0;b.charge=0;b.boost=0;b.dWant=0;b.dLatch=false;b.sT=0;
+  b.flatT=FLAT_T;b.flatImm=FLAT_T+.6;b.inv=Math.max(b.inv||0,FLAT_T+1.2);/* protected while squashed and for a moment after */b.air=false;b.wvy=0;b.big=false;b.speed*=.5;b.drift=0;b.charge=0;b.boost=0;b.dWant=0;b.dLatch=false;b.sT=0;
   const gy=(b.wy||0)+.6;spawnRing(b.x,gy,b.y,'#c8a06a',46,.5);burst(b.x,gy+2,b.y,26,['#efe3cb','#c8a06a','#ffffff'],70,3);if(b===camT)shake(.55);else if(a===camT)shake(.3);SFX.bump(Math.max(near(b),.4));return true;}
 const BUMPT=new Map();
 /* a projectile that hits someone does not just vanish: it smashes (a quick swell, then shrinks away) under the hit burst */
@@ -4362,9 +4362,9 @@ function useItem2(k,it,back){const ca=Math.cos(k.a),sa=Math.sin(k.a),st=standCac
   else if(it==='shroom'){k.air=true;k.big=true;k.airT=0;k.wvy=78;k.boost=Math.max(k.boost,.9);k.drift=0;itemFx(k,col,30);if(v>0)SFX.shroom();if(k===player)shake(.4);}
   else if(it==='magnet'){k.magT=2.6;k.magTg=kartAhead(k);itemFx(k,col,20);if(v>0)SFX.magnet();}
   else if(it==='cutter'){k.cutT=8;k.cutA=0;if(!k.cutM){k.cutM=[0,1,2].map(()=>{const m=itemProto('cutter').clone();m.scale.setScalar(1.1);scene.add(m);return m;});}k.cutM.forEach(m=>m.visible=true);itemFx(k,col,24);if(v>0)SFX.cutter();}
-  else if(it==='sauce'){for(let j=0;j<i;j++){const o=st[j];if(o.shield>0||o.ghostT>0||o.loop||o.absT>0||abInv(o))continue;if(absorb(o))continue;o.sauceT=4;burst(o.x,(o.wy||0)+8,o.y,26,['#d8301c','#a8180a','#ff6a3a'],70,3.2);spawnRing(o.x,(o.wy||0)+.6,o.y,'#d8301c',24,.5);if(o===player){sauceFx(true);SFX.sauce(1);}}
+  else if(it==='sauce'){for(let j=0;j<i;j++){const o=st[j];if(o.inv>0||o.shield>0||o.ghostT>0||o.loop||o.absT>0||abInv(o))continue;if(absorb(o))continue;o.sauceT=4;o.inv=Math.max(o.inv||0,2);burst(o.x,(o.wy||0)+8,o.y,26,['#d8301c','#a8180a','#ff6a3a'],70,3.2);spawnRing(o.x,(o.wy||0)+.6,o.y,'#d8301c',24,.5);if(o===player){sauceFx(true);SFX.sauce(1);}}
     itemFx(k,col,26);if(v>0)SFX.sauce(v);}
-  else if(it==='heat'){for(const o of karts){if(o===k||o.loop||o.shield>0||o.ghostT>0||o.absT>0||abInv(o))continue;if(absorb(o))continue;o.shrinkT=3.2;o.speed*=.6;spinOut(o,'pep');}heatFlash();SFX.heat();itemFx(k,col,40);}
+  else if(it==='heat'){for(const o of karts){if(o===k||o.loop||o.inv>0||o.shield>0||o.ghostT>0||o.absT>0||abInv(o))continue;if(absorb(o))continue;o.shrinkT=3.2;o.speed*=.6;spinOut(o,'pep');o.inv=Math.max(o.inv||0,2);}heatFlash();SFX.heat();itemFx(k,col,40);}
   else if(it==='bomb'){if(back)projectiles.push({type:'bomb',custom:1,x:k.x-Math.cos(k.ma)*16,y:k.y-Math.sin(k.ma)*16,vx:0,vy:0,t:1.6,fuse:1.6,owner:k,safe:9,b:0,landed:true,mesh:itemMesh('bomb')});
     else{const sp=Math.max(0,k.speed)+160;projectiles.push({type:'bomb',custom:1,x:k.x+ca*8,y:k.y+sa*8,vx:ca*sp,vy:sa*sp,t:.75+1.1,t0:.75,fuse:1.1,owner:k,safe:9,b:0,landed:false,mesh:itemMesh('bomb')});}if(v>0)SFX.throwF();}
   else if(it==='forks'){const p=track[k.idx];for(const o of [-22,0,22]){const x=k.x-Math.cos(k.ma)*22+p.nx*o,y=k.y-Math.sin(k.ma)*22+p.ny*o;hazards.push({x,y,t:25,born:0,owner:k,armed:false,kind:'forks',mesh:itemMesh('forks')});}if(v>0)SFX.forks(v);}
@@ -4450,7 +4450,7 @@ function itemsRender(time,dt){for(const p of projectiles){const col=TRAIL[p.type
     if(k.sauceT>0&&Math.random()<.3)FXN.spawn(k.rx,(k.rz||0)+3,k.ry,(Math.random()-.5)*10,2,(Math.random()-.5)*10,'#b8200e',2.5,1,.6,30,1);}}
 /* sauce smears on the player's screen */
 let _sauceEl=null;/* Olive's slick: no spin, the wheels get coated in oil and the kart is slowed for OIL_T seconds (oilT is in the network snapshot) */
-const OIL_T=5,BURN_T=2;/* BURN_T: how long a kart that hit Chili's flames stays on fire (burnT is in the network snapshot) */function oilUp(k){k.oilT=OIL_T;const gy=(k.wy||0)+3;burst(k.x,gy,k.y,22,['#c8b23a','#8a7a1c','#fff3b0'],55,2.4);SFX.bump(Math.max(near(k),.3)*.7);if(k===camT)shake(.25);if(k===player){showBanner('Oily wheels!',.9,'sm');edgeFx('#c8b23a',1);}}
+const OIL_T=5,BURN_T=2;/* BURN_T: how long a kart that hit Chili's flames stays on fire (burnT is in the network snapshot) */function oilUp(k){k.oilT=OIL_T;k.inv=Math.max(k.inv||0,2);/* hit protection */const gy=(k.wy||0)+3;burst(k.x,gy,k.y,22,['#c8b23a','#8a7a1c','#fff3b0'],55,2.4);SFX.bump(Math.max(near(k),.3)*.7);if(k===camT)shake(.25);if(k===player){showBanner('Oily wheels!',.9,'sm');edgeFx('#c8b23a',1);}}
 const _od=new THREE.Vector3();/* drawing only: oil flicks off the coated tyres and catches the light */
 function oilDrip(k,m){if(Math.random()>.55||!m.wheels.length)return;const w=m.wheels[(Math.random()*m.wheels.length)|0],c=w.spin.children[0];if(!c||!c.geometry)return;if(!c.geometry.boundingSphere)c.geometry.computeBoundingSphere();
   _od.copy(c.geometry.boundingSphere.center).applyMatrix4(c.matrixWorld);const bx=-Math.cos(k.rma||k.ma),bz=-Math.sin(k.rma||k.ma),r=Math.random;
@@ -4465,7 +4465,7 @@ const ABIL={pep:['Pepperoni Storm','Fires a fan of six spinning pepperoni slices
   olive:['Slick Trail','Leaves a trail of olive-oil slicks behind. Drive through one and your wheels get coated: no spin, but you are slowed for 5 seconds.','#c8b23a'],
   mozz:['Melt Shield','Wraps the kart in stretchy cheese that blocks every hit for a while.','#fff4c0'],
   chili:['Fire Trail','A fiery boost that leaves burning flames on the road: anyone who drives into them spins out and catches fire. Nothing can hit you while it burns.','#ff3a12'],
-  shroom:['Mega Shroom','Grows huge and unstoppable with a burst of speed and rolls right over anyone in the way, squashing them flat for 3 seconds. You can still steer and drift.','#c8a06a'],
+  shroom:['Mega Shroom','Grows huge and unstoppable with a burst of speed and rolls right over anyone in the way, squashing them flat and slow for 3 seconds. You can still steer and drift.','#c8a06a'],
   pineapple:['Spiky Shockwave','A big spiky blast that spins out every racer close around you.','#ffd23a'],
   anchovy:['School of Fish','Launches three anchovies that hunt down the next three racers ahead and always hit.','#8fc8e8']};
 const ABIL_TIME=30,MEGA_T=5.5,PESTO_T=5.9;
@@ -4612,7 +4612,7 @@ function useItem(k,back){
     else{const v=Math.max(0,k.speed)+170;projectiles.push({type:'flour',x:k.x+ca*10,y:k.y+sa*10,vx:ca*v,vy:sa*v,t:.75,t0:.75,owner:k,safe:9,b:0,mesh:itemMesh('flour')});}}
   else if(it==='wheel'){projectiles.push({type:'wheel',x:k.x,y:k.y,vx:0,vy:0,t:16,owner:k,safe:9,b:0,target:st[0]===k?null:st[0],prog:k.prog+2,lat:lateral(k),spin:0,dir:k.a,mesh:itemMesh('wheel')});}
   else if(it==='rush'){k.rush=3.2;k.boost=Math.max(k.boost,3.2);k.drift=0;}
-  else if(it==='freezer'){const sf=standings(),fi=sf.indexOf(k);for(let j=0;j<fi;j++){const o=sf[j];if(o===k||o.finished)continue;if(o.shield>0||o.rush>0||o.loop||o.absT>0||abInv(o))continue;if(absorb(o))continue;o.frozen=2.8;burst(o.x,o.rz||o.wy,o.y,18,['#bfe6ff','#ffffff','#7fd0ff'],50,2.6);spawnRing(o.x,(o.wy||0)+.6,o.y,'#8fd8ff',26,.5);}spawnRing(k.x,(k.wy||0)+.6,k.y,'#bfe6ff',60,.7);}
+  else if(it==='freezer'){const sf=standings(),fi=sf.indexOf(k);for(let j=0;j<fi;j++){const o=sf[j];if(o===k||o.finished)continue;if(o.inv>0||o.shield>0||o.rush>0||o.loop||o.absT>0||abInv(o))continue;if(absorb(o))continue;o.frozen=2.8;o.inv=Math.max(o.inv||0,2.8+1.5);burst(o.x,o.rz||o.wy,o.y,18,['#bfe6ff','#ffffff','#7fd0ff'],50,2.6);spawnRing(o.x,(o.wy||0)+.6,o.y,'#8fd8ff',26,.5);}spawnRing(k.x,(k.wy||0)+.6,k.y,'#bfe6ff',60,.7);}
   if(it==='chili'||it==='rush'){if(k===player)SFX.chili();}else if(it==='garlic'){if(near(k)>0)SFX.garlic(near(k));}else if(it==='freezer'){SFX.freeze();}else if(it==='wheel'){SFX.wheel(near(k)||.4);}else if(near(k)>0)(back?SFX.throwB:SFX.throwF)();
 }
 /* a person drives this kart: the local player, or (on the host) a friend's kart. Their karts must get identical physics on every phone, or the host's copy drives a different line and corrections make the kart jump. */
@@ -4630,7 +4630,7 @@ function stepKart(k,inp,dt){
   else if(k.air&&(k.big||(k.airT>.12&&k.z>5))&&!k.glide&&dPress&&!k.trick){k.bLock=true;k.trick=true;k.trickT=TRICK_T;const st=inp.steer||0;k.trickN=(k.trickN||0)+1;const n=st<-.4?3:st>.4?4:(k.trickN%3);k.trickK=n;trickNow=true;if(k===player&&!NET.replay){SFX.trick();showBanner(TRICKS[n].n+'!',.6,'sm');}}
   const lat=Math.abs(lateral(k)),sm=k.sm;let tp=lat<RW?1:lat<CURB?.86+.02*sm.off:clamp(.58+.06*sm.off,.4,.82);if(k.glide)tp=1;if(k.sc)tp=k.sc.route?1:.96;if(k.boost>0)tp=Math.max(tp,.93);k.sf=k.sc?1:lat<RW?2:lat<CURB?1:0;
   k.pen+=(tp-k.pen)*Math.min(1,dt*(tp<k.pen?3.5:6));
-  let max=BASE_MAX*inp.mul*k.pen*sm.spd*(k.glide?k.gair||1:1);if(k.boost>(k.pBoost||0)+1e-4){k.bPk=k.boost;k.fTier=0;}/* visual only: which boost is burning (flame size and colour) */if(k.boost>0){k.bAge=(k.pBoost>0?(k.bAge||0)+dt:0);max*=k.pestoT>0?1.66:1.58;k.boost-=dt;}else k.bAge=9;k.pBoost=k.boost;if(k.dWant>0)k.dWant-=dt;if(k.shield>0){k.shield-=dt;max*=1.08;}if(k.absT>0)k.absT-=dt;if(k.rush>0){k.rush-=dt;max*=1.12;k.pen=Math.max(k.pen,.95);}if(k.cannonT>0)max*=1.22;if(k.shrinkT>0)max*=.78;if(k.oilT>0){k.oilT-=dt;max*=.8;}if(k.sauceT>0)max*=.93;if(k.frozen>0){k.frozen-=dt;max*=.55;}
+  let max=BASE_MAX*inp.mul*k.pen*sm.spd*(k.glide?k.gair||1:1);if(k.boost>(k.pBoost||0)+1e-4){k.bPk=k.boost;k.fTier=0;}/* visual only: which boost is burning (flame size and colour) */if(k.boost>0){k.bAge=(k.pBoost>0?(k.bAge||0)+dt:0);max*=k.pestoT>0?1.66:1.58;k.boost-=dt;}else k.bAge=9;k.pBoost=k.boost;if(k.dWant>0)k.dWant-=dt;if(k.shield>0){k.shield-=dt;max*=1.08;}if(k.absT>0)k.absT-=dt;if(k.rush>0){k.rush-=dt;max*=1.12;k.pen=Math.max(k.pen,.95);}if(k.cannonT>0)max*=1.22;if(k.shrinkT>0)max*=.78;if(k.oilT>0){k.oilT-=dt;max*=.8;}if(k.flatT>0)max=Math.min(max*.6,BASE_MAX*inp.mul*k.pen*sm.spd*.6);/* squashed flat by a Mega Shroom: crawls along at 60% (boosts don't help) until it pops back up */if(k.sauceT>0)max*=.93;if(k.frozen>0){k.frozen-=dt;max*=.55;}
   const v0=k.speed;
   if(k.spin>0){k.spin-=dt;k.a+=14*dt;k.speed+=(0-k.speed)*Math.min(1,2.5*dt);if(k.spin<=0){k.spin=0;k.a=k.ma;}k.brake=0;}
   else{
@@ -4762,13 +4762,13 @@ function update0(dt){
         scene.remove(p.mesh);projectiles.splice(i,1);}continue;}
     if(p.type==='lob'){if(p.t<=0&&overPit(p.x,p.y)){scene.remove(p.mesh);projectiles.splice(i,1);continue;}if(p.t<=0){hazards.push({x:p.x,y:p.y,t:30,born:0,owner:p.owner,armed:false,mesh:itemMesh('oil')});scene.remove(p.mesh);projectiles.splice(i,1);}continue;}
     let hit=false;
-    if(p.storm){const ig=p.ign||(p.ign=new Map());for(const k of karts){if(k.loop||(k===p.owner&&p.safe>0)||(ig.get(k)||-1)>simTime)continue;
+    if(p.storm){const ig=p.ign||(p.ign=new Map());for(const k of karts){if(k.loop||k===p.owner||(ig.get(k)||-1)>simTime)continue;/* never hits whoever threw it */
         if(heldBlock(k,p)){ig.set(k,simTime+.5);if(--p.hp<=0){hit=true;break;}continue;}
         if((k.x-p.x)**2+(k.y-p.y)**2<200&&k.inv<=0&&sameLvl(k,p)){ig.set(k,simTime+.6);if(k===player)hitBy(p);spinOut(k,p.type);p.pop=1;
           const dx=p.x-k.x,dy=p.y-k.y,dd=Math.hypot(dx,dy)||1,nx=dx/dd,ny=dy/dd,dot=p.vx*nx+p.vy*ny;if(dot<0){p.vx-=2*dot*nx;p.vy-=2*dot*ny;}/* ricochet off the kart */
           if(--p.hp<=0){hit=true;break;}}}
       if(!hit)for(const h of hazards){if(h.t>0&&(h.x-p.x)**2+(h.y-p.y)**2<100){h.t=0;if(--p.hp<=0){hit=true;break;}}}}
-    else{for(const k of karts){if(k.loop||(k===p.owner&&p.safe>0))continue;if(heldBlock(k,p)){hit=true;break;}if((k.x-p.x)**2+(k.y-p.y)**2<200&&k.inv<=0&&sameLvl(k,p)){if(k===player)hitBy(p);spinOut(k,p.type);hit=true;p.pop=1;break;}}
+    else{for(const k of karts){if(k.loop||(k===p.owner&&(p.safe>0||p.type==='pep')))continue;/* pepperoni never hits its thrower */if(heldBlock(k,p)){hit=true;break;}if((k.x-p.x)**2+(k.y-p.y)**2<200&&k.inv<=0&&sameLvl(k,p)){if(k===player)hitBy(p);spinOut(k,p.type);hit=true;p.pop=1;break;}}
     for(const h of hazards){if((h.x-p.x)**2+(h.y-p.y)**2<100){h.t=0;hit=true;}}}
     if(hit||p.t<=0){projGone(p);projectiles.splice(i,1);}}
   for(let i=hazards.length-1;i>=0;i--){const h=hazards[i];if(h.born===0&&overPit(h.x,h.y))h.t=0;h.t-=dt;h.born+=dt;
@@ -4858,7 +4858,7 @@ function syncKart(k,dt,time){
   if(m.ice){const fz=k.frozen>0;if(fz!==m.ice.visible)m.ice.visible=fz;if(fz){m.ice.scale.setScalar(m.iceS*Math.min(1,.25+(2.8-k.frozen)*6)*(k.frozen<.25?k.frozen*4:1));m.ice.rotation.y=Math.sin(time*1.5)*.05;}}
   {const gt=k.glide?1:0;m.ga+=(gt-m.ga)*Math.min(1,dt*(gt?5:8));const gv=m.ga>.02;if(gv!==m.gl.visible)m.gl.visible=gv;if(gv){m.gl.scale.setScalar(m.ga);m.gl.rotation.set(-k.steer*.18,0,Math.sin(time*2.2+k.ri)*.06);}}
   if(far)return;
-  {const bl=k.inv>0&&k.spin<=0&&state==='race'&&Math.floor(time*12)%2===1;if(m.tilt.visible===bl)m.tilt.visible=!bl;}
+  {const bl=k.inv>0&&k.spin<=0&&!(k.flatT>0)&&!(k.frozen>0)&&state==='race'&&Math.floor(time*12)%2===1;if(m.tilt.visible===bl)m.tilt.visible=!bl;}
   const f=Math.min(1,8*dt);if(k.trickT>0){const u=clamp(1-k.trickT/TRICK_T,0,1),e=u*u*u*(u*(u*6-15)+10),T=TRICKS[k.trickK|0]||TRICKS[0];_tq.setFromAxisAngle(T.ax,T.d*e*Math.PI*2);m.tilt.quaternion.copy(_tq);_tc.set(0,(m.top||7)*.42,0);_tv.copy(_tc).applyQuaternion(_tq);m.tilt.position.set(_tc.x-_tv.x,_tc.y-_tv.y,_tc.z-_tv.z);m.trickPy=m.tilt.position.y;m.trickOn=true;}else{if(m.trickOn){m.tilt.rotation.set(0,0,0);m.tilt.position.set(0,0,0);m.trickPy=0;m.trickOn=false;}m.tilt.rotation.x+=((m.bike?-(k.steer*(.26+.1*Math.min(1,Math.abs(k.speed)/BASE_MAX))+(k.drift?k.steer*.12*(k.dAmt||0):0)):((k.drift?k.steer*.08*(k.dAmt||0):0)+k.steer*.04))-m.tilt.rotation.x)*f;}
   if(m.hover){m.tilt.position.y=(m.trickOn?m.trickPy:0)+Math.sin(time*2.4+k.ri*1.7)*.22;if(m.hglow)m.hglow.material.opacity=.55+Math.sin(time*9+k.ri)*.12+(k.boost>0?.3:0);}
   m.tilt.rotation.z+=(clamp(k.acc*.0006,-.07,.05)-m.tilt.rotation.z)*f;
