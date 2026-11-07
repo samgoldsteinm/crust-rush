@@ -4607,7 +4607,7 @@ function stepKart(k,inp,dt){
     let dRel=false;if(k.spin>0||k.sink!=null)k.dLatch=false;if(dPress&&k.air&&!k.drift){if(!trickNow){k.dLatch=!k.dLatch;k.dWant=0;}}/* tapped mid-air (jump or glide): stay armed and drift the moment you land */else if(dPress&&k.drift&&!k.air)dRel=true;else{if(dPress&&!k.drift)k.dWant=.6;if(k.dWant>0&&inp.brake)k.dWant=Math.max(k.dWant,.12);
       if(k.dLatch&&!k.drift&&!k.air){if(sp>40){k.dLatch=false;k.dWant=0;k.drift=1;k.charge=0;k.dAmt=.35;k.tier=0;k.dTime=0;k.sT=0;if(k===player)SFX.hop();}else if(sp<30)k.dLatch=false;}
       if(k.dWant>0&&!k.drift&&!k.air&&sp>55&&!(!isHuman(k)&&k.boost>0&&k.bAge<.8)){k.dWant=0;k.drift=1;k.charge=0;k.dAmt=0;k.tier=0;k.dTime=0;k.sT=0;k.air=true;k.big=false;k.airT=0;k.wvy=(k.gRate||0)+18;if(k===player)SFX.hop();}}
-    if(k.drift&&!dRel){k.dTime+=dt;const sl=Math.abs(angDiff(k.a,k.ma)),hu=isHuman(k);if(k.dTime>(hu?.3:.45)&&Math.abs(k.steer)<.3&&(hu||sl<.14)){k.sT+=dt;if(k.sT>(hu?.4:.3))dRel=true;}else k.sT=0;}/* you can let go of the steering mid-drift for a moment: the drift only ends after 1.5 s straight */
+    if(k.drift&&!dRel){k.dTime+=dt;const sl=Math.abs(angDiff(k.a,k.ma)),hu=isHuman(k),quick=hu&&!inp.brake&&sl<.2;/* button let go and the kart straightened out: cash the boost in almost at once */if(k.dTime>(quick?.15:hu?.3:.45)&&Math.abs(k.steer)<.3&&(hu||sl<.14)){k.sT+=dt;if(k.sT>(quick?.07:hu?.4:.3))dRel=true;}else k.sT=0;}/* you can let go of the steering mid-drift for a moment: the drift only ends after 1.5 s straight */
     if(k.drift){
       if(dRel||sp<35){const tier=k.charge>2.6?3:k.charge>1.6?2:k.charge>.8?1:0;
         if(tier){k.boost=Math.max(k.boost,[0,.55,.9,1.3][tier]);k.pBoost=k.boost;k.bAge=9;k.bPk=k.boost;k.fTier=tier;if(k===player){SFX.boost(tier);if(tier===3&&achMe(k))achAdd('drift3');}if(k===camT)shake(.15+tier*.05);}k.drift=0;k.charge=0;k.gripT=.5;}
@@ -5135,7 +5135,7 @@ function renderResults0(){finalizeRace();const st=standings();const me=player.pl
       resSub.textContent='Final standings · '+cl+' class';$('againBtn').textContent='Play this cup again';$('toMenuBtn').textContent='Back to menu';}
     else{resTitle.textContent=me===1?'1st place!':me+suf(me)+' place';resSub.textContent=MAPS[mapIdx].name+' · '+cl+' class';$('againBtn').textContent='Next race';$('toMenuBtn').textContent='Quit to menu';}}
   else{gb.hidden=true;resTitle.textContent=me===1?'1st place!':me+suf(me)+' place';resSub.textContent=MAPS[mapIdx].name+' · '+cl+' class';$('againBtn').textContent='Race again';$('toMenuBtn').textContent='Change track or driver';}}
-function togglePause(){if(window.__clearInput)window.__clearInput();if(NET.cfg&&(state==='race'||state==='countdown'||state==='netwait')){pauseOv.hidden=!pauseOv.hidden;return;}if(state==='race'||state==='countdown'){pauseOv._prev=state;state='paused';pauseOv.hidden=false;if(engGain)engGain.gain.value=0;}
+function togglePause(){if(!results.hidden)return;/* nothing to pause once the results are up */if(window.__clearInput)window.__clearInput();if(NET.cfg&&(state==='race'||state==='countdown'||state==='netwait')){pauseOv.hidden=!pauseOv.hidden;return;}if(state==='race'||state==='countdown'){pauseOv._prev=state;state='paused';pauseOv.hidden=false;if(engGain)engGain.gain.value=0;}
   else if(state==='paused'){state=pauseOv._prev;pauseOv.hidden=true;last=performance.now();}}
 $('startBtn').onclick=startFromMenu;$('againBtn').onclick=()=>{if(gp){if(gp.race>=3)startGP();else{gp.race++;goRace(CUP_TRACKS[gp.cup][gp.race]);}}else goRace(mapIdx);};$('restartBtn').onclick=()=>{if(gp)gp.pts.forEach((v,i)=>gp.pts[i]=v);startRace();};
 $('toMenuBtn').onclick=toMenu;$('mpBtn').onclick=()=>netShowLobby();$('mpBadge').onclick=()=>netShowLobby();$('mpClose').onclick=()=>netHideLobby();$('quitBtn').onclick=toMenu;$('resumeBtn').onclick=togglePause;$('pauseBtn').addEventListener('pointerup',e=>{e.preventDefault();togglePause();});
@@ -5355,9 +5355,9 @@ function postInit(){if(POST.qs)return;POST.qs=new THREE.Scene();POST.qc=new THRE
     float h1(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
     void main(){float d=texture2D(tD,vUv).r;if(d>=.99999){gl_FragColor=vec4(1.);return;}
       vec3 P=vp(vUv);float z=-P.z;
-      vec3 pr=vp(vUv+vec2(px.x,0.)),pl=vp(vUv-vec2(px.x,0.)),pu=vp(vUv+vec2(0.,px.y)),pd=vp(vUv-vec2(0.,px.y));
+      vec3 pr=vp(vUv+vec2(px.x*3.,0.)),pl=vp(vUv-vec2(px.x*3.,0.)),pu=vp(vUv+vec2(0.,px.y*3.)),pd=vp(vUv-vec2(0.,px.y*3.));/* normals from a 3-pixel footprint: one-pixel depth steps on flat ground seen at a low angle are rounded, which tilted the normal in bands and drew dark lines across the road */
       vec3 dx=abs(pr.z-P.z)<abs(P.z-pl.z)?pr-P:P-pl,dy=abs(pu.z-P.z)<abs(P.z-pd.z)?pu-P:P-pd;vec3 n=normalize(cross(dx,dy));
-      float R=rad*(1.+z/420.),sr=min(R*pM[1][1]*.5/z,.07),a0=h1(gl_FragCoord.xy)*6.2832,ao=0.,bi=.18+z*.0007;/* the bias grows with distance: far, flat ground seen edge-on has too little depth precision to judge small creases */
+      float R=rad*(1.+z/420.),sr=min(R*pM[1][1]*.5/z,.07),a0=h1(gl_FragCoord.xy)*6.2832,ao=0.,bi=.24+z*.0009;/* the bias grows with distance: far, flat ground seen edge-on has too little depth precision to judge small creases */
       for(int i=0;i<14;i++){float fi=float(i),r=sqrt((fi+.5)/14.)*sr,a=a0+fi*2.39996;vec2 o=vec2(cos(a)*asp.x,sin(a))*r;
         vec3 v=vp(vUv+o)-P;float vv=dot(v,v);ao+=max(0.,dot(n,v)*inversesqrt(vv+.0001)-bi)*clamp(1.-vv/(R*R*4.),0.,1.);}
       ao=clamp(1.-inten*ao/14.,0.,1.);ao=mix(1.,ao,1.-smoothstep(650.,1250.,z));gl_FragColor=vec4(ao,ao,ao,1.);}`,{tD:{value:null},pM:{value:new THREE.Matrix4()},ipM:{value:new THREE.Matrix4()},px:{value:new THREE.Vector2()},asp:{value:new THREE.Vector2(1,1)},rad:{value:7},inten:{value:2.3}});
@@ -5941,6 +5941,9 @@ function padPoll(){let gps;try{gps=navigator.getGamepads?navigator.getGamepads()
     if(edge(M.A)){const el=document.activeElement;if(el&&el!==document.body&&el.click){padRemember(el);el.click();}else padNav('d');}
     padRestore();
     /* garage: the bumpers and triggers spin the car (left turns it one way, right the other; triggers are analog, so press harder to spin faster) */
+    /* garage: X (Xbox X, PlayStation Square, GameCube X) favourites the highlighted livery, or the one on the car */
+    if(garageOpen&&edge(M.X)){const el=document.activeElement,f=el&&el.classList&&el.classList.contains('theme')?el.querySelector('.fav'):null;
+      if(f){padRemember(el);f.click();}else if(playerBuild.t){toggleFav(BODIES[playerBuild.b].id,playerBuild.t);refreshGarage(false);}}
     if(garageOpen){const bv=i=>{const b=gp.buttons[i];return b?(typeof b.value==='number'&&b.value>0?b.value:(b.pressed?1:0)):0;},sp=(bv(5)+bv(7))-(bv(4)+bv(6)),gd=Math.min(.05,(now-(PAD.gT||now))/1000);
       if(Math.abs(sp)>.05)gRot+=sp*gd*2.6;
       if(gBig){const dz2=.18,zy=Math.abs(ay)<dz2?0:Math.sign(ay)*(Math.abs(ay)-dz2)/(1-dz2);if(zy)gZoom=clamp(gZoom*Math.exp(zy*gd*1.6),.32,1.5);}}PAD.gT=now;
@@ -5949,7 +5952,7 @@ function padPoll(){let gps;try{gps=navigator.getGamepads?navigator.getGamepads()
   PAD.prev=gp.buttons.map(b=>!!b&&(b.pressed||b.value>.5));}
 function padVisible(el){if(el.disabled||el.hidden)return false;const r=el.getBoundingClientRect();if(r.width<4||r.height<4)return false;
   const s=getComputedStyle(el);return s.visibility!=='hidden'&&s.display!=='none'&&+s.opacity>.05;}
-function padScope(){const ovs=[...document.querySelectorAll('.overlay:not([hidden]), #results:not([hidden]), #pauseOv:not([hidden]), #garage:not([hidden])')];
+function padScope(){if(!results.hidden&&setOv.hidden&&howOv.hidden)return results;const ovs=[...document.querySelectorAll('.overlay:not([hidden]), #results:not([hidden]), #pauseOv:not([hidden]), #garage:not([hidden])')];
   return ovs.length?ovs.sort((a,b)=>(+getComputedStyle(b).zIndex||0)-(+getComputedStyle(a).zIndex||0))[0]:document.body;}
 /* a button is remembered by what it is (its panel, data attributes, label and position), so when a screen redraws
    (picking a livery rebuilds the list) the controller lands back on the same button instead of jumping to the top */
@@ -5985,7 +5988,7 @@ function frame(now){
   fpsN++;if(now-fpsT>500){const show=CFG.showfps&&state!=='menu';fpsEl.hidden=!show;if(show)fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' FPS · '+((now-fpsT)/fpsN).toFixed(1)+' ms · worst '+Math.round(fpsMax)+' ms · CPU '+CPUMS.toFixed(1)+(GPUT&&GPUT.ms>0?' · GPU '+GPUT.ms.toFixed(1):'')+(ssMul()>1?' · '+ssMul()+'×':'')+netStat(now-fpsT);fpsN=0;fpsT=now;fpsMax=0;}
   let dt=(now-last)/1000;last=now;if(dt>.1)dt=.1;if(dt<0)dt=0;const time=now/1000;const cw0=performance.now();
   if(state==='menu'||state==='race'){acc+=dt;let n=0;const gs=NET.role==='guest'&&NET.cfg&&state==='race';while(acc>=STEP&&n<12){if(gs)netGuestStep(STEP);else update(STEP);acc-=STEP;n++;}if(n>=12)acc=0;alpha=acc/STEP;netFlush();
-    if(state==='race'){if(resultsAt>0){resultsAt-=dt;if(resultsAt<=0){results.hidden=false;renderResults();}}}}
+    if(state==='race'){if(resultsAt>0){resultsAt-=dt;if(resultsAt<=0){/* the results own the screen: close the pause menu and any settings opened from it, so the controller can't get stuck behind them */if(!setOv.hidden&&setFrom===pauseOv){setOv.hidden=true;setFrom=null;}pauseOv.hidden=true;results.hidden=false;renderResults();PAD.focEl=null;}}}}
   else if(state==='netwait'){alpha=1;if(NET.role==='host'&&performance.now()-NET.waitTimer>45000){netAll({t:'go'});netGo();}if(NET.role==='guest'){const gs=NET.snaps.length;if(gs)netInterp(null);}}
   else if(state==='intro'){alpha=1;introT+=dt;if(introSkip||introT>=INTRO_SHOT*INTRO_N)endIntro();}
   else if(state==='countdown'){alpha=1;cd-=dt;const n=Math.ceil(cd-.4);if(n!==lastCd&&n>=1&&n<=3){lastCd=n;showBanner(String(n),.9,'md');SFX.count(false);}
