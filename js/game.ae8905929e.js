@@ -5926,6 +5926,9 @@ function padPoll(){let gps;try{gps=navigator.getGamepads?navigator.getGamepads()
     {const ry=gp.axes[3]||0;if(Math.abs(ry)>.25)padScroll(ry*22);}
     if(edge(M.A)){const el=document.activeElement;if(el&&el!==document.body&&el.click){padRemember(el);el.click();}else padNav('d');}
     padRestore();
+    /* garage: the bumpers and triggers spin the car (left turns it one way, right the other; triggers are analog, so press harder to spin faster) */
+    if(garageOpen){const bv=i=>{const b=gp.buttons[i];return b?(typeof b.value==='number'&&b.value>0?b.value:(b.pressed?1:0)):0;},sp=(bv(5)+bv(7))-(bv(4)+bv(6)),gd=Math.min(.05,(now-(PAD.gT||now))/1000);
+      if(Math.abs(sp)>.05)gRot+=sp*gd*2.6;}PAD.gT=now;
     if(edge(M.B))padBack();}
   if(edge(M.START))togglePause();
   PAD.prev=gp.buttons.map(b=>!!b&&(b.pressed||b.value>.5));}
