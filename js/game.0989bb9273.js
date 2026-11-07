@@ -4109,7 +4109,7 @@ const hitAnims=[];
 /* Mega Shroom rolls karts over: the victim is pressed flat (no spin, no launch), loses half its speed for a moment and pops back up
    after FLAT_T. The big kart drives straight over a flattened kart instead of bouncing off it. flatT is in the network snapshot,
    so everyone in an online race sees the squash. Returns true while the big kart should pass through b. */
-const FLAT_T=.9;function megaCrush(a,b){if(b.flatT>0)return true;if(b.flatImm>0||b.glide||b.loop)return false;
+const FLAT_T=3;function megaCrush(a,b){if(b.flatT>0)return true;if(b.flatImm>0||b.glide||b.loop)return false;
   if(b.inv>0||b.rush>0||abInv(b)||b.ghostT>0||b.absT>0)return false;if(b.shield>0){spinOut(b,'mega',true);return false;}
   b.flatT=FLAT_T;b.flatImm=FLAT_T+.6;b.air=false;b.wvy=0;b.big=false;b.speed*=.5;b.drift=0;b.charge=0;b.boost=0;b.dWant=0;b.dLatch=false;b.sT=0;
   const gy=(b.wy||0)+.6;spawnRing(b.x,gy,b.y,'#c8a06a',46,.5);burst(b.x,gy+2,b.y,26,['#efe3cb','#c8a06a','#ffffff'],70,3);if(b===camT)shake(.55);else if(a===camT)shake(.3);SFX.bump(Math.max(near(b),.4));return true;}
@@ -4393,9 +4393,8 @@ function homeStep(p,tg,dt,want,tr){let v=Math.hypot(p.vx,p.vy)||want;v+=(want-v)
 /* Pepperoni Storm slices ricochet off the road's side walls (the same walls karts hit): two bounces, then the third wall smashes them */
 function pepWall(p){if(p.rp==null){const o=p.owner;p.rp=o&&o.prog!=null?o.prog:0;}railSync(p);const q=track[((Math.round(p.rp)%N)+N)%N],lt=p.rl;let sg=0,ov=0;
   if(q.flo!==undefined){if(lt<q.flo){sg=-1;ov=q.flo-lt;}else if(lt>q.fhi){sg=1;ov=lt-q.fhi;}}
-  else{const s0=lt<0?-1:1,lim=(!q.open&&q.wall===s0?CURB+7:!q.open&&q.pond===s0?CURB+2*POND.GR*POND.SZ+30:WALLD-3.5)-4;if(lt*s0>lim){sg=s0;ov=lt*s0-lim;}}/* open stretches: the road edge counts as a wall */
-  if(!sg)return;const nx=q.nx*sg,ny=q.ny*sg,dot=p.vx*nx+p.vy*ny;if(dot<=0)return;if(p.wb<=0){p.t=0;return;}
-  p.wb--;p.vx-=2*dot*nx;p.vy-=2*dot*ny;p.x-=nx*ov;p.y-=ny*ov;p.rl-=sg*ov;const gy=groundAt(p.x,p.y)+6;burst(p.x,gy,p.y,10,['#ff5a2a','#ffe066','#ffffff'],60,2);SFX.bump(near({x:p.x,y:p.y})*.45);}
+  else{const s0=lt<0?-1:1,lim=RW+3;if(lt*s0>lim){sg=s0;ov=lt*s0-lim;}}/* the slices stay on the road: its edges act as the walls everywhere */
+  if(!sg)return;const nx=q.nx*sg,ny=q.ny*sg,dot=p.vx*nx+p.vy*ny;if(dot<=0)return;if(--p.hp<=0){p.t=0;p.pop=1;return;}p.vx-=2*dot*nx;p.vy-=2*dot*ny;p.x-=nx*ov;p.y-=ny*ov;p.rl-=sg*ov;const gy=groundAt(p.x,p.y)+6;burst(p.x,gy,p.y,10,['#ff5a2a','#ffe066','#ffffff'],60,2);SFX.bump(near({x:p.x,y:p.y})*.45);}
 function itemsProj(p,dt){p.t-=dt;p.safe-=dt;
   if(p.type==='twist'){p.prog+=dt*Math.max(14,BASE_MAX*.72/(T.L/N));p.lat=Math.sin(simTime*1.6+p.ph)*(RW*.75);const P=trackAt(p.prog,p.lat);p.x=P.x;p.y=P.y;
     for(const k of karts){if(k.loop||(k===p.owner&&p.safe>0))continue;if((k.x-p.x)**2+(k.y-p.y)**2<20*20&&k.inv<=0&&sameLvl(k,p)){if(spinOut(k,'flour')&&k.air&&!k.loop){k.big=true;k.wvy=Math.max(k.wvy,65);}}}
@@ -4461,19 +4460,19 @@ function sauceFx(on){if(!_sauceEl){_sauceEl=document.createElement('div');_sauce
 function heatFlash(){const e=document.createElement('div');e.className='heatfx';stage.appendChild(e);setTimeout(()=>e.remove(),900);if(player)shake(.8);}
 
 /* ================= CHARACTER ABILITIES: a special move that recharges every 30 seconds ================= */
-const ABIL={pep:['Pepperoni Storm','Fires a fan of six spinning pepperoni slices ahead.','#ff5a2a'],
+const ABIL={pep:['Pepperoni Storm','Fires a fan of six spinning pepperoni slices low along the track. Each slice ricochets between the track walls and off anything it hits (spinning out racers, smashing items) and vanishes on its third hit.','#ff5a2a'],
   basil:['Pesto Rush','The longest, fastest ability boost: nothing can hit you while it lasts, and it ignores the slow cheese.','#3fd06a'],
   olive:['Slick Trail','Leaves a trail of olive-oil slicks behind. Drive through one and your wheels get coated: no spin, but you are slowed for 5 seconds.','#c8b23a'],
   mozz:['Melt Shield','Wraps the kart in stretchy cheese that blocks every hit for a while.','#fff4c0'],
   chili:['Fire Trail','A fiery boost that leaves burning flames on the road: anyone who drives into them spins out and catches fire. Nothing can hit you while it burns.','#ff3a12'],
-  shroom:['Mega Shroom','Grows huge and unstoppable with a burst of speed and rolls right over anyone in the way, squashing them flat for a moment. You can still steer and drift.','#c8a06a'],
+  shroom:['Mega Shroom','Grows huge and unstoppable with a burst of speed and rolls right over anyone in the way, squashing them flat for 3 seconds. You can still steer and drift.','#c8a06a'],
   pineapple:['Spiky Shockwave','A big spiky blast that spins out every racer close around you.','#ffd23a'],
   anchovy:['School of Fish','Launches three anchovies that hunt down the next three racers ahead and always hit.','#8fc8e8']};
-const ABIL_TIME=30,MEGA_T=5.5,PESTO_T=6.5;
+const ABIL_TIME=30,MEGA_T=5.5,PESTO_T=5.9;
 const abilKey=k=>k.r.name.toLowerCase();
 function useAbility(k){const id=abilKey(k),A=ABIL[id];if(!A||!(k.abC>=1)||k.loop||k.finished)return;k.abC=0;const st=standCache,i=st.indexOf(k),v=near(k);
   itemFx(k,A[2],50);spawnRing(k.x,(k.wy||0)+.6,k.y,A[2],70,.8);if(k===player){SFX.ability();showBanner(A[0],1.1,'sm');shake(.6);abilFlash(A[2]);}else if(v>0)SFX.ability();
-  if(id==='pep'){const vol=()=>{const n0=projectiles.length;fireItem(k,'trio',false);for(let q=n0;q<projectiles.length;q++){projectiles[q].wb=2;projectiles[q].t=5;}};vol();k.abQ=[[.25,vol]];}/* storm slices bounce off the walls twice, then smash */
+  if(id==='pep'){const vol=()=>{const n0=projectiles.length;fireItem(k,'trio',false);for(let q=n0;q<projectiles.length;q++){const P=projectiles[q];P.storm=1;P.hp=3;P.wb=0;P.t=8;}};vol();k.abQ=[[.25,vol]];}/* storm slices ricochet: walls, racers and items each count as a hit; the third hit ends the slice */
   else if(id==='basil'){/* the longest, fastest ability boost, and untouchable while it lasts (the shroom grows and crushes instead) */k.boost=Math.max(k.boost,PESTO_T);k.rush=Math.max(k.rush||0,PESTO_T);k.pestoT=PESTO_T;k.abFx=PESTO_T;k.abCol=A[2];if(k===player)SFX.boost(3);}
   else if(id==='olive'){k.abQ=[0,.3,.6,.9].map(t=>[t,()=>hazards.push({x:k.x-Math.cos(k.ma)*22,y:k.y-Math.sin(k.ma)*22,t:25,born:0,owner:k,armed:false,olive:1,mesh:itemMesh('oil')})]);}
   else if(id==='mozz'){k.shield=7;k.mzH=3;if(v>0)SFX.garlic(v||.3);}
@@ -4627,8 +4626,8 @@ function stepKart(k,inp,dt){
     k.a+=d*Math.min(1,dt*7);k.ma=k.a;k.drift=0;k.charge=0;k.dLatch=false;k.dWant=0;k.steer=0;inp=Object.assign({},inp,{steer:0,brake:false});}}
   /* first tap mid-air = trick (a different one each jump); a later tap arms the drift for landing */
   let trickNow=false;/* gliding: every press while there is room below is a trick; each one stacks the landing boost. Near the landing a press arms the drift instead */
-  if(k.glide&&dPress&&k.airT>.25&&!(k.trickT>0)&&(k.gH||0)>16){k.trick=true;k.gTr=(k.gTr||0)+1;k.trickT=TRICK_T;const st=inp.steer||0;k.trickN=(k.trickN||0)+1;const n=st<-.4?3:st>.4?4:[1,0,2][k.trickN%3];k.trickK=n;trickNow=true;if(k===player&&!NET.replay){SFX.trick();showBanner(TRICKS[n].n+(k.gTr>1?' x'+k.gTr:'')+'!',.6,'sm');}}
-  else if(k.air&&(k.big||(k.airT>.12&&k.z>5))&&!k.glide&&dPress&&!k.trick){k.trick=true;k.trickT=TRICK_T;const st=inp.steer||0;k.trickN=(k.trickN||0)+1;const n=st<-.4?3:st>.4?4:(k.trickN%3);k.trickK=n;trickNow=true;if(k===player&&!NET.replay){SFX.trick();showBanner(TRICKS[n].n+'!',.6,'sm');}}
+  if(k.glide&&dPress&&k.airT>.25&&!(k.trickT>0)&&(k.gH||0)>16){k.bLock=true;k.trick=true;k.gTr=(k.gTr||0)+1;k.trickT=TRICK_T;const st=inp.steer||0;k.trickN=(k.trickN||0)+1;const n=st<-.4?3:st>.4?4:[1,0,2][k.trickN%3];k.trickK=n;trickNow=true;if(k===player&&!NET.replay){SFX.trick();showBanner(TRICKS[n].n+(k.gTr>1?' x'+k.gTr:'')+'!',.6,'sm');}}
+  else if(k.air&&(k.big||(k.airT>.12&&k.z>5))&&!k.glide&&dPress&&!k.trick){k.bLock=true;k.trick=true;k.trickT=TRICK_T;const st=inp.steer||0;k.trickN=(k.trickN||0)+1;const n=st<-.4?3:st>.4?4:(k.trickN%3);k.trickK=n;trickNow=true;if(k===player&&!NET.replay){SFX.trick();showBanner(TRICKS[n].n+'!',.6,'sm');}}
   const lat=Math.abs(lateral(k)),sm=k.sm;let tp=lat<RW?1:lat<CURB?.86+.02*sm.off:clamp(.58+.06*sm.off,.4,.82);if(k.glide)tp=1;if(k.sc)tp=k.sc.route?1:.96;if(k.boost>0)tp=Math.max(tp,.93);k.sf=k.sc?1:lat<RW?2:lat<CURB?1:0;
   k.pen+=(tp-k.pen)*Math.min(1,dt*(tp<k.pen?3.5:6));
   let max=BASE_MAX*inp.mul*k.pen*sm.spd*(k.glide?k.gair||1:1);if(k.boost>(k.pBoost||0)+1e-4){k.bPk=k.boost;k.fTier=0;}/* visual only: which boost is burning (flame size and colour) */if(k.boost>0){k.bAge=(k.pBoost>0?(k.bAge||0)+dt:0);max*=k.pestoT>0?1.66:1.58;k.boost-=dt;}else k.bAge=9;k.pBoost=k.boost;if(k.dWant>0)k.dWant-=dt;if(k.shield>0){k.shield-=dt;max*=1.08;}if(k.absT>0)k.absT-=dt;if(k.rush>0){k.rush-=dt;max*=1.12;k.pen=Math.max(k.pen,.95);}if(k.cannonT>0)max*=1.22;if(k.shrinkT>0)max*=.78;if(k.oilT>0){k.oilT-=dt;max*=.8;}if(k.sauceT>0)max*=.93;if(k.frozen>0){k.frozen-=dt;max*=.55;}
@@ -4638,7 +4637,7 @@ function stepKart(k,inp,dt){
     const rate=inp.steer===0?5:(k.steer!==0&&Math.sign(inp.steer)!==Math.sign(k.steer)?7:3.2);
     k.steer+=clamp(inp.steer-k.steer,-rate*dt,rate*dt);
     if(!inp.brake)k.bLock=false;if(dPress&&!k.air&&Math.abs(k.speed)>55)k.bLock=true;
-    k.brake+=((inp.brake&&!inp.nb&&!k.drift&&!k.bLock?1:0)-k.brake)*Math.min(1,dt*9);
+    k.brake+=((inp.brake&&!inp.nb&&!k.drift&&!k.bLock&&!k.air&&!k.glide?1:0)-k.brake)*Math.min(1,dt*9);/* no braking in the air: that button is the trick button there */
     if(k.brake>.04){if(k.speed>2)k.speed-=200*k.brake*dt;else k.speed=Math.max(-55,k.speed-100*k.brake*dt);}
     else if(k.speed<max){const f=1-.72*clamp(k.speed/max,0,1);k.speed=Math.min(max,k.speed+(ACCEL*sm.acc*(k.boost>0?2.8:1)*f+(k.speed<0?220:0))*dt);}
     else k.speed+=(max-k.speed)*Math.min(1,dt*1.5);
@@ -4723,8 +4722,11 @@ function update0(dt){
   updateHazards(dt);itemsTick(dt);abilityTick(dt);if(abilQueued){abilQueued=false;if(player&&state==='race')useAbility(player);}
   for(const k of karts){k.px=k.x;k.py=k.y;k.pa=k.a;k.pma=k.ma;k.pz=k.z;k.pwy=k.wy;k.pth=k.loopTh||0;if(k.netId&&!k.finished){const n=netSteps(k);k.stall=n===0?Math.min(30,(k.stall||0)+(k.speed>1?1:0)):Math.max(0,(k.stall||0)-(n-1));k.nst=n;for(let s2=0;s2<n;s2++){const inp=netInput(k);if(k.rush>0)inp.use=false;stepKart(k,inp,dt);}continue;}const inp=(k.isPlayer&&!k.auto&&!(k.rush>0&&!(k.megaT>0)&&!(k.pestoT>0)))?playerInput():aiInput(k,dt);/* abilities keep your own steering and drifting; only the rush items drive for you */if(k.rush>0)inp.use=false;stepKart(k,inp,dt);}
   for(let i=0;i<karts.length;i++)for(let j=i+1;j<karts.length;j++){const a=karts[i],b=karts[j];if(MULTI&&Math.abs((a.wy||0)-(b.wy||0))>18)continue;const dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;
-    if(d2<361&&d2>0&&!a.loop&&!b.loop){const sa2=a.shield>0||a.rush>0,sb2=b.shield>0||b.rush>0,am=a.megaT>0,bm=b.megaT>0;if(am!==bm){if(megaCrush(am?a:b,am?b:a))continue;/* rolled over: no shove */}else if(sa2&&!sb2)spinOut(b,'garlic');else if(sb2&&!sa2)spinOut(a,'garlic');const d=Math.sqrt(d2),p=(19-d)/2,nx=dx/d,ny=dy/d,wa=a.sm.wgt,wb=b.sm.wgt,ra=1.6*wb/(wa+wb),rb=1.6*wa/(wa+wb);a.x-=nx*p*ra;a.y-=ny*p*ra;b.x+=nx*p*rb;b.y+=ny*p*rb;if(wa>wb*1.15)b.speed*=.992;else if(wb>wa*1.15)a.speed*=.992;
-      if(a.boost>0&&b.boost<=0)b.speed*=.97;else if(b.boost>0&&a.boost<=0)a.speed*=.97;
+    if(d2<361&&d2>0&&!a.loop&&!b.loop){const sa2=a.shield>0||a.rush>0,sb2=b.shield>0||b.rush>0,am=a.megaT>0,bm=b.megaT>0;if(am!==bm){if(megaCrush(am?a:b,am?b:a))continue;/* rolled over: no shove */}else if(sa2&&!sb2)spinOut(b,'garlic');else if(sb2&&!sa2)spinOut(a,'garlic');const d=Math.sqrt(d2),p=(19-d)/2,nx=dx/d,ny=dy/d,wa=a.sm.wgt,wb=b.sm.wgt;let ra=1.6*wb/(wa+wb),rb=1.6*wa/(wa+wb);
+      /* online: a friend's kart (predicted on their own screen) is never shoved by the host; the other kart takes the whole push, so there is nothing to correct afterwards */
+      const ga=!!a.netId&&!b.netId,gb=!!b.netId&&!a.netId;if(ga){ra=0;rb=1.6;}else if(gb){rb=0;ra=1.6;}
+      a.x-=nx*p*ra;a.y-=ny*p*ra;b.x+=nx*p*rb;b.y+=ny*p*rb;if(wa>wb*1.15&&!gb)b.speed*=.992;else if(wb>wa*1.15&&!ga)a.speed*=.992;
+      if(a.boost>0&&b.boost<=0&&!gb)b.speed*=.97;else if(b.boost>0&&a.boost<=0&&!ga)a.speed*=.97;
       /* contact feedback (visual only: local particles, no effect on the simulation): sparks where two karts meet with real closing speed */
       {const cl=(Math.cos(a.ma)*a.speed-Math.cos(b.ma)*b.speed)*nx+(Math.sin(a.ma)*a.speed-Math.sin(b.ma)*b.speed)*ny,key=i*64+j;
         if(cl>28&&!NET.replay&&simTime-(BUMPT.get(key)||-9)>.45){BUMPT.set(key,simTime);const mx=(a.x+b.x)/2,my=(a.y+b.y)/2,gy=((a.wy||0)+(b.wy||0))/2+3.5,n0=Math.min(14,6+cl/12|0);
@@ -4734,11 +4736,11 @@ function update0(dt){
     const cap=2-(k.item?1:0)-(k.item2?1:0)-(k.held?1:0)-k.pend.length,give=Math.min(cap,b.dbl?2:1);for(let g2=0;g2<give;g2++)k.pend.push(rollItem(standCache.indexOf(k)));if(give>0&&k.roll<=0)k.roll=isHuman(k)?1.1:.5;boxFx(b,k);break;}}}
   /* two items from different racers that meet cancel out, so a slice dropped behind you can stop whatever is chasing you */
   for(let i=projectiles.length-1;i>=0;i--){const a=projectiles[i];if(a.type==='flour'||a.type==='lob'||a.ph||a.sure)continue;for(let j=i-1;j>=0;j--){const b=projectiles[j];if(b.owner===a.owner||b.type==='flour'||b.type==='lob'||b.ph||b.sure)continue;
-      const r=(a.type==='wheel'||b.type==='wheel')?20:15;if((a.x-b.x)**2+(a.y-b.y)**2<r*r){const gy=groundAt(a.x,a.y)+6;burst((a.x+b.x)/2,gy,(a.y+b.y)/2,26,['#ffe066','#ff8a1f','#ffffff'],90,3);spawnRing((a.x+b.x)/2,gy-5,(a.y+b.y)/2,'#ffcf6a',30,.4);SFX.clash(near({x:a.x,y:a.y}));a.t=0;b.t=0;a.dead=b.dead=1;break;}}}
+      const r=(a.type==='wheel'||b.type==='wheel')?20:15;if((a.x-b.x)**2+(a.y-b.y)**2<r*r){const gy=groundAt(a.x,a.y)+6;burst((a.x+b.x)/2,gy,(a.y+b.y)/2,26,['#ffe066','#ff8a1f','#ffffff'],90,3);spawnRing((a.x+b.x)/2,gy-5,(a.y+b.y)/2,'#ffcf6a',30,.4);SFX.clash(near({x:a.x,y:a.y}));if(a.storm||b.storm){if(a.lastHit===b)continue;a.lastHit=b;b.lastHit=a;for(const q of [a,b]){if(q.storm){if(--q.hp<=0){q.t=0;q.dead=1;}}else{q.t=0;q.dead=1;}}if(a.dead)break;continue;}a.t=0;b.t=0;a.dead=b.dead=1;break;}}}
   for(let i=projectiles.length-1;i>=0;i--){const p=projectiles[i];p.px=p.x;p.py=p.y;/* previous step, for smooth drawing between physics steps */if(p.dead){scene.remove(p.mesh);projectiles.splice(i,1);continue;}if(p.custom){if(itemsProj(p,dt)){projGone(p);projectiles.splice(i,1);}continue;}p.t-=dt;p.safe-=dt;
     /* a homing dough ball always closes the gap: it runs comfortably faster than whoever it is chasing, and rides the road to get there */
     if(p.type==='dough'&&p.target&&!p.target.finished){const tg=p.target;homeStep(p,tg,dt,Math.max(300,Math.abs(tg.speed||0)*1.22+70),Math.hypot(tg.x-p.x,tg.y-p.y)<70?9:5.5);}
-    else if(p.type!=='wheel'){p.x+=p.vx*dt;p.y+=p.vy*dt;if(p.wb!=null)pepWall(p);}
+    else if(p.type!=='wheel'){p.x+=p.vx*dt;p.y+=p.vy*dt;if(p.storm)pepWall(p);}
     const d=Math.hypot(p.x,p.y);if(d>RIM){const nx=p.x/d,ny=p.y/d,dot=p.vx*nx+p.vy*ny;p.vx-=2*dot*nx;p.vy-=2*dot*ny;p.x=nx*(RIM-1);p.y=ny*(RIM-1);if(++p.b>3)p.t=0;}
     if(p.type==='wheel'){const tg=p.target,per=T.L/N;p.spin+=dt*(p.ph==='wind'?46:p.ph?30:24);
       /* the pizza cutter: races along the road (faster than anyone), then hovers over its target, winds up, and slices down.
@@ -4759,8 +4761,15 @@ function update0(dt){
         spawnRing(p.x,fy+.8,p.y,'#ffffff',50,.6);FXA.spawn(p.x,fy+6,p.y,0,0,0,'#ffffff',46,10,.2,0,0);SFX.boom(near({x:p.x,y:p.y}));if(Math.hypot(p.x-camera.position.x,p.y-camera.position.z)<120)shake(.5);
         scene.remove(p.mesh);projectiles.splice(i,1);}continue;}
     if(p.type==='lob'){if(p.t<=0&&overPit(p.x,p.y)){scene.remove(p.mesh);projectiles.splice(i,1);continue;}if(p.t<=0){hazards.push({x:p.x,y:p.y,t:30,born:0,owner:p.owner,armed:false,mesh:itemMesh('oil')});scene.remove(p.mesh);projectiles.splice(i,1);}continue;}
-    let hit=false;for(const k of karts){if(k.loop||(k===p.owner&&p.safe>0))continue;if(heldBlock(k,p)){hit=true;break;}if((k.x-p.x)**2+(k.y-p.y)**2<200&&k.inv<=0&&sameLvl(k,p)){if(k===player)hitBy(p);spinOut(k,p.type);hit=true;p.pop=1;break;}}
-    for(const h of hazards){if((h.x-p.x)**2+(h.y-p.y)**2<100){h.t=0;hit=true;}}
+    let hit=false;
+    if(p.storm){const ig=p.ign||(p.ign=new Map());for(const k of karts){if(k.loop||(k===p.owner&&p.safe>0)||(ig.get(k)||-1)>simTime)continue;
+        if(heldBlock(k,p)){ig.set(k,simTime+.5);if(--p.hp<=0){hit=true;break;}continue;}
+        if((k.x-p.x)**2+(k.y-p.y)**2<200&&k.inv<=0&&sameLvl(k,p)){ig.set(k,simTime+.6);if(k===player)hitBy(p);spinOut(k,p.type);p.pop=1;
+          const dx=p.x-k.x,dy=p.y-k.y,dd=Math.hypot(dx,dy)||1,nx=dx/dd,ny=dy/dd,dot=p.vx*nx+p.vy*ny;if(dot<0){p.vx-=2*dot*nx;p.vy-=2*dot*ny;}/* ricochet off the kart */
+          if(--p.hp<=0){hit=true;break;}}}
+      if(!hit)for(const h of hazards){if(h.t>0&&(h.x-p.x)**2+(h.y-p.y)**2<100){h.t=0;if(--p.hp<=0){hit=true;break;}}}}
+    else{for(const k of karts){if(k.loop||(k===p.owner&&p.safe>0))continue;if(heldBlock(k,p)){hit=true;break;}if((k.x-p.x)**2+(k.y-p.y)**2<200&&k.inv<=0&&sameLvl(k,p)){if(k===player)hitBy(p);spinOut(k,p.type);hit=true;p.pop=1;break;}}
+    for(const h of hazards){if((h.x-p.x)**2+(h.y-p.y)**2<100){h.t=0;hit=true;}}}
     if(hit||p.t<=0){projGone(p);projectiles.splice(i,1);}}
   for(let i=hazards.length-1;i>=0;i--){const h=hazards[i];if(h.born===0&&overPit(h.x,h.y))h.t=0;h.t-=dt;h.born+=dt;
     if(!h.armed&&(!h.owner||(h.owner.x-h.x)**2+(h.owner.y-h.y)**2>34*34))h.armed=true;
@@ -4952,7 +4961,7 @@ function render(time,dt){
   for(const p of projectiles){let pg=pGround(p);if(GLIDE){const gyy=glideY(p.x,p.y);if(pg<gyy-20)pg=gyy+6;}const ms=p.mesh,pop=p.age<.22?.35+.65*(1-Math.pow(1-p.age/.22,3)):1;
     if(p.type==='wheel'){wheelRender(p,pg,time,dt);continue;}if(p.type==='flour'){const f=1-p.t/p.t0;p.mesh.position.set(p.x,pg+3.4+Math.sin(Math.PI*f)*20,p.y);p.mesh.rotation.y+=dt*6;p.mesh.rotation.z=Math.sin(f*Math.PI*2)*.5;continue;}if(p.type==='lob'){const f=1-p.t/p.t0;ms.position.set(p.x,pg+2+Math.sin(Math.PI*f)*16,p.y);ms.rotation.z-=dt*8;}
     else if(p.type==='pep'){/* a thrown slice flies like a disc: nose up, wobbling, spinning on its own axis, so you see its face */
-      p.sp=(p.sp||0)+dt*17;ms.position.set(p.x,pg+3.3+Math.sin(p.age*9)*.35,p.y);_iq1.setFromAxisAngle(_iY,-Math.atan2(p.vy,p.vx));_iq2.setFromAxisAngle(_iZ,.4);_iq3.setFromAxisAngle(_iX,Math.sin(p.age*7)*.2);_iq4.setFromAxisAngle(_iY,p.sp);ms.quaternion.copy(_iq1).multiply(_iq2).multiply(_iq3).multiply(_iq4);}
+      p.sp=(p.sp||0)+dt*17;ms.position.set(p.x,pg+(p.storm?1.9:3.3)+Math.sin(p.age*9)*(p.storm?.2:.35),p.y);_iq1.setFromAxisAngle(_iY,-Math.atan2(p.vy,p.vx));_iq2.setFromAxisAngle(_iZ,p.storm?.18:.4);_iq3.setFromAxisAngle(_iX,Math.sin(p.age*7)*.2);_iq4.setFromAxisAngle(_iY,p.sp);ms.quaternion.copy(_iq1).multiply(_iq2).multiply(_iq3).multiply(_iq4);}
     else if(p.type==='dough'){/* the dough ball bounds along, rolling the way it travels */p.roll=(p.roll||0)+Math.hypot(p.vx,p.vy)*dt/2.6;ms.position.set(p.x,pg+2.8+Math.abs(Math.sin(p.age*6.5))*1.6,p.y);ms.rotation.set(0,-Math.atan2(p.vy,p.vx),-p.roll);}
     else ms.position.set(p.x,pg+2.7,p.y);
     if(p.type!=='bomb'&&p.type!=='twist'){const bs=FLY_SC[p.type]||1;if(p.age<.25)ms.scale.setScalar(pop*bs);else if(!p.sc1){p.sc1=1;ms.scale.setScalar(bs);}}}
@@ -5845,7 +5854,11 @@ function netBuildCfg(mi){const pl=NET.pl.filter(p=>p.id===0||p.conn&&p.conn.open
   for(let s=0;s<8;s++){if(taken.has(s))continue;const ri=others.shift()??(s%RACERS.length);ks.push({slot:s,ri,build:cpuBuilds[ri]||randomBuild(ri),who:-1});}
   ks.sort((a,b)=>a.slot-b.slot);return {mi,cls:clsKey,mode,gp:gp?JSON.parse(JSON.stringify(gp)):null,karts:ks};}
 function netHostStart(mi){if(!cpuBuilds||!cpuBuilds.length)cpuBuilds=RACERS.map(randomBuild);NET.pl[0].ri=selected;NET.pl[0].build=playerBuild;const cfg=netBuildCfg(mi);cfg.id=netRid();NET.loaded=new Set();netAll({t:'load',cfg});netBeginLoad(cfg);}
-function netMaybeGo(){if(NET.role!=='host'||state!=='netwait')return;const need=NET.conns.filter(c=>c.open).map(c=>c._id);if(need.every(id=>NET.loaded.has(id))&&NET.loaded.has(0)){netAll({t:'go'});netGo();}}
+function netMaybeGo(){if(NET.role!=='host'||state!=='netwait')return;const open=NET.conns.filter(c=>c.open),need=open.map(c=>c._id);if(!(need.every(id=>NET.loaded.has(id))&&NET.loaded.has(0)))return;
+  /* everyone has the track loaded: give the direct links up to 8 s more so the race starts on the fast connection, not the relay */
+  if(!NET.allLoadedAt)NET.allLoadedAt=performance.now();const pend=open.filter(c=>!c.direct&&c.rtcSt!=='failed'),w=performance.now()-NET.allLoadedAt;
+  if(pend.length&&w<8000){if(!NET.linkMsgT||performance.now()-NET.linkMsgT>400){NET.linkMsgT=performance.now();showBanner('Linking players… '+(open.length-pend.length)+' of '+open.length+' direct',1,'sm');}return;}
+  netAll({t:'go'});netGo();}
 /* ---------- joining ---------- */
 async function netJoin(code){rtcIce();code=String(code||'').trim().toUpperCase();if(code.length<4)throw new Error('Enter the 4-letter room code.');
   netReset();NET.role='guest';const R=new NetRelay();NET.relay=R;await R.start();if(NET.relay!==R)throw new Error('Cancelled.');
@@ -5870,7 +5883,8 @@ function netLeave(){if(NET.role==='guest')netSend(NET.conns[0],{t:'bye'});else i
 function netBeginLoad(cfg){NET.cfg=cfg;NET.finSeen=false;NET.snaps=[];NET.sn=0;NET.lastSn=0;NET.off=null;NET.jit=0;NET.hist=[];NET.outQ=[];NET.unack=[];NET.ackRx=0;NET.fixN=0;NET.seq=0;NET.inQ={};NET.inS={};NET.inLast={};NET.ack={};NET.loaded=new Set();netClearMirrors();
   clsKey=cfg.cls;mode=cfg.mode;gp=cfg.gp?JSON.parse(JSON.stringify(cfg.gp)):null;if(NET.role==='guest'){cpuBuilds=RACERS.map(randomBuild);for(const k of cfg.karts)cpuBuilds[k.ri]=k.build;}
   netHideLobby();if(garageOpen)closeGarage();results.hidden=true;pauseOv.hidden=true;NET.fromNet=true;goRace(cfg.mi);}
-function netLoaded(){state='netwait';showBanner('Waiting for racers…',30,'sm');NET.waitTimer=performance.now();
+function netLoaded(){state='netwait';showBanner('Waiting for racers…',30,'sm');NET.waitTimer=performance.now();NET.allLoadedAt=0;
+  if(NET.role==='guest'){const c=NET.conns[0];if(c&&!c.direct&&c.rtcSt==='failed'){c.rtcSt='';rtcGuestStart(c);}}/* one more try at the direct link while everyone loads */
   if(NET.role==='guest'){netSend(NET.conns[0],{t:'loaded'});const L=NET.snaps[NET.snaps.length-1];if(L&&(L.gs==='race'||L.gs==='countdown'))netGo();}else{NET.loaded.add(0);netMaybeGo();}}
 function netGo(){if(state!=='netwait'&&state!=='intro')return;banner.textContent='';endIntro();NET.goT=performance.now();}
 /* ---------- host: inputs from friends, snapshots out ---------- */
@@ -5990,16 +6004,17 @@ function netInterp(skip){const S=NET.snaps;if(S.length<1)return;const now=perfor
     if(B[1]>=0&&B[3]&&A[1]===B[1]&&A[3]){li=B[1];lth=A[3][0]+(B[3][0]-A[3][0])*f;lat=B[3][1];}
     else if(B[1]>=0&&B[3]){const t=B[3][0]-(b.ht-tgt)*dps;if(t>0){li=B[1];lth=t;lat=B[3][1];}}
     else if(A[1]>=0&&A[3]){const t=A[3][0]+(tgt-a.ht)*dps;if(t<Math.PI*2){li=A[1];lth=t;lat=A[3][1];}}
-    const run=ext>0&&!(k.spin>0)&&!k.finished;
-    if(li>=0){if(run)lth+=v*ext/LOOPR;lth=Math.min(Math.PI*2,lth);k.loop=netLoopState(li,lth,lat,k.loop);k.loopTh=Math.max(.0001,lth);const P=loopXY(k.loop,lth);k.x=P.x;k.y=P.y;k.wy=P.wy;k.z=P.z;}
-    else{k.loop=null;k.loopTh=0;if(run){k.x+=Math.cos(k.ma)*v*ext*Math.sign(B[0][NI.speed]||1);k.y+=Math.sin(k.ma)*v*ext*Math.sign(B[0][NI.speed]||1);}}
+    const E=k.finished||k.spin>0?0:ext;
+    if(li>=0){lth+=v*E/LOOPR;lth=Math.min(Math.PI*2,lth);k.loop=netLoopState(li,lth,lat,k.loop);k.loopTh=Math.max(.0001,lth);const P=loopXY(k.loop,lth);k.x=P.x;k.y=P.y;k.wy=P.wy;k.z=P.z;}
+    else{k.loop=null;k.loopTh=0;if(E>0){const sv=B[0][NI.speed]||0,w=b.ht>a.ht&&A!==B?clamp(angDiff(B[0][NI.ma],A[0][NI.ma])/((b.ht-a.ht)/1000),-2.5,2.5):0;
+      if(Math.abs(w)<1e-3){k.x+=Math.cos(k.ma)*sv*E;k.y+=Math.sin(k.ma)*sv*E;}else{const m0=k.ma,m1=m0+w*E;k.x+=sv/w*(Math.sin(m1)-Math.sin(m0));k.y+=sv/w*(Math.cos(m0)-Math.cos(m1));k.ma=m1;k.a+=w*E;}}}
     if(k!==player)netHeld(k,B[2],1);});
   /* thrown items and traps */
-  const seen=new Set();for(const r of b.p||[]){seen.add('p'+r[0]);netMirror('p'+r[0],r,a.p&&a.p.find(q=>q[0]===r[0]),f);}for(const r of b.h||[]){seen.add('h'+r[0]);netMirror('h'+r[0],r,a.h&&a.h.find(q=>q[0]===r[0]),f);}
+  const seen=new Set();for(const r of b.p||[]){seen.add('p'+r[0]);netMirror('p'+r[0],r,a.p&&a.p.find(q=>q[0]===r[0]),f,ext);}for(const r of b.h||[]){seen.add('h'+r[0]);netMirror('h'+r[0],r,a.h&&a.h.find(q=>q[0]===r[0]),f);}
   for(const [id,m] of NET.mir)if(!seen.has(id)){scene.remove(m.mesh);NET.mir.delete(id);}NET.mirList=[...NET.mir.values()].filter(m=>m.type);}
-function netMirror(id,r,ra,f){let m=NET.mir.get(id);if(!m){if(!r[1])return;let mesh;try{mesh=itemMesh(r[1]);}catch(e){return;}m={mesh,type:null,x:0,y:0,vx:0,vy:0,target:null,owner:null,dead:false,safe:0};NET.mir.set(id,m);}
+function netMirror(id,r,ra,f,E){let m=NET.mir.get(id);if(!m){if(!r[1])return;let mesh;try{mesh=itemMesh(r[1]);}catch(e){return;}m={mesh,type:null,x:0,y:0,vx:0,vy:0,target:null,owner:null,dead:false,safe:0};NET.mir.set(id,m);}
   const L=(i)=>ra?ra[i]+(r[i]-ra[i])*f:r[i];m.mesh.position.set(L(2),L(3),L(4));m.mesh.rotation.set(r[5],r[6],r[7]);m.mesh.scale.setScalar(r[8]||1);m.mesh.visible=!!r[9];
-  if(r.length>10){m.type=r[10];m.x=L(2);m.y=L(4);m.vx=r[11];m.vy=r[12];m.target=r[13]>=0?karts[r[13]]:null;m.owner=r[14]>=0?karts[r[14]]:null;}}
+  if(r.length>10){m.type=r[10];m.vx=r[11];m.vy=r[12];if(E>0&&(m.vx||m.vy)){m.mesh.position.x+=m.vx*E;m.mesh.position.z+=m.vy*E;}m.x=m.mesh.position.x;m.y=m.mesh.position.z;m.target=r[13]>=0?karts[r[13]]:null;m.owner=r[14]>=0?karts[r[14]]:null;}}
 function netClearMirrors(){for(const m of NET.mir.values())scene.remove(m.mesh);NET.mir.clear();NET.mirList=[];}
 /* ---------- lobby UI ---------- */
 let mpOv=null;
@@ -6117,7 +6132,7 @@ function frame(now){
   let dt=(now-last)/1000;last=now;if(dt>.1)dt=.1;if(dt<0)dt=0;const time=now/1000;const cw0=performance.now();
   if(state==='menu'||state==='race'){acc+=dt;let n=0;const gs=NET.role==='guest'&&NET.cfg&&state==='race';while(acc>=STEP&&n<12){if(gs)netGuestStep(STEP);else update(STEP);acc-=STEP;n++;}if(n>=12)acc=0;alpha=acc/STEP;netFlush();if(gs&&NET.snaps.length){/* other karts on a guest are drawn exactly at this frame's moment of the host's race (not blended between simulation steps), so every frame on a 144 Hz screen shows their motion */if(n===0)netInterp(player.finished?null:player);for(const o of karts)if(o!==player){o.px=o.x;o.py=o.y;o.pa=o.a;o.pma=o.ma;o.pwy=o.wy;o.pth=o.loopTh||0;}}
     if(state==='race'){if(resLive>0&&!results.hidden&&NET.cfg){resLive-=dt;if(resLive<=0)renderResultsNet();}if(resultsAt>0){resultsAt-=dt;if(resultsAt<=0){/* the results own the screen: close the pause menu and any settings opened from it, so the controller can't get stuck behind them */if(!setOv.hidden&&setFrom===pauseOv){setOv.hidden=true;setFrom=null;}pauseOv.hidden=true;results.hidden=false;renderResults();PAD.focEl=null;}}}}
-  else if(state==='netwait'){alpha=1;if(NET.role==='host'&&performance.now()-NET.waitTimer>45000){netAll({t:'go'});netGo();}if(NET.role==='guest'){const gs=NET.snaps.length;if(gs)netInterp(null);}}
+  else if(state==='netwait'){alpha=1;if(NET.role==='host'){netMaybeGo();if(state==='netwait'&&performance.now()-NET.waitTimer>45000){netAll({t:'go'});netGo();}}else if(NET.conns[0]&&!NET.conns[0].direct&&NET.conns[0].rtcSt!=='failed'&&(!NET.linkMsgT||performance.now()-NET.linkMsgT>400)){NET.linkMsgT=performance.now();showBanner('Linking with the host…',1,'sm');}if(NET.role==='guest'){const gs=NET.snaps.length;if(gs)netInterp(null);}}
   else if(state==='intro'){alpha=1;introT+=dt;if(introSkip||introT>=INTRO_SHOT*INTRO_N)endIntro();}
   else if(state==='countdown'){alpha=1;cd-=dt;const n=Math.ceil(cd-.4);if(n!==lastCd&&n>=1&&n<=3){lastCd=n;showBanner(String(n),.9,'md');SFX.count(false);}
     if(cd<=.4){state='race';showBanner('Go!',1,'md');SFX.count(true);acc=0;}standCache=standings();if(NET.role==='host')netHostTick();else if(NET.role==='guest'&&NET.snaps.length)netInterp(player);}
