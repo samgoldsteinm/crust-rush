@@ -3803,7 +3803,7 @@ function makeKart(ri,slot,isPlayer,diff,build){
   const sk=diff.skill[0]+Math.random()*(diff.skill[1]-diff.skill[0]);
   const spec={ri,b:build.b,w:build.w,g:build.g,p:build.p,t:build.t||'',hq:(isPlayer||slot===4&&!NET.cfg||QUAL[qKey].hqAll&&!QUAL[qKey].mob)?1:0,u:build.u||0},m=getModel(spec);m.ga=0;m.gl.visible=false;
   const k={r:RACERS[ri],ri,m,spec,col:PAINTS[build.p]||RACERS[ri].color,sm:statMods(build),glide:false,gRings:0,x:p.x+p.nx*lat,y:p.y+p.ny*lat,a:p.ang,ma:p.ang,speed:0,steer:0,drift:0,charge:0,boost:0,spin:0,inv:0,z:0,zv:0,pen:1,brake:0,acc:0,sf:2,
-    gripT:0,item:null,item2:null,pend:[],roll:0,shield:0,mzH:0,rush:0,frozen:0,idx,prog:idx-N,finished:false,finishTime:0,place:0,isPlayer,auto:!isPlayer,wrongT:0,fx:0,air:false,onRamp:false,trick:false,trickT:0,pd:false,
+    gripT:0,dHold:0,item:null,item2:null,pend:[],roll:0,shield:0,mzH:0,rush:0,frozen:0,idx,prog:idx-N,finished:false,finishTime:0,place:0,isPlayer,auto:!isPlayer,wrongT:0,fx:0,air:false,onRamp:false,trick:false,trickT:0,pd:false,
     ai:{lane:lat,laneTarget:lat,laneT:1+Math.random()*3,skill:sk,itemDelay:0,inBend:false}};
   k.wy=k.lastG=kGround(k);k.pwy=k.wy;k.wvy=0;k.gRate=0;k.loop=null;k.loopTh=0;k.pth=0;k.px=k.x;k.py=k.y;k.pa=k.a;k.pma=k.ma;k.pz=0;k.rx=k.x;k.ry=k.y;k.rz=k.wy;k.rg=k.wy;k.rma=k.ma;return k;
 }
@@ -4608,16 +4608,16 @@ function stepKart(k,inp,dt){
     const sp=Math.abs(k.speed),dir=(k.speed<0?-1:1)*(k.air&&k.big?.35:1);
     const hs=clamp((sp-40)/(BASE_MAX-40),0,1),lo=sp<1?0:Math.min(1,sp/35),tfN=lo*(1-.66*hs)*(isHuman(k)?1:1.4)*sm.hnd,tfD=lo*(1-.38*hs)*1.02*sm.hnd*(1+.55*clamp((sp-BASE_MAX)/(BASE_MAX*.58),0,1));/* drifting: a touch tighter than before, and much tighter above top speed so a boost doesn't carry you wide */
     let dRel=false;if(k.spin>0||k.sink!=null)k.dLatch=false;if(dPress&&k.air&&!k.drift){if(!trickNow){k.dLatch=!k.dLatch;k.dWant=0;}}/* tapped mid-air (jump or glide): stay armed and drift the moment you land */else if(dPress&&k.drift&&!k.air)dRel=true;else{if(dPress&&!k.drift)k.dWant=.6;if(k.dWant>0&&inp.brake)k.dWant=Math.max(k.dWant,.12);
-      if(k.dLatch&&!k.drift&&!k.air){if(sp>40){k.dLatch=false;k.dWant=0;k.drift=1;k.charge=0;k.dAmt=.35;k.tier=0;k.dTime=0;k.sT=0;if(k===player)SFX.hop();}else if(sp<30)k.dLatch=false;}
-      if(k.dWant>0&&!k.drift&&!k.air&&sp>55&&!(!isHuman(k)&&k.boost>0&&k.bAge<.8)){k.dWant=0;k.drift=1;k.charge=0;k.dAmt=0;k.tier=0;k.dTime=0;k.sT=0;k.air=true;k.big=false;k.airT=0;k.wvy=(k.gRate||0)+18;if(k===player)SFX.hop();}}
-    if(k.drift&&!dRel){k.dTime+=dt;const sl=Math.abs(angDiff(k.a,k.ma)),hu=isHuman(k),quick=hu&&!inp.brake&&sl<.2;/* button let go and the kart straightened out: cash the boost in almost at once */if(k.dTime>(quick?.15:hu?.3:.45)&&Math.abs(k.steer)<.3&&(hu||sl<.14)){k.sT+=dt;if(k.sT>(quick?.07:hu?.4:.3))dRel=true;}else k.sT=0;}/* you can let go of the steering mid-drift for a moment: the drift only ends after 1.5 s straight */
+      if(k.dLatch&&!k.drift&&!k.air){if(sp>40){k.dLatch=false;k.dWant=0;k.drift=1;k.charge=0;k.dAmt=.35;k.tier=0;k.dTime=0;k.sT=0;k.dHold=0;if(k===player)SFX.hop();}else if(sp<30)k.dLatch=false;}
+      if(k.dWant>0&&!k.drift&&!k.air&&sp>55&&!(!isHuman(k)&&k.boost>0&&k.bAge<.8)){k.dWant=0;k.drift=1;k.charge=0;k.dAmt=0;k.tier=0;k.dTime=0;k.sT=0;k.dHold=0;k.air=true;k.big=false;k.airT=0;k.wvy=(k.gRate||0)+18;if(k===player)SFX.hop();}}
+    if(k.drift&&!dRel){k.dTime+=dt;if(inp.brake)k.dHold=(k.dHold||0)+dt;const sl=Math.abs(angDiff(k.a,k.ma)),hu=isHuman(k),st=Math.abs(hu?inp.steer:k.steer),up=hu&&!inp.brake&&(k.dHold||0)>.35&&!k.air,quick=!up&&hu&&!inp.brake&&sl<.25;/* humans read the stick itself, not the smoothed steer. Held the button through the drift and let go: the boost fires within two ticks once the stick is mostly straight. Tap drift (button already up): a short straight. Button still held: a slightly longer straight so a held drift survives a quick centre. AI unchanged. */if(k.dTime>(up?0:quick?.12:hu?.3:.45)&&st<(up?.6:.3)&&(hu||sl<.14)){k.sT+=dt;if(k.sT>(up?.016:quick?.04:hu?.25:.3))dRel=true;}else k.sT=0;}/* you can let go of the steering mid-drift for a moment: the drift only ends after 1.5 s straight */
     if(k.drift){
       if(dRel||sp<35){const tier=k.charge>2.6?3:k.charge>1.6?2:k.charge>.8?1:0;
-        if(tier){k.boost=Math.max(k.boost,[0,.55,.9,1.3][tier]);k.pBoost=k.boost;k.bAge=9;k.bPk=k.boost;k.fTier=tier;if(k===player){SFX.boost(tier);if(tier===3&&achMe(k))achAdd('drift3');}if(k===camT)shake(.15+tier*.05);}k.drift=0;k.charge=0;k.gripT=.5;}
+        if(tier){k.boost=Math.max(k.boost,[0,.55,.9,1.3][tier]);k.speed=Math.max(k.speed,Math.min(k.speed+[0,10,15,22][tier],BASE_MAX*sm.spd*1.45));/* a small instant surge so the boost is felt the moment the drift ends */k.pBoost=k.boost;k.bAge=9;k.bPk=k.boost;k.fTier=tier;if(k===player){SFX.boost(tier);if(tier===3&&achMe(k))achAdd('drift3');}if(k===camT)shake(.15+tier*.05);}k.drift=0;k.charge=0;k.gripT=.25;}
       else{k.dAmt=Math.min(1,(k.dAmt||0)+dt*1.75);const da=k.dAmt*k.dAmt*(3-2*k.dAmt);k.a+=k.steer*TURN*(tfN+(tfD-tfN)*da)*dt*dir;k.speed-=3*dt;k.charge+=dt*(.5+1*Math.abs(k.steer))*(.35+.65*da)*(k.sT>0?0:1);
         const tr=k.charge>2.6?3:k.charge>1.6?2:k.charge>.8?1:0;if(tr>(k.tier||0)){k.tier=tr;if(k===player)SFX.tier(tr);}}
     }else k.a+=k.steer*TURN*tfN*dt*dir;
-    {const dA=k.dAmt||0,da=dA*dA*(3-2*dA);k.ma+=angDiff(k.a,k.ma)*Math.min(1,(k.drift?9-5*da:k.gripT>0?5:9)*dt);const sl=angDiff(k.a,k.ma);if(Math.abs(sl)>.5)k.ma=k.a-Math.sign(sl)*.5;}
+    {const dA=k.dAmt||0,da=dA*dA*(3-2*dA);k.ma+=angDiff(k.a,k.ma)*Math.min(1,(k.drift?9-5*da:k.gripT>0?7:9)*dt);const sl=angDiff(k.a,k.ma);if(Math.abs(sl)>.5)k.ma=k.a-Math.sign(sl)*.5;}
   }
   k.acc+=((k.speed-v0)/dt-k.acc)*Math.min(1,dt*6);
   k.x+=Math.cos(k.ma)*k.speed*dt;k.y+=Math.sin(k.ma)*k.speed*dt;
