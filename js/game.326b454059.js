@@ -2910,7 +2910,7 @@ function pondFall(k,q){if(k.sink!=null)return;k.sink=3;k.sinkP=q;k.sinkT=0;k.spe
   const look=curMapId()==='oven'?POOLBY.oven:['#7fd8ff'];burst(k.x,(k.wy||0)+2,k.y,36,[look[0],'#ffffff'],80,3.2);spawnRing(k.x,(k.wy||0)+.6,k.y,'#e8fbff',50,.7);
   SFX.bump(near(k));if(k===player)edgeFx('#7fd8ff');if(k===camT)shake(.6);}
 function pondRespawn(k){const q=k.sinkP,j=(k.idx-5+N)%N,p=track[j],lat=q?-q.sd*18:0;let di=j-k.idx;if(di>N/2)di-=N;if(di<-N/2)di+=N;k.prog+=di;k.idx=j;
-  k.x=k.px=p.x+p.nx*lat;k.y=k.py=p.y+p.ny*lat;k.a=k.ma=k.pa=k.pma=p.ang;k.speed=BASE_MAX*.3;k.wy=k.pwy=k.lastG=kGround(k);k.wvy=0;k.air=false;k.spin=0;k.inv=1.8;k.z=k.pz=0;k.sink=null;k.sinkP=null;k.sc=null;
+  k.x=k.px=p.x+p.nx*lat;k.y=k.py=p.y+p.ny*lat;k.a=k.ma=k.pa=k.pma=p.ang;k.speed=BASE_MAX*.3;k.wy=k.pwy=k.lastG=kGround(k);k.wvy=0;k.air=false;k.spin=0;k.inv=3;k.z=k.pz=0;k.sink=null;k.sinkP=null;k.sc=null;
   if(k===camT)camSnap=true;spawnRing(k.x,k.wy+.6,k.y,'#7fe8ff',40,.6);}
 function pondTick(dt){for(const k of karts){if(k.sink!=null){k.sink-=dt;k.sinkT+=dt;k.speed*=Math.pow(.02,dt);if(k.sink<=0)pondRespawn(k);continue;}
     if(!PONDS.length||k.air||k.loop||k.glide||k.z>3)continue;const q=inPond(k.x,k.y,-5);if(q)pondFall(k,q);}}
@@ -2923,7 +2923,7 @@ function hzBump(k,x,y,r,kind){const dx=k.x-x,dy=k.y-y,d=Math.hypot(dx,dy)||1;if(
 function poolFall(k,pl){if(k.inv>0&&k.sink==null)return;k.sink=.7;k.sinkP=pl;k.speed*=.25;k.drift=0;k.boost=0;k.charge=0;burst(k.x,2,k.y,24,[POOLBY[curMapId()]?.[0]||'#7fd8ff','#ffffff'],60,2.6);SFX.bump(near(k));if(k===player)edgeFx('#7fd8ff');if(k===camT)shake(.5);}
 const curMapId=()=>MAPS[mapIdx]?MAPS[mapIdx].id:'';
 function poolRespawn(k){const j=(k.idx-6+N)%N,p=track[j],lat=k.sinkP?-Math.sign(k.sinkP.lat)*20:0;let di=j-k.idx;if(di>N/2)di-=N;if(di<-N/2)di+=N;k.prog+=di;k.idx=j;
-  k.x=k.px=p.x+p.nx*lat;k.y=k.py=p.y+p.ny*lat;k.a=k.ma=k.pa=k.pma=p.ang;k.speed=BASE_MAX*.35;k.wy=k.pwy=k.lastG=kGround(k);k.wvy=0;k.air=false;k.spin=0;k.inv=1.6;k.z=k.pz=0;k.sink=null;k.sc=null;
+  k.x=k.px=p.x+p.nx*lat;k.y=k.py=p.y+p.ny*lat;k.a=k.ma=k.pa=k.pma=p.ang;k.speed=BASE_MAX*.35;k.wy=k.pwy=k.lastG=kGround(k);k.wvy=0;k.air=false;k.spin=0;k.inv=3;k.z=k.pz=0;k.sink=null;k.sc=null;
   if(k===camT){camSnap=true;}spawnRing(k.x,k.wy+.6,k.y,'#7fe8ff',40,.6);}
 function updateHazards(dt){if(state==='menu'&&!HAZ.traffic.length&&!HAZ.train&&!HAZ.walk.length)return;const racing=state==='race'||state==='menu';
   /* traffic */
@@ -4111,7 +4111,7 @@ const hitAnims=[];
    so everyone in an online race sees the squash. Returns true while the big kart should pass through b. */
 const FLAT_T=3;function megaCrush(a,b){if(b.flatT>0)return true;if(b.flatImm>0||b.glide||b.loop)return false;
   if(b.inv>0||b.rush>0||abInv(b)||b.ghostT>0||b.absT>0)return false;if(b.shield>0){spinOut(b,'mega',true);return false;}
-  b.flatT=FLAT_T;b.flatImm=FLAT_T+.6;b.inv=Math.max(b.inv||0,FLAT_T+1.2);/* protected while squashed and for a moment after */b.air=false;b.wvy=0;b.big=false;b.speed*=.5;b.drift=0;b.charge=0;b.boost=0;b.dWant=0;b.dLatch=false;b.sT=0;
+  b.flatT=FLAT_T;b.flatImm=FLAT_T+.6;b.inv=Math.max(b.inv||0,FLAT_T+3);/* protected while squashed and for 3 s after popping back up */b.air=false;b.wvy=0;b.big=false;b.speed*=.5;b.drift=0;b.charge=0;b.boost=0;b.dWant=0;b.dLatch=false;b.sT=0;
   const gy=(b.wy||0)+.6;spawnRing(b.x,gy,b.y,'#c8a06a',46,.5);burst(b.x,gy+2,b.y,26,['#efe3cb','#c8a06a','#ffffff'],70,3);if(b===camT)shake(.55);else if(a===camT)shake(.3);SFX.bump(Math.max(near(b),.4));return true;}
 const BUMPT=new Map();
 /* a projectile that hits someone does not just vanish: it smashes (a quick swell, then shrinks away) under the hit burst */
@@ -4362,9 +4362,9 @@ function useItem2(k,it,back){const ca=Math.cos(k.a),sa=Math.sin(k.a),st=standCac
   else if(it==='shroom'){k.air=true;k.big=true;k.airT=0;k.wvy=78;k.boost=Math.max(k.boost,.9);k.drift=0;itemFx(k,col,30);if(v>0)SFX.shroom();if(k===player)shake(.4);}
   else if(it==='magnet'){k.magT=2.6;k.magTg=kartAhead(k);itemFx(k,col,20);if(v>0)SFX.magnet();}
   else if(it==='cutter'){k.cutT=8;k.cutA=0;if(!k.cutM){k.cutM=[0,1,2].map(()=>{const m=itemProto('cutter').clone();m.scale.setScalar(1.1);scene.add(m);return m;});}k.cutM.forEach(m=>m.visible=true);itemFx(k,col,24);if(v>0)SFX.cutter();}
-  else if(it==='sauce'){for(let j=0;j<i;j++){const o=st[j];if(o.inv>0||o.shield>0||o.ghostT>0||o.loop||o.absT>0||abInv(o))continue;if(absorb(o))continue;o.sauceT=4;o.inv=Math.max(o.inv||0,2);burst(o.x,(o.wy||0)+8,o.y,26,['#d8301c','#a8180a','#ff6a3a'],70,3.2);spawnRing(o.x,(o.wy||0)+.6,o.y,'#d8301c',24,.5);if(o===player){sauceFx(true);SFX.sauce(1);}}
+  else if(it==='sauce'){for(let j=0;j<i;j++){const o=st[j];if(o.inv>0||o.shield>0||o.ghostT>0||o.loop||o.absT>0||abInv(o))continue;if(absorb(o))continue;o.sauceT=4;o.inv=Math.max(o.inv||0,3);burst(o.x,(o.wy||0)+8,o.y,26,['#d8301c','#a8180a','#ff6a3a'],70,3.2);spawnRing(o.x,(o.wy||0)+.6,o.y,'#d8301c',24,.5);if(o===player){sauceFx(true);SFX.sauce(1);}}
     itemFx(k,col,26);if(v>0)SFX.sauce(v);}
-  else if(it==='heat'){for(const o of karts){if(o===k||o.loop||o.inv>0||o.shield>0||o.ghostT>0||o.absT>0||abInv(o))continue;if(absorb(o))continue;o.shrinkT=3.2;o.speed*=.6;spinOut(o,'pep');o.inv=Math.max(o.inv||0,2);}heatFlash();SFX.heat();itemFx(k,col,40);}
+  else if(it==='heat'){for(const o of karts){if(o===k||o.loop||o.inv>0||o.shield>0||o.ghostT>0||o.absT>0||abInv(o))continue;if(absorb(o))continue;o.shrinkT=3.2;o.speed*=.6;spinOut(o,'pep');o.inv=Math.max(o.inv||0,3);}heatFlash();SFX.heat();itemFx(k,col,40);}
   else if(it==='bomb'){if(back)projectiles.push({type:'bomb',custom:1,x:k.x-Math.cos(k.ma)*16,y:k.y-Math.sin(k.ma)*16,vx:0,vy:0,t:1.6,fuse:1.6,owner:k,safe:9,b:0,landed:true,mesh:itemMesh('bomb')});
     else{const sp=Math.max(0,k.speed)+160;projectiles.push({type:'bomb',custom:1,x:k.x+ca*8,y:k.y+sa*8,vx:ca*sp,vy:sa*sp,t:.75+1.1,t0:.75,fuse:1.1,owner:k,safe:9,b:0,landed:false,mesh:itemMesh('bomb')});}if(v>0)SFX.throwF();}
   else if(it==='forks'){const p=track[k.idx];for(const o of [-22,0,22]){const x=k.x-Math.cos(k.ma)*22+p.nx*o,y=k.y-Math.sin(k.ma)*22+p.ny*o;hazards.push({x,y,t:25,born:0,owner:k,armed:false,kind:'forks',mesh:itemMesh('forks')});}if(v>0)SFX.forks(v);}
@@ -4450,7 +4450,7 @@ function itemsRender(time,dt){for(const p of projectiles){const col=TRAIL[p.type
     if(k.sauceT>0&&Math.random()<.3)FXN.spawn(k.rx,(k.rz||0)+3,k.ry,(Math.random()-.5)*10,2,(Math.random()-.5)*10,'#b8200e',2.5,1,.6,30,1);}}
 /* sauce smears on the player's screen */
 let _sauceEl=null;/* Olive's slick: no spin, the wheels get coated in oil and the kart is slowed for OIL_T seconds (oilT is in the network snapshot) */
-const OIL_T=5,BURN_T=2;/* BURN_T: how long a kart that hit Chili's flames stays on fire (burnT is in the network snapshot) */function oilUp(k){k.oilT=OIL_T;k.inv=Math.max(k.inv||0,2);/* hit protection */const gy=(k.wy||0)+3;burst(k.x,gy,k.y,22,['#c8b23a','#8a7a1c','#fff3b0'],55,2.4);SFX.bump(Math.max(near(k),.3)*.7);if(k===camT)shake(.25);if(k===player){showBanner('Oily wheels!',.9,'sm');edgeFx('#c8b23a',1);}}
+const OIL_T=5,BURN_T=2;/* BURN_T: how long a kart that hit Chili's flames stays on fire (burnT is in the network snapshot) */function oilUp(k){k.oilT=OIL_T;k.inv=Math.max(k.inv||0,3);/* hit protection */const gy=(k.wy||0)+3;burst(k.x,gy,k.y,22,['#c8b23a','#8a7a1c','#fff3b0'],55,2.4);SFX.bump(Math.max(near(k),.3)*.7);if(k===camT)shake(.25);if(k===player){showBanner('Oily wheels!',.9,'sm');edgeFx('#c8b23a',1);}}
 const _od=new THREE.Vector3();/* drawing only: oil flicks off the coated tyres and catches the light */
 function oilDrip(k,m){if(Math.random()>.55||!m.wheels.length)return;const w=m.wheels[(Math.random()*m.wheels.length)|0],c=w.spin.children[0];if(!c||!c.geometry)return;if(!c.geometry.boundingSphere)c.geometry.computeBoundingSphere();
   _od.copy(c.geometry.boundingSphere.center).applyMatrix4(c.matrixWorld);const bx=-Math.cos(k.rma||k.ma),bz=-Math.sin(k.rma||k.ma),r=Math.random;
@@ -4612,7 +4612,7 @@ function useItem(k,back){
     else{const v=Math.max(0,k.speed)+170;projectiles.push({type:'flour',x:k.x+ca*10,y:k.y+sa*10,vx:ca*v,vy:sa*v,t:.75,t0:.75,owner:k,safe:9,b:0,mesh:itemMesh('flour')});}}
   else if(it==='wheel'){projectiles.push({type:'wheel',x:k.x,y:k.y,vx:0,vy:0,t:16,owner:k,safe:9,b:0,target:st[0]===k?null:st[0],prog:k.prog+2,lat:lateral(k),spin:0,dir:k.a,mesh:itemMesh('wheel')});}
   else if(it==='rush'){k.rush=3.2;k.boost=Math.max(k.boost,3.2);k.drift=0;}
-  else if(it==='freezer'){const sf=standings(),fi=sf.indexOf(k);for(let j=0;j<fi;j++){const o=sf[j];if(o===k||o.finished)continue;if(o.inv>0||o.shield>0||o.rush>0||o.loop||o.absT>0||abInv(o))continue;if(absorb(o))continue;o.frozen=2.8;o.inv=Math.max(o.inv||0,2.8+1.5);burst(o.x,o.rz||o.wy,o.y,18,['#bfe6ff','#ffffff','#7fd0ff'],50,2.6);spawnRing(o.x,(o.wy||0)+.6,o.y,'#8fd8ff',26,.5);}spawnRing(k.x,(k.wy||0)+.6,k.y,'#bfe6ff',60,.7);}
+  else if(it==='freezer'){const sf=standings(),fi=sf.indexOf(k);for(let j=0;j<fi;j++){const o=sf[j];if(o===k||o.finished)continue;if(o.inv>0||o.shield>0||o.rush>0||o.loop||o.absT>0||abInv(o))continue;if(absorb(o))continue;o.frozen=2.8;o.inv=Math.max(o.inv||0,2.8+3);burst(o.x,o.rz||o.wy,o.y,18,['#bfe6ff','#ffffff','#7fd0ff'],50,2.6);spawnRing(o.x,(o.wy||0)+.6,o.y,'#8fd8ff',26,.5);}spawnRing(k.x,(k.wy||0)+.6,k.y,'#bfe6ff',60,.7);}
   if(it==='chili'||it==='rush'){if(k===player)SFX.chili();}else if(it==='garlic'){if(near(k)>0)SFX.garlic(near(k));}else if(it==='freezer'){SFX.freeze();}else if(it==='wheel'){SFX.wheel(near(k)||.4);}else if(near(k)>0)(back?SFX.throwB:SFX.throwF)();
 }
 /* a person drives this kart: the local player, or (on the host) a friend's kart. Their karts must get identical physics on every phone, or the host's copy drives a different line and corrections make the kart jump. */
@@ -4713,7 +4713,7 @@ function glideRings(k){steerGlideRings(k);const G=GLIDE;if(!G||!G.rings)return;f
   if(Math.abs(dz*G.ux-dx*G.uy)<15&&(NET.cfg&&isHuman(k)||Math.abs(k.wy+4-r.y)<15)){k.gRings|=1<<i;k.boost=Math.max(k.boost,.7);spawnRing(r.x,r.y,r.z,'#7fe8ff',30,.5,false);if(k===player){SFX.ring();shake(.15);}}}}
 function respawn(k){const j=(GLIDE.rj-24+N)%N,p=track[j];let di=j-k.idx;if(di>N/2)di-=N;if(di<-N/2)di+=N;k.prog+=di;k.idx=j;
   k.x=k.px=p.x;k.y=k.py=p.y;k.a=k.ma=k.pa=k.pma=p.ang;k.speed=BASE_MAX*.5;k.wy=k.pwy=k.lastG=groundAt(p.x,p.y)+(p.ey||0);k.wvy=0;k.gRate=0;k.air=false;k.big=false;k.glide=false;k.onRamp=k.onGlide=false;
-  k.drift=0;k.charge=0;k.boost=0;k.spin=0;k.inv=2;k.z=k.pz=0;if(k===camT){camSnap=true;shake(.4);}if(k===player){SFX.bump(1);edgeFx('#ffffff',1);}spawnRing(p.x,k.wy+.6,p.y,'#7fe8ff',40,.6);}
+  k.drift=0;k.charge=0;k.boost=0;k.spin=0;k.inv=3;k.z=k.pz=0;if(k===camT){camSnap=true;shake(.4);}if(k===player){SFX.bump(1);edgeFx('#ffffff',1);}spawnRing(p.x,k.wy+.6,p.y,'#7fe8ff',40,.6);}
 function update(dt){NET.inUpd=NET.role==='host'&&!!NET.cfg;try{update0(dt);}finally{NET.inUpd=false;}netHostTick();}
 function update0(dt){
   standCache=standings();simTime+=dt;achTick(dt);
