@@ -5759,6 +5759,16 @@ function netDirectGuest(code,ch){const R=NET.relay;netLoadLib().then(()=>{if(NET
 /* direct link over WebRTC, set up through the relay itself (no outside matchmaking server): on the same Wi-Fi the two
    devices then talk straight to each other; across the internet the STUN servers help them find a route */
 const RTC_ICE=[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']},{urls:'stun:stun.cloudflare.com:3478'}];
+/* TURN (Metered, app "crustrush"): phones on mobile data often sit behind carrier NAT where no direct route exists; a TURN server
+   relays the WebRTC traffic so they still get the fast data channel. The browser always prefers a direct route and only uses
+   the relay when it has to. The key is Metered's credential-scoped key, meant for front-end use; it only fetches the server list.
+   If Metered can't be reached the game simply carries on with STUN only (and the MQTT relay as before). */
+const TURN_URL='https://crustrush.metered.live/api/v1/turn/credentials?apiKey=78d3e88ec5b76283810039412758f32e2c5a';
+let rtcTurn=null,rtcTurnAt=0,rtcTurnP=null;
+function rtcIce(){const now=performance.now();if(rtcTurn&&now-rtcTurnAt<20*60000)return Promise.resolve(RTC_ICE.concat(rtcTurn));
+  if(!rtcTurnP)rtcTurnP=new Promise(res=>{let done=false;const fin=v=>{if(done)return;done=true;rtcTurnP=null;res(v);};const to=setTimeout(()=>fin(RTC_ICE.concat(rtcTurn||[])),3500);
+    try{fetch(TURN_URL,{cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{if(Array.isArray(j)&&j.length){rtcTurn=j.filter(x=>x&&x.urls&&String(x.urls).indexOf('turn')>=0);rtcTurnAt=performance.now();}clearTimeout(to);fin(RTC_ICE.concat(rtcTurn||[]));}).catch(()=>{clearTimeout(to);fin(RTC_ICE.concat(rtcTurn||[]));});}catch(e){clearTimeout(to);fin(RTC_ICE);}});
+  return rtcTurnP;}
 function rtcWrap(dc,ch){if(dc.label==='fast')return rtcWrapF(dc,ch);const w={get open(){return dc.readyState==='open';},send(m){dc.send(JSON.stringify(m));},close(){try{dc.close();}catch(e){}}};
   dc.onmessage=e=>{let d;try{d=JSON.parse(e.data);}catch(_){return;}ch.recv(d);};dc.onopen=()=>{if(ch.open){ch.dc=w;netBadge();}};dc.onclose=()=>{if(ch.dc===w)ch.dc=null;};return w;}
 function rtcWrapF(dc,ch){const w={get open(){return dc.readyState==='open';},send(m){dc.send(JSON.stringify(m));},close(){try{dc.close();}catch(e){}}};
@@ -5769,20 +5779,23 @@ function rtcGather(pc,ms){return new Promise(res=>{if(pc.iceGatheringState==='co
 function rtcGuestStart(ch){if(!window.RTCPeerConnection||!ch.open)return;ch.rtcN=0;ch.rtcSt='connecting';
   const attempt=()=>{if(!ch.open||ch.direct)return;const pc0=ch.pc;
     if(pc0&&pc0.signalingState==='stable'&&/connecting|new|checking/.test(pc0.connectionState||pc0.iceConnectionState)&&performance.now()-(ch.rtcT||0)<14000){setTimeout(attempt,2000);return;}/* answered and still finding a route: give it time */
-    if(++ch.rtcN>12){ch.rtcSt='failed';return;}ch.rtcT=performance.now();
-    try{if(ch.pc){try{ch.pc.close();}catch(e){}}const pc=new RTCPeerConnection({iceServers:RTC_ICE});ch.pc=pc;const id=ch.rtcN;ch.rtcId=id;rtcWrap(pc.createDataChannel('race',{ordered:true}),ch);rtcWrapF(pc.createDataChannel('fast',{ordered:false,maxRetransmits:0}),ch);
+    if(ch.rtcBusy&&performance.now()-ch.rtcBusy<9000){setTimeout(attempt,1500);return;}/* still gathering routes for the last offer (TURN takes a moment): don't start over */
+    if(++ch.rtcN>12){ch.rtcSt='failed';return;}ch.rtcT=performance.now();const nAt=ch.rtcN;ch.rtcBusy=performance.now();
+    rtcIce().then(ice=>{if(!ch.open||ch.direct||ch.rtcN!==nAt){ch.rtcBusy=0;return;}
+    try{if(ch.pc){try{ch.pc.close();}catch(e){}}const pc=new RTCPeerConnection({iceServers:ice});ch.pc=pc;const id=ch.rtcN;ch.rtcId=id;rtcWrap(pc.createDataChannel('race',{ordered:true}),ch);rtcWrapF(pc.createDataChannel('fast',{ordered:false,maxRetransmits:0}),ch);
       pc.onconnectionstatechange=()=>{if(ch.pc===pc)ch.rtcSt=pc.connectionState;};
-      pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=>rtcGather(pc,2500)).then(()=>{if(ch.pc===pc&&!ch.direct)ch.send({t:'rtc',id,sdp:pc.localDescription.toJSON()});}).catch(()=>{});}catch(e){ch.rtcSt='error';}
+      pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=>rtcGather(pc,ice.length>3?4000:2500)).then(()=>{ch.rtcBusy=0;ch.rtcT=performance.now();if(ch.pc===pc&&!ch.direct)ch.send({t:'rtc',id,sdp:pc.localDescription.toJSON()});}).catch(()=>{ch.rtcBusy=0;});}catch(e){ch.rtcBusy=0;ch.rtcSt='error';}});
     setTimeout(attempt,ch.rtcN<4?4000:8000);};
   attempt();}
 function rtcOnGuest(ch,d){if(!ch||!ch.pc||d.id!==ch.rtcId||!d.sdp||d.sdp.type!=='answer')return;if(ch.pc.signalingState==='have-local-offer')ch.pc.setRemoteDescription(d.sdp).catch(()=>{});}
-function rtcOnHost(ch,d){if(!window.RTCPeerConnection||!d.sdp||d.sdp.type!=='offer')return;if(ch.direct)return;
-  try{if(ch.pc){try{ch.pc.close();}catch(e){}}const pc=new RTCPeerConnection({iceServers:RTC_ICE});ch.pc=pc;ch.rtcSt='connecting';pc.onconnectionstatechange=()=>{if(ch.pc===pc)ch.rtcSt=pc.connectionState;};
+function rtcOnHost(ch,d){if(!window.RTCPeerConnection||!d.sdp||d.sdp.type!=='offer')return;if(ch.direct)return;ch.rtcOff=d.id;
+  rtcIce().then(ice=>{if(ch.direct||!ch.open||ch.rtcOff!==d.id)return;
+  try{if(ch.pc){try{ch.pc.close();}catch(e){}}const pc=new RTCPeerConnection({iceServers:ice});ch.pc=pc;ch.rtcSt='connecting';pc.onconnectionstatechange=()=>{if(ch.pc===pc)ch.rtcSt=pc.connectionState;};
     pc.ondatachannel=e=>rtcWrap(e.channel,ch);
-    pc.setRemoteDescription(d.sdp).then(()=>pc.createAnswer()).then(a=>pc.setLocalDescription(a)).then(()=>rtcGather(pc,2500)).then(()=>{if(ch.pc===pc)ch.send({t:'rtc',id:d.id,sdp:pc.localDescription.toJSON()});}).catch(()=>{});}catch(e){}}
+    pc.setRemoteDescription(d.sdp).then(()=>pc.createAnswer()).then(a=>pc.setLocalDescription(a)).then(()=>rtcGather(pc,ice.length>3?4000:2500)).then(()=>{if(ch.pc===pc)ch.send({t:'rtc',id:d.id,sdp:pc.localDescription.toJSON()});}).catch(()=>{});}catch(e){}});}
 const netFast=()=>NET.conns.length>0&&NET.conns.every(c=>!c.open||c.direct);
 /* ---------- hosting ---------- */
-async function netHost(){netReset();NET.role='host';NET.me=0;const R=new NetRelay();NET.relay=R;
+async function netHost(){rtcIce();netReset();NET.role='host';NET.me=0;const R=new NetRelay();NET.relay=R;
   await R.start();if(NET.relay!==R)throw new Error('Cancelled.');
   let code='';for(let i=0;i<4;i++)code+=NET_ALPHA[Math.floor(Math.random()*NET_ALPHA.length)];NET.code=code;R.sub(NET_TOP+'r/'+code);
   NET.pl=[{id:0,name:netName(),ready:true,ri:selected,build:playerBuild}];let nextId=1;
@@ -5816,7 +5829,7 @@ function netBuildCfg(mi){const pl=NET.pl.filter(p=>p.id===0||p.conn&&p.conn.open
 function netHostStart(mi){if(!cpuBuilds||!cpuBuilds.length)cpuBuilds=RACERS.map(randomBuild);NET.pl[0].ri=selected;NET.pl[0].build=playerBuild;const cfg=netBuildCfg(mi);cfg.id=netRid();NET.loaded=new Set();netAll({t:'load',cfg});netBeginLoad(cfg);}
 function netMaybeGo(){if(NET.role!=='host'||state!=='netwait')return;const need=NET.conns.filter(c=>c.open).map(c=>c._id);if(need.every(id=>NET.loaded.has(id))&&NET.loaded.has(0)){netAll({t:'go'});netGo();}}
 /* ---------- joining ---------- */
-async function netJoin(code){code=String(code||'').trim().toUpperCase();if(code.length<4)throw new Error('Enter the 4-letter room code.');
+async function netJoin(code){rtcIce();code=String(code||'').trim().toUpperCase();if(code.length<4)throw new Error('Enter the 4-letter room code.');
   netReset();NET.role='guest';const R=new NetRelay();NET.relay=R;await R.start();if(NET.relay!==R)throw new Error('Cancelled.');
   let c;try{c=await R.knock(NET_TOP+'r/'+code,40000);}catch(e){if(e.message==='notfound')throw new Error('Could not find room '+code+'. Check the code, and make sure the host still has the room screen open. If they switched apps, ask them to come back to the game, then try again.');throw e;}
   if(NET.relay!==R)throw new Error('Cancelled.');
