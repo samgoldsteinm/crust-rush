@@ -154,6 +154,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .results .pl{font-family:var(--display);color:var(--cheese)}
 .results .sw{width:12px;height:12px;border-radius:3px}
 .results .tm{color:var(--muted);font-weight:600}
+.results .racing{font-style:normal;color:var(--muted);font-weight:600}.results small.cpu{font-size:10px;letter-spacing:.06em;color:var(--muted);border:1px solid currentColor;border-radius:4px;padding:0 4px;margin-left:6px;vertical-align:1px}
 .rotate{display:none;margin:0;padding:10px 14px;border-radius:12px;background:var(--oven-2);border:1px dashed var(--muted);color:var(--cream);font-weight:700;font-size:14px}
 @media (orientation:portrait) and (pointer:coarse){.rotate{display:block}}
 @media (orientation:landscape) and (min-width:600px){

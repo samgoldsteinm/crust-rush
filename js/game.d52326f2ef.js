@@ -4134,7 +4134,7 @@ function spinOut(k,kind,world){if(k.inv>0||k.rush>0||abInv(k)||k.ghostT>0||k.abs
   FXA.spawn(k.x,y,k.y,0,0,0,'#ffffff',30,6,.18,0,0);
   spawnRing(k.x,.6,k.y,cols[0],34,.55);spawnRing(k.x,y,k.y,'#ffffff',20,.35,false);
   SFX.hit(near(k),kind);if(k===player){hitfx.classList.add('on');setTimeout(()=>hitfx.classList.remove('on'),70);}return true;}
-function boxFx(b,k){const cols=['#ffe066','#e0452c','#fff4dc','#7fd0ff','#3f9a35'],Y=(b.air?b.vy:0)+7;burst(b.x,Y,b.y,40,cols,85,2.6);
+function boxFx(b,k,noBurst){const cols=['#ffe066','#e0452c','#fff4dc','#7fd0ff','#3f9a35'],Y=(b.air?b.vy:0)+7;if(!noBurst)burst(b.x,Y,b.y,40,cols,85,2.6);
   for(let i=0;i<16;i++){const a=Math.random()*Math.PI*2,u=.4+Math.random()*.6;FXA.spawn(b.x,Y,b.y,Math.cos(a)*50*u,40+Math.random()*50,Math.sin(a)*50*u,i%2?'#f5ead2':'#d6402a',3,1.5,.9,90,.6);}
   FXA.spawn(b.x,Y,b.y,0,0,0,'#fff6c8',40,8,.22,0,0);if(!b.air)spawnRing(b.x,.5,b.y,'#ffd24a',26,.5);spawnRing(b.x,Y,b.y,'#ffffff',14,.3,false);
   if(k===player)SFX.pickup();else{const v=near(k);if(v>0)tone(1319,.1,'triangle',.04*v);}}
@@ -4766,7 +4766,7 @@ function update0(dt){
     if(!h.armed&&(!h.owner||(h.owner.x-h.x)**2+(h.owner.y-h.y)**2>34*34))h.armed=true;
     for(const k of karts){if(k.loop||(k===h.owner&&!h.armed))continue;if((k.x-h.x)**2+(k.y-h.y)**2<200&&k.inv<=0){if(h.olive){if(k.air||k.glide||k.shield>0||k.rush>0||abInv(k)||k.ghostT>0||k.oilT>4.5)continue;oilUp(k);}else if(h.kind==='fire'){if(spinOut(k,'fire')){k.burnT=BURN_T;if(k===player)edgeFx('#ff3a12',1);}}else spinOut(k,'oil');h.t=0;break;}}
     if(h.t<=0){scene.remove(h.mesh);hazards.splice(i,1);}}
-  for(const k of karts){if(state==='race'&&!k.finished&&k.prog>=LAPS*N){k.finished=true;k.finishTime=raceTime;k.place=++finishCount;if(k===player)onPlayerFinish();}}
+  for(const k of karts){if(state==='race'&&!k.finished&&k.prog>=LAPS*N){k.finished=true;k.finishTime=raceTime;k.place=++finishCount;if(raceDone&&NET.cfg)netRerank();if(k===player)onPlayerFinish();}}
   if(state==='race')raceTime+=dt;
 }
 
@@ -4942,7 +4942,7 @@ function render(time,dt){
       IBX.meshes=[];IBX.body=[[],[]];IBX.rings=[];for(const [geo,mN,mD,cast] of IBX.parts){IBX.body[0].push(mk(geo,mN,nN,cast));IBX.body[1].push(mk(geo,mD,nD,cast));}IBX.rings=[mk(IBX.ring[0],IBX.ring[1],nN,false),mk(IBX.ring[0],IBX.ring[2],nD,false)];IBX.glowM=mk(IBX.glow[0],IBX.glow[1],boxes.length,false);
       for(const m of IBX.body[0].concat(IBX.body[1],IBX.rings,[IBX.glowM]))IBX.meshes.push(m);IBX.n=boxes.length;IBX.glowM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       boxes.forEach((b,i)=>{_be.set(-Math.PI/2,0,0);_cq.setFromEuler(_be);_cs.setScalar(b.air?.001:1);_cv.set(b.x,b.gy+.3,b.y);_cm.compose(_cv,_cq,_cs);IBX.glowM.setMatrixAt(i,_cm);});IBX.glowM.instanceMatrix.needsUpdate=true;}
-    let iN=0,iD=0;for(const b of boxes){const vis=b.r<=0||b.r<.35,s=vis?(b.r>0?1-b.r/.35:1):0,bob=Math.sin(time*3+b.sv)*.8,sc=Math.max(.001,s)*(b.dbl?1.25:1),k=b.dbl?1:0,idx=b.dbl?iD++:iN++;
+    let iN=0,iD=0;for(const b of boxes){const br=b.r>0?b.r:(b.pr>simTime?1:0)/* a guest hides the box it just drove through */,vis=br<=0||br<.35,s=vis?(br>0?1-br/.35:1):0,bob=Math.sin(time*3+b.sv)*.8,sc=Math.max(.001,s)*(b.dbl?1.25:1),k=b.dbl?1:0,idx=b.dbl?iD++:iN++;
       _cv.set(b.x,(b.air?airBoxY(b):b.gy)+6.5+bob,b.y);_be.set(.3,time*1.6+b.sv,.18,'XYZ');_cq.setFromEuler(_be);_cs.setScalar(sc);_cm.compose(_cv,_cq,_cs);for(const m of IBX.body[k])m.setMatrixAt(idx,_cm);
       _be.set(Math.PI/2+Math.sin(time*2+b.sv)*.35,0,time,'XYZ');_cq.setFromEuler(_be);_cm.compose(_cv,_cq,_cs);IBX.rings[k].setMatrixAt(idx,_cm);}
     for(const m of IBX.body[0].concat(IBX.body[1],IBX.rings))m.instanceMatrix.needsUpdate=true;}
@@ -5037,7 +5037,7 @@ async function goRace(mi){if(raceLoading)return;if(NET.role&&!NET.fromNet){if(NE
   L.classList.add('out');setTimeout(()=>{L.hidden=true;},320);raceLoading=false;}
 function startGP(){gp={cup:cupIdx,race:0,pts:new Array(8).fill(0),last:new Array(8).fill(0)};goRace(CUP_TRACKS[cupIdx][0]);}
 function startFromMenu(){cpuBuilds=RACERS.map(randomBuild);if(mode==='gp')startGP();else{gp=null;goRace(mapIdx);}}
-function finalizeRace(){if(raceDone)return;raceDone=true;const st=standings();for(const k of st){if(!k.finished){k.finished=true;k.place=++finishCount;k.est=true;k.finishTime=raceTime+Math.max(0,LAPS*N-k.prog)*8/Math.max(60,BASE_MAX*.85);}}
+function finalizeRace(){if(raceDone)return;raceDone=true;if(NET.role==='guest')return;/* online the host decides; a guest only shows it */const st=standings();for(const k of st){if(NET.cfg&&k.netName&&k!==player)continue;/* a friend still racing keeps racing */if(!k.finished){k.finished=true;k.place=++finishCount;k.est=true;k.finishTime=raceTime+Math.max(0,LAPS*N-k.prog)*8/Math.max(60,BASE_MAX*.85);}}
   if(gp){gp.last.fill(0);for(const k of karts){const pt=PTS[k.place-1]||0;gp.pts[k.ri]+=pt;gp.last[k.ri]=pt;}}}
 function toMenu(){if(NET.cfg){if(NET.role==='host')netAll({t:'menu'});else if(NET.role==='guest')netSend(NET.conns[0],{t:'quit'});NET.cfg=null;netClearMirrors();setTimeout(()=>{if(NET.role)netShowLobby();},50);}gp=null;menuStep='home';document.querySelectorAll('#menu .step').forEach(e=>e.hidden=e.dataset.step!=='home');BASE_MAX=BASE0;if(curRev)loadMap(mapIdx,false);state='menu';results.hidden=true;pauseOv.hidden=true;menu.hidden=false;resetRace(true);stage.classList.add('demo');wrong.hidden=true;banner.textContent='';speedfx.classList.remove('on');refreshMenu();}
 /* ================= RECORDS: race history, personal bests and a ghost of your best run ================= */
@@ -5175,7 +5175,19 @@ function achToast(a,msg){const el=$('achToast');if(!el)return;const lv=a?livOf(a
 
 function onPlayerFinish(){saveRun();try{achFinish();}catch(e){}player.auto=true;showBanner('Finish!',2.4,'md');SFX.finish();resultsAt=2.4;}
 const TROPHY=c=>'<svg class="trophy" viewBox="0 0 24 24"><path d="M7 3h10v4.5a5 5 0 0 1-10 0z" fill="'+c+'"/><path d="M7 5H4a3 3 0 0 0 3 4.2M17 5h3a3 3 0 0 1-3 4.2" stroke="'+c+'" stroke-width="1.6" fill="none"/><rect x="10.5" y="12" width="3" height="5" fill="'+c+'"/><rect x="7" y="17" width="10" height="3.4" rx="1" fill="#8a5f42"/></svg>';
-function renderResults(){renderResults0();const pl=pbLine();if(pl)resSub.innerHTML=resSub.textContent.replace(/[<>&]/g,'')+'<br>'+pl;}
+/* online: after the host's own finish the computer racers get estimated times; a friend who finishes later slots in by time */
+function netRerank(){const f=karts.filter(k=>k.finished).sort((a,b)=>a.finishTime-b.finishTime);f.forEach((k,i)=>k.place=i+1);}
+/* online results rows: everyone by finishing time; computer racers still out get an estimate (~), friends still racing show "racing" */
+function netResultRows(){const est=k=>raceTime+Math.max(0,LAPS*N-(k.prog||0))*8/Math.max(60,BASE_MAX*.85);
+  return karts.map(k=>{const human=!!k.netName,racing=!k.finished;return {k,human,racing:human&&racing,est:!human&&(racing||k.est),t:k.finished?k.finishTime:est(k)};}).sort((a,b)=>a.t-b.t);}
+let resLive=0;
+function renderResultsNet(){const rows=netResultRows(),cl=CLASSES[clsKey].label,me=rows.findIndex(r=>r.k===player)+1;
+  resList.innerHTML=rows.map((r,i)=>{const k=r.k,nm=(k.netName||k.r.name)+(k===player?' (you)':''),tm=r.racing?'<em class="racing">racing…</em>':(r.est?'~':'')+fmt(r.t);
+    return '<li class="'+(k===player?'me':'')+'"><span class="pl">'+(i+1)+'</span><span class="sw" style="background:'+k.r.color+'"></span><span>'+String(nm).replace(/[<>&]/g,'')+(k.netName?'':' <small class="cpu">CPU</small>')+'</span><span class="tm">'+tm+'</span></li>';}).join('');
+  $('gpBox').hidden=true;$('trophy').hidden=true;resTitle.textContent=me===1?'1st place!':me+suf(me)+' place';resSub.textContent=MAPS[mapIdx].name+' · '+cl+' class'+(rows.some(r=>r.racing)?' · waiting for friends to finish':'');
+  $('againBtn').textContent='Race again';$('toMenuBtn').textContent='Change track or driver';
+  resLive=rows.some(r=>r.racing)?.5:0;}
+function renderResults(){if(NET.cfg){finalizeRace();renderResultsNet();const pl=pbLine();if(pl)resSub.innerHTML=resSub.textContent.replace(/[<>&]/g,'')+'<br>'+pl;return;}renderResults0();const pl=pbLine();if(pl)resSub.innerHTML=resSub.textContent.replace(/[<>&]/g,'')+'<br>'+pl;}
 function renderResults0(){finalizeRace();const st=standings();const me=player.place||st.indexOf(player)+1,cl=CLASSES[clsKey].label;
   const row=(k,i,right,extra)=>'<li class="'+(k===player?'me':'')+'"><span class="pl">'+(i+1)+'</span><span class="sw" style="background:'+k.r.color+'"></span><span>'+k.r.name+(k===player?' (you)':'')+'</span><span class="tm">'+(extra||'')+right+'</span></li>';
   resList.innerHTML=st.map((k,i)=>row(k,i,(k.est?'~':'')+fmt(k.finishTime))).join('');
@@ -5652,15 +5664,15 @@ function musTick(){if(!ac||!master)return;musInit();if(!MUS.bus)return;
    Phones find each other through a short room code over a relay server; the race data uses a direct link when one opens. */
 const NET={role:null,code:'',peer:null,conns:[],me:0,pl:[],cfg:null,fromNet:false,loaded:new Set(),tick:0,seq:0,hist:[],outQ:[],inQ:{},inS:{},inLast:{},ack:{},
   snaps:[],mir:new Map(),mirH:new Map(),mirList:[],fxQ:[],nid:0,inUpd:false,finSeen:false,lastRecv:0,goT:0,waitTimer:0,replay:false,abQ:false,relay:null,lastFl:0,unack:[],ackRx:0};
-const NET_PROTO=90;/* bump when race messages or kart physics change: friends on different versions would drive differently */
+const NET_PROTO=92;/* bump when race messages or kart physics change: friends on different versions would drive differently */
 const NET_SLOTS=[4,3,5,2],NET_ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const netId=c=>'crustrush-v1-'+c.toUpperCase();
-const NET_REM=['x','y','a','ma','z','wy','speed','steer','drift','charge','boost','spin','air','glide','loopTh','onRamp','rush','shL','shield','mzH','sink','sinkT','trickK','trickT','frozen','acc','brake','dAmt','fx','prog','finished','place','finishTime','inv','big','ghostT','shrinkT','absT','idx','gRings','trick','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT'];
+const NET_REM=['x','y','a','ma','z','wy','speed','steer','drift','charge','boost','spin','air','glide','loopTh','onRamp','rush','shL','shield','mzH','sink','sinkT','trickK','trickT','frozen','acc','brake','dAmt','fx','prog','finished','place','finishTime','inv','big','ghostT','shrinkT','absT','idx','gRings','trick','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT','est'];
 const NET_SKIP=new Set(['px','py','pa','pma','pz','pwy','pth','rx','ry','rz','rg','rma','rth','isPlayer','auto','ri','netId','cox','coy','coz','coth','sf','col','stall','vl','nst']);
 const NET_ANG=new Set(['a','ma']),NET_POS=new Set(['x','y','z','wy','loopTh','speed','charge','steer','prog']);
 /* compact kart records: the first 8 fields always, then only the fields that differ from their resting value, as [index,value] pairs
    (a resting kart field is 0, false or null); the receiver rebuilds the full row, so everything downstream is unchanged */
-const NET_ZB=new Set(['air','glide','onRamp','finished','big','trick']),NET_ZN=new Set(['shL','sink','sinkT','trickK','dAmt','ghostT','shrinkT','absT','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT']);
+const NET_ZB=new Set(['air','glide','onRamp','finished','big','trick','est']),NET_ZN=new Set(['shL','sink','sinkT','trickK','dAmt','ghostT','shrinkT','absT','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT']);
 let NET_Z=null;const netZ=()=>NET_Z||(NET_Z=NET_REM.map(f=>NET_ZB.has(f)?false:NET_ZN.has(f)?null:0));
 function netKEnc(v){const Z=netZ(),o=v.slice(0,8);for(let j=8;j<v.length;j++){let x=v[j];if(x===undefined)x=null;if(x!==Z[j])o.push(j,x);}return o;}
 function netKDec(a){const v=netZ().slice();for(let j=0;j<8;j++)v[j]=a[j];for(let i=8;i+1<a.length;i+=2)v[a[i]]=a[i+1];return v;}
@@ -5711,7 +5723,7 @@ class NetChan{constructor(relay,peer,mq){this.r=relay;this.peer=peer;this.top=NE
   get direct(){return !!(this.dc&&this.dc.open);}
   get fast(){return !!(this.dcF&&this.dcF.open);}
   /* snapshots and inputs: on the fast channel a lost packet is simply skipped (the next one carries fresh data), it never holds up the rest */
-  sendF(m){if(!this.open)return;if(this.fast){try{this.dcF.send(m);this.lastOut=performance.now();return;}catch(e){}}this.send(m);}
+  sendF(m){if(!this.open)return;if(this.fast){try{this.dcF.send(m);this.lastOut=performance.now();return;}catch(e){}}if(!this.direct){this.lastOut=performance.now();this.r.to(this,{f:this.r.id,d:m},true);return;}this.send(m);}/* relay: two servers, the first copy to land is used */
   sendDup(m){if(!this.open)return;this.lastOut=performance.now();if(this.direct){try{this.dc.send(m);return;}catch(e){}}this.r.to(this,{f:this.r.id,d:m},true);}
   send(m){if(!this.open)return;this.lastOut=performance.now();if(this.direct){try{this.dc.send(m);return;}catch(e){}}this.r.to(this,{f:this.r.id,d:m});}
   recv(d){this.lastIn=performance.now();if(this.open)this.emit('data',d);}
@@ -5775,17 +5787,23 @@ function rtcWrapF(dc,ch){const w={get open(){return dc.readyState==='open';},sen
   dc.onmessage=e=>{let d;try{d=JSON.parse(e.data);}catch(_){return;}ch.recv(d);};dc.onopen=()=>{if(ch.open)ch.dcF=w;};dc.onclose=()=>{if(ch.dcF===w)ch.dcF=null;};return w;}
 /* setup is sent as ONE complete message each way (all network routes gathered first), and the guest keeps re-offering
    until the link opens: a single lost relay message used to leave the race on the slow relay for good */
-function rtcGather(pc,ms){return new Promise(res=>{if(pc.iceGatheringState==='complete')return res();const to=setTimeout(res,ms);pc.addEventListener('icegatheringstatechange',()=>{if(pc.iceGatheringState==='complete'){clearTimeout(to);res();}});});}
+/* wait for routes, but not for every last one: a relay (TURN) route is the one that always works, so once it is in (plus a moment for others)
+   the offer goes; a public-address route alone gets a little longer; otherwise stop at the time limit */
+function rtcGather(pc,ms){return new Promise(res=>{if(pc.iceGatheringState==='complete')return res();const t0=performance.now();let done=false,early=null;const fin=()=>{if(done)return;done=true;clearTimeout(to);clearTimeout(early);res();};const to=setTimeout(fin,ms);
+  pc.addEventListener('icegatheringstatechange',()=>{if(pc.iceGatheringState==='complete')fin();});
+  pc.addEventListener('icecandidate',e=>{const c=e.candidate&&e.candidate.candidate||'';if(!c)return;const el=performance.now()-t0;
+    if(/ typ relay/.test(c)){clearTimeout(early);early=setTimeout(fin,Math.max(0,400-el));}else if(/ typ srflx/.test(c)&&!early){early=setTimeout(fin,Math.max(0,1500-el));}});});}
 function rtcGuestStart(ch){if(!window.RTCPeerConnection||!ch.open)return;ch.rtcN=0;ch.rtcSt='connecting';
   const attempt=()=>{if(!ch.open||ch.direct)return;const pc0=ch.pc;
     if(pc0&&pc0.signalingState==='stable'&&/connecting|new|checking/.test(pc0.connectionState||pc0.iceConnectionState)&&performance.now()-(ch.rtcT||0)<14000){setTimeout(attempt,2000);return;}/* answered and still finding a route: give it time */
+    if(pc0&&pc0.signalingState==='have-local-offer'&&!ch.rtcBusy&&performance.now()-(ch.rtcT||0)<9000){setTimeout(attempt,1500);return;}/* offer sent, the answer is on its way over the relay (the host gathers its routes too): don't throw it away */
     if(ch.rtcBusy&&performance.now()-ch.rtcBusy<9000){setTimeout(attempt,1500);return;}/* still gathering routes for the last offer (TURN takes a moment): don't start over */
     if(++ch.rtcN>12){ch.rtcSt='failed';return;}ch.rtcT=performance.now();const nAt=ch.rtcN;ch.rtcBusy=performance.now();
     rtcIce().then(ice=>{if(!ch.open||ch.direct||ch.rtcN!==nAt){ch.rtcBusy=0;return;}
     try{if(ch.pc){try{ch.pc.close();}catch(e){}}const pc=new RTCPeerConnection({iceServers:ice});ch.pc=pc;const id=ch.rtcN;ch.rtcId=id;rtcWrap(pc.createDataChannel('race',{ordered:true}),ch);rtcWrapF(pc.createDataChannel('fast',{ordered:false,maxRetransmits:0}),ch);
       pc.onconnectionstatechange=()=>{if(ch.pc===pc)ch.rtcSt=pc.connectionState;};
       pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=>rtcGather(pc,ice.length>3?4000:2500)).then(()=>{ch.rtcBusy=0;ch.rtcT=performance.now();if(ch.pc===pc&&!ch.direct)ch.send({t:'rtc',id,sdp:pc.localDescription.toJSON()});}).catch(()=>{ch.rtcBusy=0;});}catch(e){ch.rtcBusy=0;ch.rtcSt='error';}});
-    setTimeout(attempt,ch.rtcN<4?4000:8000);};
+    setTimeout(attempt,3000);};
   attempt();}
 function rtcOnGuest(ch,d){if(!ch||!ch.pc||d.id!==ch.rtcId||!d.sdp||d.sdp.type!=='answer')return;if(ch.pc.signalingState==='have-local-offer')ch.pc.setRemoteDescription(d.sdp).catch(()=>{});}
 function rtcOnHost(ch,d){if(!window.RTCPeerConnection||!d.sdp||d.sdp.type!=='offer')return;if(ch.direct)return;ch.rtcOff=d.id;
@@ -5904,6 +5922,7 @@ function netGuestStep(dt){simTime+=dt;standCache=standings();const k=player;
   for(const r of rollers){const p=track[r.j];r.lat=Math.sin(simTime*1.05+r.ph)*(RW+6);r.x=p.x+p.nx*r.lat;r.y=p.y+p.ny*r.lat;if(!k.loop&&k.z<14&&(k.x-r.x)**2+(k.y-r.y)**2<306)spinOut(k,'meat',1);}
   try{updateHazards(dt);}catch(e){}
   for(const o of karts){o.px=o.x;o.py=o.y;o.pa=o.a;o.pma=o.ma;o.pz=o.z;o.pwy=o.wy;o.pth=o.loopTh||0;}
+  if(state==='race'&&!k.finished)for(const b of boxes){if(b.r>0||b.pr>simTime)continue;if(b.air?(k.glide&&(k.x-b.x)**2+(k.y-b.y)**2<400):((k.x-b.x)**2+(k.y-b.y)**2<270&&(!MULTI||Math.abs((k.wy||0)-b.gy)<18))){b.pr=simTime+1.5;boxFx(b,k);}}
   const LS=NET.snaps[NET.snaps.length-1],quiet=LS&&performance.now()-LS.at>1300;
   /* the host runs the race: when they leave the app (or go silent) everyone waits together instead of driving on while the computer racers freeze */
   if((NET.hostAway||quiet)&&state==='race'&&!k.finished){if(!NET.awayShown){NET.awayShown=true;showBanner('Waiting for the host…',600,'sm');}}else if(NET.awayShown){NET.awayShown=false;banner.textContent='';bannerT=0;}
@@ -5938,8 +5957,8 @@ function netPlay(now){const want=now-(NET.off||0)-netDelay();if(NET.play==null||
 function netOnSnap(d){if(d.n){if(d.n<=(NET.lastSn||0))return;}if(d.kc){d.k=d.kc.map(r=>[netKDec(r[0]),r[1],r[2],r[3]]);delete d.kc;}{const P=NET.snaps[NET.snaps.length-1];if(!d.h)d.h=P?P.h:[];}if(d.n){if(NET.lastSn&&d.n>NET.lastSn+1)NET.snGap=(NET.snGap||0)+d.n-NET.lastSn-1;NET.lastSn=d.n;}if(d.ack>(NET.ackRx||0))NET.ackRx=d.ack;
   if(state==='netwait'&&(d.gs==='countdown'||d.gs==='race'))netGo();/* the 'go' message itself was lost */d.at=performance.now();NET.hostAway=false;d.ht=d.st*1000;netClock(d);NET.snaps.push(d);if(NET.snaps.length>16)NET.snaps.shift();if(!karts.length||!NET.cfg)return;
   simTime=Math.max(simTime,d.st-.2);if(Math.abs(raceTime-d.rt)>.25)raceTime=d.rt;
-  if(d.b)boxes.forEach((b,i)=>{b.r=(d.b[i]||0)/20;});
-  for(const f of d.fx||[]){try{const [kind,...a]=f;if(kind==='b')burst0(...a);else if(kind==='r')spawnRing0(...a);}catch(e){}}
+  if(d.b)boxes.forEach((b,i)=>{const r=(d.b[i]||0)/20;if(r>3.5&&!(b.r>0)&&!(b.pr>simTime-.6)&&state==='race'){let nk=null,nd=1e9;for(const o of karts){const dd=(o.x-b.x)**2+(o.y-b.y)**2;if(dd<nd){nd=dd;nk=o;}}if(nk&&nk!==player)boxFx(b,nk,true);}b.r=r;});
+  for(const f of d.fx||[]){try{const [kind,...a]=f;if(kind==='b'&&boxes.some(b=>b.pr>simTime-1.2&&Math.abs(b.x-a[0])<3&&Math.abs(b.y-a[2])<3))continue;/* already shown when we drove through it */if(kind==='b')burst0(...a);else if(kind==='r')spawnRing0(...a);}catch(e){}}
   if(d.me&&player&&!player.finished)netReconcile(d.me,d.ack);else if(d.me&&player)netApplyFull(player,d.me);
   if(player&&player.finished&&!NET.finSeen){NET.finSeen=true;onPlayerFinish();}}
 /* a kart's loop state is its own object (progress th, lane lat0) tied to one of the track's loops; the network sends the loop's index,
@@ -6011,7 +6030,7 @@ function softGlNote(){if(!SOFTGL||softGlNote.done)return;softGlNote.done=true;co
 function netStat(ms){if(!NET.role||!NET.cfg)return '';const c=NET.conns[0];const link=netFast()?'direct':'relay';
   if(NET.role==='host')return ' · host '+link+' · '+NET.conns.filter(x=>x.open).length+' friend'+(NET.conns.length===1?'':'s');
   const lag=Math.round(Math.max(0,NET.seq-(NET.ackRx||0))*STEP*1000),fx=((NET.fixN||0)*1000/ms).toFixed(1),lost=NET.snGap||0;NET.fixN=0;NET.snGap=0;
-  const st=c&&!c.direct?' ('+(c.rtcSt==='failed'?'direct failed':'direct '+(c.rtcSt||'off')+' #'+(c.rtcN||0))+')':'';
+  const st=c&&!c.direct?' ('+(c.rtcSt==='failed'?'direct failed':'direct '+(c.rtcSt||'off')+' #'+(c.rtcN||0))+(rtcTurn&&rtcTurn.length?' +turn':' no turn')+')':(c&&c.direct?(rtcTurn&&rtcTurn.length?' +turn':''):'');
   return ' · '+link+st+' · ping '+(NET.ping!=null?Math.round(NET.ping):'?')+' ms · lag '+lag+' ms · lost '+lost+' · fixes '+fx+'/s';}
 function netBadge(){document.body.classList.toggle('netguest',NET.role==='guest');const b=$('mpBadge');if(!b)return;if(!NET.role){b.hidden=true;return;}b.hidden=false;b.textContent=(NET.role==='host'?'Hosting ':'Room ')+NET.code+' · '+NET.pl.length+(NET.pl.length===1?' racer':' racers')+(NET.conns.length?(netFast()?' · direct':' · relay'):'');
   const gd=$('gDone');if(gd)gd.textContent=NET.role==='guest'?'Ready ✓':'Choose track ›';}
@@ -6097,7 +6116,7 @@ function frame(now){
   fpsN++;if(now-fpsT>500){const show=CFG.showfps&&state!=='menu';fpsEl.hidden=!show;if(show)fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' FPS · '+((now-fpsT)/fpsN).toFixed(1)+' ms · worst '+Math.round(fpsMax)+' ms · CPU '+CPUMS.toFixed(1)+(GPUT&&GPUT.ms>0?' · GPU '+GPUT.ms.toFixed(1):'')+(ssMul()>1?' · '+ssMul()+'×':'')+netStat(now-fpsT);fpsN=0;fpsT=now;fpsMax=0;}
   let dt=(now-last)/1000;last=now;if(dt>.1)dt=.1;if(dt<0)dt=0;const time=now/1000;const cw0=performance.now();
   if(state==='menu'||state==='race'){acc+=dt;let n=0;const gs=NET.role==='guest'&&NET.cfg&&state==='race';while(acc>=STEP&&n<12){if(gs)netGuestStep(STEP);else update(STEP);acc-=STEP;n++;}if(n>=12)acc=0;alpha=acc/STEP;netFlush();if(gs&&NET.snaps.length){/* other karts on a guest are drawn exactly at this frame's moment of the host's race (not blended between simulation steps), so every frame on a 144 Hz screen shows their motion */if(n===0)netInterp(player.finished?null:player);for(const o of karts)if(o!==player){o.px=o.x;o.py=o.y;o.pa=o.a;o.pma=o.ma;o.pwy=o.wy;o.pth=o.loopTh||0;}}
-    if(state==='race'){if(resultsAt>0){resultsAt-=dt;if(resultsAt<=0){/* the results own the screen: close the pause menu and any settings opened from it, so the controller can't get stuck behind them */if(!setOv.hidden&&setFrom===pauseOv){setOv.hidden=true;setFrom=null;}pauseOv.hidden=true;results.hidden=false;renderResults();PAD.focEl=null;}}}}
+    if(state==='race'){if(resLive>0&&!results.hidden&&NET.cfg){resLive-=dt;if(resLive<=0)renderResultsNet();}if(resultsAt>0){resultsAt-=dt;if(resultsAt<=0){/* the results own the screen: close the pause menu and any settings opened from it, so the controller can't get stuck behind them */if(!setOv.hidden&&setFrom===pauseOv){setOv.hidden=true;setFrom=null;}pauseOv.hidden=true;results.hidden=false;renderResults();PAD.focEl=null;}}}}
   else if(state==='netwait'){alpha=1;if(NET.role==='host'&&performance.now()-NET.waitTimer>45000){netAll({t:'go'});netGo();}if(NET.role==='guest'){const gs=NET.snaps.length;if(gs)netInterp(null);}}
   else if(state==='intro'){alpha=1;introT+=dt;if(introSkip||introT>=INTRO_SHOT*INTRO_N)endIntro();}
   else if(state==='countdown'){alpha=1;cd-=dt;const n=Math.ceil(cd-.4);if(n!==lastCd&&n>=1&&n<=3){lastCd=n;showBanner(String(n),.9,'md');SFX.count(false);}
