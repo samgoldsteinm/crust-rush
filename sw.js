@@ -1,6 +1,6 @@
 // Crust Rush service worker: installs the game as an app and keeps every file for offline play.
 // Game files have their content hash in the name, so a saved copy never goes stale; only the page itself is re-checked.
-const VERSION = 'crust-rush-v84';
+const VERSION = 'crust-rush-v85';
 const SHELL = [
   "./",
   "./index.html",
@@ -135,7 +135,7 @@ const SHELL = [
   "./assets/shots/grid-m.31de56a1bf.jpg",
   "./assets/shots/grid-a.c36c42a4dd.jpg",
   "./css/style.35b1843cc9.css",
-  "./js/game.3eb30264e5.js",
+  "./js/game.80950637f0.js",
   "./vendor/three-0.149.0.min.js"
 ];
 
