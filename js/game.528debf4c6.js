@@ -5762,12 +5762,12 @@ function snapSun(x,y,z){const sc=sun.shadow.camera,tx=(sc.right-sc.left)/sun.sha
    when it has headroom for a while it steps back up. The last steady rung is remembered for the next session. */
 const LADS=[{p:0},{p:0,lod:1},{p:.15,lod:1},{p:.15,ms:0,lod:1},{p:.15,ms:0,sm:.5,lod:1},{p:.3,ms:0,sm:.5,lod:1,det:1},{p:.5,ms:0,sm:.5,lod:1,det:1},{p:9,ms:0,sm:.5,lod:1,det:1},{p:9,ms:0,sm:.5,lod:1,det:1,np:1}];
 let LAD=0,ladBest=0,LADV=LADS[0];
-function ladKey(){return 'crust-lad-'+qKey;}
+function ladKey(){return 'crust-lad2-'+qKey;}/* key changed in v115: the graphics test had been writing its own switches into the ladder */
 function applyLad(n,save){LAD=clamp(n,0,LADS.length-1);LADV=LADS[LAD];const q=QUAL[qKey],fl=Math.min(DPR,q.floor);
   const np=Math.max(fl,Math.min(DPR,q.start)-LADV.p);if(Math.abs(np-pr)>.01)pr=np;fitPending=true;
   const sm=Math.max(512,Math.round(q.sm*(LADV.sm||1)));if(sun.shadow.mapSize.x!==sm){sun.shadow.mapSize.set(sm,sm);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}}
   LODM=0;LODF=LADV.lod?100:(q.lodf||120);if(save)store.set(ladKey(),String(LAD));}
-function adaptQuality(dt,time){perfSum+=dt;perfN++;perfT+=dt;if(perfT<1)return;const avg=perfSum/perfN;perfT=perfSum=perfN=0;
+function adaptQuality(dt,time){if(BENCH.on){perfSum=perfN=perfT=0;slowN=fastN=0;return;}/* the graphics test switches presets every few seconds: not a measurement of the player's own setting */perfSum+=dt;perfN++;perfT+=dt;if(perfT<1)return;const avg=perfSum/perfN;perfT=perfSum=perfN=0;
   bestDt=Math.min(bestDt*1.01,avg);let P=1/60;for(const h of HZ)if(h>=bestDt*.93){P=h;break;}if(CFG.fps==='60')P=Math.max(P,1/60);else P=Math.max(P,1/120);
   const inMenu=state==='menu'&&!menu.hidden&&time>6;if(state!=='race'&&state!=='countdown'&&!inMenu)return;
   const Pq=CFG.fps==='max'?P:Math.max(P,1/60);slowN=avg>Pq*1.1?slowN+1:0;fastN=avg<Pq*1.03?fastN+1:0;/* quality is judged against 60 fps: on a 120 Hz screen it never drops detail to chase 120 */
@@ -6740,13 +6740,17 @@ function scrTrack(now){const ri=now-(SCR.l||now);SCR.l=now;if(ri>3&&ri<60)SCR.a.
    frame rate (the on-screen HUD, and everything at its lowest). At the end the best preset for this device is picked and applied. */
 let BENCH_STEPS=[];
 function benchPresets(){return [COARSE?'ultraM':'ultra','sharp','balanced','fast'];}
-function benchSetQ(k){qKey=k;applyQuality();applyLad(0,false);DRS.s=1;fitPending=true;}
+function benchSetQ(k){qKey=k;applyQuality();applyLad(0,false);DRS.s=1;benchWarm();}
+/* a preset switch changes shaders (livery quality), target formats (anti-aliasing, size) and the shadow map: on iPhones Metal then builds a new
+   pipeline for every material the first time it is drawn, which made the first seconds of each step run at half speed and the test blame the
+   preset. Draw everything once into the real targets before the step's measuring window opens, exactly as a race does on its loading screen. */
+function benchWarm(){try{fitPending=false;fit();warmScene();if(!LOWQF()&&CFG.post!==false)postRender();else if(APPLEWK&&!POST.liteFail)postLite();}catch(e){}}
 function benchBuild(){const P=benchPresets(),q0=qKey;/* a warm-up step (not recorded) lets shaders compile and the clock settle; the first step is repeated at the end so a phone that heated up during the test can be seen and corrected for */
   BENCH_STEPS=[['Warm-up',()=>{},()=>{},null,'warm'],['As set ('+qName(q0)+')',()=>{},()=>{}]];
   for(const k of P)BENCH_STEPS.push([qName(k),()=>benchSetQ(k),()=>{},k]);
   BENCH_STEPS.push(['HUD hidden ('+qName(q0)+')',()=>{benchSetQ(q0);document.body.classList.add('bench-nohud');},()=>{document.body.classList.remove('bench-nohud');}]);
   BENCH_STEPS.push(['Everything lowest',()=>{benchSetQ('fast');BENCH.noShUp=true;DRS.s=.6;document.body.classList.add('bench-nohud');},()=>{BENCH.noShUp=false;DRS.s=1;document.body.classList.remove('bench-nohud');}]);
-  BENCH_STEPS.push(['As set again ('+qName(q0)+')',()=>{qKey=q0;applyQuality();applyLad(BENCH.lad0||0,false);DRS.s=1;fitPending=true;},()=>{},null,'again']);}
+  BENCH_STEPS.push(['As set again ('+qName(q0)+')',()=>{qKey=q0;applyQuality();applyLad(BENCH.lad0||0,false);DRS.s=1;benchWarm();},()=>{},null,'again']);}
 /* heat check: the first and last steps run the same settings; if the last is slower the phone throttled while the test ran, and every
    step is scaled by how far through the test it was, so the two recommendations are judged on even terms */
 function benchDrift(){const B=BENCH,a=B.res.find(r=>r[7]!=='again'&&r[7]!=='warm'),z=B.res.find(r=>r[7]==='again');if(!a||!z||!a[1]||!z[1])return {k:1,pct:0};const k=a[1]/z[1];return {k:k,pct:Math.round((k-1)*100)};}
@@ -6762,7 +6766,7 @@ function benchApply(which){const B=BENCH,o=B.pickR&&B.pickR[which];if(!o)return;
   for(const id of ['benchUse120','benchUse60'])$(id).classList.toggle('on',id===(which==='o60'?'benchUse60':'benchUse120'));$('benchChosen').textContent='Now using '+qName(qKey)+' with frame rate '+(CFG.fps==='60'?'60 fps':'Auto')+'.';$('benchUndo').hidden=false;}
 function benchStart(){if(state!=='race'||BENCH.on)return false;benchBuild();Object.assign(BENCH,{prevQ:qKey,prevFps:CFG.fps,on:true,i:0,t:0,f:[],cpu:[],js:[],res:[],td:TD.on,ds:DRS.s,info:null,lad0:LAD});TD.on=true;DRS.s=1;
   BENCH.info={lad:LAD,q:qKey,pr:prE,ms:POST.ms,r11:!!(POST.rt&&POST.rt.userData.r11),sm:sun.shadow.mapSize.x,hz:Math.max(SCR.hz.win||0,SCR.hz.fs||0,SCR.cur||0),fps:CFG.fps,w:renderer.getDrawingBufferSize(v2).x,h:v2.y};BENCH_STEPS[0][1]();return true;}
-function benchFrame(dt){const B=BENCH;if(state!=='race'){if(state!=='paused')benchEnd(true);return;}if(dt<=0)return;B.t+=Math.min(dt,.5);if(B.t<1.8)return;if(B.t<4.8){if(dt<1){B.f.push(dt);B.cpu.push(CPUMS);B.js.push(FRMS);}return;}if(!B.f.length){B.f.push(Math.min(dt,.5));B.cpu.push(CPUMS);B.js.push(FRMS);}/* a very slow device still finishes every step */
+function benchFrame(dt){const B=BENCH;if(state!=='race'){if(state!=='paused')benchEnd(true);return;}if(dt<=0)return;B.t+=Math.min(dt,.5);if(B.t<2.5)return;if(B.t<5.5){if(dt<1){B.f.push(dt);B.cpu.push(CPUMS);B.js.push(FRMS);}return;}if(!B.f.length){B.f.push(Math.min(dt,.5));B.cpu.push(CPUMS);B.js.push(FRMS);}/* a very slow device still finishes every step */
   const a=B.f.slice().sort((x,y)=>x-y),avg=a.reduce((x,y)=>x+y,0)/(a.length||1),c=B.cpu.reduce((x,y)=>x+y,0)/(B.cpu.length||1),js=B.js.reduce((x,y)=>x+y,0)/(B.js.length||1);
   if(BENCH_STEPS[B.i][4]!=='warm')B.res.push([BENCH_STEPS[B.i][0],a.length?1/avg:0,(a[a.length>>1]||0)*1000,(a[Math.floor(a.length*.9)]||0)*1000,c,js,BENCH_STEPS[B.i][3]||null,BENCH_STEPS[B.i][4]||null]);BENCH_STEPS[B.i][2]();B.i++;
   if(B.i>=BENCH_STEPS.length){benchEnd(false);return;}BENCH_STEPS[B.i][1]();B.t=0;B.f=[];B.cpu=[];B.js=[];}
