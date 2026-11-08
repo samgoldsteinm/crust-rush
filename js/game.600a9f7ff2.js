@@ -5912,6 +5912,7 @@ function netOnGuest(d){if(!d||!d.t)return;NET.lastRecv=performance.now();
   else if(d.t==='s'){netOnSnap(d);}
   else if(d.t==='menu'){if(state!=='menu'){toMenu();}netShowLobby();}
   else if(d.t==='rtc')rtcOnGuest(NET.conns[0],d);
+  else if(d.t==='hit'){if(state==='race'&&player&&!player.finished&&d.me&&d.ack>=(NET.ackRx||0)){NET.ackRx=d.ack;netReconcile(d.me,d.ack);NETLOG.ev('hit',0);}}
   else if(d.t==='po'){const r=performance.now()-d.ts;NET.ping=NET.ping==null?r:NET.ping*.6+r*.4;}}
 function netLost(msg){if(!NET.role)return;const wasRace=state!=='menu';netReset();if(wasRace)toMenu();netShowLobby(msg);}
 function netLeave(){if(NET.role==='guest')netSend(NET.conns[0],{t:'bye'});else if(NET.role==='host')netAll({t:'menu'});setTimeout(netReset,150);netLobbyRender();}
@@ -5970,7 +5971,10 @@ setInterval(()=>{if(NET.role)netBadge();
    link can't carry 30 a second cleanly: fall to 15 or 10 a second for that friend only, and climb back slowly once it recovers. */
 function netSnDiv(c){const r=c.art!=null?c.art:c.rtt!=null?c.rtt:null;const want=r==null?1:r>800?3:r>350?2:1;const cur=c.snDiv||1;
   if(want>cur)c.snDiv=want;else if(want<cur){c.snUp=(c.snUp||0)+1;if(c.snUp>=90){c.snUp=0;c.snDiv=cur-1;}}else c.snUp=0;return c.snDiv||1;}
-function netHostTick(){if(NET.role!=='host'||!NET.cfg||!NET.conns.length)return;if(++NET.tick%(netFast()?4:6)===0)netSnapshot();if(NET.tick%120===0)for(const c of NET.conns)if(c.direct)rtcRoute(c);}/* 30 a second on a direct link, 20 through the relay */
+function netHitSig(k){return (k.spin>0?1:0)|(k.flatT>0?2:0)|(k.frozen>0?4:0)|(k.oilT>0?8:0)|(k.shrinkT>0?16:0)|(k.sauceT>0?32:0)|(k.sink!=null?64:0)|(k.burnT>0?128:0);}
+function netHitPush(){if(state!=='race')return;for(const k of karts){if(!k.netId||k.finished)continue;const sg=netHitSig(k),was=k.hitSig||0,sp=k.speed||0,dropped=(k.lastSp||0)>80&&sp<(k.lastSp||0)*.55;k.hitSig=sg;k.lastSp=sp;
+    if((sg&~was)||dropped){const c=NET.conns.find(q=>q._id===k.netId&&q.open);if(!c)continue;const o={t:'hit',me:netKScal(k),ack:NET.ack[k.netId]||0};if(c.sendF)c.sendF(o);else netSend(c,o);NETLOG.ev('hit-push',k.netId);}}}
+function netHostTick(){if(NET.role!=='host'||!NET.cfg||!NET.conns.length)return;netHitPush();if(++NET.tick%(netFast()?4:6)===0)netSnapshot();if(NET.tick%120===0)for(const c of NET.conns)if(c.direct)rtcRoute(c);}/* 30 a second on a direct link, 20 through the relay */
 /* bursts and rings made by race logic on the host are replayed on guests */
 function netFx(kind,args){if(NET.role==='host'&&NET.inUpd&&NET.conns.length&&NET.fxQ.length<60)NET.fxQ.push([kind].concat(args.map(r3)));}
 /* ---------- guest: local kart, mirrored world ---------- */
