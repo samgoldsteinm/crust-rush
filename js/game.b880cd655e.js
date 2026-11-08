@@ -5138,7 +5138,7 @@ const brkEls=[$('brakeL'),$('brakeR')],hitfx=$('hitfx'),slot2El=$('slot2'),frost
 const suf=n=>n===1?'st':n===2?'nd':n===3?'rd':'th';
 const fmt=t=>{const m=Math.floor(t/60),s=t-m*60;return m+':'+(s<10?'0':'')+s.toFixed(2);};
 function showBanner(txt,dur,sm){banner.textContent=txt;banner.classList.toggle('sm',sm===true||sm==='sm');banner.classList.toggle('md',sm==='md');banner.classList.remove('pop');void banner.offsetWidth;banner.classList.add('pop');bannerT=dur;}
-function hud(dt,time){try{tdTick();}catch(e){}if(BENCH.pending){if(state==='intro')introSkip=true;if(state==='race'){const n=performance.now();if(!BENCH.pt)BENCH.pt=n;else if(n-BENCH.pt>1500){BENCH.pending=false;BENCH.pt=0;if(benchStart())showBanner('Graphics test: hands off for 35 s',1.6,'sm');}}else if(state==='menu'&&BENCH.pt===0&&!raceLoading)BENCH.pending=false;}
+function hud(dt,time){try{tdTick();}catch(e){}if(BENCH.pending){if(state==='intro')introSkip=true;if(state==='race'){const n=performance.now();if(!BENCH.pt)BENCH.pt=n;else if(n-BENCH.pt>1500){BENCH.pending=false;BENCH.pt=0;if(benchStart())showBanner('Graphics test: hands off for 40 s',1.6,'sm');}}else if(state==='menu'&&BENCH.pt===0&&!raceLoading)BENCH.pending=false;}
   if(bannerT>0){bannerT-=dt;if(bannerT<=0)banner.textContent='';}
   if(!player)return;hud.pf=(hud.pf||0)+1;if(hud.pf%3===0)for(const k of karts){if(!k.pm)continue;const f=Math.max(0,Math.min(1,(k.finished?LAPS*N:k.prog)/(LAPS*N)));const v=(f*100).toFixed(1);if(k.pm._v!==v){k.pm._v=v;k.pm.style.left='calc(8px + (100% - 16px)*'+f.toFixed(4)+')';}}
   const pos=standCache.indexOf(player)+1;if(pos&&String(pos)!==lastPos){lastPos=String(pos);posNum.textContent=pos;posSuf.textContent=suf(pos);}
@@ -5146,7 +5146,7 @@ function hud(dt,time){try{tdTick();}catch(e){}if(BENCH.pending){if(state==='intr
   if(state==='race'&&!player.finished&&lap>lapShown){lapShown=lap;const sp=recLap(lap);showBanner((lap===LAPS?'Final lap':'Lap '+lap)+(sp?' · '+sp:''),sp?2:1.4,true);SFX.lap(lap===LAPS);if(lap===LAPS)try{musFinalLap();}catch(e){}}
   const fastUi=time-(hud.ut||0)>.032||player.finished;if(fastUi)hud.ut=time;
   const ts=fmt(player.finished?player.finishTime:raceTime);if(ts!==lastTimeStr&&fastUi){lastTimeStr=ts;hudTime.textContent=ts;}
-  const sv=Math.round(Math.max(0,player.speed)*(CFG.units==='kmh'?1.062:.66));if(sv!==lastSpd&&(fastUi||sv===0)){lastSpd=sv;spd.textContent=sv;gVal.style.strokeDasharray=Math.min(100,Math.max(0,player.speed)/(BASE_MAX*1.58)*100).toFixed(1)+' 100';}
+  const sv=Math.round(Math.max(0,player.speed)*(CFG.units==='kmh'?1.062:.66));if(sv!==lastSpd&&(fastUi||sv===0)){lastSpd=sv;spd.textContent=sv;}{const ga=Math.min(100,Math.max(0,player.speed)/(BASE_MAX*1.58)*100).toFixed(1);if(ga!==hud.ga){hud.ga=ga;gVal.style.strokeDasharray=ga+' 100';}}
   const chg=player.drift?Math.min(100,player.charge/2.6*100):0,tierN=player.drift?(player.tier||0):0;if((Math.abs(chg-(hud.ch||0))>.8&&fastUi)||tierN!==hud.tn||(chg===0&&hud.ch)){hud.ch=chg;hud.tn=tierN;gCh.style.strokeDasharray=chg.toFixed(1)+' 100';gCh.style.stroke=['#fff4dc','#ffe066','#ff9a1f','#ff3b1a'][tierN];}
   const bst=player.boost>0;if(bst!==hud.bst){hud.bst=bst;gauge.classList.toggle('boost',bst);}
   {const sf=player.boost>0&&state==='race',ff=player.frozen>0;if(sf!==hud.sf){hud.sf=sf;speedfx.classList.toggle('on',sf);}if(ff!==hud.ff){hud.ff=ff;frostfx.classList.toggle('on',ff);}}
@@ -5375,7 +5375,7 @@ $('benchBtn').onclick=()=>{const inRace=((state==='paused'&&pauseOv._prev==='rac
   if(!inRace){
     if(NET.role||state!=='menu'){$('benchNote').textContent='Finish or leave the online room first, then run the test from the main menu or from the pause menu in a race.';$('benchNote').classList.add('flash');return;}
     closeSettings();BENCH.pending=true;BENCH.pt=0;introSkip=true;cpuBuilds=RACERS.map(randomBuild);gp=null;mode='single';try{refreshMenu();}catch(e){}goRace(mapIdx);return;}
-  closeSettings();if(state==='paused')togglePause();else pauseOv.hidden=true;setTimeout(()=>{if(benchStart())showBanner('Graphics test: hands off for 35 s',1.6,'sm');},400);};
+  closeSettings();if(state==='paused')togglePause();else pauseOv.hidden=true;setTimeout(()=>{if(benchStart())showBanner('Graphics test: hands off for 40 s',1.6,'sm');},400);};
 $('benchDone').onclick=()=>{$('benchOv').hidden=true;};$('benchUndo').onclick=benchUndo;$('benchUse120').onclick=()=>benchApply('o120');$('benchUse60').onclick=()=>benchApply('o60');
 $('benchCopy').onclick=()=>{const t=$('benchText').textContent,el=$('benchText');const sel=()=>{const r=document.createRange();r.selectNodeContents(el);const sl=getSelection();sl.removeAllRanges();sl.addRange(r);};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(()=>{$('benchCopy').textContent='Copied';setTimeout(()=>$('benchCopy').textContent='Copy results',1500);},sel);else sel();};
@@ -6746,10 +6746,10 @@ function benchSetQ(k){qKey=k;applyQuality();applyLad(0,false);DRS.s=1;benchWarm(
    preset. Draw everything once into the real targets before the step's measuring window opens, exactly as a race does on its loading screen. */
 function benchWarm(){try{fitPending=false;fit();warmScene();if(!LOWQF()&&CFG.post!==false)postRender();else if(APPLEWK&&!POST.liteFail)postLite();}catch(e){}}
 function benchBuild(){const P=benchPresets(),q0=qKey;/* a warm-up step (not recorded) lets shaders compile and the clock settle; the first step is repeated at the end so a phone that heated up during the test can be seen and corrected for */
-  BENCH_STEPS=[['Warm-up',()=>{},()=>{},null,'warm'],['As set ('+qName(q0)+')',()=>{},()=>{}]];
+  BENCH_STEPS=[['Warm-up',()=>{},()=>{},null,'warm'],['As set ('+qName(q0)+')',()=>{},()=>{}],
+    /* measured right after 'As set' with identical settings, so the two rows differ only by the HUD and share the same phone temperature */
+    ['HUD hidden ('+qName(q0)+')',()=>{document.body.classList.add('bench-nohud');},()=>{document.body.classList.remove('bench-nohud');}]];
   for(const k of P)BENCH_STEPS.push([qName(k),()=>benchSetQ(k),()=>{},k]);
-  BENCH_STEPS.push(['HUD hidden ('+qName(q0)+')',()=>{benchSetQ(q0);document.body.classList.add('bench-nohud');},()=>{document.body.classList.remove('bench-nohud');}]);
-  BENCH_STEPS.push(['Everything lowest',()=>{benchSetQ('fast');BENCH.noShUp=true;DRS.s=.6;document.body.classList.add('bench-nohud');},()=>{BENCH.noShUp=false;DRS.s=1;document.body.classList.remove('bench-nohud');}]);
   BENCH_STEPS.push(['As set again ('+qName(q0)+')',()=>{qKey=q0;applyQuality();applyLad(BENCH.lad0||0,false);DRS.s=1;benchWarm();},()=>{},null,'again']);}
 /* heat check: the first and last steps run the same settings; if the last is slower the phone throttled while the test ran, and every
    step is scaled by how far through the test it was, so the two recommendations are judged on even terms */
@@ -6766,7 +6766,7 @@ function benchApply(which){const B=BENCH,o=B.pickR&&B.pickR[which];if(!o)return;
   for(const id of ['benchUse120','benchUse60'])$(id).classList.toggle('on',id===(which==='o60'?'benchUse60':'benchUse120'));$('benchChosen').textContent='Now using '+qName(qKey)+' with frame rate '+(CFG.fps==='60'?'60 fps':'Auto')+'.';$('benchUndo').hidden=false;}
 function benchStart(){if(state!=='race'||BENCH.on)return false;benchBuild();Object.assign(BENCH,{prevQ:qKey,prevFps:CFG.fps,on:true,i:0,t:0,f:[],cpu:[],js:[],res:[],td:TD.on,ds:DRS.s,info:null,lad0:LAD});TD.on=true;DRS.s=1;
   BENCH.info={lad:LAD,q:qKey,pr:prE,ms:POST.ms,r11:!!(POST.rt&&POST.rt.userData.r11),sm:sun.shadow.mapSize.x,hz:Math.max(SCR.hz.win||0,SCR.hz.fs||0,SCR.cur||0),fps:CFG.fps,w:renderer.getDrawingBufferSize(v2).x,h:v2.y};BENCH_STEPS[0][1]();return true;}
-function benchFrame(dt){const B=BENCH;if(state!=='race'){if(state!=='paused')benchEnd(true);return;}if(dt<=0)return;B.t+=Math.min(dt,.5);if(B.t<2.5)return;if(B.t<5.5){if(dt<1){B.f.push(dt);B.cpu.push(CPUMS);B.js.push(FRMS);}return;}if(!B.f.length){B.f.push(Math.min(dt,.5));B.cpu.push(CPUMS);B.js.push(FRMS);}/* a very slow device still finishes every step */
+function benchFrame(dt){const B=BENCH;if(state!=='race'){if(state!=='paused')benchEnd(true);return;}if(dt<=0)return;B.t+=Math.min(dt,.5);if(B.t<2)return;if(B.t<4.6){if(dt<1){B.f.push(dt);B.cpu.push(CPUMS);B.js.push(FRMS);}return;}if(!B.f.length){B.f.push(Math.min(dt,.5));B.cpu.push(CPUMS);B.js.push(FRMS);}/* a very slow device still finishes every step */
   const a=B.f.slice().sort((x,y)=>x-y),avg=a.reduce((x,y)=>x+y,0)/(a.length||1),c=B.cpu.reduce((x,y)=>x+y,0)/(B.cpu.length||1),js=B.js.reduce((x,y)=>x+y,0)/(B.js.length||1);
   if(BENCH_STEPS[B.i][4]!=='warm')B.res.push([BENCH_STEPS[B.i][0],a.length?1/avg:0,(a[a.length>>1]||0)*1000,(a[Math.floor(a.length*.9)]||0)*1000,c,js,BENCH_STEPS[B.i][3]||null,BENCH_STEPS[B.i][4]||null]);BENCH_STEPS[B.i][2]();B.i++;
   if(B.i>=BENCH_STEPS.length){benchEnd(false);return;}BENCH_STEPS[B.i][1]();B.t=0;B.f=[];B.cpu=[];B.js=[];}

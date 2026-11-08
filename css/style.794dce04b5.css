@@ -48,9 +48,12 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 @keyframes pop{from{transform:scale(1.7);opacity:0}to{transform:scale(1);opacity:1}}
 
 .tzone{position:absolute;inset:0;pointer-events:auto;touch-action:none;display:grid;grid-template-columns:1fr 1fr}
-.tz{position:relative;transition:background .12s}
-.tz.l.on{background:linear-gradient(90deg,rgba(255,244,220,.12),rgba(255,244,220,0) 45%)}
-.tz.r.on{background:linear-gradient(270deg,rgba(255,244,220,.12),rgba(255,244,220,0) 45%)}
+.tz{position:relative}
+/* the steer highlight lives on a pseudo-layer and is faded with opacity: the compositor blends it, nothing is repainted (a half-screen gradient at 3x was repainted every frame of the fade) */
+.tz::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity .12s;pointer-events:none;will-change:opacity}
+.tz.l::before{background:linear-gradient(90deg,rgba(255,244,220,.12),rgba(255,244,220,0) 45%)}
+.tz.r::before{background:linear-gradient(270deg,rgba(255,244,220,.12),rgba(255,244,220,0) 45%)}
+.tz.on::before{opacity:1}
 .tz svg{position:absolute;top:50%;width:clamp(30px,7vmin,48px);height:clamp(30px,7vmin,48px);transform:translateY(-50%);opacity:.22;transition:opacity .12s;filter:drop-shadow(0 2px 4px rgba(0,0,0,.6))}
 .tz.l svg{left:max(18px,env(safe-area-inset-left,0px))}
 .tz.r svg{right:max(18px,env(safe-area-inset-right,0px))}
@@ -185,11 +188,14 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .gauge{position:absolute;left:50%;top:-4px;transform:translateX(-50%);width:clamp(104px,24vmin,150px);aspect-ratio:120/84}
 .gauge svg{width:100%;height:100%;display:block;overflow:visible}
 .g-track{fill:none;stroke:rgba(20,10,6,.6);stroke-width:9;stroke-linecap:round}
-.g-val{fill:none;stroke:url(#gGrad);stroke-width:7;stroke-linecap:round;stroke-dasharray:0 100;transition:stroke-dasharray .08s linear}
+.g-val{fill:none;stroke:url(#gGrad);stroke-width:7;stroke-linecap:round;stroke-dasharray:0 100}
 .g-ctrack{fill:none;stroke:rgba(255,244,220,.1);stroke-width:3;stroke-linecap:round}
 .g-charge{fill:none;stroke:#fff4dc;stroke-width:3;stroke-linecap:round;stroke-dasharray:0 100}
 .gauge.boost .g-val{stroke:#7fe0ff;filter:drop-shadow(0 0 5px rgba(127,224,255,.9))}
 .g-num{position:absolute;left:0;right:0;top:38%;display:flex;flex-direction:column;align-items:center;line-height:1}
+/* HUD parts that change every few frames get their own compositor layer and paint containment: a new digit or arc value repaints that box alone,
+   and Safari applies their drop shadows on the GPU instead of re-rasterising them with every change */
+.gauge,.lapbox,.posbox,.tbprog,#banner,.ibtn,.abtn,.brk{will-change:transform}.gauge,.lapbox,.posbox{contain:layout paint}
 .g-num b{font-family:var(--display);font-weight:400;font-size:clamp(20px,5vmin,32px);font-variant-numeric:tabular-nums;color:var(--cream);text-shadow:0 2px 6px rgba(0,0,0,.7)}
 .g-num small{font-size:9px;font-weight:700;letter-spacing:.2em;color:var(--muted);margin-top:2px}
 .pause{background:linear-gradient(160deg,rgba(40,22,14,.8),rgba(14,7,4,.65));border:1px solid rgba(255,244,220,.2);box-shadow:0 6px 16px rgba(0,0,0,.3)}
