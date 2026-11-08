@@ -224,7 +224,9 @@ const QUAL={/* Lite: for older phones (iPhone 14 and earlier): screen-resolution
   /* phone Ultra: the high-detail models, set pieces, surface detail and livery finish of PC Ultra, but tuned for a phone GPU:
      no ambient-occlusion pass, a 4096 shadow map, half-resolution glow, a smaller pixel budget and a shorter view than the PC preset */
   ultraM:{mp:3.6,cap:2,start:2,floor:1.5,sm:4096,sx:125,bloomHalf:true,soft:true,detail:2600,hqAll:true,mob:true,lodf:130,streaks:true,note:'For the newest phones: rounded, high-detail scenery and set pieces, surface detail, richer paint and real reflections on your kart, tuned to hold 60 fps. Sharp stays the safe choice for long sessions.'},
-  sharp:{mp:3.3,cap:2,start:2,floor:1.5,sm:4096,soft:true,detail:2100,note:'Highest resolution and the longest scenery distance. Best on newer phones and computers.'}};
+  /* the phone ladder, one notch per rung so each preset costs clearly more than the one before it: Balanced 1.75x pixels and a 2048 shadow map;
+     Sharp 2x pixels, 3072 shadows and the trimmed high-detail set pieces; Ultra 2x pixels, 4096 shadows, rounded high-detail geometry and the longest view */
+  sharp:{mp:3.3,cap:2,start:2,floor:1.5,sm:3072,soft:true,detail:2100,note:'The step between Balanced and Ultra: full resolution, a larger shadow map and a longer scenery distance, without Ultra\'s heavier models and shadows. For newer phones and computers.'}};
 /* a browser with graphics acceleration switched off draws WebGL on the processor, which is many times slower */
 const GLR=(()=>{try{const gl=renderer.getContext();const e=gl.getExtension('WEBGL_debug_renderer_info');return String(gl.getParameter(e?e.UNMASKED_RENDERER_WEBGL:gl.RENDERER)||'');}catch(e){return '';}})();
 const SOFTGL=/swiftshader|llvmpipe|softpipe|software|basic render/i.test(GLR);
@@ -6739,24 +6741,30 @@ function scrTrack(now){const ri=now-(SCR.l||now);SCR.l=now;if(ri>3&&ri<60)SCR.a.
 let BENCH_STEPS=[];
 function benchPresets(){return [COARSE?'ultraM':'ultra','sharp','balanced','fast'];}
 function benchSetQ(k){qKey=k;applyQuality();applyLad(0,false);DRS.s=1;fitPending=true;}
-function benchBuild(){const P=benchPresets(),q0=qKey;BENCH_STEPS=[['As set ('+qName(q0)+')',()=>{},()=>{}]];
+function benchBuild(){const P=benchPresets(),q0=qKey;/* a warm-up step (not recorded) lets shaders compile and the clock settle; the first step is repeated at the end so a phone that heated up during the test can be seen and corrected for */
+  BENCH_STEPS=[['Warm-up',()=>{},()=>{},null,'warm'],['As set ('+qName(q0)+')',()=>{},()=>{}]];
   for(const k of P)BENCH_STEPS.push([qName(k),()=>benchSetQ(k),()=>{},k]);
   BENCH_STEPS.push(['HUD hidden ('+qName(q0)+')',()=>{benchSetQ(q0);document.body.classList.add('bench-nohud');},()=>{document.body.classList.remove('bench-nohud');}]);
-  BENCH_STEPS.push(['Everything lowest',()=>{benchSetQ('fast');BENCH.noShUp=true;DRS.s=.6;document.body.classList.add('bench-nohud');},()=>{BENCH.noShUp=false;DRS.s=1;document.body.classList.remove('bench-nohud');}]);}
+  BENCH_STEPS.push(['Everything lowest',()=>{benchSetQ('fast');BENCH.noShUp=true;DRS.s=.6;document.body.classList.add('bench-nohud');},()=>{BENCH.noShUp=false;DRS.s=1;document.body.classList.remove('bench-nohud');}]);
+  BENCH_STEPS.push(['As set again ('+qName(q0)+')',()=>{qKey=q0;applyQuality();applyLad(BENCH.lad0||0,false);DRS.s=1;fitPending=true;},()=>{},null,'again']);}
+/* heat check: the first and last steps run the same settings; if the last is slower the phone throttled while the test ran, and every
+   step is scaled by how far through the test it was, so the two recommendations are judged on even terms */
+function benchDrift(){const B=BENCH,a=B.res.find(r=>r[7]!=='again'&&r[7]!=='warm'),z=B.res.find(r=>r[7]==='again');if(!a||!z||!a[1]||!z[1])return {k:1,pct:0};const k=a[1]/z[1];return {k:k,pct:Math.round((k-1)*100)};}
+function benchFpsAdj(r){const B=BENCH,d=benchDrift();if(d.k<=1.04)return r[1];const n=B.res.length-1,i=Math.max(0,B.res.indexOf(r));return r[1]*(1+(d.k-1)*i/Math.max(1,n));}
 function qName(k){return {lite:'Lite',fast:'Fast',balanced:'Balanced',sharp:'Sharp',ultra:'Ultra',ultraM:'Ultra'}[k]||k;}
 /* two recommendations: the smoothest (120 fps, or as close as this device gets) and a steady 60 (the best-looking preset that holds
    60 with room to spare, or the fastest one if none does) */
-function benchPick(){const B=BENCH,rs=B.res.filter(r=>r[6]),P=benchPresets();const f=k=>{const r=rs.find(x=>x[6]===k);return r?r[1]:0;};
+function benchPick(){const B=BENCH,rs=B.res.filter(r=>r[6]),P=benchPresets();const f=k=>{const r=rs.find(x=>x[6]===k);return r?benchFpsAdj(r):0;};
   const best=Math.max(...P.map(f));let a=P.find(k=>f(k)>=108);if(!a)a=P.find(k=>f(k)>=best*.97)||P[P.length-1];
   let b=P.find(k=>f(k)>=66);if(!b)b=P.find(k=>f(k)>=best*.97)||P[P.length-1];
   return {o120:{pick:a,got:Math.round(f(a)),hit:f(a)>=108},o60:{pick:b,got:Math.round(f(b)),hit:f(b)>=66}};}
 function benchApply(which){const B=BENCH,o=B.pickR&&B.pickR[which];if(!o)return;qKey=o.pick;store.set('crust-q',qKey);store.set(ladKey(),'0');store.set('crust-drs-'+qKey,'1');CFG.fps=which==='o60'?'60':'auto';saveCfg();applyQuality();applyLad(0,true);DRS.s=1;try{refreshMenu();refreshSettings();}catch(e){}
   for(const id of ['benchUse120','benchUse60'])$(id).classList.toggle('on',id===(which==='o60'?'benchUse60':'benchUse120'));$('benchChosen').textContent='Now using '+qName(qKey)+' with frame rate '+(CFG.fps==='60'?'60 fps':'Auto')+'.';$('benchUndo').hidden=false;}
-function benchStart(){if(state!=='race'||BENCH.on)return false;benchBuild();Object.assign(BENCH,{prevQ:qKey,prevFps:CFG.fps,on:true,i:0,t:0,f:[],cpu:[],js:[],res:[],td:TD.on,ds:DRS.s,info:null});TD.on=true;DRS.s=1;
+function benchStart(){if(state!=='race'||BENCH.on)return false;benchBuild();Object.assign(BENCH,{prevQ:qKey,prevFps:CFG.fps,on:true,i:0,t:0,f:[],cpu:[],js:[],res:[],td:TD.on,ds:DRS.s,info:null,lad0:LAD});TD.on=true;DRS.s=1;
   BENCH.info={lad:LAD,q:qKey,pr:prE,ms:POST.ms,r11:!!(POST.rt&&POST.rt.userData.r11),sm:sun.shadow.mapSize.x,hz:Math.max(SCR.hz.win||0,SCR.hz.fs||0,SCR.cur||0),fps:CFG.fps,w:renderer.getDrawingBufferSize(v2).x,h:v2.y};BENCH_STEPS[0][1]();return true;}
 function benchFrame(dt){const B=BENCH;if(state!=='race'){if(state!=='paused')benchEnd(true);return;}if(dt<=0)return;B.t+=Math.min(dt,.5);if(B.t<1.8)return;if(B.t<4.8){if(dt<1){B.f.push(dt);B.cpu.push(CPUMS);B.js.push(FRMS);}return;}if(!B.f.length){B.f.push(Math.min(dt,.5));B.cpu.push(CPUMS);B.js.push(FRMS);}/* a very slow device still finishes every step */
   const a=B.f.slice().sort((x,y)=>x-y),avg=a.reduce((x,y)=>x+y,0)/(a.length||1),c=B.cpu.reduce((x,y)=>x+y,0)/(B.cpu.length||1),js=B.js.reduce((x,y)=>x+y,0)/(B.js.length||1);
-  B.res.push([BENCH_STEPS[B.i][0],a.length?1/avg:0,(a[a.length>>1]||0)*1000,(a[Math.floor(a.length*.9)]||0)*1000,c,js,BENCH_STEPS[B.i][3]||null]);BENCH_STEPS[B.i][2]();B.i++;
+  if(BENCH_STEPS[B.i][4]!=='warm')B.res.push([BENCH_STEPS[B.i][0],a.length?1/avg:0,(a[a.length>>1]||0)*1000,(a[Math.floor(a.length*.9)]||0)*1000,c,js,BENCH_STEPS[B.i][3]||null,BENCH_STEPS[B.i][4]||null]);BENCH_STEPS[B.i][2]();B.i++;
   if(B.i>=BENCH_STEPS.length){benchEnd(false);return;}BENCH_STEPS[B.i][1]();B.t=0;B.f=[];B.cpu=[];B.js=[];}
 function benchEnd(abort){const B=BENCH;if(!B.on)return;if(B.i<BENCH_STEPS.length)BENCH_STEPS[B.i][2]();B.on=false;B.noShUp=B.noMs=B.noPost=false;document.body.classList.remove('bench-nohud');TD.on=B.td;
   if(abort){qKey=B.prevQ;applyQuality();DRS.s=B.ds;return;}
@@ -6764,7 +6772,7 @@ function benchEnd(abort){const B=BENCH;if(!B.on)return;if(B.i<BENCH_STEPS.length
   benchShow();}
 function benchUndo(){const B=BENCH;if(!B.prevQ)return;qKey=B.prevQ;store.set('crust-q',qKey);CFG.fps=B.prevFps;saveCfg();applyQuality();try{refreshMenu();refreshSettings();}catch(e){}$('benchChosen').textContent='Your previous settings are back: '+qName(qKey)+', frame rate '+(CFG.fps==='60'?'60 fps':CFG.fps==='max'?'Max':'Auto')+'.';$('benchUndo').hidden=true;for(const id of ['benchUse120','benchUse60'])$(id).classList.remove('on');}
 function benchText(){const B=BENCH,I=B.info||{},f=(v,d)=>(+v).toFixed(d);let t='Crust Rush graphics test · '+new Date().toISOString().replace('T',' ').slice(0,16)+'\ndevice: '+navigator.userAgent.replace(/Mozilla\/5\.0 \(|\).*/g,'').slice(0,60)+
-    '\npreset '+I.q+' · 3D buffer '+I.w+'×'+I.h+' (pixel ratio '+f(I.pr||1,2)+') · anti-aliasing '+(I.ms||0)+'× · compact colour buffer '+(I.r11?'yes':'no')+' · shadow map '+I.sm+' · screen '+I.hz+' Hz · frame rate setting '+I.fps+' · automatic quality step '+(I.lad||0)+' of '+(LADS.length-1)+'\n'+(B.pickR?'for 120: '+qName(B.pickR.o120.pick)+' ('+B.pickR.o120.got+' fps) · for 60: '+qName(B.pickR.o60.pick)+' ('+B.pickR.o60.got+' fps)\n':'')+'\nfps   median ms   slow 10% ms   3D CPU ms   all JS ms   test\n';
+    '\npreset '+I.q+' · 3D buffer '+I.w+'×'+I.h+' (pixel ratio '+f(I.pr||1,2)+') · anti-aliasing '+(I.ms||0)+'× · compact colour buffer '+(I.r11?'yes':'no')+' · shadow map '+I.sm+' · screen '+I.hz+' Hz · frame rate setting '+I.fps+' · automatic quality step '+(I.lad||0)+' of '+(LADS.length-1)+'\n'+(B.pickR?'for 120: '+qName(B.pickR.o120.pick)+' ('+B.pickR.o120.got+' fps) · for 60: '+qName(B.pickR.o60.pick)+' ('+B.pickR.o60.got+' fps)\n':'')+(()=>{const d=benchDrift();return d.pct>=5?'heat check: the same settings ran '+d.pct+'% slower at the end of the test than at the start (the phone warmed up); later rows are pessimistic and the recommendations are corrected for it\n':d.pct<=-5?'heat check: the same settings ran '+(-d.pct)+'% faster at the end than at the start\n':'heat check: steady\n';})()+'\nfps   median ms   slow 10% ms   3D CPU ms   all JS ms   test\n';
   for(const r of B.res)t+=(f(r[1],0)).padStart(3)+'   '+f(r[2],1).padStart(9)+'   '+f(r[3],1).padStart(11)+'   '+f(r[4],1).padStart(9)+'   '+f(r[5]||0,1).padStart(10)+'   '+r[0]+'\n';return t;}
 function benchShow(){const ov=$('benchOv'),pk=BENCH.pickR;$('benchText').textContent=benchText();if(pk){const a=pk.o120,b=pk.o60;
     $('bench120').innerHTML='<b>'+qName(a.pick)+'</b>, frame rate Auto<br>about '+a.got+' fps'+(a.hit?' (120 reached)':' (the closest this device gets to 120)');
