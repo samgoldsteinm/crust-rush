@@ -5368,7 +5368,16 @@ $('toMenuBtn').onclick=toMenu;$('mpBtn').onclick=()=>netShowLobby();$('mpBadge')
 const setOv=$('setOv'),howOv=$('howOv'),fpsEl=$('fpsEl');let setFrom=null;
 const BOOLK=['shadows','showfps','shake','mini','ghost','music','fullscr'];
 const cfgVal=k=>k==='sound'?!muted:k==='stats'?statsOn:CFG[k];
-function openSettings(from){setFrom=from;from.hidden=true;setOv.hidden=false;setOv.scrollTop=0;refreshSettings();kbWait=null;kbRender();}
+/* settings are split into tabs; the last one you looked at opens next time */
+let setTabK=(()=>{try{return store.get('crust-settab')||'graphics';}catch(e){return 'graphics';}})();
+function setTab(k){if(!setOv.querySelector('[data-cat="'+k+'"]'))k='graphics';setTabK=k;try{store.set('crust-settab',k);}catch(e){}
+  setOv.querySelectorAll('[data-cat]').forEach(el=>{el.hidden=el.dataset.cat!==k;});
+  setOv.querySelectorAll('.set-tabs [data-tab]').forEach(b=>{const on=b.dataset.tab===k;b.setAttribute('aria-selected',String(on));b.tabIndex=on?0:-1;});
+  const tb=setOv.querySelector('.set-tabs [aria-selected="true"]'),bar=setOv.querySelector('.set-tabs');if(tb&&bar){const l=tb.offsetLeft-bar.offsetLeft;if(l<bar.scrollLeft||l+tb.offsetWidth>bar.scrollLeft+bar.clientWidth)bar.scrollLeft=l-12;}
+  setOv.scrollTop=0;const sh=setOv.querySelector('.sheet');if(sh)sh.scrollTop=0;if(k==='controls'){kbWait=null;kbRender();}}
+setOv.querySelectorAll('.set-tabs [data-tab]').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
+setOv.querySelector('.set-tabs').addEventListener('keydown',e=>{if(e.key!=='ArrowRight'&&e.key!=='ArrowLeft')return;const T=[...setOv.querySelectorAll('.set-tabs [data-tab]')],i=T.findIndex(b=>b.dataset.tab===setTabK),n=T[(i+(e.key==='ArrowRight'?1:T.length-1))%T.length];setTab(n.dataset.tab);n.focus();e.preventDefault();});
+function openSettings(from,tab){setFrom=from;from.hidden=true;setOv.hidden=false;setOv.scrollTop=0;refreshSettings();kbWait=null;kbRender();setTab(tab||setTabK);}
 $('kbReset').onclick=kbReset;kbHelp();
 function closeSettings(){setOv.hidden=true;(setFrom||menu).hidden=false;refreshMenu();}
 function fillGuide(){const gi=$('guideItems'),ga=$('guideAbil');if(!gi||gi.dataset.done)return;gi.dataset.done=1;
@@ -5386,7 +5395,7 @@ document.querySelectorAll('#setOv .seg[data-k] button').forEach(b=>b.onclick=()=
 $('volR').oninput=e=>{CFG.vol=+e.target.value;$('volO').textContent=CFG.vol;if(master)master.gain.value=CFG.vol/100;saveCfg();};
 $('mvolR').oninput=e=>{CFG.mvol=+e.target.value;$('mvolO').textContent=CFG.mvol;saveCfg();};
 $('camdR').oninput=e=>{CFG.camd=+e.target.value;$('camdO').textContent=CFG.camd+'%';saveCfg();};
-$('setReset').onclick=()=>{Object.assign(CFG,CFG_DEF);saveCfg();muted=false;store.set('crust-muted','0');statsOn=true;store.set('crust-stats','1');qKey=COARSE?'balanced':'ultra';store.set('crust-q',qKey);applyQuality();applySettings();refreshSettings();};
+$('setReset').onclick=()=>{Object.assign(CFG,CFG_DEF);if(matchMedia('(hover:hover) and (pointer:fine)').matches)CFG.fps='auto';saveCfg();muted=false;store.set('crust-muted','0');statsOn=true;store.set('crust-stats','1');qKey=COARSE?'balanced':'ultra';store.set('crust-q',qKey);applyQuality();applySettings();refreshSettings();};
 $('setBtn').onclick=()=>openSettings(menu);$('pauseSetBtn').onclick=()=>openSettings(pauseOv);$('setDone').onclick=closeSettings;
 $('howBtn').onclick=()=>{menu.hidden=true;howOv.hidden=false;howOv.scrollTop=0;};$('recBtn').onclick=()=>{recCls=clsKey;renderRecords();menu.hidden=true;$('recOv').hidden=false;$('recOv').scrollTop=0;};$('recDone').onclick=()=>{$('recOv').hidden=true;menu.hidden=false;};$('achBtn').onclick=openAch;$('cheatF').onsubmit=e=>{e.preventDefault();applyCheat($('cheatIn').value);$('cheatIn').value='';$('cheatIn').blur();};$('achDone').onclick=closeAch;$('howDone').onclick=()=>{howOv.hidden=true;menu.hidden=false;};
 addEventListener('keydown',e=>{if(e.code!=='Escape')return;if(!setOv.hidden)closeSettings();else if(!howOv.hidden)$('howDone').onclick();else if(!$('recOv').hidden)$('recDone').onclick();else if(!$('achOv').hidden)closeAch();else if(garageOpen)closeGarage();else if(state==='race'||state==='countdown'||state==='paused')togglePause();});
@@ -5954,12 +5963,17 @@ function rtcWrapF(dc,ch){const w={get open(){return dc.readyState==='open';},get
    until the link opens: a single lost relay message used to leave the race on the slow relay for good */
 /* wait for routes, but not for every last one: a relay (TURN) route is the one that always works, so once it is in (plus a moment for others)
    the offer goes; a public-address route alone gets a little longer; otherwise stop at the time limit */
+/* how this network's router treats the game: 'open' = one public address and port for every server (direct links work with most
+   other networks), 'strict' = a new port for each server (direct only works if the other side is open; often TURN), 'no-stun' = no public
+   address found at all (direct only on the same network) */
+function rtcNat(pc){const L=pc._sxs||[];if(!L.length)return 'no-stun';const by={};for(const a of L){const i=a.lastIndexOf(':'),ip=a.slice(0,i);(by[ip]=by[ip]||new Set()).add(a.slice(i+1));}
+  return Object.values(by).some(v=>v.size>1)?'strict':'open';}
 function rtcGather(pc,ms){return new Promise(res=>{if(pc.iceGatheringState==='complete')return res();const t0=performance.now();let done=false,early=null;const fin=()=>{if(done)return;done=true;clearTimeout(to);clearTimeout(early);res();};const to=setTimeout(fin,ms);
   pc.addEventListener('icegatheringstatechange',()=>{if(pc.iceGatheringState==='complete')fin();});
   pc.addEventListener('icecandidate',e=>{const c=e.candidate&&e.candidate.candidate||'';if(!c)return;const el=performance.now()-t0;
     /* the public-address (srflx) route is what lets two different networks link directly, so it is always waited for; a TURN route
        alone no longer ends the wait early (that used to send offers with only TURN in them, so the race went through the relay) */
-    if(/ typ srflx/.test(c))pc._sx=true;if(/ typ relay/.test(c))pc._rl=true;
+    if(/ typ srflx/.test(c)){pc._sx=true;const t=c.split(' ');(pc._sxs=pc._sxs||[]).push(t[4]+':'+t[5]);}if(/ typ relay/.test(c))pc._rl=true;
     if(pc._sx&&pc._rl){clearTimeout(early);early=setTimeout(fin,Math.max(0,500-el,250));}
     else if(pc._sx&&!early){early=setTimeout(fin,Math.max(0,1600-el));}
     else if(pc._rl&&!early){early=setTimeout(fin,Math.max(0,1800-el));}});});}
@@ -5972,7 +5986,7 @@ function rtcGuestStart(ch){if(!window.RTCPeerConnection||!ch.open)return;ch.rtcN
     rtcIce().then(ice=>{if(!ch.open||ch.direct||ch.rtcN!==nAt){ch.rtcBusy=0;return;}
     try{if(ch.pc){try{ch.pc.close();}catch(e){}}const pc=new RTCPeerConnection({iceServers:ice});ch.pc=pc;const id=ch.rtcN;ch.rtcId=id;rtcWrap(pc.createDataChannel('race',{ordered:true}),ch);rtcWrapF(pc.createDataChannel('fast',{ordered:false,maxRetransmits:0}),ch);
       pc.onconnectionstatechange=()=>{if(ch.pc===pc)ch.rtcSt=pc.connectionState;};
-      pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=>rtcGather(pc,ice.length>3?4000:2500)).then(()=>{ch.rtcBusy=0;ch.rtcT=performance.now();if(ch.pc===pc&&!ch.direct)ch.send({t:'rtc',id,sdp:pc.localDescription.toJSON()});}).catch(()=>{ch.rtcBusy=0;});}catch(e){ch.rtcBusy=0;ch.rtcSt='error';}});
+      pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=>rtcGather(pc,ice.length>3?4000:2500)).then(()=>{ch.rtcBusy=0;ch.rtcT=performance.now();NET.natMe=rtcNat(pc);if(ch.pc===pc&&!ch.direct)ch.send({t:'rtc',id,nat:NET.natMe,sdp:pc.localDescription.toJSON()});}).catch(()=>{ch.rtcBusy=0;});}catch(e){ch.rtcBusy=0;ch.rtcSt='error';}});
     setTimeout(attempt,3000);};
   attempt();}
 function rtcOnGuest(ch,d){if(!ch||!ch.pc||d.id!==ch.rtcId||!d.sdp||d.sdp.type!=='answer')return;if(ch.pc.signalingState==='have-local-offer')ch.pc.setRemoteDescription(d.sdp).catch(()=>{});}
@@ -5980,7 +5994,7 @@ function rtcOnHost(ch,d){if(!window.RTCPeerConnection||!d.sdp||d.sdp.type!=='off
   rtcIce().then(ice=>{if(ch.direct||!ch.open||ch.rtcOff!==d.id)return;
   try{if(ch.pc){try{ch.pc.close();}catch(e){}}const pc=new RTCPeerConnection({iceServers:ice});ch.pc=pc;ch.rtcSt='connecting';pc.onconnectionstatechange=()=>{if(ch.pc===pc)ch.rtcSt=pc.connectionState;};
     pc.ondatachannel=e=>rtcWrap(e.channel,ch);
-    pc.setRemoteDescription(d.sdp).then(()=>pc.createAnswer()).then(a=>pc.setLocalDescription(a)).then(()=>rtcGather(pc,ice.length>3?4000:2500)).then(()=>{if(ch.pc===pc)ch.send({t:'rtc',id:d.id,sdp:pc.localDescription.toJSON()});}).catch(()=>{});}catch(e){}});}
+    pc.setRemoteDescription(d.sdp).then(()=>pc.createAnswer()).then(a=>pc.setLocalDescription(a)).then(()=>rtcGather(pc,ice.length>3?4000:2500)).then(()=>{NET.natMe=rtcNat(pc);if(ch.pc===pc)ch.send({t:'rtc',id:d.id,nat:NET.natMe,sdp:pc.localDescription.toJSON()});}).catch(()=>{});}catch(e){}});}
 const netFast=()=>NET.conns.length>0&&NET.conns.every(c=>!c.open||c.direct);
 /* ---------- hosting ---------- */
 async function netHost(){rtcIce();netReset();NET.role='host';NET.me=0;const R=new NetRelay();NET.relay=R;
@@ -6008,7 +6022,7 @@ function netOnHost(c,d){if(!d||!d.t)return;const P=NET.pl.find(q=>q.id===c._id);
   else if(d.t==='claim'){if((d.rk==null||d.rk===NET.rk)&&d.id&&d.kind&&d.seq){((NET.claims||(NET.claims={}))[c._id]||(NET.claims[c._id]=[])).push({seq:d.seq|0,id:String(d.id),kind:String(d.kind)});}}
   else if(d.t==='quit'){for(const k of karts)if(k.netId===c._id){k.netId=null;k.auto=true;}if(P)P.ready=false;netLobbySync();}
   else if(d.t==='bye'){try{c.close();}catch(e){}netDrop(c);}
-  else if(d.t==='rtc')rtcOnHost(c,d);
+  else if(d.t==='rtc'){if(d.nat)c.natPeer=NET.natPeer=d.nat;rtcOnHost(c,d);}
   else if(d.t==='pg')netSend(c,{t:'po',ts:d.ts});}
 /* the host builds the grid: host in slot 4, friends next to them, rivals in the rest */
 function netBuildCfg(mi){const pl=NET.pl.filter(p=>p.id===0||p.conn&&p.conn.open);const used=new Set(pl.map(p=>p.ri));const others=RACERS.map((_,i)=>i).filter(i=>!used.has(i));
@@ -6043,7 +6057,7 @@ function netOnGuest(d){if(!d||!d.t)return;NET.lastRecv=performance.now();
   else if(d.t==='away'){NET.hostAway=true;}else if(d.t==='back'){NET.hostAway=false;}
   else if(d.t==='s'){netOnSnap(d);}
   else if(d.t==='menu'){if(state!=='menu'){toMenu();}netShowLobby();}
-  else if(d.t==='rtc')rtcOnGuest(NET.conns[0],d);
+  else if(d.t==='rtc'){if(d.nat)NET.natPeer=d.nat;rtcOnGuest(NET.conns[0],d);}
   else if(d.t==='hit'){if((d.rk==null||d.rk===NET.rk)&&state==='race'&&player&&!player.finished&&d.me&&d.ack>=(NET.ackRx||0)){NET.ackRx=d.ack;netReconcile(d.me,d.ack);NETLOG.ev('hit',0);}}
   else if(d.t==='po'){const r=performance.now()-d.ts;NET.ping=NET.ping==null?r:NET.ping*.6+r*.4;}}
 function netLost(msg){if(!NET.role)return;const wasRace=state!=='menu';netReset();if(wasRace)toMenu();netShowLobby(msg);}
@@ -6285,11 +6299,11 @@ const NETLOG={rows:[],evs:[],t0:0,on:false,last:0,b0:[0,0],fx0:0,gap0:0,sn0:0,
     else{const op=NET.conns.filter(x=>x.open);row=[t,fps,Math.round(out/1024),Math.round(inn/1024)].concat(op.map(c=>{const r=[c._id,c.direct?(c.route==='via TURN'?'turn':'peer'):'relay',Math.round(c.art!=null?c.art:c.rtt||0),c.snSent||0,c.snSkip||0,c.snDiv||1,Math.round(c.bufF||0),(NET.inQ[c._id]||[]).length];c.snSent=0;c.snSkip=0;return r;}));}
     this.rows.push(row);if(this.rows.length>900)this.on=false;},
   stop(){if(!this.on)return;this.on=false;try{const names=karts.filter(k=>k.netName).map(k=>k.netName+(k===player?' (me)':''));
-      const e={when:new Date().toISOString(),map:MAPS[mapIdx]?MAPS[mapIdx].id:'?',role:NET.role,players:names,quality:qKey,ua:navigator.userAgent.replace(/Mozilla\/5\.0 \(|\).*/g,'').slice(0,60),secs:Math.round((performance.now()-this.t0)/1000),turn:!!(rtcTurn&&rtcTurn.length),rows:this.rows,evs:this.evs};
+      const e={when:new Date().toISOString(),map:MAPS[mapIdx]?MAPS[mapIdx].id:'?',role:NET.role,players:names,quality:qKey,ua:navigator.userAgent.replace(/Mozilla\/5\.0 \(|\).*/g,'').slice(0,60),secs:Math.round((performance.now()-this.t0)/1000),turn:!!(rtcTurn&&rtcTurn.length),nat:[NET.natMe||'?',NET.natPeer||'?'],rows:this.rows,evs:this.evs};
       const L=JSON.parse(localStorage.getItem('crust-netlog')||'[]');L.unshift(e);while(L.length>6)L.pop();localStorage.setItem('crust-netlog',JSON.stringify(L));}catch(err){}}};
 /* a readable summary of one saved log */
 function netLogText(e){const g=e.role==='guest';const R=e.rows;const col=i=>R.map(r=>r[i]).filter(v=>typeof v==='number');const mx=a=>a.length?Math.max(...a):0,av=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):0,med=a=>{if(!a.length)return 0;const b=a.slice().sort((x,y)=>x-y);return b[b.length>>1];};
-  let h='Crust Rush network log · '+e.when.replace('T',' ').slice(0,16)+' · '+e.map+' · '+e.role+' · '+e.quality+' · '+e.secs+' s · '+(e.turn?'TURN list loaded':'no TURN list')+'\nplayers: '+e.players.join(', ')+'\ndevice: '+e.ua+'\n';
+  let h='Crust Rush network log · '+e.when.replace('T',' ').slice(0,16)+' · '+e.map+' · '+e.role+' · '+e.quality+' · '+e.secs+' s · '+(e.turn?'TURN list loaded':'no TURN list')+(e.nat?' · router: you '+e.nat[0]+', other player '+e.nat[1]:'')+'\nplayers: '+e.players.join(', ')+'\ndevice: '+e.ua+'\n';
   if(g){const rt=col(3),lag=col(4),fx=col(8),gp=col(7);h+='round trip: median '+med(rt)+' ms, worst '+mx(rt)+' ms · input lag: median '+med(lag)+' ms, worst '+mx(lag)+' ms · lost snapshots '+gp.reduce((a,b)=>a+b,0)+' · big fixes '+fx.reduce((a,b)=>a+b,0)+' · route: '+[...new Set(R.map(r=>r[2]))].join('/')+' · fps avg '+av(col(1))+'\n';
     h+='rows: t fps route rtt lag jitter snaps lost fixes KBout KBin\n';}
   else{const fr=new Map();for(const r of R)for(let i=4;i<r.length;i++){const f=r[i];const o=fr.get(f[0])||{rt:[],skip:0,div:[],q:[]};o.rt.push(f[2]);o.skip+=f[4];o.div.push(f[5]);o.q.push(f[7]);fr.set(f[0],o);}

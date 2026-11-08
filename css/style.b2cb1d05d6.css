@@ -256,13 +256,16 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .item-tg button:disabled{opacity:.55}.item-tg button small{font-weight:600;font-size:11px;opacity:.8;margin-left:2px}.item-reset{align-self:flex-start;border:1px solid rgba(255,244,220,.25);background:transparent;color:var(--cream);border-radius:10px;padding:8px 14px;font-weight:700}.ach-it{color:#ffd27a}
 .set-group{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:16px;background:linear-gradient(160deg,rgba(255,244,220,.06),rgba(255,244,220,.015));border:1px solid rgba(255,244,220,.12)}
 .set-group .label{margin-bottom:4px}
+.set-tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px;margin:-4px 0 0;-webkit-overflow-scrolling:touch}.set-tabs::-webkit-scrollbar{display:none}
+.set-tabs button{flex:0 0 auto;border:1px solid rgba(255,244,220,.14);background:rgba(255,244,220,.06);color:var(--muted);border-radius:999px;padding:9px 15px;font-weight:700;font-size:14px;white-space:nowrap}
+.set-tabs button[aria-selected="true"]{background:linear-gradient(135deg,#ff8a1f,#e0452c);border-color:transparent;color:var(--cream);box-shadow:0 4px 14px rgba(224,69,44,.35)}
 .set-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,300px);gap:8px 18px;align-items:center;padding:10px 0;border-top:1px solid rgba(255,244,220,.07)}
 .set-group .label+.set-row{border-top:0}
 .set-t{display:flex;flex-direction:column;gap:2px;min-width:0}.set-t b{font-size:15px}.set-t small{font-size:12.5px;color:var(--muted);line-height:1.35}.set-t small:empty{display:none}
 .set-row .seg button{padding:8px 4px;font-size:14px}
 @media (max-width:560px){.set-row{grid-template-columns:1fr}}
 .vol{display:flex;align-items:center;gap:12px}.vol input{flex:1;accent-color:#ff8a1f;min-width:0}.vol output{min-width:3ch;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
-#setReset{align-self:flex-start}
+#setReset{justify-self:start}
 .howlist{list-style:none;margin:0;padding:0;display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
 .howlist li{display:grid;grid-template-columns:30px 1fr;gap:10px;align-items:start;line-height:1.45;font-size:14px;color:var(--muted);padding:12px;border-radius:14px;background:linear-gradient(160deg,rgba(255,244,220,.06),rgba(255,244,220,.015));border:1px solid rgba(255,244,220,.1)}
 .howlist li b{color:var(--cream)}.howlist li svg{width:30px;height:30px}
