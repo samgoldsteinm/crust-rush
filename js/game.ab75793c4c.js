@@ -69,10 +69,11 @@ const lerpA=(a,b,t)=>a+angDiff(b,a)*t;
 function cnv(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
 function shade(hex,amt){const n=parseInt(hex.slice(1),16);let r=n>>16,g=(n>>8)&255,b=n&255;const tg=amt<0?0:255,a=Math.abs(amt);r=Math.round(r+(tg-r)*a);g=Math.round(g+(tg-g)*a);b=Math.round(b+(tg-b)*a);return '#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1);}
 const store={get(k){try{return localStorage.getItem(k);}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,v);}catch(e){}}};
-const CFG_DEF={shadows:true,detail:'normal',fps:'60',fullscr:true,showfps:false,vol:80,units:'mph',shake:true,mini:true,ghost:true,cam:'close',camd:100,music:true,mvol:45};
+const CFG_DEF={shadows:true,detail:'normal',fps:'auto',fullscr:true,showfps:false,vol:80,units:'mph',shake:true,mini:true,ghost:true,cam:'close',camd:100,music:true,mvol:45};
 const CFG=Object.assign({},CFG_DEF,(()=>{try{return JSON.parse(store.get('crust-cfg')||'{}')||{};}catch(e){return {};}})());
 if(!CFG.v33){CFG.v33=1;CFG.fps='60';}/* everyone moves to the steady 60 fps default once */
 if(!CFG.v68){CFG.v68=1;if(!matchMedia('(pointer:coarse)').matches)CFG.fps='auto';}/* computers chase their screen's rate (120 Hz and up) */
+if(!CFG.v109){CFG.v109=1;if(CFG.fps==='60')CFG.fps='auto';}/* 120 fps is the standard now; 60 stays as a choice */
 if(!CFG.v106){CFG.v106=1;if(CFG.fps==='60'&&matchMedia('(hover:hover) and (pointer:fine)').matches)CFG.fps='auto';if(CFG.fullscr==null)CFG.fullscr=true;}/* any computer still on the 60 fps setting moves to Auto once */
 const saveCfg=()=>store.set('crust-cfg',JSON.stringify(CFG));
 /* ---- which items can turn up in races: saved on this device; in a friends' race the host's choice counts.
@@ -225,7 +226,13 @@ const QUAL={/* Lite: for older phones (iPhone 14 and earlier): screen-resolution
 const GLR=(()=>{try{const gl=renderer.getContext();const e=gl.getExtension('WEBGL_debug_renderer_info');return String(gl.getParameter(e?e.UNMASKED_RENDERER_WEBGL:gl.RENDERER)||'');}catch(e){return '';}})();
 const SOFTGL=/swiftshader|llvmpipe|softpipe|software|basic render/i.test(GLR);
 let qKey=store.get('crust-q')||(SOFTGL?'fast':COARSE?'balanced':'ultra');if(qKey==='ultraM'&&!COARSE)qKey='ultra';/* a phone's Ultra on a computer becomes the computer's Ultra */if(!QUAL[qKey]||qKey==='ultra'&&COARSE)qKey='balanced';
-const LOWQF=()=>qKey==='fast'||qKey==='lite';const DPR=window.devicePixelRatio||1;let pr=Math.min(DPR,QUAL[qKey].start),capPR=Math.min(DPR,QUAL[qKey].cap);
+const LOWQF=()=>qKey==='fast'||qKey==='lite';
+/* dynamic resolution: on Balanced, Sharp and Ultra the scene is drawn into a slightly smaller part of its buffer when the GPU can't
+   keep up with the frame-rate target (120 on fast screens, 60 when capped), never below 80% (85% on Balanced) of the preset's
+   resolution, and grows back as soon as there is room. Glow, colour grading and the HUD stay at full resolution, so on a phone's
+   dense screen the picture looks the same. */
+const DRS={s:1,acc:0,n:0,t:0,good:0,cool:0,fail:{}};
+var BENCH={on:false};const DPR=window.devicePixelRatio||1;let pr=Math.min(DPR,QUAL[qKey].start),capPR=Math.min(DPR,QUAL[qKey].cap);
 renderer.setPixelRatio(pr);
 renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=QUAL[qKey].soft?THREE.PCFSoftShadowMap:THREE.PCFShadowMap;
@@ -3999,12 +4006,17 @@ function tdDrive(k,o){const ai=k.ai;if(!ai)return;
   if(L.length){let best=0,bc=1e9;const cur=TD.lane!=null?TD.lane:ai.lane;for(let c=-52;c<=52;c+=4){let cost=Math.abs(c-cur)+Math.abs(c)*.15;for(const [l,r] of L)if(Math.abs(c-l)<r)cost+=1e4;if(cost<bc){bc=cost;best=c;}}if(bc<1e4)dl=best;}
   const b0=k.boost;const r=aiInput(k,STEP);k.boost=b0;let steer=r.steer;
   const busy=k.sc||LOOPS.some(Lp=>{const d=(Lp.j-k.idx+N)%N;return d<80||d>N-10;})||(GLIDE&&((GLIDE.rj-k.idx+N)%N<70))||(ai.pick&&(()=>{let d=k.idx-ai.pick.a;if(d>N/2)d-=N;if(d<-N/2)d+=N;return d>-45&&d<8;})());
-  if(dl!=null&&!busy){TD.lane=TD.lane==null?ai.lane:TD.lane;TD.lane+=(dl-TD.lane)*Math.min(1,STEP*6);ai.lane=TD.lane;ai.laneTarget=dl;
+  /* a shortcut you chose to take: move out to its side early, then aim straight into its mouth (the regular CPU line cut it too fine) */
+  let tk=null,mul=Math.min(1,(r.mul||1)/.97);if(ai.pick&&!k.sc){let d=k.idx-ai.pick.a;if(d>N/2)d-=N;if(d<-N/2)d+=N;if(d>-60&&d<8)tk={sc:ai.pick,d};}
+  if(tk){const sc=tk.sc;if(tk.d<(sc.route?-20:-14)){TD.lane=TD.lane==null?ai.lane:TD.lane;TD.lane+=(sc.s*58-TD.lane)*Math.min(1,STEP*3.5);ai.lane=TD.lane;
+      const ti=(k.idx+6+Math.floor(Math.max(0,k.speed)/45))%N,tp=track[ti],des=Math.atan2(tp.y+tp.ny*TD.lane-k.y,tp.x+tp.nx*TD.lane-k.x);steer=clamp(angDiff(des,k.a)*3,-1,1);}
+    else{const P=sc.pts;let bi=0,bd=1e18;for(let i=0;i<Math.min(16,P.length);i++){const dd=(P[i].x-k.x)**2+(P[i].y-k.y)**2;if(dd<bd){bd=dd;bi=i;}}const q=P[Math.min(P.length-1,bi+4)],des=Math.atan2(q.y-k.y,q.x-k.x);steer=clamp(angDiff(des,k.a)*3.2,-1,1);mul=Math.min(mul,.85);}}
+  else if(dl!=null&&!busy){TD.lane=TD.lane==null?ai.lane:TD.lane;TD.lane+=(dl-TD.lane)*Math.min(1,STEP*6);ai.lane=TD.lane;ai.laneTarget=dl;
     const ti=(k.idx+6+Math.floor(Math.max(0,k.speed)/45))%N,tp=track[ti],des=Math.atan2(tp.y+tp.ny*TD.lane-k.y,tp.x+tp.nx*TD.lane-k.x);steer=clamp(angDiff(des,k.a)*3,-1,1);}
   else TD.lane=null;
-  o.steer=Math.round(steer*100)/100;o.brake=false;o.nb=false;o.mul=Math.min(1,(r.mul||1)/.97);}
+  o.steer=Math.round(steer*100)/100;o.brake=false;o.nb=false;o.mul=mul;}
 function tdTick(){const bar=$('tdBar'),tag=$('tdTag');if(!bar)return;const live=TD.on&&player&&state==='race'&&!player.finished&&!(SPEC&&SPEC.on);
-  tag.hidden=!live;let show=false;
+  tag.hidden=!live;if(live){const tx=BENCH.on?'GRAPHICS TEST '+Math.min(BENCH.i+1,BENCH_STEPS.length)+'/'+BENCH_STEPS.length:'AUTO-DRIVE';if(tag.textContent!==tx)tag.textContent=tx;}let show=false;
   if(live&&!player.sc){const nx=tdNext(player);if(nx){const L=nx.dj*T.L/N,v=Math.max(120,player.speed||0),sec=L/v;
       if(nx.dj>2&&(sec<=10.5||(TD.sc===nx.sc&&nx.dj<600))){show=true;if(TD.sc!==nx.sc){TD.sc=nx.sc;}$('tdSec').textContent=Math.max(0,Math.ceil(sec));const t=!!TD.ch.get(nx.sc);$('tdTake').classList.toggle('on',t);$('tdSkip').classList.toggle('on',TD.ch.has(nx.sc)&&!t);}}}
   /* once a shortcut is behind you, ask again next lap */
@@ -4195,7 +4207,7 @@ const hitAnims=[];
    after FLAT_T. The big kart drives straight over a flattened kart instead of bouncing off it. flatT is in the network snapshot,
    so everyone in an online race sees the squash. Returns true while the big kart should pass through b. */
 const FLAT_T=3;function megaCrush(a,b){if(b.flatT>0)return true;if(b.flatImm>0||b.glide||b.loop)return false;
-  if(b.inv>0||b.rush>0||abInv(b)||b.ghostT>0||b.absT>0)return false;if(b.shield>0){spinOut(b,'mega',true);return false;}
+  if(b.inv>0||abInv(b)||b.ghostT>0||b.absT>0)return false;if(b.shield>0){spinOut(b,'mega',true);return false;}
   b.flatT=FLAT_T;b.flatImm=FLAT_T+.6;b.inv=Math.max(b.inv||0,FLAT_T+3);/* protected while squashed and for 3 s after popping back up */b.air=false;b.wvy=0;b.big=false;b.speed*=.5;b.drift=0;b.charge=0;b.boost=0;b.dWant=0;b.dLatch=false;b.sT=0;
   const gy=(b.wy||0)+.6;spawnRing(b.x,gy,b.y,'#c8a06a',46,.5);burst(b.x,gy+2,b.y,26,['#efe3cb','#c8a06a','#ffffff'],70,3);if(b===camT)shake(.55);else if(a===camT)shake(.3);SFX.bump(Math.max(near(b),.4));return true;}
 const BUMPT=new Map();
@@ -4209,7 +4221,7 @@ function blockedCallout(p){const it=PROJ_ITEM[p.type];if(!it)return;if(!_hitEl){
   _hitEl.innerHTML='<span class="hb-ic">'+(SVG[it]||'')+'</span><span class="hb-t"><b>Blocked!</b><i>'+itemLabel(it)+' stopped by your held item</i></span>';_hitEl.style.setProperty('--ic','#7fe07f');
   _hitEl.classList.remove('on');void _hitEl.offsetWidth;_hitEl.classList.add('on');clearTimeout(_hitT);_hitT=setTimeout(()=>_hitEl.classList.remove('on'),1400);}
 
-const abInv=k=>k.pestoT>0||k.chiliT>0;/* Pesto Rush and Chili's Fire Trail: nothing can touch you */
+const abInv=k=>k.pestoT>0||k.chiliT>0||k.megaT>0;/* Mega Shroom is unstoppable too *//* Pesto Rush and Chili's Fire Trail: nothing can touch you */
 function spinOut(k,kind,world){if(k.inv>0||k.rush>0||abInv(k)||k.ghostT>0||k.absT>0)return false;
   if(!world&&(k.air||k.glide||k.loop))return false;/* items never hit a kart in the air */
   if(k.shield>0){if(k.mzH>0){k.mzH--;k.absT=.6;const gy=(k.wy||0)+7;burst(k.x,gy,k.y,30,['#fbf5e6','#fff2cf','#ffffff'],90,2.8);spawnRing(k.x,gy,k.y,'#fff2cf',50,.45);if(k===player){SFX.garlic(1);SFX.clash(.7);shake(.2);}if(k.mzH<=0)k.shield=0;}return false;}if(!world&&absorbHeld(k))return false;if(!world&&absorb(k))return false;if(k===camT&&!NET.replay)shake(1.1);k.spin=1.1*(1.25-.25*k.sm.wgt);k.inv=k.spin+3;/* three seconds of protection after the spin, shown by blinking */k.speed*=.3;k.drift=0;k.charge=0;k.boost=0;if(!k.air&&!k.loop){k.air=true;k.big=false;k.airT=0;k.wvy=(k.gRate||0)+40;}
@@ -4572,7 +4584,7 @@ const ABIL={pep:['Pepperoni Storm','Fires a fan of six spinning pepperoni slices
   olive:['Slick Trail','Leaves a trail of olive-oil slicks behind. Drops five slicks; drive through one and your wheels get coated: no spin, but you are slowed a lot for 5 seconds.','#c8b23a'],
   mozz:['Melt Shield','Wraps the kart in stretchy cheese that blocks every hit for a while, with a quick burst of speed.','#fff4c0'],
   chili:['Fire Trail','A fiery boost that leaves burning flames on the road: anyone who drives into them spins out and catches fire. Nothing can hit you while it burns.','#ff3a12'],
-  shroom:['Mega Shroom','Grows huge and unstoppable with a burst of speed and rolls right over anyone in the way, squashing them flat and slow for 3 seconds. You can still steer and drift.','#c8a06a'],
+  shroom:['Mega Shroom','Grows huge and unstoppable and flattens anyone it touches, front, side or back, even if they drive into you. They stay squashed and slow for 3 seconds. You can still steer and drift.','#c8a06a'],
   pineapple:['Spiky Shockwave','A big spiky blast that spins out every racer close around you.','#ffd23a'],
   anchovy:['School of Fish','Launches three anchovies that hunt down the next three racers ahead. They always reach their target, but a well-timed hop dodges one.','#8fc8e8']};
 const ABIL_TIME=30,MEGA_T=5.5,PESTO_T=5.9;
@@ -4584,7 +4596,7 @@ function useAbility(k){const id=abilKey(k),A=ABIL[id];if(!A||!(k.abC>=1)||k.loop
   else if(id==='olive'){k.abQ=[0,.25,.5,.75,1].map(t=>[t,()=>hazards.push({x:k.x-Math.cos(k.ma)*22,y:k.y-Math.sin(k.ma)*22,t:25,born:0,owner:k,armed:false,olive:1,mesh:itemMesh('oil')})]);}
   else if(id==='mozz'){k.shield=7;k.mzH=3;k.boost=Math.max(k.boost,.7);k.pBoost=0;if(v>0)SFX.garlic(v||.3);}
   else if(id==='chili'){k.boost=Math.max(k.boost,2.2);k.fireT=2.2;k.chiliT=2.2;/* untouchable while it burns */k.abFx=2.2;k.abCol=A[2];if(k===player)SFX.chili();}
-  else if(id==='shroom'){k.rush=MEGA_T;k.boost=Math.max(k.boost,2.2);k.megaT=MEGA_T;}
+  else if(id==='shroom'){k.megaT=MEGA_T;}/* no speed boost: the size is the power */
   else if(id==='pineapple'){blast(k.x,k.y,130,k,'pep','#ffd23a');/* wide enough to catch the 3 or 4 karts packed around you */k.inv=Math.max(k.inv,.6);}
   else if(id==='anchovy'){for(let j=1;j<=3;j++){const tg=st[i-j];const sp=360+Math.max(0,k.speed),an=k.a+(j-2)*.25;projectiles.push({type:'torp',custom:1,x:k.x+Math.cos(an)*12,y:k.y+Math.sin(an)*12,vx:Math.cos(an)*sp,vy:Math.sin(an)*sp,t:tg?600:8,sure:tg?1:0,owner:k,safe:.3,b:0,target:tg||null,mesh:itemMesh('torpedo')});}SFX.torpedo(v||.4);}}
 function abilityTick(dt){for(const k of karts){if(state==='race'&&!k.finished&&!(k.abC>=1)){k.abC=Math.min(1,(k.abC||0)+dt/ABIL_TIME);if(k===player&&k.abC>=1){SFX.ready();abilBtn&&abilBtn.classList.add('ready');}}
@@ -4828,8 +4840,8 @@ function update0(dt){
     for(const k of karts){if(!k.loop&&k.z<14&&(k.x-r.x)**2+(k.y-r.y)**2<306)spinOut(k,'meat',1);}}
   updateHazards(dt);itemsTick(dt);abilityTick(dt);if(abilQueued){abilQueued=false;if(player&&state==='race')useAbility(player);}
   for(const k of karts){k.px=k.x;k.py=k.y;k.pa=k.a;k.pma=k.ma;k.pz=k.z;k.pwy=k.wy;k.pth=k.loopTh||0;if(k.netId&&!k.finished){const n=netSteps(k);k.stall=n===0?Math.min(30,(k.stall||0)+(k.speed>1?1:0)):Math.max(0,(k.stall||0)-(n-1));k.nst=n;for(let s2=0;s2<n;s2++){const inp=netInput(k);if(k.rush>0)inp.use=false;stepKart(k,inp,dt);netApplyClaims(k);}continue;}const inp=(k.isPlayer&&!k.auto&&!(k.rush>0&&!(k.megaT>0)&&!(k.pestoT>0)))?playerInput():aiInput(k,dt);/* abilities keep your own steering and drifting; only the rush items drive for you */if(k.rush>0)inp.use=false;stepKart(k,inp,dt);}
-  for(let i=0;i<karts.length;i++)for(let j=i+1;j<karts.length;j++){const a=karts[i],b=karts[j];if(MULTI&&Math.abs((a.wy||0)-(b.wy||0))>18)continue;const dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;
-    if(d2<361&&d2>0&&!a.loop&&!b.loop){const sa2=a.shield>0||(a.rush>0&&!(a.pestoT>0)),sb2=b.shield>0||(b.rush>0&&!(b.pestoT>0)),am=a.megaT>0,bm=b.megaT>0;if(am!==bm){if(megaCrush(am?a:b,am?b:a))continue;/* rolled over: no shove */}else if(sa2&&!sb2)spinOut(b,'garlic');else if(sb2&&!sa2)spinOut(a,'garlic');const d=Math.sqrt(d2),p=(19-d)/2,nx=dx/d,ny=dy/d,wa=a.sm.wgt,wb=b.sm.wgt;let ra=1.6*wb/(wa+wb),rb=1.6*wa/(wa+wb);
+  for(let i=0;i<karts.length;i++)for(let j=i+1;j<karts.length;j++){const a=karts[i],b=karts[j];if(MULTI&&Math.abs((a.wy||0)-(b.wy||0))>18)continue;const dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy,mg=(a.megaT>0)!==(b.megaT>0);
+    if(d2<(mg?784:361)&&d2>0&&!a.loop&&!b.loop){const sa2=a.shield>0||(a.rush>0&&!(a.pestoT>0)),sb2=b.shield>0||(b.rush>0&&!(b.pestoT>0)),am=a.megaT>0,bm=b.megaT>0;if(am!==bm){if(megaCrush(am?a:b,am?b:a))continue;/* rolled over: no shove */if(d2>=361)continue;}else if(sa2&&!sb2)spinOut(b,'garlic');else if(sb2&&!sa2)spinOut(a,'garlic');const d=Math.sqrt(d2),p=(19-d)/2,nx=dx/d,ny=dy/d,wa=a.sm.wgt,wb=b.sm.wgt;let ra=1.6*wb/(wa+wb),rb=1.6*wa/(wa+wb);
       /* online: a friend's kart (predicted on their own screen) is never shoved by the host; the other kart takes the whole push, so there is nothing to correct afterwards */
       const ga=!!a.netId&&!b.netId,gb=!!b.netId&&!a.netId;if(ga){ra=0;rb=1.6;}else if(gb){rb=0;ra=1.6;}
       a.x-=nx*p*ra;a.y-=ny*p*ra;b.x+=nx*p*rb;b.y+=ny*p*rb;if(wa>wb*1.15&&!gb)b.speed*=.992;else if(wb>wa*1.15&&!ga)a.speed*=.992;
@@ -5098,8 +5110,8 @@ function render(time,dt){
   render.n=(render.n||0)+1;render.fdt=render.fdt==null?dt:render.fdt*.9+dt*.1;
   /* above ~85 fps the shadow map is redrawn every other frame: shadows still update 60+ times a second (exactly as at 60 fps), so they look
      the same, but a 120 Hz screen doesn't pay for the 4096 shadow map twice as often */
-  renderer.shadowMap.needsUpdate=LOWQF()?render.n%(QUAL[qKey].shEvery||2)===0:(render.fdt>.0118||render.n%2===0);/* half-rate shadows made moving shadows judder */
-  if(!LOWQF()&&CFG.post!==false&&!LADV.np){try{postRender();}catch(e){console.warn('post',e);CFG.post=false;renderer.setRenderTarget(null);renderer.render(scene,camera);}}else renderer.render(scene,camera);
+  renderer.shadowMap.needsUpdate=BENCH.noShUp?false:LOWQF()?render.n%(QUAL[qKey].shEvery||2)===0:(render.fdt>.0118||render.n%2===0);/* half-rate shadows made moving shadows judder */
+  if(!LOWQF()&&CFG.post!==false&&!LADV.np&&!BENCH.noPost){try{postRender();}catch(e){console.warn('post',e);CFG.post=false;renderer.setRenderTarget(null);renderer.render(scene,camera);}}else renderer.render(scene,camera);
 }
 
 /* ================= HUD ================= */
@@ -5122,7 +5134,7 @@ function hud(dt,time){try{tdTick();}catch(e){}
   if(!player)return;hud.pf=(hud.pf||0)+1;if(hud.pf%3===0)for(const k of karts){if(!k.pm)continue;const f=Math.max(0,Math.min(1,(k.finished?LAPS*N:k.prog)/(LAPS*N)));const v=(f*100).toFixed(1);if(k.pm._v!==v){k.pm._v=v;k.pm.style.left='calc(8px + (100% - 16px)*'+f.toFixed(4)+')';}}
   const pos=standCache.indexOf(player)+1;if(pos&&String(pos)!==lastPos){lastPos=String(pos);posNum.textContent=pos;posSuf.textContent=suf(pos);}
   const lap=clamp(Math.floor(Math.max(0,player.prog)/N)+1,1,LAPS);const ls=lap+'/'+LAPS;if(ls!==lastLap){lastLap=ls;hudLap.textContent=ls;lapBars.forEach((b,i)=>b.classList.toggle('on',i<lap));}
-  if(state==='race'&&!player.finished&&lap>lapShown){lapShown=lap;const sp=recLap(lap);showBanner((lap===LAPS?'Final lap':'Lap '+lap)+(sp?' · '+sp:''),sp?2:1.4,true);SFX.lap(lap===LAPS);}
+  if(state==='race'&&!player.finished&&lap>lapShown){lapShown=lap;const sp=recLap(lap);showBanner((lap===LAPS?'Final lap':'Lap '+lap)+(sp?' · '+sp:''),sp?2:1.4,true);SFX.lap(lap===LAPS);if(lap===LAPS)try{musFinalLap();}catch(e){}}
   const ts=fmt(player.finished?player.finishTime:raceTime);if(ts!==lastTimeStr){lastTimeStr=ts;hudTime.textContent=ts;}
   const sv=Math.round(Math.max(0,player.speed)*(CFG.units==='kmh'?1.062:.66));if(sv!==lastSpd){lastSpd=sv;spd.textContent=sv;gVal.style.strokeDasharray=Math.min(100,Math.max(0,player.speed)/(BASE_MAX*1.58)*100).toFixed(1)+' 100';}
   const chg=player.drift?Math.min(100,player.charge/2.6*100):0,tierN=player.drift?(player.tier||0):0;if(Math.abs(chg-(hud.ch||0))>.8||tierN!==hud.tn){hud.ch=chg;hud.tn=tierN;gCh.style.strokeDasharray=chg.toFixed(1)+' 100';gCh.style.stroke=['#fff4dc','#ffe066','#ff9a1f','#ff3b1a'][tierN];}
@@ -5147,12 +5159,12 @@ const menu=$('menu'),results=$('results'),pauseOv=$('pauseOv'),resList=$('resLis
 function goFullscreen(){const el=document.documentElement;try{const p=el.requestFullscreen?el.requestFullscreen({navigationUI:'hide'}):(el.webkitRequestFullscreen?el.webkitRequestFullscreen():null);
   if(p&&p.then)p.then(()=>{try{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{});}catch(e){}}).catch(()=>{});}catch(e){}}
 function buildProg(){const el=$('tbProg');if(!el)return;el.querySelectorAll('i,.tb-lap').forEach(n=>n.remove());for(let l=1;l<LAPS;l++){const t=document.createElement('span');t.className='tb-lap';t.style.left='calc(8px + (100% - 16px)*'+(l/LAPS).toFixed(4)+')';t.innerHTML='<b>L'+(l+1)+'</b>';el.appendChild(t);}for(const k of karts){const n=document.createElement('i');if(k===player)n.className='me';n.style.setProperty('--c',k.r.color);if(PORTRAITS[k.ri])n.style.backgroundImage='url('+PORTRAITS[k.ri]+')';el.appendChild(n);k.pm=n;}}
-let _abSetup=false;function startRace(){if(!_abSetup){_abSetup=true;setupAbilityHud();const ci=$('cine');ci.addEventListener('pointerdown',e=>{e.preventDefault();introSkip=true;});addEventListener('keydown',()=>{if(state==='intro')introSkip=true;});}if(window.__clearInput)window.__clearInput();initAudio();if(ac&&ac.state==='suspended')ac.resume();if(CFG.fullscr!==false)goFullscreen();
+let _abSetup=false;function startRace(){try{drsReset();}catch(e){}if(!_abSetup){_abSetup=true;setupAbilityHud();const ci=$('cine');ci.addEventListener('pointerdown',e=>{e.preventDefault();introSkip=true;});addEventListener('keydown',()=>{if(state==='intro')introSkip=true;});}if(window.__clearInput)window.__clearInput();initAudio();if(ac&&ac.state==='suspended')ac.resume();if(CFG.fullscr!==false)goFullscreen();
   menu.hidden=true;results.hidden=true;pauseOv.hidden=true;resetRace(false);state='countdown';cd=3.4;lastCd=4;abilReset();stage.classList.remove('demo');raceDone=false;
   buildProg();ghostStart();{const r=loadRecs()[recKey()],e=$('hudPB');if(e){e.hidden=!r;if(r)e.textContent='Best '+fmt(r.t);}}lastPos=lastLap=lastItem=lastTimeStr='';lastSpd=-1;hud.ch=-1;hud.bst=null;hud.dr=null;banner.textContent='';hintShown=false;itemQueued=null;}
 const paint=()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
 let raceLoading=false;
-async function goRace(mi){if(raceLoading)return;if(NET.role&&!NET.fromNet){if(NET.role==='host'&&NET.conns.some(c=>c.open)){netHostPrepare(mi);return;}if(NET.role==='guest'){netShowLobby();return;}}NET.fromNet=false;if(!NET.role||!NET.conns.some(c=>c.open))NET.cfg=null;raceLoading=true;const rev=!!CLASSES[clsKey].rev,L=$('raceLd'),bar=$('rlBar'),txt=$('rlTxt'),m=MAPS[mi];
+async function goRace(mi){if(raceLoading)return;if(NET.role&&!NET.fromNet){if(NET.role==='host'&&NET.conns.some(c=>c.open)){netHostPrepare(mi);return;}if(NET.role==='guest'){netShowLobby();return;}}NET.fromNet=false;if(!NET.role||!NET.conns.some(c=>c.open))NET.cfg=null;raceLoading=true;const rev=!!CLASSES[clsKey].rev,L=$('raceLd'),bar=$('rlBar'),txt=$('rlTxt'),m=MAPS[mi];try{MUS.nextMap=mi;}catch(e){}
   const step=async(p,t)=>{bar.style.width=p+'%';if(t)txt.textContent=t;await paint();};
   try{$('rlBg').style.backgroundImage=MAP_SHOTS[m.id]?'url('+shotURL(m.id,'h')+')':'';$('rlName').textContent=m.name;$('rlSub').textContent=(gp?CUPS[gp.cup].name+' · race '+(gp.race+1)+' of 4':'Single race')+' · '+CLASSES[clsKey].label;
     L.classList.remove('out');L.hidden=false;state='loading';await step(8,'Rolling out the dough…');
@@ -5346,6 +5358,12 @@ function specCamera(dt){const k=camT,kx=k.rx,ky=k.ry,kz=k.rz||0,sn=SPEC.snap;SPE
     camera.position.copy(SPEC.bp);camera.lookAt(kx+Math.cos(f)*10,kz,ky+Math.sin(f)*10);/* racer just below the middle, the road ahead and the pack around in view */if(Math.abs(camera.fov-58)>.1){camera.fov=58;camera.updateProjectionMatrix();}}}
 [['tdTake',()=>tdPick(true)],['tdSkip',()=>tdPick(false)]].forEach(([id,f])=>{const el=$(id);el.addEventListener('pointerdown',e=>{e.stopPropagation();});el.addEventListener('pointerup',e=>{e.preventDefault();e.stopPropagation();f();});el.addEventListener('click',e=>{if(e.detail===0)f();});});
 addEventListener('keydown',e=>{if(!TD.on||state!=='race'||$('tdBar').hidden)return;if(e.code==='KeyY'){tdPick(true);}else if(e.code==='KeyN'){tdPick(false);}});
+$('benchBtn').onclick=()=>{const inRace=(state==='paused'&&pauseOv._prev==='race')||(NET.cfg&&state==='race');
+  if(!inRace){$('benchNote').textContent='Start a race first, then pause and open Settings to run the test. The kart drives itself while it measures.';return;}
+  closeSettings();if(state==='paused')togglePause();else pauseOv.hidden=true;setTimeout(()=>{if(benchStart())showBanner('Graphics test: hands off for 25 s',1.6,'sm');},400);};
+$('benchDone').onclick=()=>{$('benchOv').hidden=true;};
+$('benchCopy').onclick=()=>{const t=$('benchText').textContent,el=$('benchText');const sel=()=>{const r=document.createRange();r.selectNodeContents(el);const sl=getSelection();sl.removeAllRanges();sl.addRange(r);};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(()=>{$('benchCopy').textContent='Copied';setTimeout(()=>$('benchCopy').textContent='Copy results',1500);},sel);else sel();};
 $('netLogBtn').onclick=netLogOpen;$('netLogDone').onclick=()=>{$('netLogOv').hidden=true;};$('resNetLog').onclick=netLogOpen;$('specBtn').onclick=specEnter;[['specPrev',()=>specNext(-1)],['specNext',()=>specNext(1)],['specCamBtn',specCam],['specRes',()=>specExit(true)]].forEach(([id,f])=>{const el=$(id);el.addEventListener('pointerup',e=>{e.preventDefault();e.stopPropagation();f();});el.addEventListener('click',e=>{if(e.detail===0)f();});/* pointerup for touch and mouse (like the pause button), click only from the keyboard */});
 addEventListener('keydown',e=>{if(!SPEC.on||e.repeat)return;const c=e.code;let h=true;
   if(c==='ArrowLeft'||c==='KeyA')specNext(-1);else if(c==='ArrowRight'||c==='KeyD')specNext(1);else if(c==='KeyC'||c==='KeyV'||c==='Tab')specCam();else if(c==='Escape'||c==='Backspace')specExit(true);else h=false;
@@ -5397,8 +5415,16 @@ $('mvolR').oninput=e=>{CFG.mvol=+e.target.value;$('mvolO').textContent=CFG.mvol;
 $('camdR').oninput=e=>{CFG.camd=+e.target.value;$('camdO').textContent=CFG.camd+'%';saveCfg();};
 $('setReset').onclick=()=>{Object.assign(CFG,CFG_DEF);if(matchMedia('(hover:hover) and (pointer:fine)').matches)CFG.fps='auto';saveCfg();muted=false;store.set('crust-muted','0');statsOn=true;store.set('crust-stats','1');qKey=COARSE?'balanced':'ultra';store.set('crust-q',qKey);applyQuality();applySettings();refreshSettings();};
 $('setBtn').onclick=()=>openSettings(menu);$('pauseSetBtn').onclick=()=>openSettings(pauseOv);$('setDone').onclick=closeSettings;
-$('howBtn').onclick=()=>{menu.hidden=true;howOv.hidden=false;howOv.scrollTop=0;};$('recBtn').onclick=()=>{recCls=clsKey;renderRecords();menu.hidden=true;$('recOv').hidden=false;$('recOv').scrollTop=0;};$('recDone').onclick=()=>{$('recOv').hidden=true;menu.hidden=false;};$('achBtn').onclick=openAch;$('cheatF').onsubmit=e=>{e.preventDefault();applyCheat($('cheatIn').value);$('cheatIn').value='';$('cheatIn').blur();};$('achDone').onclick=closeAch;$('howDone').onclick=()=>{howOv.hidden=true;menu.hidden=false;};
-addEventListener('keydown',e=>{if(e.code!=='Escape')return;if(!setOv.hidden)closeSettings();else if(!howOv.hidden)$('howDone').onclick();else if(!$('recOv').hidden)$('recDone').onclick();else if(!$('achOv').hidden)closeAch();else if(garageOpen)closeGarage();else if(state==='race'||state==='countdown'||state==='paused')togglePause();});
+$('howBtn').onclick=()=>{menu.hidden=true;howOv.hidden=false;howOv.scrollTop=0;};
+/* Best setup: steps for this kind of device come first and are highlighted; a dot marks the button until it has been opened once */
+{const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),mob=ios||matchMedia('(pointer:coarse)').matches,dev=ios?['all','ios','mobile']:mob?['all','mobile']:['all','pc'];
+  const ul=document.querySelector('.tipslist');[...ul.children].forEach(li=>{const d=li.dataset.dev;li.classList.toggle('here',d!=='all'&&dev.includes(d));});
+  [...ul.children].filter(li=>!dev.includes(li.dataset.dev)).forEach(li=>ul.appendChild(li));[...ul.children].forEach((li,i)=>{const tx=li.querySelector('svg text');if(tx)tx.textContent=String(i+1);});
+  $('tipsLead').textContent='A few steps for the smoothest, sharpest racing on '+(ios?'your iPhone or iPad':mob?'your phone or tablet':'your computer')+'. The highlighted ones are for this device; the rest are at the bottom.';
+  try{if(!store.get('crust-tips'))$('tipsDot').hidden=false;}catch(e){}
+  $('tipsBtn').onclick=()=>{menu.hidden=true;$('tipsOv').hidden=false;$('tipsOv').scrollTop=0;$('tipsDot').hidden=true;try{store.set('crust-tips','1');}catch(e){}};
+  $('tipsDone').onclick=()=>{$('tipsOv').hidden=true;menu.hidden=false;};}$('recBtn').onclick=()=>{recCls=clsKey;renderRecords();menu.hidden=true;$('recOv').hidden=false;$('recOv').scrollTop=0;};$('recDone').onclick=()=>{$('recOv').hidden=true;menu.hidden=false;};$('achBtn').onclick=openAch;$('cheatF').onsubmit=e=>{e.preventDefault();applyCheat($('cheatIn').value);$('cheatIn').value='';$('cheatIn').blur();};$('achDone').onclick=closeAch;$('howDone').onclick=()=>{howOv.hidden=true;menu.hidden=false;};
+addEventListener('keydown',e=>{if(e.code!=='Escape')return;if(!setOv.hidden)closeSettings();else if(!howOv.hidden)$('howDone').onclick();else if(!$('tipsOv').hidden)$('tipsDone').onclick();else if(!$('recOv').hidden)$('recDone').onclick();else if(!$('achOv').hidden)closeAch();else if(garageOpen)closeGarage();else if(state==='race'||state==='countdown'||state==='paused')togglePause();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&(state==='race'||state==='countdown'))togglePause();});
 document.querySelectorAll('#clsSeg button').forEach(b=>b.onclick=()=>{clsKey=b.dataset.c;store.set('crust-cls',clsKey);refreshMenu();});
 document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{mode=b.dataset.m;store.set('crust-mode',mode);if(mode==='gp'){const t=CUP_TRACKS[cupIdx][0];if(t!==mapIdx){mapIdx=t;loadMap(t,false);resetRace(true);}}refreshMenu();});
@@ -5570,13 +5596,13 @@ const POST={rt:null,b1:null,b2:null,b3:null,b4:null,w:0,h:0,qs:null,qc:null,q:nu
 function postMat(frag,u){return new THREE.ShaderMaterial({uniforms:u,vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',fragmentShader:frag,depthTest:false,depthWrite:false,toneMapped:false});}
 function postInit(){if(POST.qs)return;POST.qs=new THREE.Scene();POST.qc=new THREE.OrthographicCamera(-1,1,1,-1,0,1);const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute([-1,-1,0,3,-1,0,-1,3,0],3));g.setAttribute('uv',new THREE.Float32BufferAttribute([0,0,2,0,0,2],2));
   POST.q=new THREE.Mesh(g);POST.q.frustumCulled=false;POST.qs.add(POST.q);
-  POST.M.bright=postMat('uniform sampler2D tex;uniform float thr;uniform vec2 px;varying vec2 vUv;void main(){vec3 c=vec3(0.);for(int i=0;i<4;i++){vec2 o=vec2(i==1||i==3?1.:-1.,i>1?1.:-1.)*px;c+=texture2D(tex,vUv+o).rgb;}c*=.25;float l=dot(c,vec3(.2126,.7152,.0722));c*=smoothstep(thr,thr+.02+(1.-thr)*.5,l);gl_FragColor=vec4(min(c,vec3(8.)),1.);}',{tex:{value:null},thr:{value:.85},px:{value:new THREE.Vector2()}});
+  POST.M.bright=postMat('uniform sampler2D tex;uniform float thr;uniform vec2 px,us,uc;varying vec2 vUv;void main(){vec3 c=vec3(0.);for(int i=0;i<4;i++){vec2 o=vec2(i==1||i==3?1.:-1.,i>1?1.:-1.)*px;c+=texture2D(tex,min(vUv*us+o,uc)).rgb;}c*=.25;float l=dot(c,vec3(.2126,.7152,.0722));c*=smoothstep(thr,thr+.02+(1.-thr)*.5,l);gl_FragColor=vec4(min(c,vec3(8.)),1.);}',{tex:{value:null},thr:{value:.85},px:{value:new THREE.Vector2()},us:{value:new THREE.Vector2(1,1)},uc:{value:new THREE.Vector2(1,1)}});
   POST.M.blur=postMat('uniform sampler2D tex;uniform vec2 dir;varying vec2 vUv;void main(){vec3 c=texture2D(tex,vUv).rgb*.227027;c+=(texture2D(tex,vUv+dir*1.3846).rgb+texture2D(tex,vUv-dir*1.3846).rgb)*.316216;c+=(texture2D(tex,vUv+dir*3.2308).rgb+texture2D(tex,vUv-dir*3.2308).rgb)*.070270;gl_FragColor=vec4(c,1.);}',{tex:{value:null},dir:{value:new THREE.Vector2()}});
-  POST.M.final=postMat(`uniform sampler2D tex,b1,b2,aoT;uniform float aoOn;uniform float exposure,bloom,sat,con,vig,aspect,edgeA,spd,tm;uniform vec3 tint,edgeC;varying vec2 vUv;
+  POST.M.final=postMat(`uniform sampler2D tex,b1,b2,aoT;uniform float aoOn;uniform vec2 us,uc;uniform float exposure,bloom,sat,con,vig,aspect,edgeA,spd,tm;uniform vec3 tint,edgeC;varying vec2 vUv;
     vec3 RRT(vec3 v){vec3 a=v*(v+.0245786)-.000090537;vec3 b=v*(.983729*v+.4329510)+.238081;return a/b;}
     vec3 aces(vec3 c){const mat3 I=mat3(.59719,.07600,.02840,.35458,.90834,.13383,.04823,.01566,.83777);const mat3 O=mat3(1.60475,-.10208,-.00327,-.53108,1.10813,-.07276,-.07367,-.00605,1.07602);c*=exposure/.6;c=I*c;c=RRT(c);c=O*c;return clamp(c,0.,1.);}
     vec3 srgb(vec3 c){return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(vec3(.0031308),c));}
-    void main(){vec3 c=texture2D(tex,vUv).rgb*(aoOn>.5?texture2D(aoT,vUv).r:1.)+(texture2D(b1,vUv).rgb*.65+texture2D(b2,vUv).rgb*.6)*bloom;c=clamp(c*tint,0.,1.);/* the scene is already tone-mapped by the material shaders; mapping it twice greyed every white */
+    void main(){vec3 c=texture2D(tex,min(vUv*us,uc)).rgb*(aoOn>.5?texture2D(aoT,vUv).r:1.)+(texture2D(b1,vUv).rgb*.65+texture2D(b2,vUv).rgb*.6)*bloom;c=clamp(c*tint,0.,1.);/* the scene is already tone-mapped by the material shaders; mapping it twice greyed every white */
       float l=dot(c,vec3(.2126,.7152,.0722));c=mix(vec3(l),c,sat);c=clamp((c-.5)*con+.5,0.,1.);
       vec2 d=(vUv-.5)*vec2(aspect,1.);c*=1.-vig*smoothstep(.35,1.05,length(d));
   /* screen-edge flash (boost, hit, pickup) drawn here instead of as a blurred page layer */
@@ -5584,7 +5610,7 @@ function postInit(){if(POST.qs)return;POST.qs=new THREE.Scene();POST.qc=new THRE
   /* Ultra: thin speed streaks rushing out from the centre while boosting, kept to the outer frame so the road stays clear */
   if(spd>.001){vec2 q=(vUv-.5)*vec2(aspect,1.);float r=length(q),an=atan(q.y,q.x),ln=floor(an*48.),n=fract(sin(ln*12.9898)*43758.5453),w=1.-abs(fract(an*48.)-.5)*2.;
     float run=fract(r*1.3-tm*(2.6+n*1.6)+n*9.),st=step(.7,n)*smoothstep(.55,1.,w)*smoothstep(0.,.18,run)*(1.-smoothstep(.18,.5,run))*smoothstep(.3,.75,r);c=mix(c,vec3(1.),st*spd*.32);}
-      gl_FragColor=vec4(srgb(c),1.);}`,{tex:{value:null},b1:{value:null},b2:{value:null},exposure:{value:1},bloom:{value:.55},sat:{value:1.08},con:{value:1.06},vig:{value:.28},aspect:{value:1},edgeA:{value:0},spd:{value:0},tm:{value:0},edgeC:{value:new THREE.Color()},tint:{value:new THREE.Vector3(1,1,1)},aoT:{value:null},aoOn:{value:0}});
+      gl_FragColor=vec4(srgb(c),1.);}`,{tex:{value:null},b1:{value:null},b2:{value:null},exposure:{value:1},bloom:{value:.55},sat:{value:1.08},con:{value:1.06},vig:{value:.28},aspect:{value:1},edgeA:{value:0},spd:{value:0},tm:{value:0},edgeC:{value:new THREE.Color()},tint:{value:new THREE.Vector3(1,1,1)},aoT:{value:null},aoOn:{value:0},us:{value:new THREE.Vector2(1,1)},uc:{value:new THREE.Vector2(1,1)}});
   /* Ultra: screen-space ambient occlusion from the depth buffer (half resolution, then a depth-aware blur): soft contact shading in every corner and crevice */
   POST.M.ao=postMat(`uniform sampler2D tD;uniform mat4 pM,ipM;uniform vec2 px,asp;uniform float rad,inten;varying vec2 vUv;
     vec3 vp(vec2 uv){float d=texture2D(tD,uv).r;vec4 v=ipM*vec4(uv*2.-1.,d*2.-1.,1.);return v.xyz/v.w;}
@@ -5601,13 +5627,42 @@ function postInit(){if(POST.qs)return;POST.qs=new THREE.Scene();POST.qc=new THRE
     float lz(vec2 uv){float d=texture2D(tD,uv).r;vec4 v=ipM*vec4(uv*2.-1.,d*2.-1.,1.);return -v.z/v.w;}
     void main(){float z0=lz(vUv),s=0.,w=0.;for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){vec2 uv=vUv+vec2(float(x),float(y))*px;float z=lz(uv),wt=1./(1.+abs(z-z0)*6./max(z0*.03,.4));s+=texture2D(tA,uv).r*wt;w+=wt;}
       float a=s/w;gl_FragColor=vec4(a,a,a,1.);}`,{tA:{value:null},tD:{value:null},px:{value:new THREE.Vector2()},ipM:{value:new THREE.Matrix4()}});}
-function postSize(w,h){const msN=LADV.ms===0?0:QUAL[qKey].ms||(prE>=1.25?2:4),aoW=!!(QUAL[qKey].hqAll&&!QUAL[qKey].mob&&renderer.capabilities.isWebGL2&&CFG.ao!==false);if(POST.w===w&&POST.h===h&&POST.rt&&POST.ms===msN&&POST.aoW===aoW)return;POST.ms=msN;POST.w=w;POST.h=h;POST.aoW=aoW;for(const k of ['rt','b1','b2','b3','b4','ao1','ao2'])if(POST[k]){POST[k].dispose();POST[k]=null;}
+/* GPU savings that change nothing on screen. (1) The scene's colour buffer uses a packed 32-bit float format (R11G11B10) instead of
+   64-bit half floats when the device supports it: the scene is already tone-mapped to 0..1, so the picture is the same at half the
+   memory traffic, which matters most on phones. (2) The depth buffer is only needed while drawing: it is never copied out after the
+   anti-aliasing resolve (unless ambient occlusion reads it) and the GPU is told it can throw it away, for the scene and the shadow map. */
+let R11=null;
+function r11Probe(){if(R11!==null)return R11;R11=false;try{if(!renderer.capabilities.isWebGL2||CFG.r11===false||(typeof SOFTGL!=='undefined'&&SOFTGL))return R11;/* software renderers convert this format slowly */const gl=renderer.getContext();if(!gl.getExtension('EXT_color_buffer_float'))return R11;
+  const st=renderer.state,fb=gl.createFramebuffer(),rb=gl.createRenderbuffer(),tx=gl.createTexture();let ok=true;
+  st.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.bindRenderbuffer(gl.RENDERBUFFER,rb);gl.renderbufferStorageMultisample(gl.RENDERBUFFER,Math.min(4,gl.getParameter(gl.MAX_SAMPLES)||0),gl.R11F_G11F_B10F,8,8);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.RENDERBUFFER,rb);ok=ok&&gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE;
+  st.bindTexture(gl.TEXTURE_2D,tx);gl.texStorage2D(gl.TEXTURE_2D,1,gl.R11F_G11F_B10F,8,8);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tx,0);ok=ok&&gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE;
+  st.bindTexture(gl.TEXTURE_2D,null);gl.bindRenderbuffer(gl.RENDERBUFFER,null);st.bindFramebuffer(gl.FRAMEBUFFER,null);gl.deleteFramebuffer(fb);gl.deleteRenderbuffer(rb);gl.deleteTexture(tx);
+  while(gl.getError()!==gl.NO_ERROR){ok=false;}R11=ok;}catch(e){R11=false;}return R11;}
+function gpuLean(rt,keepDepth){const P=renderer.properties;if(!keepDepth)P.get(rt).__ignoreDepthValues=true;rt.userData={lean:!keepDepth};
+  if(keepDepth||CFG.r11===false||LOWQF()||!r11Probe())return;
+  try{const gl=renderer.getContext(),st=renderer.state,cur=renderer.getRenderTarget();renderer.setRenderTarget(rt);/* let three build the target, then swap its colour storage */
+    const RP=P.get(rt),TP=P.get(rt.texture),w=rt.width,h=rt.height;
+    if(RP.__webglColorRenderbuffer&&RP.__webglColorRenderbuffer[0]){gl.bindRenderbuffer(gl.RENDERBUFFER,RP.__webglColorRenderbuffer[0]);gl.renderbufferStorageMultisample(gl.RENDERBUFFER,Math.min(rt.samples,gl.getParameter(gl.MAX_SAMPLES)),gl.R11F_G11F_B10F,w,h);gl.bindRenderbuffer(gl.RENDERBUFFER,null);}
+    const tx=gl.createTexture();st.bindTexture(gl.TEXTURE_2D,tx);gl.texStorage2D(gl.TEXTURE_2D,1,gl.R11F_G11F_B10F,w,h);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);st.bindTexture(gl.TEXTURE_2D,null);
+    st.bindFramebuffer(gl.FRAMEBUFFER,RP.__webglFramebuffer);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tx,0);
+    const ok=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE;
+    if(RP.__webglMultisampledFramebuffer){st.bindFramebuffer(gl.FRAMEBUFFER,RP.__webglMultisampledFramebuffer);if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw new Error('ms');}
+    if(!ok)throw new Error('tex');gl.deleteTexture(TP.__webglTexture);TP.__webglTexture=tx;rt.userData.r11=true;renderer.setRenderTarget(cur);}
+  catch(e){console.warn('compact colour buffer off',e);R11=false;CFG.r11=false;try{saveCfg();}catch(_){}POST.w=0;}}
+/* switching away from a target whose depth is finished with: tell the GPU not to write that depth out to memory */
+{const sRT=renderer.setRenderTarget.bind(renderer);let cur=null;renderer.setRenderTarget=function(t,a,b){if(cur&&cur!==t){try{const lean=cur.userData&&cur.userData.lean&&!cur.samples,sh=cur===(sun&&sun.shadow&&sun.shadow.map);
+      if((lean||sh)&&cur.depthBuffer){const gl=renderer.getContext();if(gl.invalidateFramebuffer)gl.invalidateFramebuffer(gl.FRAMEBUFFER,[cur.stencilBuffer?gl.DEPTH_STENCIL_ATTACHMENT:gl.DEPTH_ATTACHMENT]);}}catch(e){}}cur=t||null;return sRT(t,a,b);};}
+function postSize(w,h){const msN=BENCH.noMs||LADV.ms===0?0:QUAL[qKey].ms||(prE>=1.25?2:4),aoW=!!(QUAL[qKey].hqAll&&!QUAL[qKey].mob&&renderer.capabilities.isWebGL2&&CFG.ao!==false);if(POST.w===w&&POST.h===h&&POST.rt&&POST.ms===msN&&POST.aoW===aoW&&POST.r11===(CFG.r11!==false))return;POST.r11=CFG.r11!==false;POST.ms=msN;POST.w=w;POST.h=h;POST.aoW=aoW;for(const k of ['rt','b1','b2','b3','b4','ao1','ao2'])if(POST[k]){POST[k].dispose();POST[k]=null;}
   const ht=renderer.capabilities.isWebGL2?THREE.HalfFloatType:THREE.UnsignedByteType,opt={type:ht,depthBuffer:false};
-  POST.rt=new THREE.WebGLRenderTarget(w,h,{type:ht,stencilBuffer:true/* forces a 24-bit depth buffer: three gives depth-only targets 16 bits, which let thin hulls show through on phones */,samples:renderer.capabilities.isWebGL2?msN:0});if(aoW){const dt=new THREE.DepthTexture(w,h);dt.format=THREE.DepthStencilFormat;dt.type=THREE.UnsignedInt248Type;POST.rt.depthTexture=dt;const w2=Math.max(1,w>>1),h2=Math.max(1,h>>1);POST.ao1=new THREE.WebGLRenderTarget(w2,h2,{depthBuffer:false});POST.ao2=new THREE.WebGLRenderTarget(w2,h2,{depthBuffer:false});}POST.pr=pr;
+  POST.rt=new THREE.WebGLRenderTarget(w,h,{type:ht,stencilBuffer:true/* forces a 24-bit depth buffer: three gives depth-only targets 16 bits, which let thin hulls show through on phones */,samples:renderer.capabilities.isWebGL2?msN:0});POST.rt.scissor.set(0,0,w,h);gpuLean(POST.rt,aoW);if(aoW){const dt=new THREE.DepthTexture(w,h);dt.format=THREE.DepthStencilFormat;dt.type=THREE.UnsignedInt248Type;POST.rt.depthTexture=dt;const w2=Math.max(1,w>>1),h2=Math.max(1,h>>1);POST.ao1=new THREE.WebGLRenderTarget(w2,h2,{depthBuffer:false});POST.ao2=new THREE.WebGLRenderTarget(w2,h2,{depthBuffer:false});}POST.pr=pr;
   const w4=Math.max(1,w>>2),h4=Math.max(1,h>>2),w8=Math.max(1,w>>3),h8=Math.max(1,h>>3);
   POST.b1=new THREE.WebGLRenderTarget(w4,h4,opt);POST.b2=new THREE.WebGLRenderTarget(w4,h4,opt);POST.b3=new THREE.WebGLRenderTarget(w8,h8,opt);POST.b4=new THREE.WebGLRenderTarget(w8,h8,opt);}
 function pass(mat,target){POST.q.material=mat;renderer.setRenderTarget(target);renderer.render(POST.qs,POST.qc);}
 function postRender(){postInit();const sz=renderer.getDrawingBufferSize(v2);postSize(sz.x,sz.y);const M=POST.M,G=POST.grade;
+  const ds=POST.aoW?1:DRS.s,ws=Math.max(1,Math.round(sz.x*ds)),hs=Math.max(1,Math.round(sz.y*ds));POST.rt.viewport.set(0,0,ws,hs);POST.rt.scissor.set(0,0,ws,hs);POST.rt.scissorTest=ds<.999;
+  const ux=ws/sz.x,uy=hs/sz.y,cx=ux-.5/sz.x,cy=uy-.5/sz.y;M.bright.uniforms.us.value.set(ux,uy);M.bright.uniforms.uc.value.set(cx,cy);M.final.uniforms.us.value.set(ux,uy);M.final.uniforms.uc.value.set(cx,cy);
   renderer.setRenderTarget(POST.rt);renderer.render(scene,camera);
   if(POST.aoW&&POST.ao1){const A=M.ao.uniforms;A.tD.value=POST.rt.depthTexture;A.pM.value.copy(camera.projectionMatrix);A.ipM.value.copy(camera.projectionMatrixInverse);A.px.value.set(1/sz.x,1/sz.y);A.asp.value.set(sz.y/sz.x,1);pass(M.ao,POST.ao1);
     const B=M.aob.uniforms;B.tA.value=POST.ao1.texture;B.tD.value=POST.rt.depthTexture;B.ipM.value.copy(camera.projectionMatrixInverse);B.px.value.set(1/POST.ao1.width,1/POST.ao1.height);pass(M.aob,POST.ao2);M.final.uniforms.aoT.value=POST.ao2.texture;M.final.uniforms.aoOn.value=1;}
@@ -5709,125 +5764,369 @@ let slowN=0,fastN=0,droppedAt=-99,fitPending=false;
 {const v=+store.get(ladKey());if(v>0)applyLad(v,false);}
 let lastFrameT=0,fpsN=0,fpsT=0;frame.due=0;
 /* ================= MUSIC =================
-   Every song is composed on the fly by a small synth sequencer: drums, bass, chords, arpeggio and a lead line.
-   Each track has its own tempo, key, mode, groove and instruments; the melodies come from a seeded generator,
-   so a song is always the same each time you hear it. Two menu songs take turns. */
+   Every song is an original composition written out below (chords and melodies per section). Each section is rendered once, off the
+   main thread, into an audio buffer with a full arrangement: drums with fills and crashes, bass, chords, arpeggios, a lead melody with a
+   harmony line in the choruses, risers into each chorus, side-chain pumping, reverb and a bus compressor. Racing then only plays
+   buffers back, which costs almost nothing per frame. Every track has its own song; four menu songs take turns. The final lap
+   jumps to the chorus and plays it faster. */
+/* Songs. Chords are scale degrees of the song's mode (M/m/d force major/minor/diminished, b/# move the root, ^7 adds the seventh).
+   Melodies are scale degrees (1 = key note, 8 = an octave up, 0 = the 7th below), b/# for accidentals, :n = length in sixteenths, r = rest. */
+const SONGS2={
+ margherita:{n:'Margherita Grand Prix',bpm:150,key:0,mode:'major',pal:'italo',oct:4,
+  v:'1 5 6 4',p:'2m 4 5 5',c:'4 5 3m 6m 4 5 1 1',b:'6 4 1 5',
+  mv:'5:2 5:1 6:1 5:2 3:2 1:4 3:2 4:2 | 5:2 4:2 2:2 7:2 5:4 r:4 | 6:2 6:1 7:1 8:2 6:2 3:4 r:2 3:2 | 4:2 4:2 6:2 5:2 4:2 3:2 2:4',
+  mp:'2:2 4:2 6:4 6:2 5:2 4:4 | 4:2 6:2 8:4 8:2 7:2 6:4 | 7:4 5:4 7:4 9:4 | 9:8 8:2 7:2 5:4',
+  mc:'8:3 8:1 8:2 9:2 8:2 6:2 4:4 | 7:3 7:1 7:2 8:2 7:2 5:2 2:4 | 5:2 7:2 10:4 9:2 8:2 7:4 | 8:4 6:4 6:2 7:2 8:4 | 8:3 8:1 8:2 9:2 8:2 6:2 4:4 | 7:3 7:1 7:2 8:2 9:2 10:2 11:4 | 12:4 10:4 8:4 10:2 9:2 | 8:12 r:4',
+  mb:'3:6 2:2 1:4 2:4 | 4:6 5:2 6:8 | 5:6 3:2 1:4 3:4 | 2:8 r:4 5:4'},
+ bay:{n:'Aloha Overdrive',bpm:154,key:9,mode:'mixo',pal:'hawaii',oct:4,
+  v:'1 7 4 1',p:'4 1 4 5M',c:'1 4 7 4 1 4 5M 1',b:'4 1 7 5M',
+  mv:'5:4 3:2 5:2 6:2 5:2 3:4 | 0:4 2:2 4:4 2:2 0:4 | 1:2 2:2 4:4 6:4 4:2 2:2 | 3:6 2:2 1:8',
+  mp:'6:4 8:4 6:4 4:4 | 5:4 3:4 1:8 | 4:2 6:2 8:4 6:2 8:2 11:4 | 12:4 9:4 7#:8',
+  mc:'8:2 8:2 10:2 12:6 10:2 8:2 | 11:4 10:2 8:2 6:8 | 7:2 9:2 11:4 9:2 7:2 4:4 | 6:6 8:2 11:8 | 8:2 8:2 10:2 12:6 10:2 8:2 | 13:4 12:2 11:2 10:8 | 12:4 9:4 7#:4 9:4 | 8:12 r:4',
+  mb:'4:8 6:8 | 5:8 3:8 | 4:8 2:8 | 7#:8 9:8'},
+ peaks:{n:'Pepperoni Summit',bpm:140,key:4,mode:'minor',pal:'rock',oct:4,
+  v:'1 6 7 1',p:'4 6 7 7',c:'1 7 6 7 1 7 6 5M',b:'6 7 1 1',
+  mv:'1:2 1:2 3:2 5:2 4:2 3:2 1:4 | 6:4 5:2 3:2 1:4 r:4 | 7:2 7:2 4:2 2:2 4:2 7:2 9:4 | 8:8 5:4 3:4',
+  mp:'4:4 6:4 8:4 6:4 | 6:4 8:4 10:4 8:4 | 9:4 11:4 9:4 7:4 | 9:8 11:8',
+  mc:'8:3 8:1 8:2 10:2 12:4 10:4 | 11:3 11:1 11:2 9:2 7:8 | 10:3 10:1 10:2 8:2 6:4 8:4 | 9:6 7:2 9:8 | 8:3 8:1 8:2 10:2 12:4 10:4 | 11:3 11:1 11:2 12:2 14:8 | 13:4 12:4 10:4 8:4 | 12:8 9:8',
+  mb:'6:8 5:4 3:4 | 7:8 9:8 | 8:12 r:4 | 5:16'},
+ frosty:{n:'Brain Freeze',bpm:128,key:7,mode:'major',pal:'bells',oct:4,
+  v:'1 3m 4 5',p:'4 5 6m 5',c:'1 6m 4 5 1 6m 4 5',b:'6m 4 1 5',
+  mv:'8:2 7:2 8:2 5:2 3:4 5:4 | 7:2 6:2 7:2 5:2 3:8 | 6:2 5:2 6:2 4:2 1:4 4:4 | 5:4 7:4 9:8',
+  mp:'4:4 6:4 8:4 6:4 | 5:4 7:4 9:4 7:4 | 6:4 8:4 10:4 8:4 | 9:8 12:8',
+  mc:'8:4 10:2 12:6 10:2 8:2 | 10:4 9:2 8:2 6:8 | 8:4 9:2 10:6 8:2 6:2 | 9:6 7:2 5:8 | 8:4 10:2 12:6 10:2 8:2 | 10:4 12:2 13:2 12:8 | 11:4 10:4 8:4 6:4 | 9:8 r:4 7:2 9:2',
+  mb:'6:8 3:8 | 4:8 6:8 | 5:8 3:8 | 5:8 7:8'},
+ basil:{n:'Basil Boulevard Strut',bpm:108,key:2,mode:'dorian',pal:'funk',oct:4,swing:.16,
+  v:'1^7 4^7 1^7 4^7',p:'3 4 3 4',c:'1^7 4^7 3 7 1^7 4^7 3 5m',b:'7 3 4 4^7',
+  mv:'8:1 r:1 8:1 7:1 5:2 3:2 r:2 5:1 7:1 8:2 r:2 | r:2 6:2 4:2 3:1 4:1 6:4 r:4 | 8:1 r:1 8:1 7:1 5:2 3:2 r:2 5:1 7:1 8:2 r:2 | r:2 6:2 4:2 6:1 7:1 8:4 r:4',
+  mp:'10:2 12:2 10:2 8:2 7:4 5:4 | 11:2 9:2 11:2 13:2 11:8 | 10:2 12:2 14:4 12:2 10:2 12:4 | 13:8 11:8',
+  mc:'8:2 10:2 12:3 10:1 8:2 7:2 8:4 | 11:2 13:2 11:3 9:1 8:2 6:2 4:4 | 10:2 12:2 14:3 12:1 10:4 r:4 | 14:2 13:2 12:2 10:2 9:8 | 8:2 10:2 12:3 10:1 8:2 7:2 8:4 | 11:2 13:2 11:3 9:1 8:2 6:2 4:4 | 10:2 12:2 14:4 15:4 14:4 | 12:12 r:4',
+  mb:'7:4 9:4 11:8 | 10:4 8:4 5:8 | 11:4 9:4 6:8 | 6:4 4:4 3:8'},
+ lagoon:{n:'Pineapple Express',bpm:118,key:5,mode:'major',pal:'calypso',oct:4,swing:.08,
+  v:'1 4 5 1',p:'4 4 1 5',c:'1 4 1 5 1 4 5 1',b:'6m 2m 5 1',
+  mv:'1:2 3:2 5:2 3:2 5:2 3:2 8:4 | 8:2 6:2 4:2 6:2 8:3 6:1 4:4 | 5:2 7:2 9:2 7:2 5:3 3:1 2:4 | 1:8 r:4 5:2 5:2',
+  mp:'4:2 6:2 8:4 6:2 4:2 6:4 | 8:2 10:2 11:4 10:2 8:2 6:4 | 8:4 10:4 12:4 10:4 | 9:8 7:4 5:4',
+  mc:'8:2 8:1 10:1 12:2 10:2 8:2 r:2 5:4 | 11:2 11:1 10:1 8:2 6:2 4:4 r:4 | 8:2 8:1 10:1 12:2 13:2 12:2 10:2 8:4 | 9:4 7:4 5:8 | 8:2 8:1 10:1 12:2 10:2 8:2 r:2 5:4 | 11:2 13:2 15:4 13:2 11:2 10:4 | 12:4 9:4 7:4 9:4 | 8:12 r:4',
+  mb:'6:8 3:8 | 4:8 2:8 | 5:8 7:8 | 8:16'},
+ mozz:{n:'Midnight Melt',bpm:122,key:10,mode:'dorian',pal:'disco',oct:4,
+  v:'1^7 4^7 1^7 4^7',p:'3 3 4 4',c:'3 4 5 1 3 4 7 7',b:'3 7 4 4',
+  mv:'5:4 r:2 3:2 5:2 8:2 7:4 | 6:4 r:2 4:2 6:2 8:2 7:4 | 5:4 r:2 3:2 5:2 8:2 7:4 | 6:2 7:2 8:4 10:8',
+  mp:'3:4 5:4 8:4 10:4 | 10:4 8:4 5:4 3:4 | 4:4 6:4 8:4 11:4 | 11:8 12:8',
+  mc:'10:3 10:1 10:2 12:2 10:2 8:2 7:4 | 11:3 11:1 11:2 13:2 11:2 10:2 8:4 | 12:4 11:2 12:2 14:4 12:4 | 8:12 r:4 | 10:3 10:1 10:2 12:2 10:2 8:2 7:4 | 11:3 11:1 11:2 13:2 11:2 10:2 8:4 | 14:4 11:4 9:4 7:4 | 7:8 9:4 11:4',
+  mb:'10:8 8:8 | 7:8 9:8 | 11:8 13:8 | 11:16'},
+ burn:{n:'Freezer Burn',bpm:168,key:4,mode:'harm',pal:'metal',oct:4,
+  v:'1m 1m 6M 5M',p:'4m 4m 5M 5M',c:'1m 7bM 6M 5M 1m 7bM 6M 5M',b:'6M 3M 7bM 5M',
+  mv:'1:2 1:2 5:2 1:2 6:2 5:2 3:2 2:2 | 1:2 1:2 5:2 1:2 8:2 7:2 5:4 | 6:2 6:2 8:2 6:2 10:4 8:4 | 7:4 9:4 12:8',
+  mp:'4:4 6:4 8:4 11:4 | 11:4 10:4 8:4 6:4 | 7:4 9:4 12:4 14:4 | 14:16',
+  mc:'8:4 12:4 10:2 8:2 12:4 | 11:4 9:4 7b:4 9:4 | 10:4 8:4 6:4 8:4 | 9:4 7:4 5:4 7:4 | 8:2 8:2 12:4 13:4 12:4 | 11:2 11:2 14b:4 12:4 11:4 | 10:4 13:4 12:4 10:4 | 12:16',
+  mb:'6:8 8:8 | 10:8 12:8 | 11:8 9:8 | 9:8 7:8'},
+ oven:{n:'Oven Rush Swing',bpm:132,key:3,mode:'major',pal:'swing',oct:4,swing:.3,
+  v:'2^7 5^7 1^7 6^7',p:'4^7 4^7 5^7 5^7',c:'1^7 6^7 2^7 5^7 1^7 4^7 5^7 1^7',b:'6^7 2^7 5^7 1^7',
+  mv:'6:2 5:2 4:2 2:2 4:3 6:1 5:4 | 4:2 2:2 5:2 7:2 9:4 8:4 | 8:4 7:2 5:2 3:4 5:4 | 6:6 r:2 3:2 4:2 5:4',
+  mp:'4:4 6:4 8:4 10:4 | 10:4 8:4 6:4 4:4 | 5:4 7:4 9:4 11:4 | 11:8 9:8',
+  mc:'8:3 10:1 12:4 10:3 8:1 5:4 | 6:3 8:1 10:4 8:3 6:1 3:4 | 9:3 11:1 13:4 11:3 9:1 6:4 | 12:4 11:4 9:4 7:4 | 8:3 10:1 12:4 10:3 8:1 5:4 | 11:3 13:1 15:4 14:4 13:4 | 12:4 14:4 11:4 9:4 | 8:12 r:4',
+  mb:'6:8 3:8 | 4:8 6:8 | 5:8 4:8 | 3:16'},
+ calzone:{n:'Calzone Coastline',bpm:120,key:1,mode:'minor',pal:'darkwave',oct:4,
+  v:'1 6 3 7',p:'6 7 1 1',c:'6 7 1 5M 6 7 1 1',b:'6 3 7 1',
+  mv:'5:4 3:2 1:2 3:4 5:4 | 6:4 8:2 6:2 3:4 1:4 | 3:4 5:2 7:2 10:8 | 9:4 7:4 4:8',
+  mp:'6:4 8:4 10:4 13:4 | 14:4 11:4 9:4 7:4 | 8:4 10:4 12:4 15:4 | 15:16',
+  mc:'13:4 12:2 10:2 8:4 10:4 | 14:4 13:2 11:2 9:4 11:4 | 15:4 14:2 12:2 10:4 8:4 | 12:8 9:8 | 13:4 12:2 10:2 8:4 10:4 | 14:4 13:2 11:2 9:4 11:4 | 15:4 17:4 15:4 12:4 | 15:16',
+  mb:'13:8 10:8 | 10:8 12:8 | 11:8 9:8 | 8:16'},
+ napoli:{n:'Neon Tarantella',bpm:164,key:9,mode:'harm',pal:'tarantella',oct:3,
+  v:'1m 4m 5M 1m',p:'4m 4m 5M 5M',c:'1m 4m 7bM 3M 6M 4m 5M 1m',b:'6M 3M 5M 1m',
+  mv:'5:1 6:1 5:1 4:1 3:2 5:2 8:2 7:1 6:1 5:4 | 4:1 5:1 4:1 3:1 2:2 4:2 6:2 5:1 4:1 3:4 | 2:2 0:2 2:2 5:2 7:2 5:2 2:4 | 1:2 3:2 5:2 8:2 1:8',
+  mp:'4:2 6:2 8:2 11:2 10:2 8:2 6:4 | 6:2 8:2 11:2 13:2 11:4 8:4 | 7:2 9:2 12:2 14:2 12:2 9:2 7:4 | 12:16',
+  mc:'8:2 8:1 7:1 8:2 10:2 12:4 8:4 | 11:2 11:1 10:1 11:2 13:2 15:4 11:4 | 14b:2 14b:1 13:1 14b:2 9:2 11:4 9:4 | 10:2 10:1 9:1 10:2 12:2 14b:4 10:4 | 13:2 13:1 12:1 13:2 15:2 17:4 13:4 | 11:4 13:4 15:4 11:4 | 12:2 14:2 16:2 14:2 12:4 9:4 | 8:12 r:4',
+  mb:'13:8 10:8 | 10:8 12:8 | 14:8 9:8 | 8:16'},
+ glacier:{n:'Glacier Crust',bpm:104,key:11,mode:'lydian',pal:'glacier',oct:4,
+  v:'1 2 1 2',p:'6m 5 6m 5',c:'1 2 6m 5 1 2 5 5',b:'6m 1 2 5',
+  mv:'5:6 3:2 1:8 | 4:6 2:2 6:8 | 8:6 5:2 3:8 | 9:6 6:2 4:8',
+  mp:'6:4 8:4 10:8 | 5:4 7:4 9:8 | 6:4 10:4 13:8 | 12:16',
+  mc:'8:4 10:4 12:8 | 11:4 9:4 13:8 | 13:4 12:2 10:2 8:8 | 12:12 r:4 | 15:4 12:4 10:8 | 16:4 13:4 11:8 | 12:4 14:4 16:8 | 12:16',
+  mb:'6:8 10:8 | 8:8 12:8 | 9:8 13:8 | 12:16'},
+ spiral:{n:'Sauce Spiral',bpm:176,key:2,mode:'major',pal:'chip',oct:4,
+  v:'1 6m 4 5',p:'2m 4 5 5',c:'4 5 3m 6m 4 5 1 1',b:'6m 4 1 5',
+  mv:'1:1 3:1 5:1 8:1 5:1 3:1 1:2 5:2 8:2 10:4 | 6:1 8:1 10:1 13:1 10:1 8:1 6:2 10:2 13:2 13:4 | 4:1 6:1 8:1 11:1 8:1 6:1 4:2 8:2 11:2 13:4 | 5:1 7:1 9:1 12:1 9:1 7:1 5:2 9:2 12:2 14:4',
+  mp:'9:2 11:2 13:4 11:2 9:2 6:4 | 8:2 11:2 13:4 11:2 8:2 4:4 | 9:2 12:2 14:4 12:2 9:2 7:4 | 12:2 14:2 16:12',
+  mc:'11:3 11:1 11:2 13:2 15:4 13:4 | 12:3 12:1 12:2 14:2 16:4 14:4 | 10:3 10:1 10:2 12:2 14:4 12:4 | 13:8 15:4 13:4 | 11:3 11:1 11:2 13:2 15:4 13:4 | 12:3 12:1 12:2 14:2 16:4 14:4 | 15:2 17:2 15:2 12:2 15:2 17:2 19:4 | 15:12 r:4',
+  mb:'13:4 10:4 6:8 | 11:4 8:4 4:8 | 8:4 5:4 1:8 | 5:4 7:4 9:8'},
+ tour:{n:'Topping Tour',bpm:146,key:7,mode:'mixo',pal:'surf',oct:4,
+  v:'1 7 4 4',p:'6 6 7 5M',c:'1 4 7 4 1 4 5M 1',b:'6 4 5M 1',
+  mv:'5:1 5:1 5:1 5:1 5:2 3:2 1:2 3:2 5:4 | 7:1 7:1 7:1 7:1 7:2 4:2 2:2 4:2 7:4 | 8:1 8:1 8:1 8:1 8:2 6:2 4:2 6:2 8:4 | 9:2 8:2 6:2 4:2 2:8',
+  mp:'6:2 8:2 10:4 8:2 6:2 3:4 | 10:4 8:4 6:4 8:4 | 7:2 9:2 11:4 9:2 7:2 4:4 | 12:4 7#:4 9:8',
+  mc:'8:2 8:2 8:2 10:2 12:4 10:2 8:2 | 11:4 10:2 8:2 6:8 | 7:2 9:2 11:4 14:4 11:4 | 13:4 11:4 8:8 | 8:2 8:2 8:2 10:2 12:4 10:2 8:2 | 11:2 13:2 15:4 13:2 11:2 8:4 | 12:4 9:4 7#:4 9:4 | 8:12 r:4',
+  mb:'6:8 3:8 | 4:8 8:8 | 7#:8 9:8 | 8:16'},
+ moon:{n:'Pepper Moon',bpm:112,key:8,mode:'minor',pal:'synthwave',oct:4,
+  v:'1 6 3 7',p:'6 7 1 1',c:'6 7 1 3 6 7 1 1',b:'3 7 6 6',
+  mv:'5:6 3:2 1:8 | 6:6 8:2 3:8 | 3:6 5:2 7:8 | 7:6 9:2 4:8',
+  mp:'6:4 8:4 10:4 13:4 | 7:4 9:4 11:4 14:4 | 8:4 10:4 12:4 15:4 | 15:16',
+  mc:'13:4 12:2 10:2 8:8 | 14:4 13:2 11:2 9:8 | 15:4 14:2 12:2 10:8 | 10:4 12:4 14:8 | 13:4 12:2 10:2 8:8 | 14:4 13:2 11:2 9:8 | 15:4 17:4 19:8 | 15:16',
+  mb:'10:8 12:8 | 9:8 11:8 | 8:8 13:8 | 13:16'},
+ peak:{n:'Frozen Pie Peak',bpm:150,key:2,mode:'minor',pal:'epic',oct:4,
+  v:'1 6 7 5M',p:'4 4 5M 5M',c:'1 6 3 7 1 6 7 5M',b:'6 7 1 1',
+  mv:'1:4 5:4 8:6 7:2 | 6:4 3:4 1:6 3:2 | 7:4 9:4 11:6 9:2 | 5:4 7#:4 9:8',
+  mp:'4:4 6:4 8:4 11:4 | 11:4 10:4 8:4 6:4 | 5:4 7#:4 9:4 12:4 | 12:16',
+  mc:'8:6 12:2 10:4 8:4 | 13:6 10:2 8:4 6:4 | 10:6 12:2 14:4 12:4 | 14:8 11:4 9:4 | 8:6 12:2 10:4 8:4 | 13:6 15:2 17:8 | 14:4 11:4 9:8 | 12:4 14#:4 16:8',
+  mb:'6:8 10:8 | 7:8 11:8 | 8:16 | 5:16'},
+ grid:{n:'Neon Grid',bpm:128,key:6,mode:'minor',pal:'edm',oct:3,
+  v:'1 6 3 7',p:'6 7 1 1',c:'6 3 7 1 6 3 7 7',b:'4 6 3 7',
+  mv:'8:2 r:1 8:1 5:2 3:2 5:2 8:2 7:2 5:2 | 6:2 r:1 6:1 3:2 1:2 3:2 6:2 8:2 6:2 | 3:2 r:1 3:1 5:2 7:2 5:2 3:2 5:2 7:2 | 7:2 r:1 7:1 9:2 11:2 9:2 7:2 4:4',
+  mp:'6:4 8:4 10:4 13:4 | 7:4 9:4 11:4 14:4 | 8:4 10:4 12:4 15:4 | 15:16',
+  mc:'13:3 12:1 13:2 10:2 13:4 15:4 | 12:3 10:1 12:2 14:2 12:4 10:4 | 14:3 13:1 14:2 11:2 14:4 16:4 | 15:8 12:4 10:4 | 13:3 12:1 13:2 10:2 13:4 15:4 | 12:3 10:1 12:2 14:2 12:4 10:4 | 14:4 16:4 18:8 | 18:8 16:4 14:4',
+  mb:'11:8 13:8 | 13:8 15:8 | 12:8 14:8 | 14:8 16:8'},
+ menu1:{n:'Dough Rising',bpm:96,key:5,mode:'major',pal:'lounge',oct:4,swing:.12,menu:1,
+  v:'1^7 6^7 2^7 5^7',p:'4^7 4^7 5^7 5^7',c:'4^7 5^7 3^7 6^7 2^7 5^7 1^7 1^7',b:'6^7 2^7 5^7 1^7',
+  mv:'3:3 5:1 7:4 6:2 5:2 3:4 | 6:3 8:1 10:4 8:2 6:2 5:4 | 4:3 6:1 9:4 8:2 6:2 4:4 | 5:6 r:2 7:2 9:2 11:4',
+  mp:'8:4 10:4 11:8 | 11:4 10:4 8:8 | 9:4 11:4 12:8 | 12:16',
+  mc:'11:4 10:2 8:2 6:4 8:4 | 12:4 11:2 9:2 7:4 9:4 | 10:4 12:2 10:2 7:4 5:4 | 6:8 8:4 10:4 | 9:4 11:2 13:2 11:4 9:4 | 12:4 11:4 9:4 7:4 | 8:12 r:4 | r:8 5:2 6:2 7:4',
+  mb:'6:8 3:8 | 4:8 6:8 | 5:8 7:8 | 8:16'},
+ menu2:{n:'Slice of Sunshine',bpm:112,key:2,mode:'major',pal:'sunfunk',oct:4,swing:.1,menu:1,
+  v:'1 4 1 4',p:'2m 5 2m 5',c:'4 5 3m 6m 2m 5 1 1',b:'6m 4 1 5',
+  mv:'5:2 r:2 5:2 6:1 5:1 3:2 1:2 3:4 | 4:2 r:2 4:2 6:1 4:1 2:2 r:2 1:4 | 5:2 r:2 5:2 6:1 5:1 3:2 1:2 3:4 | 4:2 6:2 8:2 11:2 8:8',
+  mp:'9:4 11:4 13:8 | 12:4 9:4 7:8 | 9:4 11:4 13:4 16:4 | 14:16',
+  mc:'11:2 11:2 11:2 13:2 15:4 13:4 | 12:2 12:2 12:2 14:2 16:4 14:4 | 10:2 10:2 10:2 12:2 14:4 12:4 | 13:8 15:4 13:4 | 9:2 11:2 13:4 16:4 13:4 | 12:4 14:4 16:4 14:4 | 15:12 r:4 | r:8 12:2 13:2 14:4',
+  mb:'13:8 10:8 | 11:8 8:8 | 8:8 10:8 | 9:8 7:8'},
+ menu3:{n:'Piazza Nights',bpm:100,key:10,mode:'major',pal:'piazza',oct:4,swing:.28,menu:1,
+  v:'1 5^7 5^7 1',p:'4 4 5 5',c:'4 1 5^7 1 4 1 5^7 1',b:'6 2 5^7 1',
+  mv:'5:4 3:2 4:2 5:4 8:4 | 7:4 6:2 5:2 4:4 2:4 | 2:4 4:2 5:2 7:4 9:4 | 8:8 r:4 5:4',
+  mp:'4:4 6:4 8:4 11:4 | 11:8 8:8 | 5:4 7:4 9:4 12:4 | 12:16',
+  mc:'11:4 10:2 8:2 6:4 4:4 | 10:4 8:2 5:2 3:4 5:4 | 9:4 11:2 12:2 14:4 12:4 | 10:8 8:8 | 11:4 13:2 15:2 13:4 11:4 | 12:4 10:2 8:2 10:4 12:4 | 14:4 12:4 11:4 9:4 | 8:12 r:4',
+  mb:'6:8 10:8 | 9:8 11:8 | 7:8 9:8 | 8:16'},
+ menu4:{n:'Garage Tune-Up',bpm:104,key:0,mode:'minor',pal:'synthwave',oct:4,menu:1,
+  v:'1 6 3 7',p:'6 7 1 1',c:'6 3 7 1 6 3 7 7',b:'4 6 7 1',
+  mv:'5:6 3:2 1:4 3:4 | 6:6 8:2 3:8 | 3:6 5:2 7:8 | 7:6 9:2 4:8',
+  mp:'6:4 8:4 10:4 13:4 | 7:4 9:4 11:4 14:4 | 8:4 10:4 12:4 15:4 | 15:16',
+  mc:'13:4 12:2 10:2 8:8 | 12:4 10:2 7:2 5:8 | 11:4 9:2 7:2 4:8 | 8:4 10:4 12:8 | 13:4 12:2 10:2 8:8 | 14:4 12:4 10:8 | 14:4 16:4 18:8 | 16:16',
+  mb:'11:8 8:8 | 13:8 10:8 | 14:8 11:8 | 15:16'}};
+
 const MODES={major:[0,2,4,5,7,9,11],minor:[0,2,3,5,7,8,10],dorian:[0,2,3,5,7,9,10],mixo:[0,2,4,5,7,9,10],harm:[0,2,3,5,7,8,11],lydian:[0,2,4,6,7,9,11]};
-const KITS={
-  four:{k:'x...x...x...x...',s:'....x.......x...',h:'..x...x...x...x.',g:'x.x.x.x.x.x.x.x.'},
-  disco:{k:'x...x...x...x...',s:'....x.......x...',h:'x.x.x.x.x.x.x.x.',o:'..x...x...x...x.'},
-  rock:{k:'x.....x.x.......',s:'....x.......x...',h:'x.x.x.x.x.x.x.x.'},
-  drive:{k:'x...x.x.x...x.x.',s:'....x.......x..x',h:'x.x.x.x.x.x.x.x.',o:'..............x.'},
-  brk:{k:'x..x..x...x.....',s:'....x..x....x..x',h:'x.xxx.xxx.xxx.xx'},
-  half:{k:'x.........x.....',s:'........x.......',h:'x.x.x.x.x.x.x.x.'},
-  calyp:{k:'x..x..x.x..x..x.',s:'...x...x...x..x.',h:'xxxxxxxxxxxxxxxx'},
-  swing:{k:'x.......x.......',s:'....x.......x...',r:'x...x.x.x...x.x.'},
-  chip:{k:'x...x...x...x...',s:'....x.......x...',h:'..x...x...x...x.'},
-  gallop:{k:'x.xx..x.x.xx..x.',s:'....x.......x...',h:'x.x.x.x.x.x.x.x.',o:'......x.......x.'}};
-const BASSP={eighth:'r.r.r.r.r.r.r.r.',octave:'r.R.r.R.r.R.r.R.',synco:'r..r..r...r.r...',pump:'r.rrr.rrr.rrr.rr',half:'r.......r.......',calyp:'r..r..f.r..r..f.',drive:'rrr.rrr.rrr.rrfR',funk:'r..R..r.f.r.R...',walk:'w...w...w...w...',root:'r...........f...'};
-/* bpm, key (0=C), mode, chord degrees per bar for parts A and B, groove, bass line, sounds */
-const SONGS={
-  menu1:{n:'Dough Rising',bpm:94,key:5,mode:'major',A:[0,5,3,4],B:[3,4,2,5],kit:'half',bass:'synco',lead:'tri',pad:'warm',arp:'up8',swing:.18,seed:11,sev:1,dens:.45},
-  menu2:{n:'Slice of Sunshine',bpm:116,key:2,mode:'major',A:[0,4,5,3],B:[3,0,4,4],kit:'four',bass:'octave',lead:'square',pad:'warm',arp:'pluck',swing:0,seed:23,dens:.55},
-  margherita:{bpm:148,key:0,mode:'major',A:[0,3,4,0],B:[5,3,1,4],kit:'drive',bass:'eighth',lead:'square',pad:'bright',arp:'up16',swing:0,seed:101,dens:.6},
-  bay:{bpm:156,key:9,mode:'mixo',A:[0,6,3,0],B:[3,3,0,4],kit:'rock',bass:'drive',lead:'surf',pad:'none',arp:'strum',swing:0,seed:102,dens:.65},
-  peaks:{bpm:138,key:4,mode:'minor',A:[0,5,6,4],B:[3,4,0,0],kit:'drive',bass:'pump',lead:'saw',pad:'dark',arp:'up16',swing:0,seed:103,dens:.55},
-  frosty:{bpm:126,key:7,mode:'major',A:[0,2,3,4],B:[5,2,3,4],kit:'four',bass:'octave',lead:'bell',pad:'glass',arp:'updown16',swing:0,seed:104,sev:1,dens:.5},
-  basil:{bpm:108,key:2,mode:'dorian',A:[0,3,0,3],B:[6,3,4,4],kit:'brk',bass:'funk',lead:'square',pad:'warm',arp:'none',swing:.22,seed:105,sev:1,dens:.6},
-  lagoon:{bpm:118,key:5,mode:'major',A:[0,3,4,0],B:[3,0,4,4],kit:'calyp',bass:'calyp',lead:'marimba',pad:'none',arp:'pluck',swing:.08,seed:106,dens:.7},
-  mozz:{bpm:124,key:10,mode:'dorian',A:[0,0,3,4],B:[5,3,6,4],kit:'disco',bass:'octave',lead:'saw',pad:'strings',arp:'none',swing:0,seed:107,sev:1,dens:.5},
-  burn:{bpm:166,key:4,mode:'harm',A:[0,0,5,4],B:[3,5,4,4],kit:'gallop',bass:'pump',lead:'saw',pad:'dark',arp:'up16',swing:0,seed:108,dens:.62},
-  oven:{bpm:104,key:3,mode:'major',A:[1,4,0,5],B:[3,2,1,4],kit:'swing',bass:'walk',lead:'tri',pad:'ep',arp:'none',swing:.33,seed:109,sev:1,dens:.5},
-  calzone:{bpm:112,key:1,mode:'minor',A:[0,5,2,6],B:[3,4,0,0],kit:'four',bass:'eighth',lead:'saw',pad:'dark',arp:'up16',swing:0,seed:110,sev:1,dens:.45},
-  napoli:{bpm:172,key:9,mode:'harm',A:[0,0,4,4],B:[3,0,4,0],kit:'chip',bass:'eighth',lead:'square',pad:'none',arp:'updown16',swing:0,seed:111,dens:.75},
-  glacier:{bpm:100,key:11,mode:'lydian',A:[0,1,0,1],B:[5,4,3,4],kit:'half',bass:'half',lead:'bell',pad:'glass',arp:'up8',swing:0,seed:112,sev:1,dens:.4},
-  spiral:{bpm:176,key:0,mode:'major',A:[0,5,3,4],B:[0,3,4,4],kit:'chip',bass:'octave',lead:'pulse',pad:'none',arp:'updown16',swing:0,seed:113,dens:.7},
-  tour:{bpm:146,key:7,mode:'mixo',A:[0,6,3,0],B:[3,6,0,4],kit:'rock',bass:'eighth',lead:'surf',pad:'none',arp:'strum',swing:0,seed:114,dens:.6},
-  moon:{bpm:116,key:8,mode:'minor',A:[0,6,5,6],B:[3,4,5,4],kit:'half',bass:'synco',lead:'sine',pad:'space',arp:'up16',swing:0,seed:115,sev:1,dens:.42},
-  peak:{bpm:152,key:2,mode:'minor',A:[0,5,2,6],B:[3,4,5,4],kit:'drive',bass:'pump',lead:'saw',pad:'strings',arp:'up16',swing:0,seed:116,dens:.58}};
-const MENU_SONGS=['menu1','menu2'];
-/* form: intro 4 bars (drums+chords), A 8, B 8, A 8, break 4 (chords+arp), then back to A */
-const FORM=[['I',4],['A',8],['B',8],['A2',8],['X',4]];
-const MUS={on:false,gain:null,bus:null,key:null,want:null,song:null,t:0,step:0,bar:0,fadeT:0,menuI:0,menuBars:0,noise:null,mel:null};
-function mrand(seed){let a=seed>>>0;return ()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 const mtof=m=>440*Math.pow(2,(m-69)/12);
-/* scale degree (can run past 7) -> midi note */
-function deg(S,d,oct){const sc=MODES[S.mode],o=Math.floor(d/7),i=((d%7)+7)%7;return 12*(oct+o)+S.key+sc[i];}
-function progAt(S,sec,b){const P=sec==='B'?S.B:S.A;return P[b%P.length];}
-/* lead melody: one 2-bar motif per part, repeated on the next chord, answered, then resolved */
-function buildMelody(S){const R=mrand(S.seed*7919+3),M={};
-  for(const sec of ['A','B']){const bars=[];
-    const rhy=[];for(let i=0;i<32;i++){const strong=i%4===0,p=strong?S.dens+.25:i%2===0?S.dens:S.dens*.35;rhy.push(R()<p);}rhy[0]=true;
-    const shape=[];let d=0;for(let i=0;i<32;i++){d+=R()<.5?(R()<.5?1:-1):(R()<.3?(R()<.5?2:-2):0);d=Math.max(-3,Math.min(5,d));shape.push(d);}
-    const holdR=[];for(let i=0;i<32;i++)holdR.push(R()<.35);
-    for(let b=0;b<8;b++){const ph=Math.floor(b/2),inP=b%2,notes=[];
-      for(let s=0;s<16;s++){const i=inP*16+s;if(!rhy[i])continue;
-        const ch=progAt(S,sec,b);let dd=ch+shape[i]+(ph===2?2:0);
-        if(s%4===0){const ct=[ch,ch+2,ch+4,ch+7];dd=ct.reduce((a,c)=>Math.abs(c-dd)<Math.abs(a-dd)?c:a,ct[0]);}
-        if(ph===3&&inP===1&&s>=8){if(s===8)dd=ch+(sec==='A'?7:4);else continue;}
-        let len=1;while(len<6&&s+len<16&&!rhy[inP*16+s+len]&&holdR[i])len++;
-        notes.push([s,dd,len]);}
-      bars.push(notes);}
-    M[sec]=bars;}
-  return M;}
-function musNoise(){if(MUS.noise)return MUS.noise;const n=ac.sampleRate*1,b=ac.createBuffer(1,n,ac.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1;return MUS.noise=b;}
-function musInit(){if(MUS.bus||!ac||!master)return;MUS.gain=ac.createGain();MUS.gain.gain.value=0;MUS.gain.connect(master);MUS.bus=ac.createGain();MUS.bus.gain.value=.34;MUS.bus.connect(MUS.gain);
-  MUS.rev=ac.createGain();MUS.rev.gain.value=.5;MUS.bus.connect(MUS.rev);if(typeof revBus!=='undefined'&&revBus)MUS.rev.connect(revBus);
-  MUS.dly=ac.createDelay(1);MUS.fb=ac.createGain();MUS.fb.gain.value=.28;MUS.dlyIn=ac.createGain();MUS.dlyIn.gain.value=.22;MUS.dlyIn.connect(MUS.dly);MUS.dly.connect(MUS.fb);MUS.fb.connect(MUS.dly);MUS.dly.connect(MUS.bus);}
-function env(g,t,a,peak,d,sus,rel,end){g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(peak,t+a);g.gain.setTargetAtTime(peak*sus,t+a,d);g.gain.setTargetAtTime(0,end,rel);}
-function voice(f,t,dur,o){const os=ac.createOscillator(),g=ac.createGain();os.type=o.w||'square';os.frequency.setValueAtTime(f,t);if(o.det)os.detune.value=o.det;
-  let last=os;if(o.lp){const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(o.lp,t);if(o.lpEnv){lp.frequency.setValueAtTime(o.lp*o.lpEnv,t);lp.frequency.setTargetAtTime(o.lp,t,o.lpT||.08);}lp.Q.value=o.q||.7;last.connect(lp);last=lp;}
-  if(o.vib){const v=ac.createOscillator(),vg=ac.createGain();v.frequency.value=o.vib;vg.gain.value=f*.012;v.connect(vg);vg.connect(os.frequency);v.start(t+.12);v.stop(t+dur+.6);}
-  if(o.fm){const m=ac.createOscillator(),mg=ac.createGain();m.frequency.value=f*o.fm;mg.gain.setValueAtTime(f*(o.fmA||2),t);mg.gain.setTargetAtTime(0,t,o.fmT||.15);m.connect(mg);mg.connect(os.frequency);m.start(t);m.stop(t+dur+.6);}
-  last.connect(g);env(g,t,o.a||.005,o.v,o.d||.1,o.s===undefined?.6:o.s,o.r||.05,t+dur);g.connect(o.to||MUS.bus);if(o.send)g.connect(MUS.dlyIn);os.start(t);os.stop(t+dur+(o.r||.05)*6+.05);}
-function hit(t,type,v){const N=musNoise();
-  if(type==='k'){const o=ac.createOscillator(),g=ac.createGain();o.frequency.setValueAtTime(140,t);o.frequency.exponentialRampToValueAtTime(42,t+.11);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+.32);o.connect(g);g.connect(MUS.bus);o.start(t);o.stop(t+.35);return;}
-  const s=ac.createBufferSource();s.buffer=N;s.playbackRate.value=type==='chip'?.5:1;const f=ac.createBiquadFilter(),g=ac.createGain();
-  if(type==='s'){f.type='bandpass';f.frequency.value=1900;f.Q.value=.8;g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+.17);
-    const o=ac.createOscillator(),og=ac.createGain();o.type='triangle';o.frequency.setValueAtTime(210,t);o.frequency.exponentialRampToValueAtTime(150,t+.06);og.gain.setValueAtTime(v*.6,t);og.gain.exponentialRampToValueAtTime(.001,t+.08);o.connect(og);og.connect(MUS.bus);o.start(t);o.stop(t+.1);}
-  else if(type==='r'){f.type='bandpass';f.frequency.value=5200;f.Q.value=1.6;g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+.35);}
-  else{f.type='highpass';f.frequency.value=7200;const dd=type==='o'?.22:.045;g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+dd);}
-  s.connect(f);f.connect(g);g.connect(MUS.bus);s.start(t,Math.random()*.5);s.stop(t+.4);}
-const LEADS={square:{w:'square',lp:2600,v:.07,d:.15,s:.55,vib:5.5,send:1},tri:{w:'triangle',v:.15,d:.2,s:.6,vib:5,send:1},saw:{w:'sawtooth',lp:2200,lpEnv:2,q:2,v:.07,d:.2,s:.6,vib:5.2,send:1},
-  surf:{w:'sawtooth',lp:1700,q:3,v:.08,d:.12,s:.5,vib:7,send:1},bell:{w:'sine',fm:3.5,fmA:3,fmT:.25,v:.14,d:.35,s:.25,r:.3,send:1},marimba:{w:'sine',fm:4,fmA:1.4,fmT:.05,v:.17,d:.12,s:0,r:.08},
-  pulse:{w:'square',v:.06,d:.08,s:.7},sine:{w:'sine',v:.15,d:.3,s:.7,vib:4.5,send:1,a:.03}};
-const PADS={warm:{w:'triangle',v:.05,a:.25,lp:1400},bright:{w:'sawtooth',v:.022,a:.05,lp:2400},dark:{w:'sawtooth',v:.026,a:.4,lp:900},glass:{w:'sine',v:.05,a:.3,fm:2,fmA:.6,fmT:1},
-  strings:{w:'sawtooth',v:.024,a:.5,lp:1600},ep:{w:'sine',v:.06,a:.01,fm:1,fmA:1.2,fmT:.3},space:{w:'sawtooth',v:.022,a:.9,lp:1100}};
-/* one sixteenth note of the current song */
-function musStep(S,t,secName,barIn,s16){const sec=secName==='A2'?'A':secName==='X'||secName==='I'?'A':secName;const ch=progAt(S,sec,barIn),sixt=60/S.bpm/4;
-  const K=KITS[S.kit],drums=secName!=='X'||barIn>=2,full=secName!=='I'||barIn>=2;
-  if(drums){if(K.k&&K.k[s16]==='x')hit(t,'k',.85);if(K.s&&K.s[s16]==='x'&&full)hit(t,S.kit==='chip'?'chip':'s',S.kit==='swing'?.2:.38);
-    if(K.h&&K.h[s16]==='x')hit(t,'h',(s16%4===0?.11:.07)*(S.kit==='calyp'?.7:1));if(K.o&&K.o[s16]==='x')hit(t,'o',.08);if(K.r&&K.r[s16]==='x')hit(t,'r',.07);
-    if(barIn%4===3&&s16>=12&&secName!=='I'&&full)hit(t,'s',.16+.05*(s16-12));}
-  /* bass */
-  const bp=BASSP[S.bass][s16];if(bp!=='.'&&(secName!=='X'||barIn>=2)){let n=deg(S,ch,3);if(bp==='R')n+=12;else if(bp==='f')n=deg(S,ch+4,3);
-    else if(bp==='w'){const nx=progAt(S,sec,barIn+1),q=s16/4;n=q===0?deg(S,ch,3):q===1?deg(S,ch+2,3):q===2?deg(S,ch+4,3):deg(S,nx,3)+(Math.random()<.5?-1:1);}
-    const len=S.bass==='half'?sixt*7:S.bass==='walk'?sixt*3.6:bp==='r'&&S.bass==='synco'?sixt*2.6:sixt*.9;
-    voice(mtof(n),t,len,{w:S.bass==='walk'?'triangle':'sawtooth',lp:S.bass==='walk'?900:420,lpEnv:2.4,lpT:.06,q:4,v:S.bass==='walk'?.2:.13,d:.12,s:.65});}
-  /* chords: sustained pad on the bar, or strummed */
-  if(s16===0&&S.pad!=='none'){const P=PADS[S.pad],dur=sixt*16;const tones=[ch,ch+2,ch+4].concat(S.sev?[ch+6]:[]);
-    for(const d of tones){const f=mtof(deg(S,d,5));voice(f,t,dur*.96,{w:P.w,v:P.v,a:P.a,d:.6,s:.8,r:.3,lp:P.lp,fm:P.fm,fmA:P.fmA,fmT:P.fmT,det:-6});if(P.w==='sawtooth')voice(f,t,dur*.96,{w:P.w,v:P.v,a:P.a,d:.6,s:.8,r:.3,lp:P.lp,det:7});}}
-  if(S.arp==='strum'&&(s16%4===0||s16===14||s16===6)){for(const [i,d] of [ch,ch+4,ch+7].entries())voice(mtof(deg(S,d,4)),t+i*.012,sixt*1.5,{w:'sawtooth',lp:1500,lpEnv:2,q:1,v:.035,d:.08,s:.3});}
-  /* arpeggio */
-  const ar=S.arp;if(ar!=='none'&&ar!=='strum'&&full){const every=ar==='up8'||ar==='pluck'?2:1;if(s16%every===0){const i=Math.floor(s16/every);const seq=[0,2,4,7];let d;
-      if(ar==='updown16'){const p=[0,2,4,7,9,7,4,2];d=ch+p[i%8];}else if(ar==='pluck'){d=ch+seq[(i*3+barIn)%4];}else d=ch+seq[i%4];
-      voice(mtof(deg(S,d,ar==='pluck'?5:6)),t,sixt*(every*.8),{w:ar==='pluck'?'triangle':'square',lp:ar==='pluck'?3000:2200,v:ar==='pluck'?.06:.025,d:.06,s:.2,send:ar!=='pluck'});}}
-  /* lead */
-  if((secName==='A'||secName==='A2'||secName==='B')&&MUS.mel){const bar=MUS.mel[sec][barIn%8];for(const [s,dd,len] of bar)if(s===s16){const L=LEADS[S.lead];
-      voice(mtof(deg(S,dd+(secName==='A2'&&barIn>=4?2:0),6)),t,sixt*len*.92,Object.assign({},L));}}}
-function musSet(key){if(key===MUS.want)return;MUS.want=key;if(!ac||!MUS.gain)return;const T=ac.currentTime;MUS.gain.gain.cancelScheduledValues(T);MUS.gain.gain.setValueAtTime(MUS.gain.gain.value,T);MUS.gain.gain.linearRampToValueAtTime(0,T+.45);MUS.fadeT=T+.5;}
-function musStart(key){const S=SONGS[key]||SONGS.menu1;MUS.key=key;MUS.song=S;MUS.mel=buildMelody(S);MUS.sec=0;MUS.bar=0;MUS.step=0;MUS.menuBars=0;MUS.t=ac.currentTime+.08;
-  const T=ac.currentTime;MUS.gain.gain.cancelScheduledValues(T);MUS.gain.gain.setValueAtTime(0,T);MUS.gain.gain.linearRampToValueAtTime(1,T+.6);}
+function mrand(seed){let a=seed>>>0;return ()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+/* scale degree (1-based, any octave) of a song -> midi */
+function mdeg(S,d,acc,oct){const sc=MODES[S.mode],i0=d-1,o=Math.floor(i0/7),i=((i0%7)+7)%7;return 12*(oct+1+o)+S.key+sc[i]+acc;}
+function parseMel(S,str,oct){const out=[];let t=0;for(const bar of str.split('|'))for(const tok of bar.trim().split(/\s+/)){if(!tok)continue;const [a,b]=tok.split(':'),len=+b||2;
+    if(a!=='r'){const m=a.match(/^(-?\d+)([b#]?)$/);if(m)out.push({t,len,m:mdeg(S,+m[1],m[2]==='b'?-1:m[2]==='#'?1:0,oct)});}t+=len;}return out;}
+/* chord token -> midi notes of a close voicing around C4, plus the root for the bass */
+function parseChord(S,tok){const m=tok.match(/^(\d)([b#]?)([Mmd]?)(\^7)?$/)||['', '1','','',''];const d=+m[1]-1,sc=MODES[S.mode];
+  const root=sc[d]+(m[2]==='b'?-1:m[2]==='#'?1:0),iv=k=>((sc[(d+k)%7]+((d+k)>=7?12:0))-sc[d]);
+  let third=iv(2),fifth=iv(4),sev=iv(6);if(m[3]==='M')third=4;else if(m[3]==='m')third=3;else if(m[3]==='d'){third=3;fifth=6;}if(m[3]==='M'&&fifth!==7)fifth=7;if(m[3]==='m'&&fifth!==7)fifth=7;
+  const r=S.key+root;return {root:r,tones:[0,third,fifth].concat(m[4]?[sev]:[]).map(x=>x+r)};}
+function voicing(ch,center){return ch.tones.map(x=>{let n=x;while(n<center-6)n+=12;while(n>center+6)n-=12;return n;}).sort((a,b)=>a-b);}
+/* palettes: instruments, grooves and how each section is dressed */
+const DR={/* k kick, s snare, c clap, h closed hat, o open hat, r ride, p shaker/perc, t toms */
+  drive:{v:{k:'x...x...x...x...',s:'....x.......x...',h:'x.x.x.x.x.x.x.x.'},c:{k:'x...x...x...x.x.',s:'....x.......x...',h:'xxxxxxxxxxxxxxxx',o:'..x...x...x...x.'},b:{k:'x.........x.....',s:'........x.......',h:'x...x...x...x...'}},
+  rock:{v:{k:'x.....x.x.......',s:'....x.......x...',h:'x.x.x.x.x.x.x.x.'},c:{k:'x.x...x.x.x...x.',s:'....x.......x...',h:'x.x.x.x.x.x.x.x.',o:'..............x.'},b:{k:'x.......x.......',s:'....x.......x...',r:'x.x.x.x.x.x.x.x.'}},
+  surf:{v:{k:'x.....x...x.....',s:'....x.......x...',h:'x.x.x.x.x.x.x.x.'},c:{k:'x.x...x.x.x...x.',s:'....x.......x..x',h:'xxxxxxxxxxxxxxxx'},b:{k:'x.......x.......',s:'....x.......x...',t:'..........x.x.x.'}},
+  four:{v:{k:'x...x...x...x...',c:'....x.......x...',h:'..x...x...x...x.'},c:{k:'x...x...x...x...',c:'....x.......x...',h:'x.x.x.x.x.x.x.x.',o:'..x...x...x...x.'},b:{k:'x.......x.......',h:'..x...x...x...x.'}},
+  disco:{v:{k:'x...x...x...x...',s:'....x.......x...',h:'x.x.x.x.x.x.x.x.',o:'..x...x...x...x.'},c:{k:'x...x...x...x...',s:'....x.......x...',c:'....x.......x...',h:'xxxxxxxxxxxxxxxx',o:'..x...x...x...x.'},b:{k:'x.......x.......',o:'..x...x...x...x.'}},
+  funk:{v:{k:'x..x..x...x..x..',s:'....x..x.x..x...',h:'x.xxx.xxx.xxx.xx'},c:{k:'x..x..x...x..x..',s:'....x..x.x..x..x',h:'xxxxxxxxxxxxxxxx',o:'..............x.'},b:{k:'x.........x.....',s:'....x.......x...',h:'x.x.x.x.x.x.x.x.'}},
+  calypso:{v:{k:'x..x..x.x..x..x.',s:'...x...x...x..x.',p:'xxxxxxxxxxxxxxxx'},c:{k:'x..x..x.x..x..x.',s:'...x...x...x..x.',p:'xxxxxxxxxxxxxxxx',o:'......x.......x.'},b:{k:'x.......x.......',p:'x.x.x.x.x.x.x.x.'}},
+  gallop:{v:{k:'x.xx..x.x.xx..x.',s:'....x.......x...',h:'x.x.x.x.x.x.x.x.'},c:{k:'x.xxx.xxx.xxx.xx',s:'....x.......x...',h:'x.x.x.x.x.x.x.x.',o:'..............x.'},b:{k:'x.......x.......',s:'........x.......',r:'x.x.x.x.x.x.x.x.'}},
+  swing:{v:{k:'x.......x.......',s:'....x.......x...',r:'x...x.x.x...x.x.'},c:{k:'x...x...x...x...',s:'....x..x....x..x',r:'x...x.x.x...x.x.',o:'....x.......x...'},b:{k:'x...............',r:'x...x.x.x...x.x.'}},
+  chip:{v:{k:'x...x...x...x...',s:'....x.......x...',h:'..x...x...x...x.'},c:{k:'x.x.x...x.x.x...',s:'....x.......x.x.',h:'x.x.x.x.x.x.x.x.'},b:{k:'x.......x.......',h:'..x...x...x...x.'}},
+  half:{v:{k:'x.........x.....',s:'........x.......',h:'x.x.x.x.x.x.x.x.'},c:{k:'x...x...x...x...',s:'....x.......x...',h:'x.x.x.x.x.x.x.x.',o:'..x...x...x...x.'},b:{k:'x...............',h:'x...x...x...x...'}},
+  epic:{v:{k:'x.....x.x.......',s:'....x.......x...',t:'..........x..x..'},c:{k:'x.x.x.x.x.x.x.x.',s:'....x.......x...',t:'x...x...x..xx.xx',h:'x.x.x.x.x.x.x.x.'},b:{k:'x...............',t:'x.......x.......'}},
+  bossa:{v:{k:'x..x..x.x..x..x.',s:'...x..x...x..x..',p:'xxxxxxxxxxxxxxxx'},c:{k:'x..x..x.x..x..x.',s:'...x..x...x..x..',p:'xxxxxxxxxxxxxxxx',r:'x.x.x.x.x.x.x.x.'},b:{k:'x.......x.......',p:'x.x.x.x.x.x.x.x.'}},
+  tarant:{v:{k:'x..x..x.x..x..x.',s:'...x.....x.x....',p:'x.xx.xx.x.xx.xx.'},c:{k:'x..x..x.x..x..x.',s:'...x..x....x..x.',p:'xxxxxxxxxxxxxxxx',o:'......x.......x.'},b:{k:'x.......x.......',p:'x.xx.xx.x.xx.xx.'}}};
+const BASSP={drive:'r.r.r.r.r.r.r.r.',pump:'rrrrrrrrrrrrrrrr',octave:'r.R.r.R.r.R.r.R.',funk:'r..R..r.f.r.R..r',calyp:'r..r..f.r..r..f.',walk:'w...w...w...w...',half:'r.......f.......',synco:'r..r..r...r.r...',gallop:'r.rrr.rrr.rrr.rr',surf:'r.r.f.r.r.r.f.r.',bossa:'r.....f.r.....f.',tarant:'r.....f.r.....f.',long:'r...............'};
+/* instruments: oscillators (wave, detune in cents, octave, gain), filter, envelope, vibrato, tremolo, FM, distortion */
+const INS={
+  accordion:{o:[['sawtooth',-9,0,.5],['sawtooth',9,0,.5],['square',0,1,.18]],f:['lowpass',2600,1],e:[.02,.1,.85,.09],vib:[5.6,.004,.15],trem:[6.5,.16],v:.11,send:.25},
+  mandolin:{o:[['sawtooth',-5,0,.6],['triangle',5,1,.4]],f:['lowpass',3400,1.5,1.6,.05],e:[.002,.09,.7,.06],trem32:1,v:.09,send:.2},
+  supersaw:{o:[['sawtooth',-15,0,.32],['sawtooth',0,0,.32],['sawtooth',14,0,.32],['sine',0,-1,.3]],f:['lowpass',3600,.8,1.5,.12],e:[.008,.2,.75,.14],vib:[5.4,.003,.25],v:.1,send:.3,dly:.22},
+  chipsq:{o:[['square',0,0,.6],['square',6,0,.3]],e:[.002,.06,.75,.03],vib:[6,.005,.18],v:.07,send:.1,dly:.18},
+  steel:{o:[['sine',0,0,1]],fm:[1,2.2,.25],o2:[['sine',0,1,.25]],e:[.003,.5,0,.25],v:.17,send:.25},
+  bell:{o:[['sine',0,0,1]],fm:[3.5,3,.45],e:[.002,.9,0,.6],v:.13,send:.4,dly:.2},
+  marimba:{o:[['sine',0,0,1]],fm:[4,1.6,.06],e:[.002,.18,0,.12],v:.15,send:.15},
+  surf:{o:[['sawtooth',-4,0,.6],['square',4,0,.3]],f:['bandpass',1500,2.2],drive:2.5,e:[.003,.25,.55,.12],vib:[7,.006,.05],v:.13,send:.55},
+  slide:{o:[['triangle',0,0,.7],['sawtooth',3,0,.3]],f:['lowpass',2300,1],e:[.03,.2,.85,.18],vib:[5,.009,.12],glide:.07,v:.15,send:.35},
+  dist:{o:[['sawtooth',-10,0,.5],['sawtooth',10,0,.5],['square',0,-1,.3]],drive:9,f:['lowpass',3800,1],e:[.004,.2,.8,.1],vib:[5.8,.006,.2],v:.075,send:.25},
+  brass:{o:[['sawtooth',-6,0,.5],['sawtooth',6,0,.5]],f:['lowpass',2500,1.2,.35,.09],e:[.035,.2,.82,.12],vib:[5.2,.004,.22],v:.12,send:.3},
+  ep:{o:[['sine',0,0,1]],fm:[1,1.7,.4],o2:[['sine',0,1,.12]],e:[.003,.9,.25,.35],v:.13,send:.25},
+  nylon:{o:[['triangle',0,0,.7],['sawtooth',0,0,.3]],f:['lowpass',2000,1,2,.06],e:[.002,.35,.05,.2],v:.16,send:.3},
+  clav:{o:[['square',0,0,.6],['sawtooth',0,0,.4]],f:['bandpass',1500,2.5],e:[.002,.12,.1,.05],v:.12,send:.1},
+  sinelead:{o:[['sine',0,0,.8],['triangle',0,1,.2]],e:[.03,.3,.8,.25],vib:[4.6,.006,.25],v:.17,send:.45,dly:.28},
+  organ:{o:[['sine',0,0,.5],['sine',0,1,.3],['sine',0,2,.15],['sine',7,0,.2]],e:[.006,.1,.9,.06],trem:[6.8,.12],v:.07,send:.2},
+  strings:{o:[['sawtooth',-11,0,.35],['sawtooth',0,0,.35],['sawtooth',11,0,.35]],f:['lowpass',1900,.8],e:[.25,.4,.85,.4],v:.05,send:.5},
+  choir:{o:[['sawtooth',-8,0,.4],['sawtooth',8,0,.4]],f:['bandpass',900,1.2],e:[.4,.5,.85,.5],v:.07,send:.6},
+  warm:{o:[['triangle',-6,0,.6],['sawtooth',6,0,.25]],f:['lowpass',1300,.7],e:[.2,.4,.85,.35],v:.055,send:.4},
+  glass:{o:[['sine',0,0,1]],fm:[2,.7,1.2],e:[.3,.6,.8,.6],v:.06,send:.55},
+  pad:{o:[['sawtooth',-12,0,.3],['sawtooth',12,0,.3],['triangle',0,-1,.3]],f:['lowpass',1100,.7],e:[.35,.5,.85,.5],v:.05,send:.5},
+  stab:{o:[['sawtooth',-14,0,.3],['sawtooth',0,0,.3],['sawtooth',14,0,.3]],f:['lowpass',2800,1,1.4,.08],e:[.003,.16,.2,.08],v:.06,send:.3},
+  uke:{o:[['triangle',0,0,.6],['square',0,1,.12]],f:['lowpass',2600,1,1.8,.05],e:[.002,.22,.05,.12],v:.07,send:.25},
+  chug:{o:[['sawtooth',-8,0,.5],['sawtooth',8,0,.5]],drive:12,f:['lowpass',1500,1],e:[.002,.08,.3,.04],v:.05,send:.1},
+  pluck:{o:[['sawtooth',-5,0,.5],['sawtooth',5,0,.5]],f:['lowpass',1400,1,3,.07],e:[.002,.18,.08,.1],v:.06,send:.35,dly:.25},
+  blip:{o:[['square',0,0,.6]],e:[.001,.05,.3,.02],v:.035,send:.15},
+  /* basses */
+  bpick:{o:[['sawtooth',0,0,.6],['square',0,0,.25]],f:['lowpass',750,2,2.6,.07],e:[.003,.16,.55,.05],v:.2,b:1},
+  bsub:{o:[['sine',0,0,.8],['sawtooth',0,0,.25]],f:['lowpass',420,1.2,2,.08],e:[.005,.2,.8,.06],v:.24,b:1,pump:1},
+  bslap:{o:[['sawtooth',0,0,.5],['sine',0,0,.6]],f:['lowpass',900,4,3.5,.05],e:[.002,.12,.35,.05],v:.22,b:1},
+  bwalk:{o:[['triangle',0,0,.9],['sine',0,1,.1]],f:['lowpass',800,1],e:[.004,.35,.4,.08],v:.28,b:1},
+  bchip:{o:[['triangle',0,0,1]],e:[.002,.08,.8,.03],v:.26,b:1},
+  bdist:{o:[['sawtooth',0,0,.6],['square',0,0,.3]],drive:5,f:['lowpass',700,1.5],e:[.002,.1,.7,.04],v:.12,b:1}};
+const PAL={
+  italo:{dr:'drive',bass:['bpick','drive','octave'],lead:'accordion',lead2:'mandolin',chords:['strings','pad'],comp:['uke','x.x.x.x.x.x.x.x.'],arp:['pluck','up8'],kick:'punch'},
+  hawaii:{dr:'surf',bass:['bpick','surf','surf'],lead:'slide',lead2:'marimba',chords:['organ','pad'],comp:['uke','x..x..x.x..x..x.'],arp:null,kick:'punch'},
+  rock:{dr:'rock',bass:['bpick','drive','pump'],lead:'dist',lead2:'brass',chords:['strings','pad'],comp:['chug','x.xxx.x.x.xxx.x.'],arp:null,kick:'punch'},
+  bells:{dr:'four',bass:['bsub','octave','octave'],lead:'bell',lead2:'marimba',chords:['glass','warm'],comp:null,arp:['blip','updown16'],kick:'punch',pump:1},
+  funk:{dr:'funk',bass:['bslap','funk','funk'],lead:'brass',lead2:'clav',chords:['warm','pad'],comp:['clav','.x..x.x..x..x.x.'],arp:null,kick:'punch'},
+  calypso:{dr:'calypso',bass:['bpick','calyp','calyp'],lead:'steel',lead2:'marimba',chords:['warm','pad'],comp:['uke','..x...x...x...x.'],arp:['marimba','pluck8'],kick:'punch'},
+  disco:{dr:'disco',bass:['bpick','octave','octave'],lead:'strings2',lead2:'supersaw',chords:['strings','pad'],comp:['stab','..x...x...x...x.'],arp:null,kick:'punch',pump:1},
+  metal:{dr:'gallop',bass:['bdist','gallop','gallop'],lead:'dist',lead2:'dist',chords:['choir','pad'],comp:['chug','x.xx..x.x.xx..x.'],arp:null,kick:'punch'},
+  swing:{dr:'swing',bass:['bwalk','walk','walk'],lead:'brass',lead2:'ep',chords:['ep','warm'],comp:['ep','...x..x....x..x.'],arp:null,kick:'soft'},
+  darkwave:{dr:'drive',bass:['bsub','drive','pump'],lead:'supersaw',lead2:'pluck',chords:['pad','strings'],comp:null,arp:['pluck','up16'],kick:'punch',pump:1},
+  tarantella:{dr:'tarant',bass:['bpick','tarant','octave'],lead:'mandolin',lead2:'accordion',chords:['strings','pad'],comp:['uke','x..x..x.x..x..x.'],arp:['pluck','up16'],kick:'punch'},
+  glacier:{dr:'half',bass:['bsub','half','octave'],lead:'bell',lead2:'sinelead',chords:['glass','choir'],comp:null,arp:['blip','up8'],kick:'soft',pump:1},
+  chip:{dr:'chip',bass:['bchip','octave','octave'],lead:'chipsq',lead2:'chipsq',chords:['pad','pad'],comp:null,arp:['blip','updown16'],kick:'chip'},
+  surf:{dr:'surf',bass:['bpick','surf','surf'],lead:'surf',lead2:'organ',chords:['organ','pad'],comp:['surf','x.x.x.x.x.x.x.x.'],arp:null,kick:'punch'},
+  synthwave:{dr:'half',bass:['bsub','synco','octave'],lead:'supersaw',lead2:'sinelead',chords:['pad','strings'],comp:null,arp:['pluck','up16'],kick:'punch',pump:1},
+  epic:{dr:'epic',bass:['bsub','drive','pump'],lead:'brass',lead2:'strings2',chords:['strings','choir'],comp:['stab','x..x..x.x..x..x.'],arp:['pluck','up16'],kick:'punch'},
+  edm:{dr:'four',bass:['bsub','octave','pump'],lead:'supersaw',lead2:'pluck',chords:['pad','strings'],comp:['stab','..x...x...x...x.'],arp:['pluck','up16'],kick:'punch',pump:1},
+  lounge:{dr:'bossa',bass:['bwalk','bossa','bossa'],lead:'nylon',lead2:'ep',chords:['ep','warm'],comp:['ep','x..x..x...x..x..'],arp:null,kick:'soft'},
+  sunfunk:{dr:'funk',bass:['bslap','funk','octave'],lead:'sinelead',lead2:'clav',chords:['warm','strings'],comp:['clav','.x..x.x..x..x.x.'],arp:['blip','up8'],kick:'punch'},
+  piazza:{dr:'bossa',bass:['bwalk','tarant','tarant'],lead:'accordion',lead2:'mandolin',chords:['strings','warm'],comp:['nylon','x..x..x.x..x..x.'],arp:null,kick:'soft'}};
+INS.strings2={o:[['sawtooth',-9,0,.4],['sawtooth',9,0,.4],['sawtooth',0,1,.15]],f:['lowpass',2800,.9],e:[.03,.25,.85,.2],vib:[5.4,.005,.2],v:.1,send:.4};
+/* ---- offline rendering of one section ---- */
+/* noise and the reverb's impulse are made once per sample rate and shared by every render */
+const MUSB={};
+function musBufs(ctx,sr){if(MUSB[sr])return MUSB[sr];const nz=ctx.createBuffer(1,Math.floor(sr*.8),sr),d=nz.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+  return MUSB[sr]={noise:nz};}
+/* built a bar at a time across frames (so a race never stalls while the next part is prepared), then rendered off the main thread */
+function* musGen(S,secId,sr){const P=PAL[S.pal],DK=DR[P.dr],spb=60/S.bpm*4,sx=spb/16,bars=secId==='intro'?4:secId==='pre'?4:8;
+  const tail=1.6,len=bars*spb+tail,AC=window.OfflineAudioContext||window.webkitOfflineAudioContext;const ctx=new AC(2,Math.ceil(len*sr),sr);
+  yield;const R=mrand((S.key+1)*7919+S.bpm*131+secId.length*17),SB=musBufs(ctx,sr),noise=SB.noise;
+  const curve=k=>{const n=1024,c=new Float32Array(n);for(let i=0;i<n;i++){const x=i/(n-1)*2-1;c[i]=Math.tanh(x*k)/Math.tanh(k);}return c;};
+  const panned=(node,pan)=>{if(pan&&ctx.createStereoPanner){const p=ctx.createStereoPanner();p.pan.value=pan;node.connect(p);return p;}return node;};
+  /* buses: dry -> compressor -> out; reverb and delay sends; a side-chain bus that dips on every kick */
+  const comp=ctx.createDynamicsCompressor();comp.threshold.value=-16;comp.knee.value=8;comp.ratio.value=3.5;comp.attack.value=.006;comp.release.value=.16;
+  const out=ctx.createGain();out.gain.value=.8;comp.connect(out);out.connect(ctx.destination);
+  const dry=ctx.createGain();dry.connect(comp);const pump=ctx.createGain();pump.connect(dry);
+  /* reverb from feedback delay lines (no impulse to prepare, so building a part never stalls a frame) */
+  const rvIn=ctx.createGain();rvIn.gain.value=.55;const rvLp=ctx.createBiquadFilter();rvLp.type='lowpass';rvLp.frequency.value=5200;rvIn.connect(rvLp);
+  const rvSum=ctx.createGain();rvSum.gain.value=.3;const ap1=ctx.createBiquadFilter(),ap2=ctx.createBiquadFilter();ap1.type=ap2.type='allpass';ap1.frequency.value=850;ap2.frequency.value=2300;rvSum.connect(ap1);ap1.connect(ap2);ap2.connect(comp);
+  for(const [d,pn] of [[.0297,-.7],[.0371,.7],[.0411,-.35],[.0437,.35],[.0533,0],[.0617,0]]){const dl0=ctx.createDelay(.2),fb=ctx.createGain(),lp=ctx.createBiquadFilter();dl0.delayTime.value=d;fb.gain.value=Math.pow(10,-3*d/1.7);lp.type='lowpass';lp.frequency.value=4300;lp.Q.value=-6;/* no resonance inside the loop, or it rings forever */
+    rvLp.connect(dl0);dl0.connect(lp);lp.connect(fb);fb.connect(dl0);const tap=ctx.createGain();tap.gain.value=(1-fb.gain.value)*2.6;lp.connect(tap);panned(tap,pn).connect(rvSum);}
+  const dl=ctx.createDelay(1.2);dl.delayTime.value=sx*3;const dfb=ctx.createGain();dfb.gain.value=.3;const dIn=ctx.createGain();dIn.gain.value=.5;const dLp=ctx.createBiquadFilter();dLp.type='lowpass';dLp.frequency.value=3000;
+  dIn.connect(dl);dl.connect(dLp);dLp.connect(dfb);dfb.connect(dl);const dpan=ctx.createStereoPanner?ctx.createStereoPanner():null;if(dpan){dpan.pan.value=.35;dLp.connect(dpan);dpan.connect(dry);}else dLp.connect(dry);
+  /* shared output buses (pan, side-chain, reverb and delay sends), so a note only builds its own oscillators, filter and amp */
+  const buses=new Map();
+  function busFor(I,o){const pan=o.pan||0,pm=!!(I.b||o.pump),k=pan+'|'+pm+'|'+(I.send||0)+'|'+(o.nodly?0:I.dly||0);let b=buses.get(k);if(b)return b;
+    b=ctx.createGain();const pd=panned(b,pan);pd.connect(pm?pump:dry);if(I.send){const sg=ctx.createGain();sg.gain.value=I.send;pd.connect(sg);sg.connect(rvIn);}if(I.dly&&!o.nodly){const sg=ctx.createGain();sg.gain.value=I.dly;pd.connect(sg);sg.connect(dIn);}buses.set(k,b);return b;}
+  /* one note on an instrument */
+  function note(I,t,f,dur,vel,o){o=o||{};const g=ctx.createGain(),[a,d,s,r]=I.e,pk=I.v*(vel||1);let src=g;
+    if(I.f){const fl=ctx.createBiquadFilter();fl.type=I.f[0];fl.Q.value=I.f[2]||1;const fb=I.f[0]==='lowpass'?Math.min(sr*.45,I.f[1]*(o.bright||1)):I.f[1];fl.frequency.setValueAtTime(I.f[3]?Math.min(sr*.45,fb*I.f[3]):fb,t);if(I.f[3])fl.frequency.setTargetAtTime(fb,t,I.f[4]||.08);g.connect(fl);src=fl;}
+    if(I.drive){const ws=ctx.createWaveShaper();ws.curve=I._cv||(I._cv=curve(I.drive));src.connect(ws);src=ws;}
+    const vca=ctx.createGain();src.connect(vca);const end=t+dur,stop=end+r*4+.05;
+    if(I.trem||I.trem32){const lfo=ctx.createOscillator(),lg=ctx.createGain(),depth=I.trem32?.75:I.trem[1];lfo.type=I.trem32?'sawtooth':'sine';lfo.frequency.value=I.trem32?1/(sx/2):I.trem[0];lg.gain.value=depth/2;const tg=ctx.createGain();tg.gain.value=1-depth/2;lfo.connect(lg);lg.connect(tg.gain);vca.connect(tg);tg.connect(busFor(I,o));lfo.start(t);lfo.stop(stop);}
+    else vca.connect(busFor(I,o));
+    vca.gain.setValueAtTime(0,t);vca.gain.linearRampToValueAtTime(pk,t+a);vca.gain.setTargetAtTime(pk*s,t+a,d/3);vca.gain.setTargetAtTime(0,Math.max(end,t+a),r/3);
+    let vib=null;if(I.vib){const v=ctx.createOscillator();vib=ctx.createGain();v.frequency.value=I.vib[0];vib.gain.setValueAtTime(0,t);vib.gain.linearRampToValueAtTime(1731*I.vib[1],t+I.vib[2]+.05);v.connect(vib);v.start(t);v.stop(stop);}
+    const oscs=I.o.concat(I.o2||[]),fs=Array.isArray(f)?f:[f];fs.forEach((f0,fi)=>{const t1=t+(o.strum||0)*fi;for(const [w,det,oc,gn] of oscs){const os=ctx.createOscillator(),og=ctx.createGain();os.type=w;const ff=f0*Math.pow(2,oc);
+      if(o.from&&I.glide){os.frequency.setValueAtTime(o.from*Math.pow(2,oc),t1);os.frequency.exponentialRampToValueAtTime(ff,t1+I.glide);}else os.frequency.setValueAtTime(ff,t1);os.detune.value=det;og.gain.value=gn/Math.sqrt(fs.length)*(fs.length>1?1.25:1);if(vib)vib.connect(os.detune);
+      if(I.fm){const m=ctx.createOscillator(),mg=ctx.createGain();m.frequency.value=ff*I.fm[0];mg.gain.setValueAtTime(ff*I.fm[1],t);mg.gain.setTargetAtTime(ff*I.fm[1]*.08,t,I.fm[2]/3);m.connect(mg);mg.connect(os.frequency);m.start(t);m.stop(stop);}
+      os.connect(og);og.connect(g);os.start(t1);os.stop(stop);}});}
+  /* drums */
+  const kickT=[];
+  function drum(type,t,v,o){o=o||{};if(type==='k'){kickT.push(t);const os=ctx.createOscillator(),g=ctx.createGain();const soft=P.kick==='soft',chip=P.kick==='chip';os.type=chip?'square':'sine';
+      os.frequency.setValueAtTime(chip?180:soft?120:165,t);os.frequency.exponentialRampToValueAtTime(chip?55:42,t+(soft?.09:.13));g.gain.setValueAtTime(v*(chip?.35:1.05),t);g.gain.exponentialRampToValueAtTime(.001,t+(soft?.28:.42));os.connect(g);g.connect(dry);os.start(t);os.stop(t+.45);
+      if(!soft){const n=ctx.createBufferSource(),f=ctx.createBiquadFilter(),ng=ctx.createGain();n.buffer=noise;f.type='highpass';f.frequency.value=3000;ng.gain.setValueAtTime(v*.25,t);ng.gain.exponentialRampToValueAtTime(.001,t+.012);n.connect(f);f.connect(ng);ng.connect(dry);n.start(t,R()*.5);n.stop(t+.02);}return;}
+    if(type==='t'){const f0=o.f||120,os=ctx.createOscillator(),g=ctx.createGain();os.frequency.setValueAtTime(f0,t);os.frequency.exponentialRampToValueAtTime(f0*.62,t+.25);g.gain.setValueAtTime(v*.55,t);g.gain.exponentialRampToValueAtTime(.001,t+.38);os.connect(g);panned(g,o.pan||0).connect(dry);g.connect(rvIn);os.start(t);os.stop(t+.4);return;}
+    const n=ctx.createBufferSource();n.buffer=noise;const f=ctx.createBiquadFilter(),g=ctx.createGain();let dec=.05,pan=0,send=0;
+    if(type==='s'){f.type='bandpass';f.frequency.value=P.kick==='chip'?2600:1900;f.Q.value=.7;dec=.19;send=.35;const os=ctx.createOscillator(),og=ctx.createGain();os.type='triangle';os.frequency.setValueAtTime(220,t);os.frequency.exponentialRampToValueAtTime(160,t+.07);og.gain.setValueAtTime(v*.5,t);og.gain.exponentialRampToValueAtTime(.001,t+.1);os.connect(og);og.connect(dry);os.start(t);os.stop(t+.12);}
+    else if(type==='c'){f.type='bandpass';f.frequency.value=1250;f.Q.value=1.2;dec=.16;send=.4;for(const dt of [0,.011,.022]){const n2=ctx.createBufferSource(),g2=ctx.createGain();n2.buffer=noise;g2.gain.setValueAtTime(v*.5,t+dt);g2.gain.exponentialRampToValueAtTime(.001,t+dt+.01);n2.connect(f);n2.start(t+dt,R()*.5);n2.stop(t+dt+.02);}}
+    else if(type==='h'){f.type='highpass';f.frequency.value=8200;dec=.035;pan=-.25;}
+    else if(type==='o'){f.type='highpass';f.frequency.value=7000;dec=.24;pan=.25;}
+    else if(type==='r'){f.type='bandpass';f.frequency.value=6800;f.Q.value=.6;dec=.42;pan=.3;send=.15;}
+    else if(type==='p'){f.type='bandpass';f.frequency.value=5600;f.Q.value=1.2;dec=.05;pan=.4;}
+    else if(type==='x'){f.type='highpass';f.frequency.value=3500;dec=1.9;send=.5;pan=-.1;}
+    g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+dec);n.connect(f);f.connect(g);const pg=panned(g,pan);pg.connect(dry);if(send){const sg=ctx.createGain();sg.gain.value=send;pg.connect(sg);sg.connect(rvIn);}n.start(t,R()*.3);n.stop(t+dec+.05);}
+  function riser(t,d){const n=ctx.createBufferSource();n.buffer=noise;n.loop=true;const f=ctx.createBiquadFilter(),g=ctx.createGain();f.type='bandpass';f.Q.value=2.5;f.frequency.setValueAtTime(350,t);f.frequency.exponentialRampToValueAtTime(7000,t+d);
+    g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.16,t+d);g.gain.setValueAtTime(0,t+d+.01);n.connect(f);f.connect(g);g.connect(dry);const sg=ctx.createGain();sg.gain.value=.5;g.connect(sg);sg.connect(rvIn);n.start(t);n.stop(t+d+.05);}
+  /* what this section plays */
+  const progs={intro:S.c.split(/\s+/).slice(0,4),verse:S.v.split(/\s+/),pre:S.p.split(/\s+/),chorus:S.c.split(/\s+/),bridge:S.b.split(/\s+/),chorusX:S.c.split(/\s+/)}[secId];
+  const chords=progs.map(c=>parseChord(S,c)),chAt=b=>chords[b%chords.length];
+  const melSrc={verse:S.mv,pre:S.mp,chorus:S.mc,bridge:S.mb,chorusX:S.mc}[secId],mel=melSrc?parseMel(S,melSrc,S.oct):[],melLen=melSrc?melSrc.split('|').length*16:16;
+  const big=secId==='chorus'||secId==='chorusX',dk=big?DK.c:secId==='bridge'?DK.b:DK.v;
+  const sw=s=>s%2===1?sx*(S.swing||0)*.66:0,T=(bar,s)=>bar*spb+s*sx+sw(s);
+  for(let bar=0;bar<bars;bar++){const ch=chAt(bar),nx=chAt(bar+1),last=bar===bars-1;
+    /* drums */
+    const drumsOn=secId==='intro'?bar>=2:secId==='bridge'?bar>=4:true;
+    for(let s=0;s<16;s++){const t=T(bar,s);
+      if(secId==='intro'&&bar<2){if(s%2===0)drum(dk.p?'p':'h',t,.06);continue;}
+      if(!drumsOn){if(s%4===2)drum('h',t,.05);continue;}
+      const fill=(last||(bar%4===3&&big))&&s>=12&&secId!=='pre';
+      if(fill){if(P.dr==='epic'||P.dr==='surf'||P.dr==='rock'||P.dr==='gallop')drum('t',t,.8,{f:[180,150,120,95][s-12],pan:[-.3,-.1,.1,.3][s-12]});else drum('s',t,.32+.06*(s-12));if(s===12&&dk.k&&dk.k[s]==='x')drum('k',t,.9);continue;}
+      if(secId==='pre'){if(s%4===0)drum('k',t,.95);const roll=bar===3?1:bar===2?2:4;if(bar>=2&&s%roll===0)drum('s',t,.12+.3*(bar-2+s/16)/2);else if(bar<2&&(s===4||s===12))drum('s',t,.4);if(s%2===0)drum('h',t,.08);continue;}
+      if(dk.k&&dk.k[s]==='x')drum('k',t,.95);if(dk.s&&dk.s[s]==='x')drum('s',t,P.dr==='swing'?.14:.42);if(dk.c&&dk.c[s]==='x')drum('c',t,.4);
+      if(dk.h&&dk.h[s]==='x')drum('h',t,s%4===0?.11:.075);if(dk.o&&dk.o[s]==='x')drum('o',t,.08);if(dk.r&&dk.r[s]==='x')drum('r',t,s%4===0?.1:.07);
+      if(dk.p&&dk.p[s]==='x')drum('p',t,s%4===0?.09:.055);if(dk.t&&dk.t[s]==='x')drum('t',t,.55,{f:[150,120,100][s%3]});}
+    yield;if(big&&(bar===0||bar===4))drum('x',T(bar,0),.22);if(secId==='verse'&&bar===0)drum('x',T(0,0),.14);
+    /* bass */
+    const bp=BASSP[secId==='bridge'&&bar<4?'long':secId==='pre'?'drive':P.bass[big?2:1]],BI=INS[P.bass[0]];
+    if(!(secId==='intro'&&bar<2))for(let s=0;s<16;s++){const c=bp[s];if(c==='.')continue;const t=T(bar,s);let n=ch.root;while(n>=12)n-=12;n+=36;if(n<38)n+=12;
+      if(c==='R')n+=12;else if(c==='f')n=n+((ch.tones[2]-ch.tones[0]+12)%12);else if(c==='w'){const q=s/4;n=q===0?n:q===1?n+((ch.tones[1]-ch.tones[0]+12)%12):q===2?n+((ch.tones[2]-ch.tones[0]+12)%12):(()=>{let m=nx.root;while(m>=12)m-=12;m+=36;if(m<38)m+=12;return m+(R()<.5?-1:1);})();}
+      let dur=sx*.85;if(c==='w')dur=sx*3.6;else if(bp===BASSP.long)dur=spb*.95;else if(bp===BASSP.half)dur=sx*7;else{let k=s+1;while(k<16&&bp[k]==='.')k++;dur=Math.min(sx*(k-s)*.92,sx*4);}
+      note(BI,t,mtof(n),dur,1);}
+    yield;/* chords: pad on the bar, plus a rhythm part */
+    const PI=INS[P.chords[big?0:1]],vo=voicing(ch,big?64:60);if(!(secId==='intro'&&bar<1)||true)note(PI,T(bar,0),vo.map(mtof),spb*.98,big?1:.85,{pump:P.pump});
+    if(P.comp&&secId!=='intro'&&!(secId==='bridge'&&bar<4)){const CI=INS[P.comp[0]],pat=P.comp[1];for(let s=0;s<16;s++)if(pat[s]==='x'){const t=T(bar,s);note(CI,t,vo.map(n=>mtof(n+(P.comp[0]==='chug'?-12:0))),sx*(P.comp[0]==='ep'?2.5:1.4),.9,{pan:P.comp[0]==='chug'?-.35:.3,pump:P.pump,strum:P.comp[0]==='uke'||P.comp[0]==='nylon'?.012:0});}}
+    yield;/* arpeggio */
+    if(P.arp&&(secId!=='verse'||bar>=4)){const AI=INS[P.arp[0]],md=P.arp[1],step=md==='up8'||md==='pluck8'?2:1,seq=md==='updown16'?[0,1,2,3,2,1,0,1]:[0,1,2,3];const tn=voicing(ch,72).concat(voicing(ch,84));
+      for(let s=0;s<16;s+=step){const i=Math.floor(s/step);const n=md==='pluck8'?tn[(i*3+bar)%tn.length]:tn[seq[i%seq.length]%tn.length];note(AI,T(bar,s),mtof(n),sx*step*.8,secId==='intro'?.7:.9,{pan:i%2?.4:-.4,pump:P.pump});}}
+    /* riser into the next part */
+    if((secId==='pre'&&bar===2)||(secId==='intro'&&bar===2)||(secId==='bridge'&&bar===6))riser(T(bar,0),spb*2);yield;}
+  /* lead and harmony */
+  if(mel.length){const LI=INS[P.lead],L2=INS[P.lead2],reps=Math.max(1,Math.round(bars*16/melLen));let prev=null;
+    let cnt=0;for(let r=0;r<reps;r++)for(const n of mel){if(++cnt%4===0)yield;const t=T(0,0)+(r*melLen+n.t)*sx+sw(n.t),d=n.len*sx*.94;if(t>=bars*spb)continue;
+      const up=secId==='bridge'&&r===1?12:0,f=mtof(n.m+up);
+      note(LI,t,f,d,1,{from:prev,pan:-.08});prev=f;
+      if(big){const hm=n.m-(MODES[S.mode].includes(((n.m-S.key-4)%12+12)%12)?4:3);note(L2,t,mtof(hm),d,.6,{pan:.3,nodly:1});
+        if(secId==='chorusX')note(LI,t,mtof(n.m+12),d,.42,{pan:.15,nodly:1});}}}
+  /* side-chain: the pump bus dips on every kick */
+  pump.gain.setValueAtTime(1,0);if(P.pump)for(const t of kickT){pump.gain.setValueAtTime(1,Math.max(0,t-.001));pump.gain.linearRampToValueAtTime(.45,t+.008);pump.gain.linearRampToValueAtTime(1,t+.19);}
+  return {ctx,dur:bars*spb};}
+function musRender(S,secId,sr){const g=musGen(S,secId,sr);let r;do{r=g.next();}while(!r.done);const {ctx,dur}=r.value;return ctx.startRendering().then(b=>({buf:b,dur}));}
+/* ---- playback ---- */
+const MUS_PLAN=['intro','verse','pre','chorus','verse','pre','chorus','bridge','chorusX'],MUS_LOOP=1;
+const MENU_SONGS=['menu1','menu2','menu3','menu4'];
+const MUS={gain:null,bus:null,cache:new Map(),pb:null,want:null,menuI:Math.floor(Math.random()*4),menuStart:0,rate:1,sr:32000};
+function musInit(){if(MUS.bus||!ac||!master)return;MUS.bus=ac.createGain();MUS.bus.gain.value=0;MUS.bus.connect(master);try{MUS.sr=Math.min(32000,ac.sampleRate);}catch(e){}}
+function musSong(key){let c=MUS.cache.get(key);if(c)return c;const S=SONGS2[key];if(!S)return null;c={key,S,bufs:{},busy:false,q:MUS_PLAN.filter((v,i,a)=>a.indexOf(v)===i),fail:false};MUS.cache.set(key,c);musPump(c);
+  /* keep at most three songs in memory */
+  if(MUS.cache.size>3){for(const k of MUS.cache.keys()){if(MUS.cache.size<=3)break;if(k!==key&&(!MUS.pb||MUS.pb.c.key!==k)&&k!==MUS.want)MUS.cache.delete(k);}}return c;}
+function musPump(c){if(c.busy||c.fail||!c.q.length)return;const id=c.q.shift();c.busy=true;try{c.job={id,g:musGen(c.S,id,MUS.sr)};}catch(e){console.warn('music render',e);c.fail=true;c.busy=false;}}
+/* a few milliseconds of building per frame: less while racing, more on menus and loading screens */
+function musWork(){const t0=performance.now(),fd=Math.min(250,t0-(MUS.lastW||t0)),racing=state==='race'||state==='countdown';MUS.lastW=t0;
+  /* about a tenth of a frame while racing (1 ms at 120 fps), more on loading screens and menus */
+  const bud=Math.max(racing?1:4,fd*(racing?.12:state==='loading'?.5:.3));
+  for(const c of MUS.cache.values()){const j=c.job;if(!j)continue;try{while(performance.now()-t0<bud){const r=j.g.next();if(r.done){c.job=null;const {ctx,dur}=r.value,id=j.id;
+          ctx.startRendering().then(b=>{c.bufs[id]={buf:b,dur};c.busy=false;musPump(c);}).catch(e=>{console.warn('music render',e);c.fail=true;c.busy=false;});break;}}}
+    catch(e){console.warn('music render',e);c.job=null;c.fail=true;c.busy=false;}if(performance.now()-t0>=bud)break;}}
+function musStop(pb,fade){if(!pb)return;const T=ac.currentTime;try{pb.g.gain.cancelScheduledValues(T);pb.g.gain.setValueAtTime(pb.g.gain.value,T);pb.g.gain.linearRampToValueAtTime(0,T+fade);}catch(e){}
+  for(const s of pb.srcs){try{s.stop(T+fade+.05);}catch(e){}}pb.srcs=[];pb.dead=true;}
+function musStartPb(c,pos,rate){const g=ac.createGain();g.gain.setValueAtTime(0,ac.currentTime);g.gain.linearRampToValueAtTime(1,ac.currentTime+.5);g.connect(MUS.bus);
+  return {c,pos,next:ac.currentTime+.06,g,srcs:[],rate:rate||1,started:ac.currentTime};}
+function musSchedule(pb){const T=ac.currentTime;let guard=0;while(pb.next<T+1.2&&guard++<4){let id=MUS_PLAN[pb.pos],b=pb.c.bufs[id],hold=false;
+    /* a slow device may still be rendering the next part: play one that is ready instead of leaving a gap */
+    if(!b){if(pb.next>T+.35)return;const alt=['verse','chorus','intro'].find(x=>pb.c.bufs[x]);if(!alt)return;id=alt;b=pb.c.bufs[alt];hold=true;}
+    const src=ac.createBufferSource();src.buffer=b.buf;src.playbackRate.value=pb.rate;src.connect(pb.g);const at=Math.max(pb.next,T+.02);src.start(at);src.stop(at+b.buf.duration/pb.rate+.05);pb.srcs.push(src);src.onended=()=>{const i=pb.srcs.indexOf(src);if(i>=0)pb.srcs.splice(i,1);};
+    pb.next=at+b.dur/pb.rate;if(!hold){pb.pos++;if(pb.pos>=MUS_PLAN.length){pb.pos=MUS_LOOP;pb.loops=(pb.loops||0)+1;}}}}
+/* final lap: straight into the chorus, a little faster */
+function musFinalLap(){if(!ac||!MUS.pb||MUS.pb.dead||!MUS.pb.c.bufs.chorus||MUS.pb.c.S.menu)return;const c=MUS.pb.c;musStop(MUS.pb,.25);MUS.pb=musStartPb(c,MUS_PLAN.indexOf('chorus'),1.06);MUS.pb.next=ac.currentTime+.28;MUS.pb.g.gain.cancelScheduledValues(ac.currentTime);MUS.pb.g.gain.setValueAtTime(1,ac.currentTime);}
 function musTick(){if(!ac||!master)return;musInit();if(!MUS.bus)return;
-  const playing=state==='race'||state==='countdown'||state==='intro'||state==='paused'||state==='loading';let want=playing?(SONGS[MAPS[mapIdx].id]?MAPS[mapIdx].id:(MAPS[mapIdx].song||'margherita')):MENU_SONGS[MUS.menuI%MENU_SONGS.length];
-  if(muted||CFG.music===false)want=null;musSet(want);
-  {const mv=(CFG.mvol==null?45:CFG.mvol)/100,race=state==='race'||state==='countdown'||state==='intro';/* racing: music sits well under the engine and effects; menus a little fuller */MUS.bus.gain.setTargetAtTime(mv*(state==='paused'?.12:state==='loading'?.22:race?.22:.4),ac.currentTime,.15);}
-  const T=ac.currentTime;if(MUS.key!==MUS.want){if(T<MUS.fadeT)return;if(!MUS.want){MUS.key=null;MUS.song=null;return;}musStart(MUS.want);}
-  if(!MUS.song)return;const S=MUS.song;if(MUS.t<T-.2)MUS.t=T+.05;/* fell behind (tab hidden): skip ahead instead of playing a burst */
-  while(MUS.t<T+.22){const sixt=60/S.bpm/4,sw=MUS.step%2===1?sixt*S.swing*.66:0;const [nm,len]=FORM[MUS.sec];
-    musStep(S,MUS.t+sw,nm,MUS.bar,MUS.step);MUS.t+=sixt;MUS.step++;
-    if(MUS.step>=16){MUS.step=0;MUS.bar++;MUS.menuBars++;if(MUS.bar>=len){MUS.bar=0;MUS.sec++;if(MUS.sec>=FORM.length)MUS.sec=1;}
-      if(!playing&&MUS.menuBars>=60&&FORM[MUS.sec][0]==='A'&&MUS.bar===0){MUS.menuI++;}}}}
+  const playing=state==='race'||state==='countdown'||state==='intro'||state==='paused'||state==='loading';
+  const map=MAPS[state==='loading'&&MUS.nextMap!=null?MUS.nextMap:mapIdx]||{},raceKey=SONGS2[map.id]?map.id:SONGS2[map.song]?map.song:'margherita';
+  let want=playing?raceKey:MENU_SONGS[MUS.menuI%MENU_SONGS.length];if(muted||CFG.music===false)want=null;MUS.want=want;
+  {const mv=(CFG.mvol==null?45:CFG.mvol)/100,race=state==='race'||state==='countdown'||state==='intro';MUS.bus.gain.setTargetAtTime(mv*(state==='paused'?.3:state==='loading'?.55:race?.62:.95),ac.currentTime,.15);}
+  if(!want){if(MUS.pb){musStop(MUS.pb,.4);MUS.pb=null;}return;}
+  /* stop preparing songs nobody is going to hear */
+  {const nk=MENU_SONGS[(MUS.menuI+1)%MENU_SONGS.length];for(const [k,cc] of MUS.cache)if(k!==want&&(!MUS.pb||MUS.pb.c!==cc)&&!(k===nk&&!playing))cc.q.length=0;}
+  const c=musSong(want);if(!c){musWork();return;}if(!c.q.length&&Object.keys(c.bufs).length<6&&!c.busy)c.q=MUS_PLAN.filter((v,i,a)=>a.indexOf(v)===i&&!c.bufs[v]);musPump(c);
+  if(!MUS.pb||MUS.pb.c!==c){if(c.bufs.intro||c.bufs.verse){if(MUS.pb)musStop(MUS.pb,.6);MUS.pb=musStartPb(c,c.bufs.intro?0:1);if(!playing)MUS.menuStart=ac.currentTime;}else{musWork();return;}}
+  musSchedule(MUS.pb);musWork();
+  /* menu: after a full run through a song (or about three minutes) move on to the next menu song */
+  if(!playing&&MUS.pb&&((MUS.pb.loops||0)>=1||ac.currentTime-MUS.menuStart>180)){MUS.menuI++;const nk=MENU_SONGS[MUS.menuI%MENU_SONGS.length];musSong(nk);MUS.menuStart=ac.currentTime+1e9;}
+  if(!playing){const nk=MENU_SONGS[(MUS.menuI+1)%MENU_SONGS.length];if(MUS.pb&&MUS.pb.pos>=6)musSong(nk);}}
 
 (()=>{try{const f=document.getElementById('fpsEl'),st=document.getElementById('tbProg')||document.getElementById('stage');if(f&&st)st.appendChild(f);}catch(e){}})();
 /* ================= MULTIPLAYER: play with up to 3 friends =================
@@ -5837,7 +6136,7 @@ function musTick(){if(!ac||!master)return;musInit();if(!MUS.bus)return;
    Phones find each other through a short room code over a relay server; the race data uses a direct link when one opens. */
 const NET={role:null,code:'',peer:null,conns:[],me:0,pl:[],cfg:null,fromNet:false,loaded:new Set(),tick:0,seq:0,hist:[],outQ:[],inQ:{},inS:{},inLast:{},ack:{},
   snaps:[],mir:new Map(),mirH:new Map(),mirList:[],fxQ:[],nid:0,inUpd:false,finSeen:false,lastRecv:0,goT:0,waitTimer:0,replay:false,abQ:false,relay:null,lastFl:0,unack:[],ackRx:0};
-const NET_PROTO=93;/* bump when race messages or kart physics change: friends on different versions would drive differently */
+const NET_PROTO=94;/* bump when race messages or kart physics change: friends on different versions would drive differently */
 const NET_SLOTS=[4,3,5,2],NET_ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const netId=c=>'crustrush-v1-'+c.toUpperCase();
 const NET_REM=['x','y','a','ma','z','wy','speed','steer','drift','charge','boost','spin','air','glide','loopTh','onRamp','rush','shL','shield','mzH','sink','sinkT','trickK','trickT','frozen','acc','brake','dAmt','fx','prog','finished','place','finishTime','inv','big','ghostT','shrinkT','absT','idx','gRings','trick','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT','est'];
@@ -6407,10 +6706,35 @@ addEventListener('gamepadconnected',e=>{PAD.id=e.gamepad.id;showBanner('Controll
    for windowed and full screen so the frame counter can say what is holding the game back */
 const SCR={a:[],l:0,hz:{win:0,fs:0},cur:0,noted:false};
 function scrTrack(now){const ri=now-(SCR.l||now);SCR.l=now;if(ri>3&&ri<60)SCR.a.push(ri);if(SCR.a.length<150)return;
-  const b=SCR.a.sort((x,y)=>x-y),p=b[Math.floor(b.length*.1)];SCR.a.length=0;const hz=Math.round(1000/p),fs=!!(document.fullscreenElement||document.webkitFullscreenElement);
+  const b=SCR.a.sort((x,y)=>x-y),p=b[Math.floor(b.length*.3)];SCR.a.length=0;const raw=1000/p,hz=[60,75,90,100,120,144,165,240].reduce((m,v)=>Math.abs(v-raw)<Math.abs(m-raw)?v:m,60),fs=!!(document.fullscreenElement||document.webkitFullscreenElement);
   if(fs)SCR.hz.fs=hz;else SCR.hz.win=Math.max(SCR.hz.win,hz);SCR.cur=hz;SCR.fs=fs;
   /* full screen stuck at 60 while the same screen does 100+ in the window, with time to spare: say so once */
   if(!SCR.noted&&fs&&state==='race'&&CFG.fps!=='60'&&SCR.hz.win>=100&&hz<=65&&CPUMS<6&&!(GPUT&&GPUT.ms>9)){SCR.noted=true;fsNote();}}
+/* graphics test: while the kart drives itself, each graphics feature is switched off in turn for a few seconds and the frame time is
+   measured, so a report from any device shows exactly where its time goes */
+const BENCH_STEPS=[['As set',()=>{},()=>{}],['Shadow map not redrawn',()=>{BENCH.noShUp=true;},()=>{BENCH.noShUp=false;}],
+  ['No anti-aliasing',()=>{BENCH.noMs=true;},()=>{BENCH.noMs=false;}],['Half-float colour buffer',()=>{BENCH.r11v=CFG.r11;CFG.r11=false;},()=>{CFG.r11=BENCH.r11v;}],
+  ['3D resolution 80%',()=>{DRS.s=.8;},()=>{DRS.s=1;}],['3D resolution 60%',()=>{DRS.s=.6;},()=>{DRS.s=1;}],
+  ['No glow and colour pass',()=>{BENCH.noPost=true;},()=>{BENCH.noPost=false;}],['As set, again',()=>{},()=>{}]];
+function benchStart(){if(state!=='race'||BENCH.on)return false;Object.assign(BENCH,{on:true,i:0,t:0,f:[],cpu:[],res:[],td:TD.on,ds:DRS.s,info:null});TD.on=true;DRS.s=1;
+  BENCH.info={q:qKey,pr:prE,ms:POST.ms,r11:!!(POST.rt&&POST.rt.userData.r11),sm:sun.shadow.mapSize.x,hz:Math.max(SCR.hz.win||0,SCR.hz.fs||0,SCR.cur||0),fps:CFG.fps,w:renderer.getDrawingBufferSize(v2).x,h:v2.y};BENCH_STEPS[0][1]();return true;}
+function benchFrame(dt){const B=BENCH;if(state!=='race'){if(state!=='paused')benchEnd(true);return;}if(dt<=0)return;B.t+=Math.min(dt,.5);if(dt>1||B.t<.8)return;if(B.t<3.3){B.f.push(dt);B.cpu.push(CPUMS);return;}
+  const a=B.f.slice().sort((x,y)=>x-y),avg=a.reduce((x,y)=>x+y,0)/(a.length||1),c=B.cpu.reduce((x,y)=>x+y,0)/(B.cpu.length||1);
+  B.res.push([BENCH_STEPS[B.i][0],a.length?1/avg:0,(a[a.length>>1]||0)*1000,(a[Math.floor(a.length*.9)]||0)*1000,c]);BENCH_STEPS[B.i][2]();B.i++;
+  if(B.i>=BENCH_STEPS.length){benchEnd(false);return;}BENCH_STEPS[B.i][1]();B.t=0;B.f=[];B.cpu=[];}
+function benchEnd(abort){const B=BENCH;if(!B.on)return;if(B.i<BENCH_STEPS.length)BENCH_STEPS[B.i][2]();B.on=false;B.noShUp=B.noMs=B.noPost=false;TD.on=B.td;DRS.s=B.ds;if(!abort)benchShow();}
+function benchText(){const B=BENCH,I=B.info||{},f=(v,d)=>(+v).toFixed(d);let t='Crust Rush graphics test · '+new Date().toISOString().replace('T',' ').slice(0,16)+'\ndevice: '+navigator.userAgent.replace(/Mozilla\/5\.0 \(|\).*/g,'').slice(0,60)+
+    '\npreset '+I.q+' · 3D buffer '+I.w+'×'+I.h+' (pixel ratio '+f(I.pr||1,2)+') · anti-aliasing '+(I.ms||0)+'× · compact colour buffer '+(I.r11?'yes':'no')+' · shadow map '+I.sm+' · screen '+I.hz+' Hz · frame rate setting '+I.fps+'\n\nfps   median ms   slow 10% ms   CPU ms   test\n';
+  for(const r of B.res)t+=(f(r[1],0)).padStart(3)+'   '+f(r[2],1).padStart(9)+'   '+f(r[3],1).padStart(11)+'   '+f(r[4],1).padStart(6)+'   '+r[0]+'\n';return t;}
+function benchShow(){const ov=$('benchOv');$('benchText').textContent=benchText();ov.hidden=false;try{store.set('crust-bench',benchText());}catch(e){}}
+function drsMin(){return qKey==='ultraM'||qKey==='ultra'||qKey==='sharp'?.8:qKey==='balanced'?.85:1;}
+function drsTarget(){if(CFG.fps==='60')return 1/60;const hz=Math.max(SCR.hz.win||0,SCR.hz.fs||0,SCR.cur||0);return hz>=100?1/120:hz>=80?1/90:1/60;}
+function drsReset(){const v=+store.get('crust-drs-'+qKey)||1;DRS.s=clamp(Math.round(v*20)/20,drsMin(),1);DRS.acc=DRS.n=DRS.t=DRS.good=DRS.cool=0;DRS.fail={};}
+function drsTick(dt){if(BENCH.on)return;const lo=drsMin();if(lo>=1||LOWQF()||POST.aoW||CFG.post===false||LADV.np||state!=='race'){DRS.acc=DRS.n=DRS.t=0;return;}
+  if(dt<=0||dt>.1)return;DRS.acc+=dt;DRS.n++;DRS.t+=dt;if(DRS.t<.5)return;const avg=DRS.acc/DRS.n,T=drsTarget();DRS.acc=DRS.n=DRS.t=0;if(DRS.cool>0)DRS.cool--;
+  if(avg>T*1.12&&CPUMS<T*1000*.8){if(DRS.s>lo+.001){const k=DRS.s.toFixed(2);DRS.fail[k]=(DRS.fail[k]||0)+1;DRS.s=Math.max(lo,Math.round((DRS.s-.05)*20)/20);DRS.good=0;DRS.cool=2;store.set('crust-drs-'+qKey,String(DRS.s));}}
+  else if(avg<=T*1.05){DRS.good++;const up=Math.min(1,Math.round((DRS.s+.05)*20)/20),f=DRS.fail[up.toFixed(2)]||0;if(DRS.s<1&&!DRS.cool&&DRS.good>=4*(1+Math.min(f,6))){DRS.s=up;DRS.good=0;store.set('crust-drs-'+qKey,String(DRS.s));}}
+  else DRS.good=Math.max(0,DRS.good-1);}
 function scrWhy(fps){if(CFG.fps==='60'&&Math.max(SCR.hz.win,SCR.hz.fs)>70)return ' · held at 60 by the Frame rate setting';
   if(SCR.fs&&SCR.hz.win>=100&&SCR.cur<=65&&CPUMS<6)return ' · full screen runs at 60 Hz here';
   const per=1000/Math.max(30,SCR.hz.win||SCR.cur||60);if(fps<1000/per*.9){if(GPUT&&GPUT.ms>per*.9)return ' · graphics card is the limit';if(CPUMS>per*.75)return ' · processor is the limit';}return '';}
@@ -6429,7 +6753,7 @@ function frame(now){
   else if(state==='intro'){alpha=1;introT+=dt;if(introSkip||introT>=INTRO_SHOT*INTRO_N)endIntro();}
   else if(state==='countdown'){alpha=1;cd-=dt;const n=Math.ceil(cd-.4);if(n!==lastCd&&n>=1&&n<=3){lastCd=n;showBanner(String(n),.9,'md');SFX.count(false);}
     if(cd<=.4){state='race';showBanner('Go!',1,'md');SFX.count(true);acc=0;}standCache=standings();if(NET.role==='host')netHostTick();else if(NET.role==='guest'&&NET.snaps.length)netInterp(player);}
-  if(state!=='paused'){if(garageOpen)renderGarage(dt);else{if(fitPending){fitPending=false;fit();}if(state!=='loading'){gpuT0();render(time,dt);gpuT1();CPUMS=CPUMS*.95+(performance.now()-cw0)*.05;adaptQuality(dt,time);}}}
+  if(state!=='paused'){if(garageOpen)renderGarage(dt);else{if(fitPending){fitPending=false;fit();}if(state!=='loading'){gpuT0();render(time,dt);gpuT1();CPUMS=CPUMS*.95+(performance.now()-cw0)*.05;adaptQuality(dt,time);drsTick(dt);if(BENCH.on)benchFrame(dt);}}}
   hud(dt,time);
   try{musTick();}catch(e){console.warn('music',e);CFG.music=false;}
   if(ac&&eng){const on=!muted&&(state==='race'||state==='countdown')&&!!player;
