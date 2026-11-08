@@ -69,7 +69,7 @@ const lerpA=(a,b,t)=>a+angDiff(b,a)*t;
 function cnv(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
 function shade(hex,amt){const n=parseInt(hex.slice(1),16);let r=n>>16,g=(n>>8)&255,b=n&255;const tg=amt<0?0:255,a=Math.abs(amt);r=Math.round(r+(tg-r)*a);g=Math.round(g+(tg-g)*a);b=Math.round(b+(tg-b)*a);return '#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1);}
 const store={get(k){try{return localStorage.getItem(k);}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,v);}catch(e){}}};
-const CFG_DEF={shadows:true,detail:'normal',fps:'auto',fullscr:true,showfps:false,vol:80,units:'mph',shake:true,mini:true,ghost:true,cam:'close',camd:100,music:true,mvol:45};
+const CFG_DEF={shadows:true,sharpen:true,detail:'normal',fps:'auto',fullscr:true,showfps:false,vol:80,units:'mph',shake:true,mini:true,ghost:true,cam:'close',camd:100,music:true,mvol:45};
 const CFG=Object.assign({},CFG_DEF,(()=>{try{return JSON.parse(store.get('crust-cfg')||'{}')||{};}catch(e){return {};}})());
 if(!CFG.v33){CFG.v33=1;CFG.fps='60';}/* everyone moves to the steady 60 fps default once */
 if(!CFG.v68){CFG.v68=1;if(!matchMedia('(pointer:coarse)').matches)CFG.fps='auto';}/* computers chase their screen's rate (120 Hz and up) */
@@ -218,10 +218,13 @@ const QUAL={/* Lite: for older phones (iPhone 14 and earlier): screen-resolution
   fast:{mp:1.1,cap:1.25,start:1,floor:.85,sm:1024,soft:false,detail:1100,note:'Lower resolution and no glow pass, for the smoothest frame rate on older phones.'},
   balanced:{mp:2.1,cap:1.75,start:1.5,floor:1.0,sm:2048,soft:true,detail:1500,note:'Crisp detail with glow and colour grading at a steady 60 fps. Best for most phones.'},
   ultra:{mp:6.2,cap:2.5,start:2,floor:1.25,sm:6144,sx:150,bloomHalf:true,soft:true,detail:3600,ms:4,hqAll:true,ss:[1,1.25,1.5],lodf:170,streaks:true,note:'For computers: every racer and building in high detail, ambient occlusion, 4× anti-aliasing and the longest view. When your graphics card has room to spare it also renders above screen resolution for extra clarity.'},
+  /* Phones render at most 2x their CSS size on every preset: on a 460 ppi screen that is already past what the eye resolves at arm's
+     length (a 3x phone drawing at 2x shows ~300 ppi of detail), and the 2x anti-aliasing smooths what is left. Drawing the full 3x
+     would cost 2.25x the pixels for no visible gain, which is where the frame rate went on the newest iPhones. */
   /* phone Ultra: the high-detail models, set pieces, surface detail and livery finish of PC Ultra, but tuned for a phone GPU:
      no ambient-occlusion pass, a 4096 shadow map, half-resolution glow, a smaller pixel budget and a shorter view than the PC preset */
-  ultraM:{mp:3.6,cap:2.5,start:2,floor:1.5,sm:4096,sx:125,bloomHalf:true,soft:true,detail:2600,hqAll:true,mob:true,lodf:130,streaks:true,note:'For the newest phones: rounded, high-detail scenery and set pieces, surface detail, richer paint and real reflections on your kart, tuned to hold 60 fps. Sharp stays the safe choice for long sessions.'},
-  sharp:{mp:3.3,cap:2.25,start:2,floor:1.5,sm:4096,soft:true,detail:2100,note:'Highest resolution and the longest scenery distance. Best on newer phones and computers.'}};
+  ultraM:{mp:3.6,cap:2,start:2,floor:1.5,sm:4096,sx:125,bloomHalf:true,soft:true,detail:2600,hqAll:true,mob:true,lodf:130,streaks:true,note:'For the newest phones: rounded, high-detail scenery and set pieces, surface detail, richer paint and real reflections on your kart, tuned to hold 60 fps. Sharp stays the safe choice for long sessions.'},
+  sharp:{mp:3.3,cap:2,start:2,floor:1.5,sm:4096,soft:true,detail:2100,note:'Highest resolution and the longest scenery distance. Best on newer phones and computers.'}};
 /* a browser with graphics acceleration switched off draws WebGL on the processor, which is many times slower */
 const GLR=(()=>{try{const gl=renderer.getContext();const e=gl.getExtension('WEBGL_debug_renderer_info');return String(gl.getParameter(e?e.UNMASKED_RENDERER_WEBGL:gl.RENDERER)||'');}catch(e){return '';}})();
 const SOFTGL=/swiftshader|llvmpipe|softpipe|software|basic render/i.test(GLR);
@@ -5394,7 +5397,7 @@ function togglePause(){if(!results.hidden)return;/* nothing to pause once the re
 $('startBtn').onclick=startFromMenu;$('againBtn').onclick=()=>{if(gp){if(gp.race>=3)startGP();else{gp.race++;goRace(CUP_TRACKS[gp.cup][gp.race]);}}else goRace(mapIdx);};$('restartBtn').onclick=()=>{if(gp)gp.pts.forEach((v,i)=>gp.pts[i]=v);startRace();};
 $('toMenuBtn').onclick=toMenu;$('mpBtn').onclick=()=>netShowLobby();$('mpBadge').onclick=()=>netShowLobby();$('mpClose').onclick=()=>netHideLobby();$('quitBtn').onclick=toMenu;$('resumeBtn').onclick=togglePause;$('pauseBtn').addEventListener('pointerup',e=>{e.preventDefault();togglePause();});
 const setOv=$('setOv'),howOv=$('howOv'),fpsEl=$('fpsEl');let setFrom=null;
-const BOOLK=['shadows','showfps','shake','mini','ghost','music','fullscr'];
+const BOOLK=['shadows','sharpen','showfps','shake','mini','ghost','music','fullscr'];
 const cfgVal=k=>k==='sound'?!muted:k==='stats'?statsOn:CFG[k];
 /* settings are split into tabs; the last one you looked at opens next time */
 let setTabK=(()=>{try{return store.get('crust-settab')||'graphics';}catch(e){return 'graphics';}})();
@@ -5609,11 +5612,17 @@ function postInit(){if(POST.qs)return;POST.qs=new THREE.Scene();POST.qc=new THRE
   POST.M.copy=postMat('uniform sampler2D tex;uniform vec2 us,uc;varying vec2 vUv;vec3 srgb(vec3 c){return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(vec3(.0031308),c));}void main(){gl_FragColor=vec4(srgb(clamp(texture2D(tex,min(vUv*us,uc)).rgb,0.,1.)),1.);}',{tex:{value:null},us:{value:new THREE.Vector2(1,1)},uc:{value:new THREE.Vector2(1,1)}});
   POST.M.bright=postMat('uniform sampler2D tex;uniform float thr;uniform vec2 px,us,uc;varying vec2 vUv;void main(){vec3 c=vec3(0.);for(int i=0;i<4;i++){vec2 o=vec2(i==1||i==3?1.:-1.,i>1?1.:-1.)*px;c+=texture2D(tex,min(vUv*us+o,uc)).rgb;}c*=.25;float l=dot(c,vec3(.2126,.7152,.0722));c*=smoothstep(thr,thr+.02+(1.-thr)*.5,l);gl_FragColor=vec4(min(c,vec3(8.)),1.);}',{tex:{value:null},thr:{value:.85},px:{value:new THREE.Vector2()},us:{value:new THREE.Vector2(1,1)},uc:{value:new THREE.Vector2(1,1)}});
   POST.M.blur=postMat('uniform sampler2D tex;uniform vec2 dir;varying vec2 vUv;void main(){vec3 c=texture2D(tex,vUv).rgb*.227027;c+=(texture2D(tex,vUv+dir*1.3846).rgb+texture2D(tex,vUv-dir*1.3846).rgb)*.316216;c+=(texture2D(tex,vUv+dir*3.2308).rgb+texture2D(tex,vUv-dir*3.2308).rgb)*.070270;gl_FragColor=vec4(c,1.);}',{tex:{value:null},dir:{value:new THREE.Vector2()}});
-  POST.M.final=postMat(`uniform sampler2D tex,b1,b2,aoT;uniform float aoOn;uniform vec2 us,uc;uniform float exposure,bloom,sat,con,vig,aspect,edgeA,spd,tm;uniform vec3 tint,edgeC;varying vec2 vUv;
+  POST.M.final=postMat(`uniform sampler2D tex,b1,b2,aoT;uniform float aoOn;uniform vec2 us,uc;uniform float exposure,bloom,sat,con,vig,aspect,edgeA,spd,tm,shp;uniform vec2 px;uniform vec3 tint,edgeC;varying vec2 vUv;
     vec3 RRT(vec3 v){vec3 a=v*(v+.0245786)-.000090537;vec3 b=v*(.983729*v+.4329510)+.238081;return a/b;}
     vec3 aces(vec3 c){const mat3 I=mat3(.59719,.07600,.02840,.35458,.90834,.13383,.04823,.01566,.83777);const mat3 O=mat3(1.60475,-.10208,-.00327,-.53108,1.10813,-.07276,-.07367,-.00605,1.07602);c*=exposure/.6;c=I*c;c=RRT(c);c=O*c;return clamp(c,0.,1.);}
     vec3 srgb(vec3 c){return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(vec3(.0031308),c));}
-    void main(){vec3 c=texture2D(tex,min(vUv*us,uc)).rgb*(aoOn>.5?texture2D(aoT,vUv).r:1.)+(texture2D(b1,vUv).rgb*.65+texture2D(b2,vUv).rgb*.6)*bloom;c=clamp(c*tint,0.,1.);/* the scene is already tone-mapped by the material shaders; mapping it twice greyed every white */
+    void main(){vec2 suv=min(vUv*us,uc);vec3 c=texture2D(tex,suv).rgb;
+      /* contrast-adaptive sharpening (the trick consoles use with dynamic resolution): when the 3D view was drawn below screen size this
+         frame, pull detail back out of the stretched picture. Each pixel is weighed against its four neighbours; the weight shrinks where
+         the local contrast is already high, so edges don't ring and noise isn't amplified. Zero cost when the view is at full size. */
+      if(shp>.001){vec2 lo=px*.5;vec3 n=texture2D(tex,clamp(suv-vec2(0.,px.y),lo,uc)).rgb,s=texture2D(tex,clamp(suv+vec2(0.,px.y),lo,uc)).rgb,w=texture2D(tex,clamp(suv-vec2(px.x,0.),lo,uc)).rgb,e=texture2D(tex,clamp(suv+vec2(px.x,0.),lo,uc)).rgb;
+        vec3 mn=min(c,min(min(n,s),min(w,e))),mx=max(c,max(max(n,s),max(w,e)));vec3 amp=sqrt(clamp(min(mn,1.-mx)/max(mx,1e-4),0.,1.));vec3 wt=-amp*shp/mix(8.,5.,shp);c=clamp((c+wt*(n+s+w+e))/(1.+4.*wt),0.,1.);}
+      c=c*(aoOn>.5?texture2D(aoT,vUv).r:1.)+(texture2D(b1,vUv).rgb*.65+texture2D(b2,vUv).rgb*.6)*bloom;c=clamp(c*tint,0.,1.);/* the scene is already tone-mapped by the material shaders; mapping it twice greyed every white */
       float l=dot(c,vec3(.2126,.7152,.0722));c=mix(vec3(l),c,sat);c=clamp((c-.5)*con+.5,0.,1.);
       vec2 d=(vUv-.5)*vec2(aspect,1.);c*=1.-vig*smoothstep(.35,1.05,length(d));
   /* screen-edge flash (boost, hit, pickup) drawn here instead of as a blurred page layer */
@@ -5621,7 +5630,7 @@ function postInit(){if(POST.qs)return;POST.qs=new THREE.Scene();POST.qc=new THRE
   /* Ultra: thin speed streaks rushing out from the centre while boosting, kept to the outer frame so the road stays clear */
   if(spd>.001){vec2 q=(vUv-.5)*vec2(aspect,1.);float r=length(q),an=atan(q.y,q.x),ln=floor(an*48.),n=fract(sin(ln*12.9898)*43758.5453),w=1.-abs(fract(an*48.)-.5)*2.;
     float run=fract(r*1.3-tm*(2.6+n*1.6)+n*9.),st=step(.7,n)*smoothstep(.55,1.,w)*smoothstep(0.,.18,run)*(1.-smoothstep(.18,.5,run))*smoothstep(.3,.75,r);c=mix(c,vec3(1.),st*spd*.32);}
-      gl_FragColor=vec4(srgb(c),1.);}`,{tex:{value:null},b1:{value:null},b2:{value:null},exposure:{value:1},bloom:{value:.55},sat:{value:1.08},con:{value:1.06},vig:{value:.28},aspect:{value:1},edgeA:{value:0},spd:{value:0},tm:{value:0},edgeC:{value:new THREE.Color()},tint:{value:new THREE.Vector3(1,1,1)},aoT:{value:null},aoOn:{value:0},us:{value:new THREE.Vector2(1,1)},uc:{value:new THREE.Vector2(1,1)}});
+      gl_FragColor=vec4(srgb(c),1.);}`,{tex:{value:null},b1:{value:null},b2:{value:null},exposure:{value:1},bloom:{value:.55},sat:{value:1.08},con:{value:1.06},vig:{value:.28},aspect:{value:1},edgeA:{value:0},spd:{value:0},tm:{value:0},edgeC:{value:new THREE.Color()},tint:{value:new THREE.Vector3(1,1,1)},aoT:{value:null},aoOn:{value:0},us:{value:new THREE.Vector2(1,1)},uc:{value:new THREE.Vector2(1,1)},shp:{value:0},px:{value:new THREE.Vector2()}});
   /* Ultra: screen-space ambient occlusion from the depth buffer (half resolution, then a depth-aware blur): soft contact shading in every corner and crevice */
   POST.M.ao=postMat(`uniform sampler2D tD;uniform mat4 pM,ipM;uniform vec2 px,asp;uniform float rad,inten;varying vec2 vUv;
     vec3 vp(vec2 uv){float d=texture2D(tD,uv).r;vec4 v=ipM*vec4(uv*2.-1.,d*2.-1.,1.);return v.xyz/v.w;}
@@ -5675,7 +5684,7 @@ function postLite(){postInit();const sz=renderer.getDrawingBufferSize(v2);postSi
   renderer.setRenderTarget(POST.rt);renderer.render(scene,camera);const U=POST.M.copy.uniforms;U.tex.value=POST.rt.texture;U.us.value.set(1,1);U.uc.value.set(1-.5/sz.x,1-.5/sz.y);pass(POST.M.copy,null);}
 function postRender(){postInit();const sz=renderer.getDrawingBufferSize(v2);postSize(sz.x,sz.y);const M=POST.M,G=POST.grade;
   const ds=POST.aoW?1:DRS.s,ws=Math.max(1,Math.round(sz.x*ds)),hs=Math.max(1,Math.round(sz.y*ds));POST.rt.viewport.set(0,0,ws,hs);POST.rt.scissor.set(0,0,ws,hs);POST.rt.scissorTest=ds<.999;
-  const ux=ws/sz.x,uy=hs/sz.y,cx=ux-.5/sz.x,cy=uy-.5/sz.y;M.bright.uniforms.us.value.set(ux,uy);M.bright.uniforms.uc.value.set(cx,cy);M.final.uniforms.us.value.set(ux,uy);M.final.uniforms.uc.value.set(cx,cy);
+  const ux=ws/sz.x,uy=hs/sz.y,cx=ux-.5/sz.x,cy=uy-.5/sz.y;M.bright.uniforms.us.value.set(ux,uy);M.bright.uniforms.uc.value.set(cx,cy);M.final.uniforms.us.value.set(ux,uy);M.final.uniforms.uc.value.set(cx,cy);M.final.uniforms.px.value.set(1/sz.x,1/sz.y);M.final.uniforms.shp.value=CFG.sharpen===false?0:clamp((1-ds)*3.2,0,1);/* 80% size: 0.64 · 70%: 0.96 */
   renderer.setRenderTarget(POST.rt);renderer.render(scene,camera);
   if(POST.aoW&&POST.ao1){const A=M.ao.uniforms;A.tD.value=POST.rt.depthTexture;A.pM.value.copy(camera.projectionMatrix);A.ipM.value.copy(camera.projectionMatrixInverse);A.px.value.set(1/sz.x,1/sz.y);A.asp.value.set(sz.y/sz.x,1);pass(M.ao,POST.ao1);
     const B=M.aob.uniforms;B.tA.value=POST.ao1.texture;B.tD.value=POST.rt.depthTexture;B.ipM.value.copy(camera.projectionMatrixInverse);B.px.value.set(1/POST.ao1.width,1/POST.ao1.height);pass(M.aob,POST.ao2);M.final.uniforms.aoT.value=POST.ao2.texture;M.final.uniforms.aoOn.value=1;}
@@ -6761,7 +6770,7 @@ function benchShow(){const ov=$('benchOv'),pk=BENCH.pickR;$('benchText').textCon
     $('bench120').innerHTML='<b>'+qName(a.pick)+'</b>, frame rate Auto<br>about '+a.got+' fps'+(a.hit?' (120 reached)':' (the closest this device gets to 120)');
     $('bench60').innerHTML='<b>'+qName(b.pick)+'</b>, frame rate 60 fps<br>'+(b.hit?'holds a steady 60 with room to spare':'about '+b.got+' fps, the closest this device gets to 60');
     $('benchChosen').textContent='Your settings are unchanged ('+qName(qKey)+'). Pick one:';$('benchUndo').hidden=true;for(const id of ['benchUse120','benchUse60'])$(id).classList.remove('on');}ov.hidden=false;try{store.set('crust-bench',benchText());}catch(e){}}
-function drsMin(){return qKey==='ultraM'||qKey==='ultra'||qKey==='sharp'?.8:qKey==='balanced'?.85:1;}
+function drsMin(){/* the sharpening pass in the final shader keeps a 70% frame looking crisp, so the dynamic resolution has room to hold 120 fps through busy scenes */return qKey==='ultraM'||qKey==='ultra'||qKey==='sharp'?.7:qKey==='balanced'?.75:1;}
 function drsTarget(){if(CFG.fps==='60')return 1/60;const hz=Math.max(SCR.hz.win||0,SCR.hz.fs||0,SCR.cur||0);return hz>=100?1/120:hz>=80?1/90:1/60;}
 function drsReset(){const v=+store.get('crust-drs-'+qKey)||1;DRS.s=clamp(Math.round(v*20)/20,drsMin(),1);DRS.acc=DRS.n=DRS.t=DRS.good=DRS.cool=0;DRS.fail={};}
 function drsTick(dt){if(BENCH.on)return;const lo=drsMin();if(lo>=1||LOWQF()||POST.aoW||CFG.post===false||LADV.np||state!=='race'){DRS.acc=DRS.n=DRS.t=0;return;}
