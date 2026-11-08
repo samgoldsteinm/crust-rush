@@ -674,6 +674,7 @@ body.padnav :focus{outline:3px solid var(--cheese)!important;outline-offset:3px}
 .mp-name input,.mp-join input{flex:1;min-width:0;padding:12px 14px;border-radius:12px;border:2px solid rgba(255,244,220,.25);background:rgba(0,0,0,.3);color:#fff4dc;font:700 16px system-ui,sans-serif}
 .mp-join input{text-transform:uppercase;letter-spacing:.3em;font-family:var(--display);font-size:22px;text-align:center;max-width:9em}
 .mp-choices{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+.mp-choices button:disabled{opacity:.45;cursor:default;filter:saturate(.4)}
 .mp-choices>*{flex:1 1 200px}
 .mp-join{display:flex;gap:8px}
 .mp-code{display:flex;flex-direction:column;align-items:center;margin:8px 0 4px;font-weight:700;opacity:.9}

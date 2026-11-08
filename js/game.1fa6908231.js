@@ -5030,7 +5030,7 @@ let _abSetup=false;function startRace(){if(!_abSetup){_abSetup=true;setupAbility
   buildProg();ghostStart();{const r=loadRecs()[recKey()],e=$('hudPB');if(e){e.hidden=!r;if(r)e.textContent='Best '+fmt(r.t);}}lastPos=lastLap=lastItem=lastTimeStr='';lastSpd=-1;hud.ch=-1;hud.bst=null;hud.dr=null;banner.textContent='';hintShown=false;itemQueued=null;}
 const paint=()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
 let raceLoading=false;
-async function goRace(mi){if(raceLoading)return;if(NET.role&&!NET.fromNet){if(NET.role==='host'&&NET.conns.some(c=>c.open)){netHostStart(mi);return;}if(NET.role==='guest'){netShowLobby();return;}}NET.fromNet=false;if(!NET.role||!NET.conns.some(c=>c.open))NET.cfg=null;raceLoading=true;const rev=!!CLASSES[clsKey].rev,L=$('raceLd'),bar=$('rlBar'),txt=$('rlTxt'),m=MAPS[mi];
+async function goRace(mi){if(raceLoading)return;if(NET.role&&!NET.fromNet){if(NET.role==='host'&&NET.conns.some(c=>c.open)){netHostPrepare(mi);return;}if(NET.role==='guest'){netShowLobby();return;}}NET.fromNet=false;if(!NET.role||!NET.conns.some(c=>c.open))NET.cfg=null;raceLoading=true;const rev=!!CLASSES[clsKey].rev,L=$('raceLd'),bar=$('rlBar'),txt=$('rlTxt'),m=MAPS[mi];
   const step=async(p,t)=>{bar.style.width=p+'%';if(t)txt.textContent=t;await paint();};
   try{$('rlBg').style.backgroundImage=MAP_SHOTS[m.id]?'url('+shotURL(m.id,'h')+')':'';$('rlName').textContent=m.name;$('rlSub').textContent=(gp?CUPS[gp.cup].name+' · race '+(gp.race+1)+' of 4':'Single race')+' · '+CLASSES[clsKey].label;
     L.classList.remove('out');L.hidden=false;state='loading';await step(8,'Rolling out the dough…');
@@ -5861,7 +5861,7 @@ async function netHost(){rtcIce();netReset();NET.role='host';NET.me=0;const R=ne
     c.on('data',d=>netOnHost(c,d));c.on('close',()=>netDrop(c));netLobbySync();};
   netDirectHost(code);netBadge();}
 function netErr(e){const t=e&&e.type;return t==='peer-unavailable'?'No room with that code. Check the code and try again.':t==='network'||t==='server-error'||t==='socket-error'?'Could not reach the matchmaking server. Check your connection.':t==='browser-incompatible'?'This browser does not support multiplayer.':(e&&e.message)||'Connection failed.';}
-function netLobbySync(){const pl=NET.pl.map(p=>({id:p.id,name:p.name,ready:p.ready,ri:p.ri}));for(const c of NET.conns)netSend(c,{t:'lobby',pl,you:c._id,code:NET.code});netLobbyRender();netBadge();}
+function netLobbySync(){const pl=NET.pl.map(p=>({id:p.id,name:p.name,ready:p.ready,ri:p.ri}));const tk=NET.pendMap!=null&&MAPS[NET.pendMap]?MAPS[NET.pendMap].name:null;for(const c of NET.conns)netSend(c,{t:'lobby',pl,you:c._id,code:NET.code,tk});netLobbyRender();netBadge();}
 function netDrop(c){const i=NET.conns.indexOf(c);if(i<0)return;NET.conns.splice(i,1);const p=NET.pl.findIndex(q=>q.id===c._id);const nm=p>=0?NET.pl[p].name:'A racer';if(p>=0)NET.pl.splice(p,1);
   /* a friend who drops mid-race hands their kart to the computer */
   for(const k of karts)if(k.netId===c._id){k.netId=null;k.auto=true;}
@@ -5884,6 +5884,11 @@ function netBuildCfg(mi){const pl=NET.pl.filter(p=>p.id===0||p.conn&&p.conn.open
   const ks=[];const taken=new Set();pl.forEach((p,i)=>{const slot=NET_SLOTS[i];taken.add(slot);ks.push({slot,ri:p.id===0?selected:p.ri,build:p.id===0?playerBuild:(p.build||randomBuild(p.ri)),who:p.id,name:p.name});});
   for(let s=0;s<8;s++){if(taken.has(s))continue;const ri=others.shift()??(s%RACERS.length);ks.push({slot:s,ri,build:cpuBuilds[ri]||randomBuild(ri),who:-1});}
   ks.sort((a,b)=>a.slot-b.slot);return {mi,cls:clsKey,mode,gp:gp?JSON.parse(JSON.stringify(gp)):null,karts:ks};}
+/* the host has chosen the track: wait in the lobby until every friend is ready (they finish in the garage at their own pace) */
+function netHostPrepare(mi){NET.pendMap=mi;NET.pendAt=performance.now();NET.pl[0].ri=selected;NET.pl[0].build=playerBuild;netLobbySync();netShowLobby();
+  clearInterval(NET.pendTick);NET.pendTick=setInterval(()=>{if(NET.pendMap==null||!mpOv||mpOv.hidden){clearInterval(NET.pendTick);return;}netLobbyRender();},1000);}
+function netAllReady(){const open=new Set(NET.conns.filter(c=>c.open).map(c=>c._id));return NET.pl.filter(p=>p.id!==0&&open.has(p.id)).every(p=>p.ready);}
+function netHostGo(){const mi=NET.pendMap;if(mi==null)return;NET.pendMap=null;clearInterval(NET.pendTick);netHideLobby();netLobbySync();netHostStart(mi);}
 function netHostStart(mi){if(!cpuBuilds||!cpuBuilds.length)cpuBuilds=RACERS.map(randomBuild);NET.pl[0].ri=selected;NET.pl[0].build=playerBuild;const cfg=netBuildCfg(mi);cfg.id=netRid();NET.loaded=new Set();netAll({t:'load',cfg});netBeginLoad(cfg);}
 function netMaybeGo(){if(NET.role!=='host'||state!=='netwait')return;const open=NET.conns.filter(c=>c.open),need=open.map(c=>c._id);if(!(need.every(id=>NET.loaded.has(id))&&NET.loaded.has(0)))return;
   /* everyone has the track loaded: give the direct links up to 8 s more so the race starts on the fast connection, not the relay */
@@ -5899,7 +5904,7 @@ async function netJoin(code){rtcIce();code=String(code||'').trim().toUpperCase()
   netSend(c,{t:'hello',name:netName(),v:NET_PROTO});netSendPick(false);netBadge();rtcGuestStart(c);setTimeout(()=>{if(c.open&&!c.direct)netDirectGuest(code,c);},6000);}
 function netSendPick(ready){if(NET.role!=='guest')return;NET.ready=!!ready;netSend(NET.conns[0],{t:'pick',ri:selected,build:playerBuild,ready:!!ready});netLobbyRender();}
 function netOnGuest(d){if(!d||!d.t)return;NET.lastRecv=performance.now();
-  if(d.t==='lobby'){NET.pl=d.pl;NET.me=d.you;NET.code=d.code;netLobbyRender();netBadge();}
+  if(d.t==='lobby'){NET.pl=d.pl;NET.me=d.you;NET.code=d.code;NET.hostTk=d.tk||null;netLobbyRender();netBadge();}
   else if(d.t==='full'){netLost(d.why||'This room is full.');}
   else if(d.t==='load'){if(!(NET.cfg&&d.cfg.id&&NET.cfg.id===d.cfg.id))netBeginLoad(d.cfg);}
   else if(d.t==='go'){netGo();}
@@ -6068,14 +6073,18 @@ function netLobbyRender(msg){if(!mpOv)mpOv=$('mpOv');if(!mpOv)return;const box=$
     $('mpHost').onclick=async()=>{box.innerHTML='<p class="mp-lead">Creating a room…</p>';try{await netHost();netLobbyRender();}catch(e){netReset();netLobbyRender(e.message==='Cancelled.'?'':e.message);}};
     $('mpJoin').onclick=async()=>{const code=$('mpCode').value;box.innerHTML='<p class="mp-lead">Looking for room <b>'+esc(code.toUpperCase())+'</b>… This can take a few seconds.</p><div class="mp-choices"><button id="mpCancel" class="ghost">Cancel</button></div>';$('mpCancel').onclick=()=>{netReset();netLobbyRender();};try{await netJoin(code);netLobbyRender();}catch(e){netReset();netLobbyRender(e.message==='Cancelled.'?'':e.message);}};
     return;}
-  const list='<ul class="mp-list">'+NET.pl.map(p=>'<li><span class="mp-dot'+(p.ready?' on':'')+'"></span><b>'+esc(p.name)+'</b>'+(p.id===0?'<i>host</i>':p.id===NET.me&&NET.role==='guest'?'<i>you</i>':'')+'<em>'+(p.id===0?'picks the track':p.ready?'ready':'choosing')+'</em></li>').join('')+'</ul>';
+  const hTk=NET.role==='host'?(NET.pendMap!=null?MAPS[NET.pendMap].name:null):NET.hostTk;const list='<ul class="mp-list">'+NET.pl.map(p=>'<li><span class="mp-dot'+((p.id===0?!!hTk:p.ready)?' on':'')+'"></span><b>'+esc(p.name)+'</b>'+(p.id===0?'<i>host</i>':p.id===NET.me&&NET.role==='guest'?'<i>you</i>':'')+'<em>'+(p.id===0?(hTk?'ready · '+esc(hTk):'picks the track'):p.ready?'ready':'in the garage')+'</em></li>').join('')+'</ul>';
+  if(NET.role==='host'&&NET.pendMap!=null){const all=netAllReady(),wait=Math.round((performance.now()-NET.pendAt)/1000),n=NET.pl.filter(p=>p.id!==0&&!p.ready).length;
+    box.innerHTML=err+'<p class="mp-code">Room code<b>'+esc(NET.code)+'</b></p>'+list+'<p class="mp-lead">Track: <b>'+esc(MAPS[NET.pendMap].name)+'</b>. '+(all?'Everyone is ready.':'Waiting for '+n+' friend'+(n===1?'':'s')+' to finish in the garage and tap <b>Ready</b>.')+'</p>'+
+      '<div class="mp-choices"><button id="mpStart" class="cta"'+(all?'':' disabled')+'>Start race ›</button><button id="mpChangeH" class="ghost">Change driver or track</button>'+(!all&&wait>=45?'<button id="mpForce" class="ghost">Start without waiting</button>':'')+'</div>';
+    $('mpStart').onclick=()=>{if(netAllReady())netHostGo();};$('mpChangeH').onclick=()=>{NET.pendMap=null;clearInterval(NET.pendTick);netLobbySync();netHideLobby();goStep('driver');};if($('mpForce'))$('mpForce').onclick=netHostGo;return;}
   if(NET.role==='host'){box.innerHTML=err+'<p class="mp-code">Room code<b>'+esc(NET.code)+'</b></p>'+list+
       '<p class="mp-lead">Friends open Crust Rush, tap <b>Play with friends</b> and enter the code. When everyone shows <b>ready</b>, choose your driver, kart and track and start the race. Up to 4 racers; the computer fills the other spots.</p><p class="mp-lead"><b>Keep this screen open</b> until everyone has joined. If you switch apps to send the code, come straight back.</p>'+'<p class="mp-lead mp-q">During the race a badge shows your connection: <b style="color:#2fbf5f">Best</b> straight between devices · <b style="color:#8fbf2f">Good</b> through the TURN server · <b style="color:#d99a12">Fair</b> backup relay · <b style="color:#e0412f">Poor</b> high lag.</p>'+
       '<div class="mp-choices"><button id="mpGo" class="cta">Choose driver and track ›</button><button id="mpLeave" class="ghost">Close room</button></div>';
     $('mpGo').onclick=()=>{netHideLobby();goStep('driver');};$('mpLeave').onclick=()=>{netLeave();netLobbyRender();};}
   else{box.innerHTML=err+'<p class="mp-code">Joined room<b>'+esc(NET.code)+'</b></p>'+list+'<p class="mp-lead mp-q">During the race a badge shows your connection: <b style="color:#2fbf5f">Best</b> straight between devices · <b style="color:#8fbf2f">Good</b> through the TURN server · <b style="color:#d99a12">Fair</b> backup relay · <b style="color:#e0412f">Poor</b> high lag.</p>'+
-      (NET.ready?'<p class="mp-lead">You are ready. Waiting for the host to start the race…</p><div class="mp-choices"><button id="mpChange" class="ghost">Change driver or kart</button><button id="mpLeave" class="ghost">Leave room</button></div>'
-        :'<p class="mp-lead">Choose your driver and kart, then tap <b>Ready</b> in the garage. The host picks the track.</p><div class="mp-choices"><button id="mpGo" class="cta">Choose driver ›</button><button id="mpLeave" class="ghost">Leave room</button></div>');
+      (NET.ready?'<p class="mp-lead">You are ready. '+(NET.hostTk?'Track: <b>'+esc(NET.hostTk)+'</b>. The race starts when everyone is ready and the host taps Start.':'Waiting for the host to pick the track…')+'</p><div class="mp-choices"><button id="mpChange" class="ghost">Change driver or kart</button><button id="mpLeave" class="ghost">Leave room</button></div>'
+        :'<p class="mp-lead">Choose your driver and kart, then tap <b>Ready</b> in the garage. '+(NET.hostTk?'The host has picked <b>'+esc(NET.hostTk)+'</b> and is waiting for you.':'The host picks the track.')+'</p><div class="mp-choices"><button id="mpGo" class="cta">Choose driver ›</button><button id="mpLeave" class="ghost">Leave room</button></div>');
     if($('mpGo'))$('mpGo').onclick=()=>{netHideLobby();goStep('driver');};if($('mpChange'))$('mpChange').onclick=()=>{netSendPick(false);netHideLobby();goStep('driver');};$('mpLeave').onclick=()=>{netLeave();netLobbyRender();};}}
 function softGlNote(){if(!SOFTGL||softGlNote.done)return;softGlNote.done=true;const d=document.createElement('div');d.className='softgl';d.setAttribute('role','status');
   d.innerHTML='<b>Graphics acceleration is off in this browser.</b> The game is being drawn without your graphics card, so it will be slow. In Chrome or Edge open Settings → System, turn on <b>Use graphics acceleration when available</b>, then restart the browser.<button aria-label="Close">×</button>';
