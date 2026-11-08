@@ -210,7 +210,10 @@ let renderer;
 const Q0=(()=>{try{return store.get('crust-q')||(matchMedia('(pointer:coarse)').matches?'balanced':'ultra');}catch(e){return 'balanced';}})();
 try{renderer=new THREE.WebGLRenderer({canvas:cvs,antialias:Q0==='fast'||CFG.post===false,powerPreference:'high-performance',stencil:false});renderer.shadowMap.enabled=CFG.shadows!==false;}
 catch(e){fail('This device could not start 3D graphics (WebGL).');return;}
-const QUAL={fast:{mp:1.1,cap:1.25,start:1,floor:.85,sm:1024,soft:false,detail:1100,note:'Lower resolution and no glow pass, for the smoothest frame rate on older phones.'},
+const QUAL={/* Lite: for older phones (iPhone 14 and earlier): screen-resolution or below, no glow pass, a small shadow map refreshed every third
+     frame, no scenery shadows, a short scenery distance and half the small spark and smoke particles. Visual only: the race is identical. */
+  lite:{mp:.75,cap:1,start:1,floor:.7,sm:512,sx:95,soft:false,detail:750,lite:true,shEvery:3,note:'Built to hold 60 fps on older phones (iPhone 14 and earlier): lower resolution, no glow, light shadows, shorter scenery distance and fewer particles.'},
+  fast:{mp:1.1,cap:1.25,start:1,floor:.85,sm:1024,soft:false,detail:1100,note:'Lower resolution and no glow pass, for the smoothest frame rate on older phones.'},
   balanced:{mp:2.1,cap:1.75,start:1.5,floor:1.0,sm:2048,soft:true,detail:1500,note:'Crisp detail with glow and colour grading at a steady 60 fps. Best for most phones.'},
   ultra:{mp:6.2,cap:2.5,start:2,floor:1.25,sm:6144,sx:150,bloomHalf:true,soft:true,detail:3600,ms:4,hqAll:true,ss:[1,1.25,1.5],lodf:170,streaks:true,note:'For computers: every racer and building in high detail, ambient occlusion, 4× anti-aliasing and the longest view. When your graphics card has room to spare it also renders above screen resolution for extra clarity.'},
   /* phone Ultra: the high-detail models, set pieces, surface detail and livery finish of PC Ultra, but tuned for a phone GPU:
@@ -221,7 +224,7 @@ const QUAL={fast:{mp:1.1,cap:1.25,start:1,floor:.85,sm:1024,soft:false,detail:11
 const GLR=(()=>{try{const gl=renderer.getContext();const e=gl.getExtension('WEBGL_debug_renderer_info');return String(gl.getParameter(e?e.UNMASKED_RENDERER_WEBGL:gl.RENDERER)||'');}catch(e){return '';}})();
 const SOFTGL=/swiftshader|llvmpipe|softpipe|software|basic render/i.test(GLR);
 let qKey=store.get('crust-q')||(SOFTGL?'fast':COARSE?'balanced':'ultra');if(qKey==='ultraM'&&!COARSE)qKey='ultra';/* a phone's Ultra on a computer becomes the computer's Ultra */if(!QUAL[qKey]||qKey==='ultra'&&COARSE)qKey='balanced';
-const DPR=window.devicePixelRatio||1;let pr=Math.min(DPR,QUAL[qKey].start),capPR=Math.min(DPR,QUAL[qKey].cap);
+const LOWQF=()=>qKey==='fast'||qKey==='lite';const DPR=window.devicePixelRatio||1;let pr=Math.min(DPR,QUAL[qKey].start),capPR=Math.min(DPR,QUAL[qKey].cap);
 renderer.setPixelRatio(pr);
 renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=QUAL[qKey].soft?THREE.PCFSoftShadowMap:THREE.PCFShadowMap;
@@ -374,7 +377,7 @@ function roadMaterial(id,dark){const sd=ROAD_SURF[id],p=paintSurf(id,dark);
   for(const t of [map,nm,rm]){t.wrapS=THREE.ClampToEdgeWrapping;t.wrapT=THREE.RepeatWrapping;}
   const o={map,normalMap:nm,normalScale:new THREE.Vector2(sd.ns,sd.ns),roughnessMap:rm,roughness:Math.min(1,sd.rough*1.6),metalness:0,envMapIntensity:id==='ice'||id==='marble'?.7:.5,vertexColors:true};
   const m=sd.phys?new THREE.MeshPhysicalMaterial(Object.assign(o,{clearcoat:id==='ice'?.6:.5,clearcoatRoughness:id==='ice'?.08:.12})):new THREE.MeshStandardMaterial(o);
-  if(qKey==='fast'){m.normalMap=null;}else grainify(m,sd.grain,3.0);
+  if(LOWQF()){m.normalMap=null;}else grainify(m,sd.grain,3.0);
   /* Ultra: fade the paving's fine relief with distance. Cobbles and planks otherwise turn into a shimmering high-frequency
      pattern far down the road; near the kart the full relief stays */
   if(QUAL[qKey].hqAll&&m.normalMap){const g0=m.onBeforeCompile,k0=m.customProgramCacheKey();m.onBeforeCompile=sh=>{g0(sh);sh.fragmentShader=sh.fragmentShader.replace('vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;','vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;mapN.xy*=mix(1.,.3,smoothstep(90.,700.,length(vViewPosition)));');};m.customProgramCacheKey=()=>k0+'|rdHQ';}
@@ -1948,7 +1951,7 @@ function setMid(m,on){if(m.midOn===on)return;m.midOn=on;m.mid.visible=on;for(con
 function pruneModels(keep){if(modelCache.size<=22)return;for(const [k,m] of modelCache){if(keep.has(m))continue;scene.remove(m.g);disposeModel(m);modelCache.delete(k);if(modelCache.size<=14)break;}}
 
 /* ================= PARTICLES ================= */
-function particleSystem(max,blending,tex){
+function particleSystem(max,blending,tex){particleSystem.sk=particleSystem.sk||0;
   const geo=new THREE.BufferGeometry(),pos=new Float32Array(max*3),col=new Float32Array(max*3),size=new Float32Array(max),alpha=new Float32Array(max);
   geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.setAttribute('pcolor',new THREE.BufferAttribute(col,3));geo.setAttribute('psize',new THREE.BufferAttribute(size,1));geo.setAttribute('palpha',new THREE.BufferAttribute(alpha,1));
   const mat=new THREE.ShaderMaterial({uniforms:{map:{value:T2(tex)},scale:{value:400},maxPt:{value:64}},transparent:true,depthWrite:false,blending,
@@ -1957,7 +1960,7 @@ function particleSystem(max,blending,tex){
   const pts=new THREE.Points(geo,mat);pts.frustumCulled=false;pts.renderOrder=5;scene.add(pts);
   const P=[];for(let i=0;i<max;i++)P.push({l:0,ml:1,x:0,y:0,z:0,vx:0,vy:0,vz:0,s0:1,s1:1,r:1,g:1,b:1,gr:0,dr:0});
   let next=0;const tc=new THREE.Color();
-  return {mat,spawn(x,y,z,vx,vy,vz,color,s0,s1,life,grav,drag){const p=P[next];next=(next+1)%max;p.x=x;p.y=y;p.z=z;p.vx=vx;p.vy=vy;p.vz=vz;tc.set(color);p.r=tc.r;p.g=tc.g;p.b=tc.b;p.s0=s0;p.s1=s1;p.l=p.ml=life;p.gr=grav||0;p.dr=drag||0;},
+  return {mat,spawn(x,y,z,vx,vy,vz,color,s0,s1,life,grav,drag){if(qKey==='lite'&&s0<6&&(++particleSystem.sk&1))return;/* Lite: every other small spark or puff */const p=P[next];next=(next+1)%max;p.x=x;p.y=y;p.z=z;p.vx=vx;p.vy=vy;p.vz=vz;tc.set(color);p.r=tc.r;p.g=tc.g;p.b=tc.b;p.s0=s0;p.s1=s1;p.l=p.ml=life;p.gr=grav||0;p.dr=drag||0;},
     clear(){for(const p of P)p.l=0;},
     update(dt){for(let i=0;i<max;i++){const p=P[i];if(p.l<=0){alpha[i]=0;continue;}p.l-=dt;const k=Math.max(0,1-p.dr*dt);p.vx*=k;p.vy=p.vy*k-p.gr*dt;p.vz*=k;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;
       const f=Math.max(0,p.l/p.ml);pos[i*3]=p.x;pos[i*3+1]=p.y;pos[i*3+2]=p.z;col[i*3]=p.r;col[i*3+1]=p.g;col[i*3+2]=p.b;size[i]=p.s1+(p.s0-p.s1)*f;alpha[i]=Math.min(1,f*1.6);}
@@ -3414,7 +3417,7 @@ function dbFlush(){const mat=new THREE.MeshStandardMaterial({vertexColors:true,r
     detailChunks.push({x:cx,z:cz,ms,vis:true});}
   DBK=null;let acc3=0;
   animators.push((t,dt)=>{acc3+=dt;if(acc3<.2)return;acc3=0;const D=(QUAL[qKey].detail||1500)*({near:.65,normal:1,far:1.5}[CFG.detail]||1)*(LADV.det?.8:1)+DCELL*.7,cx=camera.position.x,cz=camera.position.z;
-    const sh=qKey!=='fast';for(const ch of detailChunks){const d2=(ch.x-cx)**2+(ch.z-cz)**2,v=ch.vis?d2<(D*1.08)**2:d2<D*D;if(v!==ch.vis||ch.sh!==sh){ch.vis=v;ch.sh=sh;for(const m of ch.ms){m.visible=v;if(m.receiveShadow)m.castShadow=sh;}}}});}
+    const sh=!LOWQF();for(const ch of detailChunks){const d2=(ch.x-cx)**2+(ch.z-cz)**2,v=ch.vis?d2<(D*1.08)**2:d2<D*D;if(v!==ch.vis||ch.sh!==sh){ch.vis=v;ch.sh=sh;for(const m of ch.ms){m.visible=v;if(m.receiveShadow)m.castShadow=sh;}}}});}
 /* a palm frond: a tapering blade that arches out and droops, folded along its midrib */
 function hqFrond(L,W,droop){const n=16,pos=[],idx=[];for(let i=0;i<=n;i++){const t=i/n,x=t*L,y=-droop*t*t+.9*t,w=W*Math.sin(Math.PI*Math.pow(t,.62))*(1-t*.25),fold=.35*w;
     pos.push(x,y+fold,-w,x,y,0,x,y+fold,w);}for(let i=0;i<n;i++){const a=i*3;idx.push(a,a+3,a+1,a+1,a+3,a+4,a+1,a+4,a+2,a+2,a+4,a+5);}
@@ -4509,7 +4512,7 @@ let abilBtn=null,abilQueued=false;
 function abilReset(){for(const k of karts){k.abC=0;k.abWait=null;}abilQueued=false;if(abilBtn){abilBtn._c=-1;abilBtn.classList.remove('ready');abilBtn.style.setProperty('--ab','0%');}}
 /* edge flash lives in the post-process pass: a page layer with a 70px inset blur made iPhones re-blur the whole screen every frame of every boost and hit */
 const EDGE={t0:-1e9,dur:300,a:0,c:new THREE.Color()};
-function edgeFx(col,soft){if(qKey==='fast'||!POST.M){return;}EDGE.c.set(col).convertSRGBToLinear();EDGE.a=soft?.5:.8;EDGE.dur=300;EDGE.t0=performance.now();}
+function edgeFx(col,soft){if(LOWQF()||!POST.M){return;}EDGE.c.set(col).convertSRGBToLinear();EDGE.a=soft?.5:.8;EDGE.dur=300;EDGE.t0=performance.now();}
 function slotPing(cls){for(const id of ['itemBtn','itemBtn2']){const b=$(id);if(!b)continue;b.classList.remove(cls);void b.offsetWidth;b.classList.add(cls);setTimeout(()=>b.classList.remove(cls),700);}}
 function abilFlash(col){const e=document.createElement('div');e.className='abilfx';e.style.setProperty('--c',col);stage.appendChild(e);setTimeout(()=>e.remove(),900);}
 function setupAbilityHud(){abilBtn=document.getElementById('abilBtn');if(!abilBtn)return;
@@ -4976,8 +4979,8 @@ function render(time,dt){
   for(const an of animators)an(time,dt);
   FXA.update(dt);FXN.update(dt);updRings(dt);
   const bh=renderer.getDrawingBufferSize(v2).y,sc=bh/(2*Math.tan(camera.fov*Math.PI/360));FXA.mat.uniforms.scale.value=sc;FXN.mat.uniforms.scale.value=sc;FXA.mat.uniforms.maxPt.value=FXN.mat.uniforms.maxPt.value=Math.max(28,bh*.12);
-  render.n=(render.n||0)+1;renderer.shadowMap.needsUpdate=qKey!=='fast'||render.n%2===0;/* half-rate shadows made moving shadows judder */
-  if(qKey!=='fast'&&CFG.post!==false&&!LADV.np){try{postRender();}catch(e){console.warn('post',e);CFG.post=false;renderer.setRenderTarget(null);renderer.render(scene,camera);}}else renderer.render(scene,camera);
+  render.n=(render.n||0)+1;renderer.shadowMap.needsUpdate=!LOWQF()||render.n%(QUAL[qKey].shEvery||2)===0;/* half-rate shadows made moving shadows judder */
+  if(!LOWQF()&&CFG.post!==false&&!LADV.np){try{postRender();}catch(e){console.warn('post',e);CFG.post=false;renderer.setRenderTarget(null);renderer.render(scene,camera);}}else renderer.render(scene,camera);
 }
 
 /* ================= HUD ================= */
@@ -5041,7 +5044,7 @@ async function goRace(mi){if(raceLoading)return;if(NET.role&&!NET.fromNet){if(NE
     /* draw a few real frames at full size so every shader, texture, shadow and glow buffer is ready before the lights */
     try{const wg=new THREE.Group();for(const kk of ITEM_KEYS){try{const o=itemProto(kk);if(o)wg.add(o.clone());}catch(e){}}scene.add(wg);renderer.compile(scene,camera);scene.remove(wg);}catch(e){}
     try{mergeWorld();}catch(e){console.warn('merge',e);}try{HQS.apply();}catch(e){console.warn('hq',e);}try{envProbe();}catch(e){}warmScene();
-    fit();for(let i=0;i<3;i++){render(0,1/60);renderer.shadowMap.needsUpdate=true;try{if(qKey!=='fast')postRender();else{renderer.setRenderTarget(null);renderer.render(scene,camera);}}catch(e){}await paint();}
+    fit();for(let i=0;i<3;i++){render(0,1/60);renderer.shadowMap.needsUpdate=true;try{if(!LOWQF())postRender();else{renderer.setRenderTarget(null);renderer.render(scene,camera);}}catch(e){}await paint();}
     await step(100,'Ready!');}catch(e){console.warn('race load',e);}
   perfSum=perfN=perfT=0;slowN=fastN=0;abilityHudFor(selected);if(NET.cfg)netLoaded();else startIntro();last=performance.now();acc=0;
   L.classList.add('out');setTimeout(()=>{L.hidden=true;},320);raceLoading=false;}
