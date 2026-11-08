@@ -5957,7 +5957,12 @@ function rtcWrapF(dc,ch){const w={get open(){return dc.readyState==='open';},get
 function rtcGather(pc,ms){return new Promise(res=>{if(pc.iceGatheringState==='complete')return res();const t0=performance.now();let done=false,early=null;const fin=()=>{if(done)return;done=true;clearTimeout(to);clearTimeout(early);res();};const to=setTimeout(fin,ms);
   pc.addEventListener('icegatheringstatechange',()=>{if(pc.iceGatheringState==='complete')fin();});
   pc.addEventListener('icecandidate',e=>{const c=e.candidate&&e.candidate.candidate||'';if(!c)return;const el=performance.now()-t0;
-    if(/ typ relay/.test(c)){clearTimeout(early);early=setTimeout(fin,Math.max(0,400-el));}else if(/ typ srflx/.test(c)&&!early){early=setTimeout(fin,Math.max(0,1500-el));}});});}
+    /* the public-address (srflx) route is what lets two different networks link directly, so it is always waited for; a TURN route
+       alone no longer ends the wait early (that used to send offers with only TURN in them, so the race went through the relay) */
+    if(/ typ srflx/.test(c))pc._sx=true;if(/ typ relay/.test(c))pc._rl=true;
+    if(pc._sx&&pc._rl){clearTimeout(early);early=setTimeout(fin,Math.max(0,500-el,250));}
+    else if(pc._sx&&!early){early=setTimeout(fin,Math.max(0,1600-el));}
+    else if(pc._rl&&!early){early=setTimeout(fin,Math.max(0,1800-el));}});});}
 function rtcGuestStart(ch){if(!window.RTCPeerConnection||!ch.open)return;ch.rtcN=0;ch.rtcSt='connecting';
   const attempt=()=>{if(!ch.open||ch.direct)return;const pc0=ch.pc;
     if(pc0&&pc0.signalingState==='stable'&&/connecting|new|checking/.test(pc0.connectionState||pc0.iceConnectionState)&&performance.now()-(ch.rtcT||0)<14000){setTimeout(attempt,2000);return;}/* answered and still finding a route: give it time */
