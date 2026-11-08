@@ -5129,7 +5129,7 @@ const brkEls=[$('brakeL'),$('brakeR')],hitfx=$('hitfx'),slot2El=$('slot2'),frost
 const suf=n=>n===1?'st':n===2?'nd':n===3?'rd':'th';
 const fmt=t=>{const m=Math.floor(t/60),s=t-m*60;return m+':'+(s<10?'0':'')+s.toFixed(2);};
 function showBanner(txt,dur,sm){banner.textContent=txt;banner.classList.toggle('sm',sm===true||sm==='sm');banner.classList.toggle('md',sm==='md');banner.classList.remove('pop');void banner.offsetWidth;banner.classList.add('pop');bannerT=dur;}
-function hud(dt,time){try{tdTick();}catch(e){}
+function hud(dt,time){try{tdTick();}catch(e){}if(BENCH.pending){if(state==='intro')introSkip=true;if(state==='race'){const n=performance.now();if(!BENCH.pt)BENCH.pt=n;else if(n-BENCH.pt>1500){BENCH.pending=false;BENCH.pt=0;if(benchStart())showBanner('Graphics test: hands off for 35 s',1.6,'sm');}}else if(state==='menu'&&BENCH.pt===0&&!raceLoading)BENCH.pending=false;}
   if(bannerT>0){bannerT-=dt;if(bannerT<=0)banner.textContent='';}
   if(!player)return;hud.pf=(hud.pf||0)+1;if(hud.pf%3===0)for(const k of karts){if(!k.pm)continue;const f=Math.max(0,Math.min(1,(k.finished?LAPS*N:k.prog)/(LAPS*N)));const v=(f*100).toFixed(1);if(k.pm._v!==v){k.pm._v=v;k.pm.style.left='calc(8px + (100% - 16px)*'+f.toFixed(4)+')';}}
   const pos=standCache.indexOf(player)+1;if(pos&&String(pos)!==lastPos){lastPos=String(pos);posNum.textContent=pos;posSuf.textContent=suf(pos);}
@@ -5358,10 +5358,15 @@ function specCamera(dt){const k=camT,kx=k.rx,ky=k.ry,kz=k.rz||0,sn=SPEC.snap;SPE
     camera.position.copy(SPEC.bp);camera.lookAt(kx+Math.cos(f)*10,kz,ky+Math.sin(f)*10);/* racer just below the middle, the road ahead and the pack around in view */if(Math.abs(camera.fov-58)>.1){camera.fov=58;camera.updateProjectionMatrix();}}}
 [['tdTake',()=>tdPick(true)],['tdSkip',()=>tdPick(false)]].forEach(([id,f])=>{const el=$(id);el.addEventListener('pointerdown',e=>{e.stopPropagation();});el.addEventListener('pointerup',e=>{e.preventDefault();e.stopPropagation();f();});el.addEventListener('click',e=>{if(e.detail===0)f();});});
 addEventListener('keydown',e=>{if(!TD.on||state!=='race'||$('tdBar').hidden)return;if(e.code==='KeyY'){tdPick(true);}else if(e.code==='KeyN'){tdPick(false);}});
-$('benchBtn').onclick=()=>{const inRace=(state==='paused'&&pauseOv._prev==='race')||(NET.cfg&&state==='race');
-  if(!inRace){$('benchNote').textContent='Start a race first, then pause and open Settings to run the test. The kart drives itself while it measures.';return;}
-  closeSettings();if(state==='paused')togglePause();else pauseOv.hidden=true;setTimeout(()=>{if(benchStart())showBanner('Graphics test: hands off for 25 s',1.6,'sm');},400);};
-$('benchDone').onclick=()=>{$('benchOv').hidden=true;};
+$('benchBtn').onclick=()=>{const inRace=((state==='paused'&&pauseOv._prev==='race')||(NET.cfg&&state==='race'))&&player&&!player.finished&&results.hidden;
+  /* anywhere else (menus, results, a finished race): leave it and start a single race on the chosen track, then test */
+  if(!inRace&&!NET.cfg&&!NET.role&&state!=='loading'){closeSettings();for(const o of document.querySelectorAll('.overlay'))if(o!==$('benchOv'))o.hidden=true;if(state==='paused'){state=pauseOv._prev||'race';}
+    BENCH.pending=true;BENCH.pt=0;introSkip=true;cpuBuilds=RACERS.map(randomBuild);gp=null;mode='single';try{refreshMenu();}catch(e){}menu.hidden=true;goRace(mapIdx);return;}
+  if(!inRace){
+    if(NET.role||state!=='menu'){$('benchNote').textContent='Finish or leave the online room first, then run the test from the main menu or from the pause menu in a race.';$('benchNote').classList.add('flash');return;}
+    closeSettings();BENCH.pending=true;BENCH.pt=0;introSkip=true;cpuBuilds=RACERS.map(randomBuild);gp=null;mode='single';try{refreshMenu();}catch(e){}goRace(mapIdx);return;}
+  closeSettings();if(state==='paused')togglePause();else pauseOv.hidden=true;setTimeout(()=>{if(benchStart())showBanner('Graphics test: hands off for 35 s',1.6,'sm');},400);};
+$('benchDone').onclick=()=>{$('benchOv').hidden=true;};$('benchUndo').onclick=benchUndo;
 $('benchCopy').onclick=()=>{const t=$('benchText').textContent,el=$('benchText');const sel=()=>{const r=document.createRange();r.selectNodeContents(el);const sl=getSelection();sl.removeAllRanges();sl.addRange(r);};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(()=>{$('benchCopy').textContent='Copied';setTimeout(()=>$('benchCopy').textContent='Copy results',1500);},sel);else sel();};
 $('netLogBtn').onclick=netLogOpen;$('netLogDone').onclick=()=>{$('netLogOv').hidden=true;};$('resNetLog').onclick=netLogOpen;$('specBtn').onclick=specEnter;[['specPrev',()=>specNext(-1)],['specNext',()=>specNext(1)],['specCamBtn',specCam],['specRes',()=>specExit(true)]].forEach(([id,f])=>{const el=$(id);el.addEventListener('pointerup',e=>{e.preventDefault();e.stopPropagation();f();});el.addEventListener('click',e=>{if(e.detail===0)f();});/* pointerup for touch and mouse (like the pause button), click only from the keyboard */});
@@ -5681,7 +5686,7 @@ const GPUT=(()=>{try{if(!renderer.capabilities.isWebGL2)return null;const gl=ren
 function gpuT0(){const G=GPUT;if(!G||G.cur||G.pend.length>2)return;try{const q=G.gl.createQuery();G.gl.beginQuery(G.ext.TIME_ELAPSED_EXT,q);G.cur=q;}catch(e){}}
 function gpuT1(){const G=GPUT;if(!G)return;try{if(G.cur){G.gl.endQuery(G.ext.TIME_ELAPSED_EXT);G.pend.push(G.cur);G.cur=null;}
   while(G.pend.length){const q=G.pend[0];if(!G.gl.getQueryParameter(q,G.gl.QUERY_RESULT_AVAILABLE))break;G.pend.shift();if(!G.gl.getParameter(G.ext.GPU_DISJOINT_EXT)){const ms=G.gl.getQueryParameter(q,G.gl.QUERY_RESULT)/1e6;if(ms>0&&ms<200){G.ms=G.ms<0?ms:G.ms*.92+ms*.08;G.n++;}}G.gl.deleteQuery(q);}}catch(e){}}
-let CPUMS=0;/* smoothed CPU time per frame: simulation steps plus scene submission */
+let CPUMS=0,FRMS=0;/* smoothed CPU time per frame: simulation steps plus scene submission */
 /* supersampling steps for presets that list them (PC Ultra): raised only after sustained measured GPU and CPU headroom,
    lowered quickly when the GPU gets busy, changed only between races, and remembered per device */
 let SSI=Math.max(0,+store.get('crust-ss')||0),ssPending=null,ssUp=0,ssDn=0;
@@ -6712,21 +6717,39 @@ function scrTrack(now){const ri=now-(SCR.l||now);SCR.l=now;if(ri>3&&ri<60)SCR.a.
   if(!SCR.noted&&fs&&state==='race'&&CFG.fps!=='60'&&SCR.hz.win>=100&&hz<=65&&CPUMS<6&&!(GPUT&&GPUT.ms>9)){SCR.noted=true;fsNote();}}
 /* graphics test: while the kart drives itself, each graphics feature is switched off in turn for a few seconds and the frame time is
    measured, so a report from any device shows exactly where its time goes */
-const BENCH_STEPS=[['As set',()=>{},()=>{}],['Shadow map not redrawn',()=>{BENCH.noShUp=true;},()=>{BENCH.noShUp=false;}],
-  ['No anti-aliasing',()=>{BENCH.noMs=true;},()=>{BENCH.noMs=false;}],['Half-float colour buffer',()=>{BENCH.r11v=CFG.r11;CFG.r11=false;},()=>{CFG.r11=BENCH.r11v;}],
-  ['3D resolution 80%',()=>{DRS.s=.8;},()=>{DRS.s=1;}],['3D resolution 60%',()=>{DRS.s=.6;},()=>{DRS.s=1;}],
-  ['No glow and colour pass',()=>{BENCH.noPost=true;},()=>{BENCH.noPost=false;}],['As set, again',()=>{},()=>{}]];
-function benchStart(){if(state!=='race'||BENCH.on)return false;Object.assign(BENCH,{on:true,i:0,t:0,f:[],cpu:[],res:[],td:TD.on,ds:DRS.s,info:null});TD.on=true;DRS.s=1;
-  BENCH.info={q:qKey,pr:prE,ms:POST.ms,r11:!!(POST.rt&&POST.rt.userData.r11),sm:sun.shadow.mapSize.x,hz:Math.max(SCR.hz.win||0,SCR.hz.fs||0,SCR.cur||0),fps:CFG.fps,w:renderer.getDrawingBufferSize(v2).x,h:v2.y};BENCH_STEPS[0][1]();return true;}
-function benchFrame(dt){const B=BENCH;if(state!=='race'){if(state!=='paused')benchEnd(true);return;}if(dt<=0)return;B.t+=Math.min(dt,.5);if(dt>1||B.t<.8)return;if(B.t<3.3){B.f.push(dt);B.cpu.push(CPUMS);return;}
-  const a=B.f.slice().sort((x,y)=>x-y),avg=a.reduce((x,y)=>x+y,0)/(a.length||1),c=B.cpu.reduce((x,y)=>x+y,0)/(B.cpu.length||1);
-  B.res.push([BENCH_STEPS[B.i][0],a.length?1/avg:0,(a[a.length>>1]||0)*1000,(a[Math.floor(a.length*.9)]||0)*1000,c]);BENCH_STEPS[B.i][2]();B.i++;
-  if(B.i>=BENCH_STEPS.length){benchEnd(false);return;}BENCH_STEPS[B.i][1]();B.t=0;B.f=[];B.cpu=[];}
-function benchEnd(abort){const B=BENCH;if(!B.on)return;if(B.i<BENCH_STEPS.length)BENCH_STEPS[B.i][2]();B.on=false;B.noShUp=B.noMs=B.noPost=false;TD.on=B.td;DRS.s=B.ds;if(!abort)benchShow();}
+/* graphics test steps: the settings as they are, then each quality preset at full quality, then two checks of what else limits the
+   frame rate (the on-screen HUD, and everything at its lowest). At the end the best preset for this device is picked and applied. */
+let BENCH_STEPS=[];
+function benchPresets(){return [COARSE?'ultraM':'ultra','sharp','balanced','fast'];}
+function benchSetQ(k){qKey=k;applyQuality();applyLad(0,false);DRS.s=1;fitPending=true;}
+function benchBuild(){const P=benchPresets(),q0=qKey;BENCH_STEPS=[['As set ('+qName(q0)+')',()=>{},()=>{}]];
+  for(const k of P)BENCH_STEPS.push([qName(k),()=>benchSetQ(k),()=>{},k]);
+  BENCH_STEPS.push(['HUD hidden ('+qName(q0)+')',()=>{benchSetQ(q0);document.body.classList.add('bench-nohud');},()=>{document.body.classList.remove('bench-nohud');}]);
+  BENCH_STEPS.push(['Everything lowest',()=>{benchSetQ('fast');BENCH.noShUp=true;DRS.s=.6;document.body.classList.add('bench-nohud');},()=>{BENCH.noShUp=false;DRS.s=1;document.body.classList.remove('bench-nohud');}]);}
+function qName(k){return {lite:'Lite',fast:'Fast',balanced:'Balanced',sharp:'Sharp',ultra:'Ultra',ultraM:'Ultra'}[k]||k;}
+/* choose: the best-looking preset that reaches the target (120 on fast screens, else 60); if none does, the best-looking one that is
+   nearly as smooth as the fastest; if even the fastest is choppy, it plus the steady 60 fps cap */
+function benchPick(){const B=BENCH,I=B.info||{},T=CFG.fps==='60'?60:(I.hz>=100?120:60),rs=B.res.filter(r=>r[6]),P=benchPresets();
+  const f=k=>{const r=rs.find(x=>x[6]===k);return r?r[1]:0;},best=Math.max(...P.map(f));let pick=null,why='',fps='auto';
+  for(const k of P)if(f(k)>=T*.9){pick=k;why='reaches '+T+' fps';break;}
+  if(!pick){for(const k of P)if(f(k)>=best*.9&&f(k)>=55){pick=k;why='nearly as smooth as the fastest preset ('+Math.round(best)+' fps)';break;}}
+  if(!pick){pick=P[P.length-1];fps='60';why='this device is happiest with the steady 60 fps cap';}
+  return {pick,fps,why,got:Math.round(f(pick)),T};}
+function benchStart(){if(state!=='race'||BENCH.on)return false;benchBuild();Object.assign(BENCH,{prevQ:qKey,prevFps:CFG.fps,on:true,i:0,t:0,f:[],cpu:[],js:[],res:[],td:TD.on,ds:DRS.s,info:null});TD.on=true;DRS.s=1;
+  BENCH.info={lad:LAD,q:qKey,pr:prE,ms:POST.ms,r11:!!(POST.rt&&POST.rt.userData.r11),sm:sun.shadow.mapSize.x,hz:Math.max(SCR.hz.win||0,SCR.hz.fs||0,SCR.cur||0),fps:CFG.fps,w:renderer.getDrawingBufferSize(v2).x,h:v2.y};BENCH_STEPS[0][1]();return true;}
+function benchFrame(dt){const B=BENCH;if(state!=='race'){if(state!=='paused')benchEnd(true);return;}if(dt<=0)return;B.t+=Math.min(dt,.5);if(dt>1||B.t<1.8)return;if(B.t<4.8){B.f.push(dt);B.cpu.push(CPUMS);B.js.push(FRMS);return;}
+  const a=B.f.slice().sort((x,y)=>x-y),avg=a.reduce((x,y)=>x+y,0)/(a.length||1),c=B.cpu.reduce((x,y)=>x+y,0)/(B.cpu.length||1),js=B.js.reduce((x,y)=>x+y,0)/(B.js.length||1);
+  B.res.push([BENCH_STEPS[B.i][0],a.length?1/avg:0,(a[a.length>>1]||0)*1000,(a[Math.floor(a.length*.9)]||0)*1000,c,js,BENCH_STEPS[B.i][3]||null]);BENCH_STEPS[B.i][2]();B.i++;
+  if(B.i>=BENCH_STEPS.length){benchEnd(false);return;}BENCH_STEPS[B.i][1]();B.t=0;B.f=[];B.cpu=[];B.js=[];}
+function benchEnd(abort){const B=BENCH;if(!B.on)return;if(B.i<BENCH_STEPS.length)BENCH_STEPS[B.i][2]();B.on=false;B.noShUp=B.noMs=B.noPost=false;document.body.classList.remove('bench-nohud');TD.on=B.td;
+  if(abort){qKey=B.prevQ;applyQuality();DRS.s=B.ds;return;}
+  const pk=benchPick();B.pickR=pk;qKey=pk.pick;store.set('crust-q',qKey);store.set(ladKey(),'0');store.set('crust-drs-'+qKey,'1');CFG.fps=pk.fps==='60'?'60':(B.prevFps==='60'&&pk.T===60?'60':'auto');saveCfg();applyQuality();applyLad(0,true);DRS.s=1;try{refreshMenu();refreshSettings();}catch(e){}
+  benchShow();}
+function benchUndo(){const B=BENCH;if(!B.prevQ)return;qKey=B.prevQ;store.set('crust-q',qKey);CFG.fps=B.prevFps;saveCfg();applyQuality();try{refreshMenu();refreshSettings();}catch(e){}$('benchPick').textContent='Your previous settings are back: '+qName(qKey)+', frame rate '+(CFG.fps==='60'?'60 fps':CFG.fps==='max'?'Max':'Auto')+'.';$('benchUndo').hidden=true;}
 function benchText(){const B=BENCH,I=B.info||{},f=(v,d)=>(+v).toFixed(d);let t='Crust Rush graphics test · '+new Date().toISOString().replace('T',' ').slice(0,16)+'\ndevice: '+navigator.userAgent.replace(/Mozilla\/5\.0 \(|\).*/g,'').slice(0,60)+
-    '\npreset '+I.q+' · 3D buffer '+I.w+'×'+I.h+' (pixel ratio '+f(I.pr||1,2)+') · anti-aliasing '+(I.ms||0)+'× · compact colour buffer '+(I.r11?'yes':'no')+' · shadow map '+I.sm+' · screen '+I.hz+' Hz · frame rate setting '+I.fps+'\n\nfps   median ms   slow 10% ms   CPU ms   test\n';
-  for(const r of B.res)t+=(f(r[1],0)).padStart(3)+'   '+f(r[2],1).padStart(9)+'   '+f(r[3],1).padStart(11)+'   '+f(r[4],1).padStart(6)+'   '+r[0]+'\n';return t;}
-function benchShow(){const ov=$('benchOv');$('benchText').textContent=benchText();ov.hidden=false;try{store.set('crust-bench',benchText());}catch(e){}}
+    '\npreset '+I.q+' · 3D buffer '+I.w+'×'+I.h+' (pixel ratio '+f(I.pr||1,2)+') · anti-aliasing '+(I.ms||0)+'× · compact colour buffer '+(I.r11?'yes':'no')+' · shadow map '+I.sm+' · screen '+I.hz+' Hz · frame rate setting '+I.fps+' · automatic quality step '+(I.lad||0)+' of '+(LADS.length-1)+'\n'+(B.pickR?'picked: '+qName(B.pickR.pick)+' · frame rate '+(B.pickR.fps==='60'?'60':'Auto')+' · '+B.pickR.why+'\n':'')+'\nfps   median ms   slow 10% ms   3D CPU ms   all JS ms   test\n';
+  for(const r of B.res)t+=(f(r[1],0)).padStart(3)+'   '+f(r[2],1).padStart(9)+'   '+f(r[3],1).padStart(11)+'   '+f(r[4],1).padStart(9)+'   '+f(r[5]||0,1).padStart(10)+'   '+r[0]+'\n';return t;}
+function benchShow(){const ov=$('benchOv'),pk=BENCH.pickR;$('benchText').textContent=benchText();if(pk){$('benchPick').innerHTML='Set to <b>'+qName(pk.pick)+'</b> with frame rate <b>'+(pk.fps==='60'?'60 fps':'Auto')+'</b>: about '+pk.got+' fps here, '+pk.why+'.';$('benchUndo').hidden=false;}ov.hidden=false;try{store.set('crust-bench',benchText());}catch(e){}}
 function drsMin(){return qKey==='ultraM'||qKey==='ultra'||qKey==='sharp'?.8:qKey==='balanced'?.85:1;}
 function drsTarget(){if(CFG.fps==='60')return 1/60;const hz=Math.max(SCR.hz.win||0,SCR.hz.fs||0,SCR.cur||0);return hz>=100?1/120:hz>=80?1/90:1/60;}
 function drsReset(){const v=+store.get('crust-drs-'+qKey)||1;DRS.s=clamp(Math.round(v*20)/20,drsMin(),1);DRS.acc=DRS.n=DRS.t=DRS.good=DRS.cool=0;DRS.fail={};}
@@ -6756,6 +6779,7 @@ function frame(now){
   if(state!=='paused'){if(garageOpen)renderGarage(dt);else{if(fitPending){fitPending=false;fit();}if(state!=='loading'){gpuT0();render(time,dt);gpuT1();CPUMS=CPUMS*.95+(performance.now()-cw0)*.05;adaptQuality(dt,time);drsTick(dt);if(BENCH.on)benchFrame(dt);}}}
   hud(dt,time);
   try{musTick();}catch(e){console.warn('music',e);CFG.music=false;}
+  FRMS=FRMS*.9+(performance.now()-cw0)*.1;
   if(ac&&eng){const on=!muted&&(state==='race'||state==='countdown')&&!!player;
     if(skidGain){const dr=on&&player.drift&&!player.air,c=player?Math.min(1,player.charge/2.6):0;driftT=dr?driftT+dt:0;const fat=1-.45*Math.min(1,Math.max(0,driftT-1.2)/2.5);/* long drifts settle down instead of droning */
       skidGain.gain.setTargetAtTime(dr?(.022+.022*c)*fat:0,ac.currentTime,dr?.09:.05);skidFilt.frequency.setTargetAtTime(760+c*520,ac.currentTime,.15);}
