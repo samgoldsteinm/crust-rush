@@ -69,10 +69,11 @@ const lerpA=(a,b,t)=>a+angDiff(b,a)*t;
 function cnv(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
 function shade(hex,amt){const n=parseInt(hex.slice(1),16);let r=n>>16,g=(n>>8)&255,b=n&255;const tg=amt<0?0:255,a=Math.abs(amt);r=Math.round(r+(tg-r)*a);g=Math.round(g+(tg-g)*a);b=Math.round(b+(tg-b)*a);return '#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1);}
 const store={get(k){try{return localStorage.getItem(k);}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,v);}catch(e){}}};
-const CFG_DEF={shadows:true,detail:'normal',fps:'60',showfps:false,vol:80,units:'mph',shake:true,mini:true,ghost:true,cam:'close',camd:100,music:true,mvol:45};
+const CFG_DEF={shadows:true,detail:'normal',fps:'60',fullscr:true,showfps:false,vol:80,units:'mph',shake:true,mini:true,ghost:true,cam:'close',camd:100,music:true,mvol:45};
 const CFG=Object.assign({},CFG_DEF,(()=>{try{return JSON.parse(store.get('crust-cfg')||'{}')||{};}catch(e){return {};}})());
 if(!CFG.v33){CFG.v33=1;CFG.fps='60';}/* everyone moves to the steady 60 fps default once */
 if(!CFG.v68){CFG.v68=1;if(!matchMedia('(pointer:coarse)').matches)CFG.fps='auto';}/* computers chase their screen's rate (120 Hz and up) */
+if(!CFG.v106){CFG.v106=1;if(CFG.fps==='60'&&matchMedia('(hover:hover) and (pointer:fine)').matches)CFG.fps='auto';if(CFG.fullscr==null)CFG.fullscr=true;}/* any computer still on the 60 fps setting moves to Auto once */
 const saveCfg=()=>store.set('crust-cfg',JSON.stringify(CFG));
 /* ---- which items can turn up in races: saved on this device; in a friends' race the host's choice counts.
    Four retired items (meatball, calzone bomb, dough twister, freezer blast) are rewards: each unlocks with an award ---- */
@@ -3893,15 +3894,50 @@ function rollItem(pos){if(!ITEM_LIST.some(itemOn))return 'pepperoni';const t=ite
 
 /* ---------- input ---------- */
 const keys={left:false,right:false,drift:false,brake:false,look:false};let itemQueued=null;
-const KEYMAP={ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',ArrowDown:'brake',KeyS:'brake',Space:'brake',KeyF:'look'};
-addEventListener('keydown',e=>{if(e.target.closest&&e.target.closest('.overlay'))return;const k=KEYMAP[e.code];
-  if(k){keys[k]=true;e.preventDefault();}
-  else if(e.code==='KeyX'||e.code==='KeyE'||e.code==='Enter'){if(!e.repeat)itemQueued='fwd';e.preventDefault();}
-  else if(e.code==='KeyZ'||e.code==='KeyQ'){if(!e.repeat)itemQueued='fwd2';e.preventDefault();}
-  else if(e.code==='KeyV'){if(!e.repeat)itemQueued='fwd2';e.preventDefault();}
-  else if(e.code==='ShiftLeft'||e.code==='ShiftRight'||e.code==='KeyB'){if(!e.repeat)itemQueued='hold';e.preventDefault();}
-  else if(e.code==='KeyP'||e.code==='Escape'){togglePause();}});
-addEventListener('keyup',e=>{const k=KEYMAP[e.code];if(k)keys[k]=false;});
+/* ---- keyboard keys: every racing action can be moved to any key (Settings, Controls). Up to three keys per action,
+   saved on this device. Esc always pauses unless it has been given another job. */
+const KB_ACTS=[['left','Steer left'],['right','Steer right'],['brake','Drift / brake'],['item1','Use first item'],['item2','Use second item'],['hold','Keep item behind'],['ability','Special ability'],['look','Look back'],['pause','Pause']];
+const KB_DEF={left:['ArrowLeft','KeyA'],right:['ArrowRight','KeyD'],brake:['Space','ArrowDown','KeyS'],item1:['KeyX','KeyE','Enter'],item2:['KeyZ','KeyQ','KeyV'],hold:['ShiftLeft','ShiftRight','KeyB'],ability:['KeyC','KeyR'],look:['KeyF'],pause:['KeyP']};
+let KEYB={},KEYC={};
+function kbLoad(){let v=null;try{v=JSON.parse(store.get('crust-keys')||'null');}catch(e){}KEYB={};for(const [a] of KB_ACTS){const l=v&&Array.isArray(v[a])?v[a].filter(c=>typeof c==='string'&&c).slice(0,3):null;KEYB[a]=l||KB_DEF[a].slice();}kbIndex();}
+function kbIndex(){KEYC={};for(const [a] of KB_ACTS)for(const c of KEYB[a])if(!KEYC[c])KEYC[c]=a;}
+function kbSave(){try{store.set('crust-keys',JSON.stringify(KEYB));}catch(e){}kbIndex();kbHelp();}
+function kbName(c){if(!c)return '';const M={ArrowLeft:'\u2190',ArrowRight:'\u2192',ArrowUp:'\u2191',ArrowDown:'\u2193',Space:'Space',Enter:'Enter',Escape:'Esc',Backspace:'Backspace',Tab:'Tab',
+    ShiftLeft:'Left Shift',ShiftRight:'Right Shift',ControlLeft:'Left Ctrl',ControlRight:'Right Ctrl',AltLeft:'Left Alt',AltRight:'Right Alt',MetaLeft:'Left Cmd',MetaRight:'Right Cmd',CapsLock:'Caps Lock',
+    Backquote:'`',Minus:'-',Equal:'=',BracketLeft:'[',BracketRight:']',Backslash:'\\',Semicolon:';',Quote:"'",Comma:',',Period:'.',Slash:'/',NumpadEnter:'Num Enter',PageUp:'Page Up',PageDown:'Page Down',Insert:'Insert',Delete:'Delete',Home:'Home',End:'End'};
+  if(M[c])return M[c];if(/^Key[A-Z]$/.test(c))return c.slice(3);if(/^Digit\d$/.test(c))return c.slice(5);if(/^Numpad/.test(c))return 'Num '+c.slice(6);return c.replace(/([a-z])([A-Z])/g,'$1 $2');}
+function kbList(a){const l=KEYB[a].map(kbName);return l.length?(l.length>1?l.slice(0,-1).join(', ')+' or '+l[l.length-1]:l[0]):'not set';}
+const KB_HELD={left:1,right:1,brake:1,look:1};
+addEventListener('keydown',e=>{if(e.target.closest&&e.target.closest('.overlay'))return;const a=KEYC[e.code];
+  if(a&&KB_HELD[a]){keys[a]=true;e.preventDefault();}
+  else if(a==='item1'){if(!e.repeat)itemQueued='fwd';e.preventDefault();}
+  else if(a==='item2'){if(!e.repeat)itemQueued='fwd2';e.preventDefault();}
+  else if(a==='hold'){if(!e.repeat)itemQueued='hold';e.preventDefault();}
+  else if(a==='ability'){if(!e.repeat)abilQueued=true;e.preventDefault();}
+  else if(a==='pause'||(!a&&e.code==='Escape')){if(!e.repeat)togglePause();}});
+addEventListener('keyup',e=>{const a=KEYC[e.code];if(a&&KB_HELD[a])keys[a]=false;});
+/* the remap list in Settings: tap a key box, then press the new key (Esc cancels, Backspace or Delete clears the box) */
+let kbWait=null;
+function kbRender(){const el=$('kbList');if(!el)return;el.innerHTML='';
+  for(const [a,label] of KB_ACTS){const row=document.createElement('div');row.className='kb-row';const t=document.createElement('span');t.className='kb-act';t.textContent=label;row.appendChild(t);
+    const slots=document.createElement('div');slots.className='kb-slots';
+    for(let i=0;i<3;i++){const b=document.createElement('button');b.type='button';b.className='kb-key';const c=KEYB[a][i];const w=kbWait&&kbWait.a===a&&kbWait.i===i;
+      b.textContent=w?'Press a key':c?kbName(c):'+';b.classList.toggle('empty',!c&&!w);b.classList.toggle('wait',!!w);b.setAttribute('aria-label',label+' key '+(i+1)+(c?': '+kbName(c):': empty'));
+      b.onclick=()=>{kbWait=w?null:{a,i};kbRender();};slots.appendChild(b);}
+    row.appendChild(slots);el.appendChild(row);}
+  const n=$('kbNote');if(n)n.textContent=kbWait?'Press the new key now. Esc cancels, Backspace or Delete clears this box.':'Tap a box, then press a key. Each action can have up to three keys.';}
+addEventListener('keydown',e=>{if(!kbWait)return;e.preventDefault();e.stopImmediatePropagation();const {a,i}=kbWait;
+  if(e.code==='Escape'){kbWait=null;kbRender();return;}
+  if(e.code==='Backspace'||e.code==='Delete'){KEYB[a].splice(i,1);kbWait=null;kbSave();kbRender();return;}
+  const c=e.code;if(!c)return;for(const [b] of KB_ACTS){if(b===a)continue;const j=KEYB[b].indexOf(c);if(j>=0)KEYB[b].splice(j,1);}
+  const arr=KEYB[a].slice();let pos;if(i<arr.length){arr[i]=c;pos=i;}else{arr.push(c);pos=arr.length-1;}KEYB[a]=arr.filter((x,j)=>x!==c||j===pos).slice(0,3);kbWait=null;kbSave();kbRender();},true);
+function kbReset(){KEYB={};for(const [a] of KB_ACTS)KEYB[a]=KB_DEF[a].slice();kbWait=null;kbSave();kbRender();}
+/* the controls table and the how-to-play keyboard line always show your current keys */
+function kbHelp(){const set=(k,v)=>{for(const el of document.querySelectorAll('[data-kb="'+k+'"]'))el.textContent=v;};
+  set('steer',kbList('left')+' / '+kbList('right'));set('brake','Hold '+kbList('brake')+' when slow');set('drift',kbList('brake'));set('item1',kbList('item1'));set('item2',kbList('item2'));
+  set('hold',kbList('hold'));set('throw',kbList('item1'));set('drop',kbList('hold')+' again');set('ability',kbList('ability'));set('look','Hold '+kbList('look'));set('pause',kbList('pause')+(KEYC.Escape?'':' or Esc'));
+  const h=document.querySelector('[data-kb="howto"]');if(h)h.textContent=' '+kbList('left')+' and '+kbList('right')+' steer. '+kbList('brake')+' taps drift on and off (and brakes when slow). '+kbList('item1')+' uses your first item, '+kbList('item2')+' the second, '+kbList('hold')+' keeps a holdable item behind you (press '+kbList('item1')+' to fire it, '+kbList('hold')+' again to drop it). '+kbList('ability')+' fires your special ability, hold '+kbList('look')+' to look back, '+kbList('pause')+(KEYC.Escape?'':' or Esc')+' pauses. You can change any key in Settings.';}
+kbLoad();
 addEventListener('blur',()=>{keys.left=keys.right=keys.brake=false;if(window.__clearInput)window.__clearInput();});
 (function(){const zone=document.getElementById('tzone'),zl=zone.children[0],zr=zone.children[1],act=new Map();
   function upd(){let l=0,r=0;for(const s of act.values()){if(s==='l')l++;else r++;}keys.left=l>0;keys.right=r>0;zl.classList.toggle('on',l>0);zr.classList.toggle('on',r>0);}
@@ -4585,7 +4621,7 @@ function slotPing(cls){for(const id of ['itemBtn','itemBtn2']){const b=$(id);if(
 function abilFlash(col){const e=document.createElement('div');e.className='abilfx';e.style.setProperty('--c',col);stage.appendChild(e);setTimeout(()=>e.remove(),900);}
 function setupAbilityHud(){abilBtn=document.getElementById('abilBtn');if(!abilBtn)return;
   const go=e=>{e.preventDefault();e.stopPropagation();abilQueued=true;};abilBtn.addEventListener('pointerdown',go);
-  addEventListener('keydown',e=>{if((e.code==='KeyC'||e.code==='KeyR')&&!e.repeat&&!(e.target.closest&&e.target.closest('.overlay'))){abilQueued=true;e.preventDefault();}});}
+}
 function abilityHudFor(ri){if(!abilBtn)return;const A=ABIL[RACERS[ri].name.toLowerCase()];abilBtn.style.setProperty('--ac',A?A[2]:'#ffe066');abilBtn.style.backgroundImage=PORTRAITS[ri]?'url('+PORTRAITS[ri]+')':'';abilBtn.setAttribute('aria-label','Use special ability: '+(A?A[0]:''));abilBtn._c=-1;abilBtn.classList.remove('ready');}
 
 /* ================= RACE INTRO: three short cinematic shots of the track before the countdown ================= */
@@ -5111,7 +5147,7 @@ const menu=$('menu'),results=$('results'),pauseOv=$('pauseOv'),resList=$('resLis
 function goFullscreen(){const el=document.documentElement;try{const p=el.requestFullscreen?el.requestFullscreen({navigationUI:'hide'}):(el.webkitRequestFullscreen?el.webkitRequestFullscreen():null);
   if(p&&p.then)p.then(()=>{try{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{});}catch(e){}}).catch(()=>{});}catch(e){}}
 function buildProg(){const el=$('tbProg');if(!el)return;el.querySelectorAll('i,.tb-lap').forEach(n=>n.remove());for(let l=1;l<LAPS;l++){const t=document.createElement('span');t.className='tb-lap';t.style.left='calc(8px + (100% - 16px)*'+(l/LAPS).toFixed(4)+')';t.innerHTML='<b>L'+(l+1)+'</b>';el.appendChild(t);}for(const k of karts){const n=document.createElement('i');if(k===player)n.className='me';n.style.setProperty('--c',k.r.color);if(PORTRAITS[k.ri])n.style.backgroundImage='url('+PORTRAITS[k.ri]+')';el.appendChild(n);k.pm=n;}}
-let _abSetup=false;function startRace(){if(!_abSetup){_abSetup=true;setupAbilityHud();const ci=$('cine');ci.addEventListener('pointerdown',e=>{e.preventDefault();introSkip=true;});addEventListener('keydown',()=>{if(state==='intro')introSkip=true;});}if(window.__clearInput)window.__clearInput();initAudio();if(ac&&ac.state==='suspended')ac.resume();goFullscreen();
+let _abSetup=false;function startRace(){if(!_abSetup){_abSetup=true;setupAbilityHud();const ci=$('cine');ci.addEventListener('pointerdown',e=>{e.preventDefault();introSkip=true;});addEventListener('keydown',()=>{if(state==='intro')introSkip=true;});}if(window.__clearInput)window.__clearInput();initAudio();if(ac&&ac.state==='suspended')ac.resume();if(CFG.fullscr!==false)goFullscreen();
   menu.hidden=true;results.hidden=true;pauseOv.hidden=true;resetRace(false);state='countdown';cd=3.4;lastCd=4;abilReset();stage.classList.remove('demo');raceDone=false;
   buildProg();ghostStart();{const r=loadRecs()[recKey()],e=$('hudPB');if(e){e.hidden=!r;if(r)e.textContent='Best '+fmt(r.t);}}lastPos=lastLap=lastItem=lastTimeStr='';lastSpd=-1;hud.ch=-1;hud.bst=null;hud.dr=null;banner.textContent='';hintShown=false;itemQueued=null;}
 const paint=()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
@@ -5330,9 +5366,10 @@ function togglePause(){if(!results.hidden)return;/* nothing to pause once the re
 $('startBtn').onclick=startFromMenu;$('againBtn').onclick=()=>{if(gp){if(gp.race>=3)startGP();else{gp.race++;goRace(CUP_TRACKS[gp.cup][gp.race]);}}else goRace(mapIdx);};$('restartBtn').onclick=()=>{if(gp)gp.pts.forEach((v,i)=>gp.pts[i]=v);startRace();};
 $('toMenuBtn').onclick=toMenu;$('mpBtn').onclick=()=>netShowLobby();$('mpBadge').onclick=()=>netShowLobby();$('mpClose').onclick=()=>netHideLobby();$('quitBtn').onclick=toMenu;$('resumeBtn').onclick=togglePause;$('pauseBtn').addEventListener('pointerup',e=>{e.preventDefault();togglePause();});
 const setOv=$('setOv'),howOv=$('howOv'),fpsEl=$('fpsEl');let setFrom=null;
-const BOOLK=['shadows','showfps','shake','mini','ghost','music'];
+const BOOLK=['shadows','showfps','shake','mini','ghost','music','fullscr'];
 const cfgVal=k=>k==='sound'?!muted:k==='stats'?statsOn:CFG[k];
-function openSettings(from){setFrom=from;from.hidden=true;setOv.hidden=false;setOv.scrollTop=0;refreshSettings();}
+function openSettings(from){setFrom=from;from.hidden=true;setOv.hidden=false;setOv.scrollTop=0;refreshSettings();kbWait=null;kbRender();}
+$('kbReset').onclick=kbReset;kbHelp();
 function closeSettings(){setOv.hidden=true;(setFrom||menu).hidden=false;refreshMenu();}
 function fillGuide(){const gi=$('guideItems'),ga=$('guideAbil');if(!gi||gi.dataset.done)return;gi.dataset.done=1;
   renderItemSet();
@@ -5645,7 +5682,7 @@ function applyLad(n,save){LAD=clamp(n,0,LADS.length-1);LADV=LADS[LAD];const q=QU
 function adaptQuality(dt,time){perfSum+=dt;perfN++;perfT+=dt;if(perfT<1)return;const avg=perfSum/perfN;perfT=perfSum=perfN=0;
   bestDt=Math.min(bestDt*1.01,avg);let P=1/60;for(const h of HZ)if(h>=bestDt*.93){P=h;break;}if(CFG.fps==='60')P=Math.max(P,1/60);else P=Math.max(P,1/120);
   const inMenu=state==='menu'&&!menu.hidden&&time>6;if(state!=='race'&&state!=='countdown'&&!inMenu)return;
-  const Pq=Math.max(P,1/60);slowN=avg>Pq*1.1?slowN+1:0;fastN=avg<Pq*1.03?fastN+1:0;/* quality is judged against 60 fps: on a 120 Hz screen it never drops detail to chase 120 */
+  const Pq=CFG.fps==='max'?P:Math.max(P,1/60);slowN=avg>Pq*1.1?slowN+1:0;fastN=avg<Pq*1.03?fastN+1:0;/* quality is judged against 60 fps: on a 120 Hz screen it never drops detail to chase 120 */
   /* never change quality mid-race: a switch rebuilds GPU targets (a hitch) and visibly pops the picture. The measurement is kept and applied on the next loading screen. */
   const cur=ladPending??LAD;
   if((slowN>=2||(slowN>=1&&avg>Pq*1.5))&&cur<LADS.length-1){if(raisedAt>0&&time-raisedAt<12)ladBest=cur+1;ladPending=cur+(avg>Pq*1.6&&cur<4?2:1);store.set(ladKey(),String(ladPending));droppedAt=time;slowN=0;}
@@ -6206,7 +6243,7 @@ function netLobbyRender(msg){if(!mpOv)mpOv=$('mpOv');if(!mpOv)return;const box=$
    frame. On iPhone that is Low Power Mode (Safari halves the frame rate of every web page) or the phone running hot. Say so once. */
 const CAPW={d:[],t:0,shown:false,capped:false};
 function capWatch(fd){CAPW.d.push(fd);if(CAPW.d.length<120)return;const a=CAPW.d.slice().sort((x,y)=>x-y);CAPW.d.length=0;const med=a[60],lo=a[12];
-  CAPW.capped=med>31.5&&med<35.5&&lo>28&&CPUMS<14;if(CAPW.capped&&!CAPW.shown&&(CFG.fps==='60'||CFG.fps==='auto')){CAPW.shown=true;capNote();}}
+  CAPW.capped=med>31.5&&med<35.5&&lo>28&&CPUMS<14;if(CAPW.capped&&!CAPW.shown&&(CFG.fps==='60'||CFG.fps==='auto'||CFG.fps==='max')){CAPW.shown=true;capNote();}}
 function capNote(){const d=document.createElement('div');d.className='softgl';d.setAttribute('role','status');const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
   d.innerHTML='<b>Your '+(ios?'iPhone':'device')+' is holding the game at 30 fps.</b> The game has spare time each frame, so the limit comes from the '+(ios?'phone':'device')+': usually <b>Low Power Mode</b>'+(ios?' (Settings → Battery, or the battery icon in Control Center)':' or a battery saver')+', or the '+(ios?'phone':'device')+' getting hot. Turn it off (or let it cool) and the game goes back to 60.<button aria-label="Close">×</button>';
   d.querySelector('button').onclick=()=>d.remove();document.body.appendChild(d);setTimeout(()=>{if(d.isConnected)d.remove();},15000);}
@@ -6347,11 +6384,25 @@ function padRumble(ms,str){try{const gp=[...(navigator.getGamepads?navigator.get
 addEventListener('pointerdown',()=>{document.body.classList.remove('padnav');PAD.focKey=null;},true);
 addEventListener('gamepadconnected',e=>{PAD.id=e.gamepad.id;showBanner('Controller connected',1.4,'sm');});
 
+/* screen refresh, measured from the browser's frame callbacks (every one, including frames the 60 fps setting skips), kept apart
+   for windowed and full screen so the frame counter can say what is holding the game back */
+const SCR={a:[],l:0,hz:{win:0,fs:0},cur:0,noted:false};
+function scrTrack(now){const ri=now-(SCR.l||now);SCR.l=now;if(ri>3&&ri<60)SCR.a.push(ri);if(SCR.a.length<150)return;
+  const b=SCR.a.sort((x,y)=>x-y),p=b[Math.floor(b.length*.1)];SCR.a.length=0;const hz=Math.round(1000/p),fs=!!(document.fullscreenElement||document.webkitFullscreenElement);
+  if(fs)SCR.hz.fs=hz;else SCR.hz.win=Math.max(SCR.hz.win,hz);SCR.cur=hz;SCR.fs=fs;
+  /* full screen stuck at 60 while the same screen does 100+ in the window, with time to spare: say so once */
+  if(!SCR.noted&&fs&&state==='race'&&CFG.fps!=='60'&&SCR.hz.win>=100&&hz<=65&&CPUMS<6&&!(GPUT&&GPUT.ms>9)){SCR.noted=true;fsNote();}}
+function scrWhy(fps){if(CFG.fps==='60'&&Math.max(SCR.hz.win,SCR.hz.fs)>70)return ' · held at 60 by the Frame rate setting';
+  if(SCR.fs&&SCR.hz.win>=100&&SCR.cur<=65&&CPUMS<6)return ' · full screen runs at 60 Hz here';
+  const per=1000/Math.max(30,SCR.hz.win||SCR.cur||60);if(fps<1000/per*.9){if(GPUT&&GPUT.ms>per*.9)return ' · graphics card is the limit';if(CPUMS>per*.75)return ' · processor is the limit';}return '';}
+function fsNote(){const d=document.createElement('div');d.className='softgl';d.setAttribute('role','status');
+  d.innerHTML='<b>Full screen is holding the game at 60 fps on this computer.</b> In the window it ran at '+SCR.hz.win+' Hz. Turn off <b>Full screen in races</b> in Settings to race at your screen\'s full rate.<button aria-label="Close">\u00d7</button>';
+  d.querySelector('button').onclick=()=>d.remove();document.body.appendChild(d);setTimeout(()=>{if(d.isConnected)d.remove();},15000);}
 function frame(now){
   if(!booted){requestAnimationFrame(frame);return;}
-  padPoll();
+  scrTrack(now);padPoll();
   if(CFG.fps==='60'){if(now<frame.due-2.5){requestAnimationFrame(frame);return;}frame.due+=1000/60;if(now-frame.due>1000/60)frame.due=now;}{const fd=now-lastFrameT;if(fd>fpsMax&&fd<1000)fpsMax=fd;if(state==='race'&&fd>0&&fd<200)capWatch(fd);}lastFrameT=now;
-  fpsN++;if(now-fpsT>500){const show=CFG.showfps&&state!=='menu';fpsEl.hidden=!show;if(show)fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' FPS'+(CAPW.capped?' (capped by phone)':'')+' · '+((now-fpsT)/fpsN).toFixed(1)+' ms · worst '+Math.round(fpsMax)+' ms · CPU '+CPUMS.toFixed(1)+(GPUT&&GPUT.ms>0?' · GPU '+GPUT.ms.toFixed(1):'')+(ssMul()>1?' · '+ssMul()+'×':'')+netStat(now-fpsT);fpsN=0;fpsT=now;fpsMax=0;}
+  fpsN++;if(now-fpsT>500){const show=CFG.showfps&&state!=='menu';fpsEl.hidden=!show;if(show)fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' FPS'+(CAPW.capped?' (capped by phone)':'')+' · '+((now-fpsT)/fpsN).toFixed(1)+' ms · worst '+Math.round(fpsMax)+' ms · CPU '+CPUMS.toFixed(1)+(GPUT&&GPUT.ms>0?' · GPU '+GPUT.ms.toFixed(1):'')+(ssMul()>1?' · '+ssMul()+'×':'')+netStat(now-fpsT)+((SCR.cur||SCR.hz.win)?' · screen '+(SCR.fs?SCR.hz.fs||SCR.cur:SCR.hz.win||SCR.cur)+' Hz':'')+scrWhy(fpsN*1000/(now-fpsT));fpsN=0;fpsT=now;fpsMax=0;}
   let dt=(now-last)/1000;last=now;if(dt>.1)dt=.1;if(dt<0)dt=0;const time=now/1000;const cw0=performance.now();
   if(state==='menu'||state==='race'){acc+=dt;let n=0;const gs=NET.role==='guest'&&NET.cfg&&state==='race';while(acc>=STEP&&n<12){if(gs)netGuestStep(STEP);else update(STEP);acc-=STEP;n++;}if(n>=12)acc=0;alpha=acc/STEP;netFlush();netQUpdate();NETLOG.frame();NETLOG.tick();if(gs&&NET.snaps.length){/* other karts on a guest are drawn exactly at this frame's moment of the host's race (not blended between simulation steps), so every frame on a 144 Hz screen shows their motion */if(n===0)netInterp(player.finished?null:player);for(const o of karts)if(o!==player){o.px=o.x;o.py=o.y;o.pa=o.a;o.pma=o.ma;o.pwy=o.wy;o.pth=o.loopTh||0;}}
     if(state==='race'){if(resLive>0&&!results.hidden&&NET.cfg){resLive-=dt;if(resLive<=0)renderResultsNet();}if(resultsAt>0){resultsAt-=dt;if(resultsAt<=0){/* the results own the screen: close the pause menu and any settings opened from it, so the controller can't get stuck behind them */if(!setOv.hidden&&setFrom===pauseOv){setOv.hidden=true;setFrom=null;}pauseOv.hidden=true;results.hidden=false;renderResults();PAD.focEl=null;if(NET.cfg)NETLOG.stop();}}}}

@@ -662,6 +662,13 @@ body.padnav :focus{outline:3px solid var(--cheese)!important;outline-offset:3px}
 .ctl tbody th{font-weight:700;color:var(--cream);white-space:nowrap}
 .ctl td{color:#e9d8c2}
 .ctl-note{margin:8px 0 0;color:var(--muted);font-size:12px}
+.kb-box{margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,244,220,.08)}.kb-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+.kb-reset{flex:0 0 auto;border:2px solid var(--oven-3);background:var(--oven-2);color:var(--cream);border-radius:10px;padding:8px 12px;font-weight:700;font-size:13px}
+.kb-list{display:grid;gap:6px}.kb-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,260px);gap:6px 12px;align-items:center}
+.kb-act{font-weight:700;font-size:14px;color:#e9d8c2}.kb-slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.kb-key{min-height:38px;border:2px solid var(--oven-3);background:var(--oven-2);color:var(--cream);border-radius:9px;padding:4px 6px;font-weight:800;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kb-key.empty{color:var(--muted);font-weight:600}.kb-key.wait{border-color:#ffd24a;background:rgba(255,210,74,.14);color:#ffd24a;font-size:11.5px}
+@media (max-width:460px){.kb-row{grid-template-columns:1fr}}
 /* computers: larger menus so they read comfortably from a desk; phones keep their layout */
 @media (pointer:fine) and (min-width:1300px) and (min-height:700px){.garage{max-width:min(2300px,96vw)}#garage .g-head,#garage .g-side,#garage .g-info{zoom:1.25}#garage #pCar .chips em{font-size:9px}#garage .g-grid{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}}
 @media (pointer:fine) and (min-width:1800px) and (min-height:900px){#garage .g-head,#garage .g-side,#garage .g-info{zoom:1.45}}
