@@ -31,6 +31,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .pos small{font-size:.42em;margin-left:2px}
 .laptime{display:flex;gap:10px;align-items:baseline;font-weight:700;text-shadow:0 2px 6px rgba(0,0,0,.7)}
 #hudLap{font-family:var(--display);font-size:clamp(15px,3.4vmin,24px)}
+.lapbox,.gauge,#tbProg{contain:layout style}
 #hudTime{font-size:clamp(14px,3vmin,20px);color:var(--cheese);font-variant-numeric:tabular-nums}
 .hud-tr{position:absolute;right:0;top:0;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
 .pause{pointer-events:auto;width:44px;height:44px;border-radius:50%;border:2px solid var(--glass-line);background:var(--glass);display:grid;place-items:center;padding:0}

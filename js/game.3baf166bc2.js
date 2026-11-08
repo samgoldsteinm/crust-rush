@@ -227,6 +227,10 @@ const GLR=(()=>{try{const gl=renderer.getContext();const e=gl.getExtension('WEBG
 const SOFTGL=/swiftshader|llvmpipe|softpipe|software|basic render/i.test(GLR);
 let qKey=store.get('crust-q')||(SOFTGL?'fast':COARSE?'balanced':'ultra');if(qKey==='ultraM'&&!COARSE)qKey='ultra';/* a phone's Ultra on a computer becomes the computer's Ultra */if(!QUAL[qKey]||qKey==='ultra'&&COARSE)qKey='balanced';
 const LOWQF=()=>qKey==='fast'||qKey==='lite';
+/* Safari (iPhone, iPad, Mac): drawing the 3D scene straight into the page's canvas measured slower than drawing it off screen and copying
+   it over in one pass (the copy lets Safari hand the frame to the screen without waiting), so Lite, Fast and the no-glow quality step use
+   that copy there. The picture is the same. */
+const APPLEWK=/AppleWebKit/.test(navigator.userAgent)&&!/Chrome\/|Chromium|Edg\//.test(navigator.userAgent);
 /* dynamic resolution: on Balanced, Sharp and Ultra the scene is drawn into a slightly smaller part of its buffer when the GPU can't
    keep up with the frame-rate target (120 on fast screens, 60 when capped), never below 80% (85% on Balanced) of the preset's
    resolution, and grows back as soon as there is room. Glow, colour grading and the HUD stay at full resolution, so on a phone's
@@ -5111,7 +5115,7 @@ function render(time,dt){
   /* above ~85 fps the shadow map is redrawn every other frame: shadows still update 60+ times a second (exactly as at 60 fps), so they look
      the same, but a 120 Hz screen doesn't pay for the 4096 shadow map twice as often */
   renderer.shadowMap.needsUpdate=BENCH.noShUp?false:LOWQF()?render.n%(QUAL[qKey].shEvery||2)===0:(render.fdt>.0118||render.n%2===0);/* half-rate shadows made moving shadows judder */
-  if(!LOWQF()&&CFG.post!==false&&!LADV.np&&!BENCH.noPost){try{postRender();}catch(e){console.warn('post',e);CFG.post=false;renderer.setRenderTarget(null);renderer.render(scene,camera);}}else renderer.render(scene,camera);
+  if(!LOWQF()&&CFG.post!==false&&!LADV.np&&!BENCH.noPost){try{postRender();}catch(e){console.warn('post',e);CFG.post=false;renderer.setRenderTarget(null);renderer.render(scene,camera);}}else if(APPLEWK&&!POST.liteFail){try{postLite();}catch(e){console.warn('post lite',e);POST.liteFail=true;renderer.setRenderTarget(null);renderer.render(scene,camera);}}else renderer.render(scene,camera);
 }
 
 /* ================= HUD ================= */
@@ -5135,11 +5139,12 @@ function hud(dt,time){try{tdTick();}catch(e){}if(BENCH.pending){if(state==='intr
   const pos=standCache.indexOf(player)+1;if(pos&&String(pos)!==lastPos){lastPos=String(pos);posNum.textContent=pos;posSuf.textContent=suf(pos);}
   const lap=clamp(Math.floor(Math.max(0,player.prog)/N)+1,1,LAPS);const ls=lap+'/'+LAPS;if(ls!==lastLap){lastLap=ls;hudLap.textContent=ls;lapBars.forEach((b,i)=>b.classList.toggle('on',i<lap));}
   if(state==='race'&&!player.finished&&lap>lapShown){lapShown=lap;const sp=recLap(lap);showBanner((lap===LAPS?'Final lap':'Lap '+lap)+(sp?' · '+sp:''),sp?2:1.4,true);SFX.lap(lap===LAPS);if(lap===LAPS)try{musFinalLap();}catch(e){}}
-  const ts=fmt(player.finished?player.finishTime:raceTime);if(ts!==lastTimeStr){lastTimeStr=ts;hudTime.textContent=ts;}
-  const sv=Math.round(Math.max(0,player.speed)*(CFG.units==='kmh'?1.062:.66));if(sv!==lastSpd){lastSpd=sv;spd.textContent=sv;gVal.style.strokeDasharray=Math.min(100,Math.max(0,player.speed)/(BASE_MAX*1.58)*100).toFixed(1)+' 100';}
-  const chg=player.drift?Math.min(100,player.charge/2.6*100):0,tierN=player.drift?(player.tier||0):0;if(Math.abs(chg-(hud.ch||0))>.8||tierN!==hud.tn){hud.ch=chg;hud.tn=tierN;gCh.style.strokeDasharray=chg.toFixed(1)+' 100';gCh.style.stroke=['#fff4dc','#ffe066','#ff9a1f','#ff3b1a'][tierN];}
+  const fastUi=time-(hud.ut||0)>.032||player.finished;if(fastUi)hud.ut=time;
+  const ts=fmt(player.finished?player.finishTime:raceTime);if(ts!==lastTimeStr&&fastUi){lastTimeStr=ts;hudTime.textContent=ts;}
+  const sv=Math.round(Math.max(0,player.speed)*(CFG.units==='kmh'?1.062:.66));if(sv!==lastSpd&&(fastUi||sv===0)){lastSpd=sv;spd.textContent=sv;gVal.style.strokeDasharray=Math.min(100,Math.max(0,player.speed)/(BASE_MAX*1.58)*100).toFixed(1)+' 100';}
+  const chg=player.drift?Math.min(100,player.charge/2.6*100):0,tierN=player.drift?(player.tier||0):0;if((Math.abs(chg-(hud.ch||0))>.8&&fastUi)||tierN!==hud.tn||(chg===0&&hud.ch)){hud.ch=chg;hud.tn=tierN;gCh.style.strokeDasharray=chg.toFixed(1)+' 100';gCh.style.stroke=['#fff4dc','#ffe066','#ff9a1f','#ff3b1a'][tierN];}
   const bst=player.boost>0;if(bst!==hud.bst){hud.bst=bst;gauge.classList.toggle('boost',bst);}
-  speedfx.classList.toggle('on',player.boost>0&&state==='race');frostfx.classList.toggle('on',player.frozen>0);
+  {const sf=player.boost>0&&state==='race',ff=player.frozen>0;if(sf!==hud.sf){hud.sf=sf;speedfx.classList.toggle('on',sf);}if(ff!==hud.ff){hud.ff=ff;frostfx.classList.toggle('on',ff);}}
   const dr=!!(player.drift||player.dLatch);if(dr!==hud.dr){hud.dr=dr;brkEls.forEach(b=>b.classList.toggle('drifting',dr));}
   const rk=ITEM_KEYS[Math.floor(time*14)%ITEM_KEYS.length],rl=player.roll>0,H=player.held;let s1=player.item||(rl?rk:''),s2=player.item2||(rl&&(player.item||player.pend.length>1)?rk:'');
   if(H){const free=player.item||(rl?rk:'');if(H.sl===1){s1=H.it;s2=free;}else{s2=H.it;s1=free;}}const ik=s1+'|'+s2+'|'+(H?H.sl:0);
@@ -5147,7 +5152,7 @@ function hud(dt,time){try{tdTick();}catch(e){}if(BENCH.pending){if(state==='intr
     itemIcon.innerHTML=s1?SVG[s1]:'<span class="empty"></span>';slot2El.innerHTML=s2?SVG[s2]:'<span class="empty"></span>';$('itemBtn2').classList.toggle('has',!!s2&&!rl&&!(H&&H.sl===2));$('itemBtn2').classList.toggle('held',!!H&&H.sl===2);if(rl)SFX.tick();
     const canBack=!!player.item&&!NOBACK.includes(player.item);if(canBack&&!hintShown){ihint.classList.add('show');hintShown=true;setTimeout(()=>ihint.classList.remove('show'),4000);}}
   const tr=track[player.idx];const back=state==='race'&&!player.sc&&!player.finished&&player.spin<=0&&player.speed>15&&(Math.cos(player.ma)*tr.tx+Math.sin(player.ma)*tr.ty)<-.4;
-  player.wrongT=back?player.wrongT+dt:0;wrong.hidden=player.wrongT<.8;
+  player.wrongT=back?player.wrongT+dt:0;{const wh=player.wrongT<.8;if(wrong.hidden!==wh)wrong.hidden=wh;}
   hud.mf=(hud.mf||0)+1;if(hud.mf%3||true)return;
   mctx.clearRect(0,0,300,300);mctx.drawImage(miniBase,0,0);const sc=140/T.R;
   for(const k of karts){if(k===player)continue;mctx.fillStyle=k.col;mctx.strokeStyle='#160c09';mctx.lineWidth=3;mctx.beginPath();mctx.arc(150+k.rx*sc,150+k.ry*sc,8,0,7);mctx.fill();mctx.stroke();}
@@ -5175,7 +5180,7 @@ async function goRace(mi){if(raceLoading)return;if(NET.role&&!NET.fromNet){if(NE
     /* draw a few real frames at full size so every shader, texture, shadow and glow buffer is ready before the lights */
     try{const wg=new THREE.Group();for(const kk of ITEM_KEYS){try{const o=itemProto(kk);if(o)wg.add(o.clone());}catch(e){}}scene.add(wg);renderer.compile(scene,camera);scene.remove(wg);}catch(e){}
     try{mergeWorld();}catch(e){console.warn('merge',e);}try{HQS.apply();}catch(e){console.warn('hq',e);}try{envProbe();}catch(e){}warmScene();
-    fit();for(let i=0;i<3;i++){render(0,1/60);renderer.shadowMap.needsUpdate=true;try{if(!LOWQF())postRender();else{renderer.setRenderTarget(null);renderer.render(scene,camera);}}catch(e){}await paint();}
+    fit();for(let i=0;i<3;i++){render(0,1/60);renderer.shadowMap.needsUpdate=true;try{if(!LOWQF())postRender();else if(APPLEWK)postLite();else{renderer.setRenderTarget(null);renderer.render(scene,camera);}}catch(e){}await paint();}
     await step(100,'Ready!');}catch(e){console.warn('race load',e);}
   perfSum=perfN=perfT=0;slowN=fastN=0;abilityHudFor(selected);if(NET.cfg)netLoaded();else startIntro();last=performance.now();acc=0;
   L.classList.add('out');setTimeout(()=>{L.hidden=true;},320);raceLoading=false;}
@@ -5601,6 +5606,7 @@ const POST={rt:null,b1:null,b2:null,b3:null,b4:null,w:0,h:0,qs:null,qc:null,q:nu
 function postMat(frag,u){return new THREE.ShaderMaterial({uniforms:u,vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',fragmentShader:frag,depthTest:false,depthWrite:false,toneMapped:false});}
 function postInit(){if(POST.qs)return;POST.qs=new THREE.Scene();POST.qc=new THREE.OrthographicCamera(-1,1,1,-1,0,1);const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute([-1,-1,0,3,-1,0,-1,3,0],3));g.setAttribute('uv',new THREE.Float32BufferAttribute([0,0,2,0,0,2],2));
   POST.q=new THREE.Mesh(g);POST.q.frustumCulled=false;POST.qs.add(POST.q);
+  POST.M.copy=postMat('uniform sampler2D tex;uniform vec2 us,uc;varying vec2 vUv;vec3 srgb(vec3 c){return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(vec3(.0031308),c));}void main(){gl_FragColor=vec4(srgb(clamp(texture2D(tex,min(vUv*us,uc)).rgb,0.,1.)),1.);}',{tex:{value:null},us:{value:new THREE.Vector2(1,1)},uc:{value:new THREE.Vector2(1,1)}});
   POST.M.bright=postMat('uniform sampler2D tex;uniform float thr;uniform vec2 px,us,uc;varying vec2 vUv;void main(){vec3 c=vec3(0.);for(int i=0;i<4;i++){vec2 o=vec2(i==1||i==3?1.:-1.,i>1?1.:-1.)*px;c+=texture2D(tex,min(vUv*us+o,uc)).rgb;}c*=.25;float l=dot(c,vec3(.2126,.7152,.0722));c*=smoothstep(thr,thr+.02+(1.-thr)*.5,l);gl_FragColor=vec4(min(c,vec3(8.)),1.);}',{tex:{value:null},thr:{value:.85},px:{value:new THREE.Vector2()},us:{value:new THREE.Vector2(1,1)},uc:{value:new THREE.Vector2(1,1)}});
   POST.M.blur=postMat('uniform sampler2D tex;uniform vec2 dir;varying vec2 vUv;void main(){vec3 c=texture2D(tex,vUv).rgb*.227027;c+=(texture2D(tex,vUv+dir*1.3846).rgb+texture2D(tex,vUv-dir*1.3846).rgb)*.316216;c+=(texture2D(tex,vUv+dir*3.2308).rgb+texture2D(tex,vUv-dir*3.2308).rgb)*.070270;gl_FragColor=vec4(c,1.);}',{tex:{value:null},dir:{value:new THREE.Vector2()}});
   POST.M.final=postMat(`uniform sampler2D tex,b1,b2,aoT;uniform float aoOn;uniform vec2 us,uc;uniform float exposure,bloom,sat,con,vig,aspect,edgeA,spd,tm;uniform vec3 tint,edgeC;varying vec2 vUv;
@@ -5659,12 +5665,14 @@ function gpuLean(rt,keepDepth){const P=renderer.properties;if(!keepDepth)P.get(r
 /* switching away from a target whose depth is finished with: tell the GPU not to write that depth out to memory */
 {const sRT=renderer.setRenderTarget.bind(renderer);let cur=null;renderer.setRenderTarget=function(t,a,b){if(cur&&cur!==t){try{const lean=cur.userData&&cur.userData.lean&&!cur.samples,sh=cur===(sun&&sun.shadow&&sun.shadow.map);
       if((lean||sh)&&cur.depthBuffer){const gl=renderer.getContext();if(gl.invalidateFramebuffer)gl.invalidateFramebuffer(gl.FRAMEBUFFER,[cur.stencilBuffer?gl.DEPTH_STENCIL_ATTACHMENT:gl.DEPTH_ATTACHMENT]);}}catch(e){}}cur=t||null;return sRT(t,a,b);};}
-function postSize(w,h){const msN=BENCH.noMs||LADV.ms===0?0:QUAL[qKey].ms||(prE>=1.25?2:4),aoW=!!(QUAL[qKey].hqAll&&!QUAL[qKey].mob&&renderer.capabilities.isWebGL2&&CFG.ao!==false);if(POST.w===w&&POST.h===h&&POST.rt&&POST.ms===msN&&POST.aoW===aoW&&POST.r11===(CFG.r11!==false))return;POST.r11=CFG.r11!==false;POST.ms=msN;POST.w=w;POST.h=h;POST.aoW=aoW;for(const k of ['rt','b1','b2','b3','b4','ao1','ao2'])if(POST[k]){POST[k].dispose();POST[k]=null;}
+function postSize(w,h){const lite=LOWQF()||CFG.post===false||LADV.np||BENCH.noPost,msN=lite?(renderer.getContextAttributes().antialias?2:0):BENCH.noMs||LADV.ms===0?0:QUAL[qKey].ms||(prE>=1.25?2:4),aoW=!lite&&!!(QUAL[qKey].hqAll&&!QUAL[qKey].mob&&renderer.capabilities.isWebGL2&&CFG.ao!==false);if(POST.w===w&&POST.h===h&&POST.rt&&POST.ms===msN&&POST.aoW===aoW&&POST.r11===(CFG.r11!==false))return;POST.r11=CFG.r11!==false;POST.ms=msN;POST.w=w;POST.h=h;POST.aoW=aoW;for(const k of ['rt','b1','b2','b3','b4','ao1','ao2'])if(POST[k]){POST[k].dispose();POST[k]=null;}
   const ht=renderer.capabilities.isWebGL2?THREE.HalfFloatType:THREE.UnsignedByteType,opt={type:ht,depthBuffer:false};
   POST.rt=new THREE.WebGLRenderTarget(w,h,{type:ht,stencilBuffer:true/* forces a 24-bit depth buffer: three gives depth-only targets 16 bits, which let thin hulls show through on phones */,samples:renderer.capabilities.isWebGL2?msN:0});POST.rt.scissor.set(0,0,w,h);gpuLean(POST.rt,aoW);if(aoW){const dt=new THREE.DepthTexture(w,h);dt.format=THREE.DepthStencilFormat;dt.type=THREE.UnsignedInt248Type;POST.rt.depthTexture=dt;const w2=Math.max(1,w>>1),h2=Math.max(1,h>>1);POST.ao1=new THREE.WebGLRenderTarget(w2,h2,{depthBuffer:false});POST.ao2=new THREE.WebGLRenderTarget(w2,h2,{depthBuffer:false});}POST.pr=pr;
   const w4=Math.max(1,w>>2),h4=Math.max(1,h>>2),w8=Math.max(1,w>>3),h8=Math.max(1,h>>3);
   POST.b1=new THREE.WebGLRenderTarget(w4,h4,opt);POST.b2=new THREE.WebGLRenderTarget(w4,h4,opt);POST.b3=new THREE.WebGLRenderTarget(w8,h8,opt);POST.b4=new THREE.WebGLRenderTarget(w8,h8,opt);}
 function pass(mat,target){POST.q.material=mat;renderer.setRenderTarget(target);renderer.render(POST.qs,POST.qc);}
+function postLite(){postInit();const sz=renderer.getDrawingBufferSize(v2);postSize(sz.x,sz.y);POST.rt.viewport.set(0,0,sz.x,sz.y);POST.rt.scissor.set(0,0,sz.x,sz.y);POST.rt.scissorTest=false;
+  renderer.setRenderTarget(POST.rt);renderer.render(scene,camera);const U=POST.M.copy.uniforms;U.tex.value=POST.rt.texture;U.us.value.set(1,1);U.uc.value.set(1-.5/sz.x,1-.5/sz.y);pass(POST.M.copy,null);}
 function postRender(){postInit();const sz=renderer.getDrawingBufferSize(v2);postSize(sz.x,sz.y);const M=POST.M,G=POST.grade;
   const ds=POST.aoW?1:DRS.s,ws=Math.max(1,Math.round(sz.x*ds)),hs=Math.max(1,Math.round(sz.y*ds));POST.rt.viewport.set(0,0,ws,hs);POST.rt.scissor.set(0,0,ws,hs);POST.rt.scissorTest=ds<.999;
   const ux=ws/sz.x,uy=hs/sz.y,cx=ux-.5/sz.x,cy=uy-.5/sz.y;M.bright.uniforms.us.value.set(ux,uy);M.bright.uniforms.uc.value.set(cx,cy);M.final.uniforms.us.value.set(ux,uy);M.final.uniforms.uc.value.set(cx,cy);
