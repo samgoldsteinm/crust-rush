@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#160c09">
+<title>Crust Rush engine check</title>
+<style>
+:root{color-scheme:dark;--bg:#160c09;--fg:#fff4dc;--muted:#c9b7a1;--accent:#ff8a1f;--ok:#7dff8a;--bad:#ff6a5a}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+body{padding:calc(env(safe-area-inset-top,0px) + 14px) max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 20px) max(16px,env(safe-area-inset-left,0px))}
+h1{font-size:22px;margin:0 0 6px}p{margin:6px 0;color:var(--muted)}b{color:var(--fg)}
+.card{margin:12px 0;padding:12px 14px;border-radius:14px;border:1px solid rgba(255,244,220,.14);background:linear-gradient(160deg,rgba(255,244,220,.06),rgba(255,244,220,.015))}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
+button{appearance:none;border:0;border-radius:12px;padding:12px 18px;font:800 16px system-ui,sans-serif;color:#fff;background:linear-gradient(135deg,#ff8a1f,#e0452c);cursor:pointer}
+button:disabled{opacity:.5}
+canvas{width:100%;aspect-ratio:16/8;display:block;border-radius:12px;background:#000;max-width:100%}
+canvas.full{position:fixed;inset:0;width:100vw;height:100vh;border-radius:0;z-index:50;aspect-ratio:auto}
+#ovl{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 10px);transform:translateX(-50%);z-index:51;background:rgba(22,12,9,.8);padding:8px 14px;border-radius:12px;font-weight:700;pointer-events:none}
+table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:6px 8px;border-top:1px solid rgba(255,244,220,.1)}th{color:var(--muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+pre{white-space:pre-wrap;word-break:break-word;font-size:12px;color:var(--muted);background:rgba(0,0,0,.25);padding:10px;border-radius:10px}
+#bar{height:6px;border-radius:3px;background:rgba(255,244,220,.12);overflow:hidden;margin:8px 0}#bar i{display:block;height:100%;width:0;background:var(--accent)}
+</style>
+</head>
+<body>
+<h1>Crust Rush engine check</h1>
+<p>Runs the same test scene with the new engine (WebGPU) and the current one (WebGL), full screen at the game's resolution, and keeps doubling the amount of scenery until each engine can no longer hold the frame rate. Nothing is saved; this is a measurement page.</p>
+<div class="card" id="support">Checking WebGPU support…</div>
+<div class="card">
+  <button id="go" type="button">Run the test (about 1 minute)</button>
+  <div id="bar"><i></i></div>
+  <p id="status"></p><div id="ovl" hidden></div>
+  <canvas id="c"></canvas>
+</div>
+<div class="card" id="res" hidden>
+  <table><thead><tr><th>Engine</th><th>Scenery</th><th>fps</th><th>median ms</th><th>slow 10% ms</th></tr></thead><tbody id="rows"></tbody></table>
+  <p id="verdict"></p>
+  <pre id="copy"></pre><button id="cp" type="button">Copy results</button>
+</div>
+<div class="card">
+  <p><b>Turning WebGPU on</b></p>
+  <p><b>iPhone and iPad on iOS 18:</b> Settings app → Apps → Safari → Advanced → Feature Flags → turn on <b>WebGPU</b>, then reload this page. On iOS 26 it is already on.</p>
+  <p><b>Android (Chrome):</b> on by default on most phones from Android 12 up; some budget phones have no WebGPU and will use WebGL.</p>
+  <p><b>Computers:</b> Chrome and Edge have it on by default; Firefox has it on recent versions; Safari 26 on Mac has it on.</p>
+</div>
+<script type="module">
+const sup=document.getElementById('support'),st=document.getElementById('status'),bar=document.querySelector('#bar i');let cv=document.getElementById('c');
+/* a canvas can hold one kind of context for life, so each engine gets a fresh one in the same spot */
+function freshCanvas(){const n=document.createElement('canvas');n.id='c';cv.replaceWith(n);cv=n;return n;}
+const ua=navigator.userAgent,ios=/iPhone|iPad|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+let adapterInfo=null,gpuOK=false;
+async function check(){
+  if(!('gpu' in navigator)){sup.innerHTML='<b class="bad">WebGPU is off in this browser.</b> '+(ios?'On iOS 18 turn it on in Settings → Apps → Safari → Advanced → Feature Flags → WebGPU, then reload.':'This browser does not offer WebGPU; the game will keep using WebGL here.');return;}
+  try{const a=await navigator.gpu.requestAdapter({powerPreference:'high-performance'});if(!a){sup.innerHTML='<b class="bad">WebGPU is present but no graphics adapter was offered.</b> The game will keep using WebGL here.';return;}
+    const i=a.info||{};adapterInfo=[i.vendor,i.architecture,i.description].filter(Boolean).join(' · ')||'adapter found';const d=await a.requestDevice();d.destroy&&d.destroy();gpuOK=true;
+    sup.innerHTML='<b class="ok">WebGPU works here.</b> '+adapterInfo+' · screen '+Math.round(innerWidth*devicePixelRatio)+'×'+Math.round(innerHeight*devicePixelRatio)+' px (pixel ratio '+devicePixelRatio+')';}
+  catch(e){sup.innerHTML='<b class="bad">WebGPU could not start:</b> '+(e&&e.message||e)+'. The game will keep using WebGL here.';}
+}
+await check();
+const results=[];
+function buildScene(T,count){const scene=new T.Scene();scene.background=new T.Color(0x9fd3ff);scene.fog=new T.Fog(0x9fd3ff,120,420);
+  const cam=new T.PerspectiveCamera(60,2,.1,600);cam.position.set(0,14,34);cam.lookAt(0,2,0);
+  const hemi=new T.HemisphereLight(0xfff3dc,0x7a4a2a,1.2*Math.PI*.6);scene.add(hemi);
+  const sun=new T.DirectionalLight(0xfff0d0,Math.PI*.9);sun.position.set(60,90,40);sun.castShadow=true;sun.shadow.mapSize.set(4096,4096);Object.assign(sun.shadow.camera,{left:-120,right:120,top:120,bottom:-120,near:10,far:300});sun.shadow.bias=-.0005;scene.add(sun);
+  const gc=document.createElement('canvas');gc.width=gc.height=512;const g=gc.getContext('2d');g.fillStyle='#c8502a';g.fillRect(0,0,512,512);for(let i=0;i<400;i++){g.fillStyle=i%2?'#e8742e':'#a93b1f';g.beginPath();g.arc(Math.random()*512,Math.random()*512,4+Math.random()*14,0,7);g.fill();}
+  const tex=new T.CanvasTexture(gc);tex.wrapS=tex.wrapT=T.RepeatWrapping;tex.repeat.set(12,12);tex.colorSpace=T.SRGBColorSpace;tex.anisotropy=4;
+  const ground=new T.Mesh(new T.PlaneGeometry(400,400),new T.MeshStandardMaterial({map:tex,roughness:.85}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+  const geos=[new T.BoxGeometry(2,2,2),new T.SphereGeometry(1.2,20,14),new T.CylinderGeometry(.8,1,2.2,16),new T.TorusGeometry(1,.4,12,24)];
+  const mats=[];for(let i=0;i<24;i++)mats.push(new T.MeshStandardMaterial({color:new T.Color().setHSL(i/24,.7,.5),roughness:.3+.5*(i%3)/2,metalness:i%4===0?.6:0}));
+  const objs=[];let seed=7;const R=()=>{seed=(seed*16807)%2147483647;return seed/2147483647;};
+  for(let i=0;i<count;i++){const m=new T.Mesh(geos[i%4],mats[i%24]);const sp=140*Math.sqrt(count/420);m.position.set((R()-.5)*sp,1+R()*6,(R()-.5)*sp);m.rotation.set(R()*3,R()*3,0);m.castShadow=m.receiveShadow=true;m.userData.s=.3+R();scene.add(m);objs.push(m);}
+  /* a few transparent and physical pieces, like the game's glass and water */
+  const glass=new T.MeshPhysicalMaterial({color:0xcfeeff,roughness:.05,transmission:.9,thickness:1.5,transparent:true});for(let i=0;i<12;i++){const m=new T.Mesh(geos[1],glass);m.position.set((R()-.5)*60,3,(R()-.5)*60);scene.add(m);objs.push(m);}
+  return {scene,cam,objs};}
+function sizeFor(){const pr=Math.min(devicePixelRatio||1,2);return {w:innerWidth,h:innerHeight,pr};}
+const LEVELS=[400,800,1600,3200,6400];const ovl=document.getElementById('ovl');
+async function runEngine(name,makeRenderer){const T=await import('./vendor/three-0.187.0/three.webgpu.js');
+  const canvas=freshCanvas();canvas.classList.add('full');ovl.hidden=false;const {w,h,pr}=sizeFor();const r=await makeRenderer(T,canvas);r.setPixelRatio(pr);r.setSize(w,h,false);r.shadowMap.enabled=true;r.shadowMap.type=T.PCFShadowMap;r.toneMapping=T.ACESFilmicToneMapping;r.outputColorSpace=T.SRGBColorSpace;
+  if(r.init)await r.init();const out=[];
+  for(const count of LEVELS){const S=buildScene(T,count);S.cam.aspect=w/h;S.cam.updateProjectionMatrix();
+    const frames=[];let t0=performance.now(),last=t0;
+    await new Promise(res=>{const loop=now=>{const t=(now-t0)/1000;for(let i=0;i<S.objs.length;i++){const o=S.objs[i];o.rotation.y+=.01*o.userData.s;o.position.y=1+Math.abs(Math.sin(t*o.userData.s+i))*4;}S.cam.position.x=Math.sin(t*.3)*10;S.cam.lookAt(0,2,0);
+        r.render(S.scene,S.cam);const dt=now-last;last=now;if(t>1&&dt>0&&dt<500)frames.push(dt);ovl.textContent=name+' · '+count+' objects · '+t.toFixed(1)+' s';
+        if(t<5)requestAnimationFrame(loop);else res();};requestAnimationFrame(loop);});
+    const a=frames.slice().sort((x,y)=>x-y),avg=frames.reduce((x,y)=>x+y,0)/frames.length,row={name,count,fps:1000/avg,med:a[a.length>>1],p90:a[Math.floor(a.length*.9)],px:Math.round(w*pr)+'×'+Math.round(h*pr)};out.push(row);results.push(row);
+    S.scene.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose());}});
+    if(row.med>18)break;}
+  r.dispose();canvas.classList.remove('full');ovl.hidden=true;return out;}
+document.getElementById('go').onclick=async()=>{const b=document.getElementById('go');b.disabled=true;results.length=0;document.getElementById('res').hidden=true;
+  try{
+    let G=[],W=[];
+    if(gpuOK){G=await runEngine('WebGPU (new engine)',async (T,c)=>new T.WebGPURenderer({canvas:c,antialias:true,powerPreference:'high-performance'}));}
+    else results.push({name:'WebGPU (new engine)',count:0,fps:0,med:0,p90:0,px:'not available'});
+    {const TG=await import('./vendor/three-0.187.0/three.module.js');W=await runEngine('WebGL (current engine)',async (T,c)=>new TG.WebGLRenderer({canvas:c,antialias:true,powerPreference:'high-performance'}));}
+    window.__GW=[G,W];
+  }catch(e){st.textContent='The test stopped: '+(e&&e.message||e);b.disabled=false;return;}
+  st.textContent='Done.';bar.style.width='100%';const rows=document.getElementById('rows');rows.innerHTML='';
+  for(const r of results)rows.innerHTML+='<tr><td>'+r.name+'</td><td>'+(r.count||'—')+'</td><td><b>'+(r.fps?Math.round(r.fps):'—')+'</b></td><td>'+(r.med?r.med.toFixed(1):'—')+'</td><td>'+(r.p90?r.p90.toFixed(1):'—')+'</td></tr>';
+  const [G,W]=window.__GW;let v='';
+  /* compare at the heaviest level both engines ran */
+  const common=G.filter(g=>W.some(w=>w.count===g.count));const g=common[common.length-1],w=g&&W.find(x=>x.count===g.count);
+  if(g&&w){const gain=w.med/g.med;v='At '+g.count+' objects: WebGPU '+Math.round(g.fps)+' fps, WebGL '+Math.round(w.fps)+' fps. '+(gain>1.15?'WebGPU draws a frame about '+Math.round((gain-1)*100)+'% faster here. Worth switching the game over on this device.':gain<.87?'WebGL draws a frame about '+Math.round((1/gain-1)*100)+'% faster here. The game should stay on WebGL on this device.':'Both engines take about the same time per frame here, so the limit is elsewhere (screen refresh, heat, or how the browser presents frames).');}
+  else if(!gpuOK)v='WebGPU is not available in this browser, so only the current engine was measured.';
+  document.getElementById('verdict').textContent=v;
+  const txt='Crust Rush engine check · '+new Date().toISOString().slice(0,16).replace('T',' ')+'\ndevice: '+ua.replace(/Mozilla\/5\.0 \(|\).*/g,'').slice(0,70)+'\nWebGPU: '+(gpuOK?'yes · '+adapterInfo:'no')+' · pixel ratio '+devicePixelRatio+' · canvas '+(results[0]&&results[0].px)+'\n'+results.map(r=>r.name.padEnd(24)+(r.fps?String(r.count).padStart(5)+' objects · '+Math.round(r.fps)+' fps · median '+r.med.toFixed(1)+' ms · slow 10% '+r.p90.toFixed(1)+' ms':'not available')).join('\n')+'\n'+v;
+  document.getElementById('copy').textContent=txt;document.getElementById('res').hidden=false;b.disabled=false;};
+document.getElementById('cp').onclick=()=>{const t=document.getElementById('copy').textContent;if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(()=>{document.getElementById('cp').textContent='Copied';setTimeout(()=>document.getElementById('cp').textContent='Copy results',1500);},()=>{const r=document.createRange();r.selectNodeContents(document.getElementById('copy'));const s=getSelection();s.removeAllRanges();s.addRange(r);});};
+</script>
+</body>
+</html>
