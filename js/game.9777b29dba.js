@@ -6042,10 +6042,17 @@ function softGlNote(){if(!SOFTGL||softGlNote.done)return;softGlNote.done=true;co
   d.innerHTML='<b>Graphics acceleration is off in this browser.</b> The game is being drawn without your graphics card, so it will be slow. In Chrome or Edge open Settings → System, turn on <b>Use graphics acceleration when available</b>, then restart the browser.<button aria-label="Close">×</button>';
   d.querySelector('button').onclick=()=>d.remove();document.body.appendChild(d);setTimeout(()=>{if(d.isConnected)d.remove();},30000);}
 /* shown with the frame counter during a friends' race: link type, round trip, lost updates and big position fixes per second */
+/* which way the direct link actually runs: straight between the devices, or relayed through the TURN server (uses the Metered allowance) */
+function rtcRoute(c){const pc=c&&c.pc;if(!pc||!pc.getStats||c.routeBusy)return;const now=performance.now();if(now-(c.routeAt||0)<2000)return;c.routeAt=now;c.routeBusy=true;
+  pc.getStats().then(r=>{let pair=null;r.forEach(s=>{if(s.type==='transport'&&s.selectedCandidatePairId)pair=r.get(s.selectedCandidatePairId)||pair;});
+    if(!pair)r.forEach(s=>{if(s.type==='candidate-pair'&&(s.selected||(s.nominated&&s.state==='succeeded'))&&(!pair||(s.bytesReceived||0)>(pair.bytesReceived||0)))pair=s;});
+    if(pair){const L=r.get(pair.localCandidateId),R=r.get(pair.remoteCandidateId),lt=L&&L.candidateType,rt=R&&R.candidateType;
+      c.route=lt==='relay'||rt==='relay'?'via TURN':lt==='host'&&rt==='host'?'peer, same network':'peer';}}).catch(()=>{}).finally(()=>{c.routeBusy=false;});}
 function netStat(ms){if(!NET.role||!NET.cfg)return '';const c=NET.conns[0];const link=netFast()?'direct':'relay';
-  if(NET.role==='host')return ' · host '+link+' · '+NET.conns.filter(x=>x.open).length+' friend'+(NET.conns.length===1?'':'s');
+  if(NET.role==='host'){const op=NET.conns.filter(x=>x.open);op.forEach(x=>{if(x.direct)rtcRoute(x);});const rs=op.map(x=>x.direct?'direct ('+(x.route||'checking')+')':'relay');
+    return ' · host · '+op.length+' friend'+(op.length===1?'':'s')+(rs.length?' · '+rs.join(', '):'');}
   const lag=Math.round(Math.max(0,NET.seq-(NET.ackRx||0))*STEP*1000),fx=((NET.fixN||0)*1000/ms).toFixed(1),lost=NET.snGap||0;NET.fixN=0;NET.snGap=0;
-  const st=c&&!c.direct?' ('+(c.rtcSt==='failed'?'direct failed':'direct '+(c.rtcSt||'off')+' #'+(c.rtcN||0))+(rtcTurn&&rtcTurn.length?' +turn':' no turn')+')':(c&&c.direct?(rtcTurn&&rtcTurn.length?' +turn':''):'');
+  if(c&&c.direct)rtcRoute(c);const st=c&&!c.direct?' ('+(c.rtcSt==='failed'?'direct failed':'direct '+(c.rtcSt||'off')+' #'+(c.rtcN||0))+(rtcTurn&&rtcTurn.length?' +turn':' no turn')+')':(c&&c.direct?' ('+(c.route||'checking')+')':'');
   return ' · '+link+st+' · ping '+(NET.ping!=null?Math.round(NET.ping):'?')+' ms · lag '+lag+' ms · lost '+lost+' · fixes '+fx+'/s';}
 function netBadge(){document.body.classList.toggle('netguest',NET.role==='guest');const b=$('mpBadge');if(!b)return;if(!NET.role){b.hidden=true;return;}b.hidden=false;b.textContent=(NET.role==='host'?'Hosting ':'Room ')+NET.code+' · '+NET.pl.length+(NET.pl.length===1?' racer':' racers')+(NET.conns.length?(netFast()?' · direct':' · relay'):'');
   const gd=$('gDone');if(gd)gd.textContent=NET.role==='guest'?'Ready ✓':'Choose track ›';}
