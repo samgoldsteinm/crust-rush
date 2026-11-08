@@ -3822,7 +3822,7 @@ function resetRace(demo){
   karts=[];if(!demo&&NET.cfg){for(const c of NET.cfg.karts){const k=makeKart(c.ri,c.slot,c.who===NET.me,diff,Object.assign({},c.build,{u:c.who>=0?c.slot+1:0}));if(c.who>0&&NET.role==='host'){k.netId=c.who;k.auto=false;}if(c.who>=0)k.netName=c.name;karts.push(k);}}
   else for(let s=0;s<8;s++){if(!demo&&s===4)karts.push(makeKart(selected,s,true,diff,playerBuild));else{const ri=others.shift();karts.push(makeKart(ri,s,false,diff,cpuBuilds[ri]));}}
   const keep=new Set(karts.map(k=>k.m));modelCache.forEach(m=>{m.g.visible=keep.has(m);});pruneModels(keep);
-  {const me=demo?null:(karts.find(k=>k.isPlayer)||karts[4]);player=me;camT=me||karts[4];}if(SPEC&&SPEC.on){SPEC.on=false;document.body.classList.remove('spectating');$('specBar').hidden=true;}
+  {const me=demo?null:(karts.find(k=>k.isPlayer)||karts[4]);player=me;camT=me||karts[4];}mfzReset();if(SPEC&&SPEC.on){SPEC.on=false;document.body.classList.remove('spectating');$('specBar').hidden=true;}
   for(const k of karts){if(k.cutM)k.cutM.forEach(m=>scene.remove(m));if(k.held)dropHeld(k);}if(typeof sauceFx==='function'&&_sauceEl)sauceFx(false);projectiles.forEach(p=>scene.remove(p.mesh));hazards.forEach(h=>scene.remove(h.mesh));projectiles=[];hazards=[];
   boxes.forEach(b=>b.r=0);resetHazards();raceTime=0;WHEEL_N=0;WHEEL_AT=-99;BUMPT.clear();POPS.forEach(q=>scene.remove(q.m));POPS.length=0;finishCount=0;lapShown=1;resultsAt=0;cam.a=camT.ma;camSnap=true;acc=0;camera.up.set(0,1,0);standCache=standings();
   if(ladPending!=null){applyLad(ladPending,true);ladPending=null;}if(ssPending!=null){applySS(ssPending);ssPending=null;fit();}
@@ -4267,7 +4267,7 @@ const NEWITEMS={
   ghost:['Ghost Pepper','Fade out for a few seconds: nothing can hit you, and you steal the leader’s item.','#e8f6ff'],
   cannon:['Pizza Cannon','Fires you down the track at huge speed, steering itself dead straight and ploughing through anyone in the way.','#ffd23a'],
   twister:['Dough Twister','A spinning dough tornado that rolls down the track and tosses racers into the air.','#f3dfb4'],
-  swap:['Topping Swap','Trade places with the racer right ahead of you.','#b26bff'],
+  swap:['Topping Swap','Trade places with the racer right ahead of you. You keep your own speed and direction, and nothing can hit you for a second after.','#b26bff'],
   boxes:['Box Barricade','Drops a wall of pizza boxes across the road behind you.','#c98b4e']};
 const NOBACK=['chili','garlic','wheel','rush','freezer','jalapeno','torpedo','shroom','magnet','cutter','sauce','heat','forks','ghost','cannon','twister','swap','boxes'];
 const ITEM_COL={chili:'#ff5a1a',pepperoni:'#ff6a3a',oil:'#e8c040',dough:'#ffe2a0',trio:'#ff6a3a',garlic:'#e8fff0',flour:'#ffffff',wheel:'#ff3b1a',rush:'#7fe8ff',freezer:'#bfe6ff'};
@@ -4375,7 +4375,9 @@ function useItem2(k,it,back){const ca=Math.cos(k.a),sa=Math.sin(k.a),st=standCac
     itemFx(k,'#bfe6ff',30);if(v>0)SFX.ghost();}
   else if(it==='cannon'){k.cannonT=4.2;k.rush=4.2;k.autoT=4.2;k.boost=Math.max(k.boost,4.2);k.drift=0;itemFx(k,col,50);if(k===player){SFX.cannon();shake(1.2);}else if(v>0)SFX.cannon();}
   else if(it==='twister'){projectiles.push({type:'twist',custom:1,x:k.x+ca*16,y:k.y+sa*16,vx:0,vy:0,t:9,owner:k,safe:.6,b:0,prog:k.prog+3,lat:lateral(k),ph:Math.random()*6,mesh:itemMesh('twister')});if(v>0)SFX.twister(v);}
-  else if(it==='swap'){const o=kartAhead(k);if(o&&!o.loop&&!k.loop&&!o.finished&&o.prog-k.prog<N*.35&&!absorb(o)){for(const f of ['x','y','px','py','a','ma','pa','pma','idx','prog','wy','pwy','lastG','sc','scI','speed']){const t=k[f];k[f]=o[f];o[f]=t;}
+  else if(it==='swap'){const o=kartAhead(k);if(o&&!o.loop&&!k.loop&&!o.finished&&o.prog-k.prog<N*.35&&!absorb(o)){const tA=q=>track[((q.idx%N)+N)%N].ang,rk=[angDiff(k.a,tA(k)),angDiff(k.ma,tA(k))],ro=[angDiff(o.a,tA(o)),angDiff(o.ma,tA(o))];
+      for(const f of ['x','y','px','py','idx','prog','wy','pwy','lastG','sc','scI']){const t=k[f];k[f]=o[f];o[f]=t;}/* only the places swap: each keeps its own speed and its heading along the road */
+      for(const [q,r] of [[k,rk],[o,ro]]){const a0=tA(q);q.a=q.pa=a0+r[0];q.ma=q.pma=a0+r[1];}k.inv=Math.max(k.inv||0,1);/* a second of protection: whatever hit them doesn't hit you */
       for(const q of [k,o]){spawnRing(q.x,(q.wy||0)+.6,q.y,'#b26bff',40,.6);burst(q.x,(q.wy||0)+8,q.y,30,['#b26bff','#ffe066','#ffffff'],80,3);}if(k===camT||o===camT)camSnap=true;if(o===player){edgeFx('#b26bff');SFX.ring();}}
     if(v>0||o===player)SFX.swap();}
   else if(it==='boxes'){const p=track[k.idx];for(const o of [-30,0,30]){const x=k.x-Math.cos(k.ma)*26+p.nx*o,y=k.y-Math.sin(k.ma)*26+p.ny*o;hazards.push({x,y,t:22,born:0,owner:k,armed:false,kind:'boxes',mesh:itemMesh('boxes')});}if(v>0)SFX.boxes(v);}}
@@ -4410,7 +4412,8 @@ function itemsProj(p,dt){p.t-=dt;p.safe-=dt;
   /* an ability anchovy only hunts its own target and always gets there: nothing in the way stops it; if the target is untouchable
      right now (spin protection, Pesto Rush, Fire Trail) it keeps shadowing them and strikes the moment it can */
   if(p.sure){const tg=p.target;if(!tg||tg.finished)return true;if(tg.loop||(tg.x-p.x)**2+(tg.y-p.y)**2>=R*R)return false;
-    if(tg.inv>0||tg.rush>0||abInv(tg)||tg.ghostT>0||tg.absT>0)return false;if(tg===player)hitBy(p);p.pop=1;spinOut(tg,'pep',true);return true;}
+    if(tg.inv>0||tg.rush>0||abInv(tg)||tg.ghostT>0||tg.absT>0)return false;if(tg.air&&!tg.glide){/* hopped (drift hop or a jump) right as it struck: dodged */p.pop=1;if(tg===player&&!NET.replay)showBanner('Dodged!',.6,'sm');NETLOG.ev('dodge',0);return true;}
+    if(tg===player)hitBy(p);p.pop=1;if(spinOut(tg,'pep',true)){tg.spin*=.6;tg.inv=tg.spin+3;}return true;}
   for(const k of karts){if(k.loop||(k===p.owner&&p.safe>0)||k.ghostT>0)continue;if(heldBlock(k,p))return true;if((k.x-p.x)**2+(k.y-p.y)**2<R*R&&k.inv<=0&&sameLvl(k,p)){if(k===player)hitBy(p);p.pop=1;spinOut(k,p.type==='meat2'?'meat':'pep');if(p.type==='meat2'){p.hits++;if(p.hits>=3)return true;const sp=Math.hypot(p.vx,p.vy);p.vx*=.85;p.vy*=.85;if(sp<60)return true;}else return true;}}
   for(const h of hazards){if((h.x-p.x)**2+(h.y-p.y)**2<R*R*.6){h.t=0;if(p.type!=='meat2')return true;}}
   return p.t<=0;}
@@ -4464,21 +4467,21 @@ function heatFlash(){const e=document.createElement('div');e.className='heatfx';
 
 /* ================= CHARACTER ABILITIES: a special move that recharges every 30 seconds ================= */
 const ABIL={pep:['Pepperoni Storm','Fires a fan of six spinning pepperoni slices low along the track. Each slice ricochets between the track walls and off anything it hits (spinning out racers, smashing items) and vanishes on its third hit.','#ff5a2a'],
-  basil:['Pesto Rush','The longest, fastest ability boost: nothing can hit you while it lasts, and it ignores the slow cheese.','#3fd06a'],
-  olive:['Slick Trail','Leaves a trail of olive-oil slicks behind. Drive through one and your wheels get coated: no spin, but you are slowed for 5 seconds.','#c8b23a'],
-  mozz:['Melt Shield','Wraps the kart in stretchy cheese that blocks every hit for a while.','#fff4c0'],
+  basil:['Pesto Rush','The longest ability boost: nothing can hit you while it lasts, and it ignores the slow cheese.','#3fd06a'],
+  olive:['Slick Trail','Leaves a trail of olive-oil slicks behind. Drops five slicks; drive through one and your wheels get coated: no spin, but you are slowed a lot for 5 seconds.','#c8b23a'],
+  mozz:['Melt Shield','Wraps the kart in stretchy cheese that blocks every hit for a while, with a quick burst of speed.','#fff4c0'],
   chili:['Fire Trail','A fiery boost that leaves burning flames on the road: anyone who drives into them spins out and catches fire. Nothing can hit you while it burns.','#ff3a12'],
   shroom:['Mega Shroom','Grows huge and unstoppable with a burst of speed and rolls right over anyone in the way, squashing them flat and slow for 3 seconds. You can still steer and drift.','#c8a06a'],
   pineapple:['Spiky Shockwave','A big spiky blast that spins out every racer close around you.','#ffd23a'],
-  anchovy:['School of Fish','Launches three anchovies that hunt down the next three racers ahead and always hit.','#8fc8e8']};
+  anchovy:['School of Fish','Launches three anchovies that hunt down the next three racers ahead. They always reach their target, but a well-timed hop dodges one.','#8fc8e8']};
 const ABIL_TIME=30,MEGA_T=5.5,PESTO_T=5.9;
 const abilKey=k=>k.r.name.toLowerCase();
 function useAbility(k){const id=abilKey(k),A=ABIL[id];if(!A||!(k.abC>=1)||k.loop||k.finished)return;k.abC=0;const st=standCache,i=st.indexOf(k),v=near(k);
   itemFx(k,A[2],50);spawnRing(k.x,(k.wy||0)+.6,k.y,A[2],70,.8);if(k===player){SFX.ability();showBanner(A[0],1.1,'sm');shake(.6);abilFlash(A[2]);}else if(v>0)SFX.ability();
   if(id==='pep'){const vol=()=>{const n0=projectiles.length;fireItem(k,'trio',false);for(let q=n0;q<projectiles.length;q++){const P=projectiles[q];P.storm=1;P.hp=3;P.wb=0;P.t=8;}};vol();k.abQ=[[.25,vol]];}/* storm slices ricochet: walls, racers and items each count as a hit; the third hit ends the slice */
-  else if(id==='basil'){/* the longest, fastest ability boost, and untouchable while it lasts (the shroom grows and crushes instead) */k.boost=Math.max(k.boost,PESTO_T);k.rush=Math.max(k.rush||0,PESTO_T);k.pestoT=PESTO_T;k.abFx=PESTO_T;k.abCol=A[2];if(k===player)SFX.boost(3);}
-  else if(id==='olive'){k.abQ=[0,.3,.6,.9].map(t=>[t,()=>hazards.push({x:k.x-Math.cos(k.ma)*22,y:k.y-Math.sin(k.ma)*22,t:25,born:0,owner:k,armed:false,olive:1,mesh:itemMesh('oil')})]);}
-  else if(id==='mozz'){k.shield=7;k.mzH=3;if(v>0)SFX.garlic(v||.3);}
+  else if(id==='basil'){/* the longest ability boost (normal boost speed), untouchable while it lasts but it doesn't spin anyone out */k.boost=Math.max(k.boost,PESTO_T);k.rush=Math.max(k.rush||0,PESTO_T);k.pestoT=PESTO_T;k.abFx=PESTO_T;k.abCol=A[2];if(k===player)SFX.boost(3);}
+  else if(id==='olive'){k.abQ=[0,.25,.5,.75,1].map(t=>[t,()=>hazards.push({x:k.x-Math.cos(k.ma)*22,y:k.y-Math.sin(k.ma)*22,t:25,born:0,owner:k,armed:false,olive:1,mesh:itemMesh('oil')})]);}
+  else if(id==='mozz'){k.shield=7;k.mzH=3;k.boost=Math.max(k.boost,.7);k.pBoost=0;if(v>0)SFX.garlic(v||.3);}
   else if(id==='chili'){k.boost=Math.max(k.boost,2.2);k.fireT=2.2;k.chiliT=2.2;/* untouchable while it burns */k.abFx=2.2;k.abCol=A[2];if(k===player)SFX.chili();}
   else if(id==='shroom'){k.rush=MEGA_T;k.boost=Math.max(k.boost,2.2);k.megaT=MEGA_T;}
   else if(id==='pineapple'){blast(k.x,k.y,130,k,'pep','#ffd23a');/* wide enough to catch the 3 or 4 karts packed around you */k.inv=Math.max(k.inv,.6);}
@@ -4633,7 +4636,7 @@ function stepKart(k,inp,dt){
   else if(k.air&&(k.big||(k.airT>.12&&k.z>5))&&!k.glide&&dPress&&!k.trick){k.bLock=true;k.trick=true;k.trickT=TRICK_T;const st=inp.steer||0;k.trickN=(k.trickN||0)+1;const n=st<-.4?3:st>.4?4:(k.trickN%3);k.trickK=n;trickNow=true;if(k===player&&!NET.replay){SFX.trick();showBanner(TRICKS[n].n+'!',.6,'sm');}}
   const lat=Math.abs(lateral(k)),sm=k.sm;let tp=lat<RW?1:lat<CURB?.86+.02*sm.off:clamp(.58+.06*sm.off,.4,.82);if(k.glide)tp=1;if(k.sc)tp=k.sc.route?1:.96;if(k.boost>0)tp=Math.max(tp,.93);k.sf=k.sc?1:lat<RW?2:lat<CURB?1:0;
   k.pen+=(tp-k.pen)*Math.min(1,dt*(tp<k.pen?3.5:6));
-  let max=BASE_MAX*inp.mul*k.pen*sm.spd*(k.glide?k.gair||1:1);if(k.boost>(k.pBoost||0)+1e-4){k.bPk=k.boost;k.fTier=0;}/* visual only: which boost is burning (flame size and colour) */if(k.boost>0){k.bAge=(k.pBoost>0?(k.bAge||0)+dt:0);max*=k.pestoT>0?1.66:1.58;k.boost-=dt;}else k.bAge=9;k.pBoost=k.boost;if(k.dWant>0)k.dWant-=dt;if(k.shield>0){k.shield-=dt;max*=1.08;}if(k.absT>0)k.absT-=dt;if(k.rush>0){k.rush-=dt;max*=1.12;k.pen=Math.max(k.pen,.95);}if(k.cannonT>0)max*=1.22;if(k.shrinkT>0)max*=.78;if(k.oilT>0){k.oilT-=dt;max*=.8;}if(k.flatT>0)max=Math.min(max*.6,BASE_MAX*inp.mul*k.pen*sm.spd*.6);/* squashed flat by a Mega Shroom: crawls along at 60% (boosts don't help) until it pops back up */if(k.sauceT>0)max*=.93;if(k.frozen>0){k.frozen-=dt;max*=.55;}
+  let max=BASE_MAX*inp.mul*k.pen*sm.spd*(k.glide?k.gair||1:1);if(k.boost>(k.pBoost||0)+1e-4){k.bPk=k.boost;k.fTier=0;}/* visual only: which boost is burning (flame size and colour) */if(k.boost>0){k.bAge=(k.pBoost>0?(k.bAge||0)+dt:0);max*=1.58;k.boost-=dt;}else k.bAge=9;k.pBoost=k.boost;if(k.dWant>0)k.dWant-=dt;if(k.shield>0){k.shield-=dt;max*=1.08;}if(k.absT>0)k.absT-=dt;if(k.rush>0){k.rush-=dt;if(!(k.pestoT>0))max*=1.12;k.pen=Math.max(k.pen,.95);}/* Pesto Rush: the same speed as any boost */if(k.cannonT>0)max*=1.22;if(k.shrinkT>0)max*=.78;if(k.oilT>0){k.oilT-=dt;max*=.72;}if(k.flatT>0)max=Math.min(max*.6,BASE_MAX*inp.mul*k.pen*sm.spd*.6);/* squashed flat by a Mega Shroom: crawls along at 60% (boosts don't help) until it pops back up */if(k.sauceT>0)max*=.93;if(k.frozen>0){k.frozen-=dt;max*=.55;}
   const v0=k.speed;
   if(k.spin>0){k.spin-=dt;k.a+=14*dt;k.speed+=(0-k.speed)*Math.min(1,2.5*dt);if(k.spin<=0){k.spin=0;k.a=k.ma;}k.brake=0;}
   else{
@@ -4725,7 +4728,7 @@ function update0(dt){
   updateHazards(dt);itemsTick(dt);abilityTick(dt);if(abilQueued){abilQueued=false;if(player&&state==='race')useAbility(player);}
   for(const k of karts){k.px=k.x;k.py=k.y;k.pa=k.a;k.pma=k.ma;k.pz=k.z;k.pwy=k.wy;k.pth=k.loopTh||0;if(k.netId&&!k.finished){const n=netSteps(k);k.stall=n===0?Math.min(30,(k.stall||0)+(k.speed>1?1:0)):Math.max(0,(k.stall||0)-(n-1));k.nst=n;for(let s2=0;s2<n;s2++){const inp=netInput(k);if(k.rush>0)inp.use=false;stepKart(k,inp,dt);}continue;}const inp=(k.isPlayer&&!k.auto&&!(k.rush>0&&!(k.megaT>0)&&!(k.pestoT>0)))?playerInput():aiInput(k,dt);/* abilities keep your own steering and drifting; only the rush items drive for you */if(k.rush>0)inp.use=false;stepKart(k,inp,dt);}
   for(let i=0;i<karts.length;i++)for(let j=i+1;j<karts.length;j++){const a=karts[i],b=karts[j];if(MULTI&&Math.abs((a.wy||0)-(b.wy||0))>18)continue;const dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;
-    if(d2<361&&d2>0&&!a.loop&&!b.loop){const sa2=a.shield>0||a.rush>0,sb2=b.shield>0||b.rush>0,am=a.megaT>0,bm=b.megaT>0;if(am!==bm){if(megaCrush(am?a:b,am?b:a))continue;/* rolled over: no shove */}else if(sa2&&!sb2)spinOut(b,'garlic');else if(sb2&&!sa2)spinOut(a,'garlic');const d=Math.sqrt(d2),p=(19-d)/2,nx=dx/d,ny=dy/d,wa=a.sm.wgt,wb=b.sm.wgt;let ra=1.6*wb/(wa+wb),rb=1.6*wa/(wa+wb);
+    if(d2<361&&d2>0&&!a.loop&&!b.loop){const sa2=a.shield>0||(a.rush>0&&!(a.pestoT>0)),sb2=b.shield>0||(b.rush>0&&!(b.pestoT>0)),am=a.megaT>0,bm=b.megaT>0;if(am!==bm){if(megaCrush(am?a:b,am?b:a))continue;/* rolled over: no shove */}else if(sa2&&!sb2)spinOut(b,'garlic');else if(sb2&&!sa2)spinOut(a,'garlic');const d=Math.sqrt(d2),p=(19-d)/2,nx=dx/d,ny=dy/d,wa=a.sm.wgt,wb=b.sm.wgt;let ra=1.6*wb/(wa+wb),rb=1.6*wa/(wa+wb);
       /* online: a friend's kart (predicted on their own screen) is never shoved by the host; the other kart takes the whole push, so there is nothing to correct afterwards */
       const ga=!!a.netId&&!b.netId,gb=!!b.netId&&!a.netId;if(ga){ra=0;rb=1.6;}else if(gb){rb=0;ra=1.6;}
       a.x-=nx*p*ra;a.y-=ny*p*ra;b.x+=nx*p*rb;b.y+=ny*p*rb;if(wa>wb*1.15&&!gb)b.speed*=.992;else if(wb>wa*1.15&&!ga)a.speed*=.992;
@@ -4908,6 +4911,17 @@ function contactShadows(){if(!karts.length)return;if(!CSH||CSH.userData.cap<kart
     const near=1-Math.min(1,h/18),far=1-Math.min(1,h/150),L=(m.axF-m.axR+10)*1.05||22,W=(m.axW*2+6)*1.1||16,sc=(1+.12*(1-near))*(.55+.45*far),st=(.5+.5*near)*far;
     _ce.set(m.tr||0,-k.rma,m.tp||0);_cq.setFromEuler(_ce);_cv.set(k.rx,gy+.25,k.ry);_cs.set(L*sc+.001,1,W*sc+.001);_cm.compose(_cv,_cq,_cs);CSH.setMatrixAt(n,_cm);CSH.instanceColor.setXYZ(n,st,st,st);n++;}
   CSH.count=n;CSH.instanceMatrix.needsUpdate=true;CSH.instanceColor.needsUpdate=true;}
+/* ---- static matrix freeze: three.js recomputes every object's matrix every frame. ~1,400 of the ~1,600 objects on a track never move,
+   so after 2 s of racing anything whose position/rotation/scale hasn't changed stops recomputing. Each frame, before drawing, every frozen
+   object is compared with its frozen transform and switched back on the instant it changes, so the picture is identical. ---- */
+const MFZ={list:[],snap:null,t0:0,done:false};
+function mfzReset(){for(const o of MFZ.list){o.matrixAutoUpdate=true;o._fz=null;}MFZ.list=[];MFZ.snap=null;MFZ.done=false;}
+const mfzT=o=>[o.position.x,o.position.y,o.position.z,o.quaternion.x,o.quaternion.y,o.quaternion.z,o.quaternion.w,o.scale.x,o.scale.y,o.scale.z];
+function mfzStep(){if(state!=='race'){return;}
+  if(!MFZ.snap){MFZ.snap=[];scene.traverse(o=>{if(o.matrixAutoUpdate&&!o.isCamera&&!o.isLight&&!o.isPoints)MFZ.snap.push([o,mfzT(o)]);});/* the scene root too: while it recomputes, every object below it is forced to recompute */MFZ.t0=performance.now();return;}
+  if(!MFZ.done){if(performance.now()-MFZ.t0<2000)return;MFZ.done=true;for(const [o,t] of MFZ.snap){if(!o.parent&&o!==scene)continue;const c=mfzT(o);let same=true;for(let i=0;i<10;i++)if(c[i]!==t[i]){same=false;break;}if(same){o.updateMatrix();o.matrixAutoUpdate=false;o._fz=t;MFZ.list.push(o);}}MFZ.snap=[];return;}
+  const L=MFZ.list;for(let i=L.length-1;i>=0;i--){const o=L[i],t=o._fz,p=o.position,q=o.quaternion,sc=o.scale;
+    if(p.x!==t[0]||p.y!==t[1]||p.z!==t[2]||q.x!==t[3]||q.y!==t[4]||q.z!==t[5]||q.w!==t[6]||sc.x!==t[7]||sc.y!==t[8]||sc.z!==t[9]){o.matrixAutoUpdate=true;o._fz=null;L[i]=L[L.length-1];L.pop();}}}
 function render(time,dt){
   bubbleMat.uniforms.uT.value=time;bubRushMat.uniforms.uT.value=time;
   for(const k of karts)syncKart(k,dt,time);
@@ -4979,7 +4993,11 @@ function render(time,dt){
   for(const an of animators)an(time,dt);
   FXA.update(dt);FXN.update(dt);updRings(dt);
   const bh=renderer.getDrawingBufferSize(v2).y,sc=bh/(2*Math.tan(camera.fov*Math.PI/360));FXA.mat.uniforms.scale.value=sc;FXN.mat.uniforms.scale.value=sc;FXA.mat.uniforms.maxPt.value=FXN.mat.uniforms.maxPt.value=Math.max(28,bh*.12);
-  render.n=(render.n||0)+1;renderer.shadowMap.needsUpdate=!LOWQF()||render.n%(QUAL[qKey].shEvery||2)===0;/* half-rate shadows made moving shadows judder */
+  mfzStep();/* after everything this frame has moved, just before drawing */
+  render.n=(render.n||0)+1;render.fdt=render.fdt==null?dt:render.fdt*.9+dt*.1;
+  /* above ~85 fps the shadow map is redrawn every other frame: shadows still update 60+ times a second (exactly as at 60 fps), so they look
+     the same, but a 120 Hz screen doesn't pay for the 4096 shadow map twice as often */
+  renderer.shadowMap.needsUpdate=LOWQF()?render.n%(QUAL[qKey].shEvery||2)===0:(render.fdt>.0118||render.n%2===0);/* half-rate shadows made moving shadows judder */
   if(!LOWQF()&&CFG.post!==false&&!LADV.np){try{postRender();}catch(e){console.warn('post',e);CFG.post=false;renderer.setRenderTarget(null);renderer.render(scene,camera);}}else renderer.render(scene,camera);
 }
 
@@ -5559,10 +5577,10 @@ function applyLad(n,save){LAD=clamp(n,0,LADS.length-1);LADV=LADS[LAD];const q=QU
 function adaptQuality(dt,time){perfSum+=dt;perfN++;perfT+=dt;if(perfT<1)return;const avg=perfSum/perfN;perfT=perfSum=perfN=0;
   bestDt=Math.min(bestDt*1.01,avg);let P=1/60;for(const h of HZ)if(h>=bestDt*.93){P=h;break;}if(CFG.fps==='60')P=Math.max(P,1/60);else P=Math.max(P,1/120);
   const inMenu=state==='menu'&&!menu.hidden&&time>6;if(state!=='race'&&state!=='countdown'&&!inMenu)return;
-  slowN=avg>P*1.1?slowN+1:0;fastN=avg<P*1.03?fastN+1:0;
+  const Pq=Math.max(P,1/60);slowN=avg>Pq*1.1?slowN+1:0;fastN=avg<Pq*1.03?fastN+1:0;/* quality is judged against 60 fps: on a 120 Hz screen it never drops detail to chase 120 */
   /* never change quality mid-race: a switch rebuilds GPU targets (a hitch) and visibly pops the picture. The measurement is kept and applied on the next loading screen. */
   const cur=ladPending??LAD;
-  if((slowN>=2||(slowN>=1&&avg>P*1.5))&&cur<LADS.length-1){if(raisedAt>0&&time-raisedAt<12)ladBest=cur+1;ladPending=cur+(avg>P*1.6&&cur<4?2:1);store.set(ladKey(),String(ladPending));droppedAt=time;slowN=0;}
+  if((slowN>=2||(slowN>=1&&avg>Pq*1.5))&&cur<LADS.length-1){if(raisedAt>0&&time-raisedAt<12)ladBest=cur+1;ladPending=cur+(avg>Pq*1.6&&cur<4?2:1);store.set(ladKey(),String(ladPending));droppedAt=time;slowN=0;}
   else if(fastN>=10&&cur>ladBest&&time-droppedAt>25){ladPending=cur-1;store.set(ladKey(),String(ladPending));raisedAt=time;fastN=0;}
   /* in the menu a change can apply straight away */
   if(inMenu&&ladPending!=null){applyLad(ladPending,true);ladPending=null;}
