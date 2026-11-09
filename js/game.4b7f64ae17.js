@@ -217,9 +217,9 @@ catch(e){fail('This device could not start 3D graphics (WebGL).');return;}
 cvs.addEventListener('webglcontextrestored',()=>{try{if(typeof freedAny!=='undefined'&&freedAny){location.reload();}}catch(e){}});
 const QUAL={/* Lite: for older phones (iPhone 14 and earlier): screen-resolution or below, no glow pass, a small shadow map refreshed every third
      frame, no scenery shadows, a short scenery distance and half the small spark and smoke particles. Visual only: the race is identical. */
-  lite:{mp:.75,cap:1,start:1,floor:.7,sm:512,sx:95,soft:false,detail:750,lite:true,shEvery:3,note:'Built to hold 60 fps on older phones (iPhone 14 and earlier): lower resolution, no glow, light shadows, shorter scenery distance and fewer particles.'},
-  fast:{mp:1.1,cap:1.25,start:1,floor:.85,sm:1024,soft:false,detail:1100,note:'Lower resolution and no glow pass, for the smoothest frame rate on older phones.'},
-  balanced:{mp:2.1,cap:1.75,start:1.5,floor:1.0,sm:2048,soft:true,detail:1500,note:'Crisp detail with glow and colour grading at a steady 60 fps. Best for most phones.'},
+  lite:{mp:.75,cap:1,start:1,floor:.7,sm:512,sx:95,soft:false,detail:750,lodf:70,lite:true,shEvery:3,note:'Built to hold 60 fps on older phones (iPhone 14 and earlier): lower resolution, no glow, light shadows, shorter scenery distance and fewer particles.'},
+  fast:{mp:1.1,cap:1.25,start:1,floor:.85,sm:1024,soft:false,detail:1100,lodf:80,note:'Lower resolution and no glow pass, for the smoothest frame rate on older phones.'},
+  balanced:{mp:2.1,cap:1.75,start:1.5,floor:1.0,sm:2048,soft:true,detail:1500,lodf:95,note:'Crisp detail with glow and colour grading at a steady 60 fps. Best for most phones.'},
   ultra:{mp:6.2,cap:2.5,start:2,floor:1.25,sm:4096/* was 6144: 2.25x the shadow texels of 4096 for no visible gain at 1440p, and it cost an RTX 3060 half its frame rate */,sx:150,bloomHalf:true,soft:true,detail:3600,ms:4,hqAll:true,ss:[1,1.25,1.5],lodf:170,streaks:true,note:'For computers: every racer and building in high detail, ambient occlusion, 4× anti-aliasing and the longest view. When your graphics card has room to spare it also renders above screen resolution for extra clarity.'},
   /* Phones render at most 2x their CSS size on every preset: on a 460 ppi screen that is already past what the eye resolves at arm's
      length (a 3x phone drawing at 2x shows ~300 ppi of detail), and the 2x anti-aliasing smooths what is left. Drawing the full 3x
@@ -229,7 +229,7 @@ const QUAL={/* Lite: for older phones (iPhone 14 and earlier): screen-resolution
   ultraM:{mp:3.6,cap:2,start:2,floor:1.5,sm:4096,sx:125,bloomHalf:true,soft:true,detail:2600,hqAll:true,mob:true,lodf:130,streaks:true,note:'For the newest phones: rounded, high-detail scenery and set pieces, surface detail, richer paint and real reflections on your kart, tuned to hold 60 fps. Sharp stays the safe choice for long sessions.'},
   /* the phone ladder, one notch per rung so each preset costs clearly more than the one before it: Balanced 1.75x pixels and a 2048 shadow map;
      Sharp 2x pixels, 3072 shadows and the trimmed high-detail set pieces; Ultra 2x pixels, 4096 shadows, rounded high-detail geometry and the longest view */
-  sharp:{mp:3.3,cap:2,start:2,floor:1.5,sm:3072,soft:true,detail:2100,note:'The step between Balanced and Ultra: full resolution, a larger shadow map and a longer scenery distance, without Ultra\'s heavier models and shadows. For newer phones and computers.'}};
+  sharp:{mp:3.3,cap:2,start:2,floor:1.5,sm:3072,soft:true,detail:2100,lodf:110,note:'The step between Balanced and Ultra: full resolution, a larger shadow map and a longer scenery distance, without Ultra\'s heavier models and shadows. For newer phones and computers.'}};
 /* a browser with graphics acceleration switched off draws WebGL on the processor, which is many times slower */
 const GLR=(()=>{try{const gl=renderer.getContext();const e=gl.getExtension('WEBGL_debug_renderer_info');return String(gl.getParameter(e?e.UNMASKED_RENDERER_WEBGL:gl.RENDERER)||'');}catch(e){return '';}})();
 const SOFTGL=/swiftshader|llvmpipe|softpipe|software|basic render/i.test(GLR);
@@ -1890,6 +1890,17 @@ const _texAvg=new WeakMap();
 function texAvg(t){const im=t&&t.image;if(!im)return null;if(_texAvg.has(im))return _texAvg.get(im);let c=null;try{const cv=cnv(8,8),g=cv.getContext('2d');g.drawImage(im,0,0,8,8);const d=g.getImageData(0,0,8,8).data;let r=0,gg=0,b=0,n=0;
   for(let i=0;i<d.length;i+=4){if(d[i+3]<40)continue;r+=d[i];gg+=d[i+1];b+=d[i+2];n++;}if(n){c=new THREE.Color(r/n/255,gg/n/255,b/n/255);if(t.encoding===THREE.sRGBEncoding)c.convertSRGBToLinear();}}catch(e){}_texAvg.set(im,c);return c;}
 const FAR_MATS=[new THREE.MeshStandardMaterial({vertexColors:true,roughness:.5,metalness:.1}),new THREE.MeshPhysicalMaterial({vertexColors:true,roughness:.3,metalness:.12,clearcoat:1,clearcoatRoughness:.08}),new THREE.MeshPhysicalMaterial({vertexColors:true,roughness:.16,metalness:.9,clearcoat:1,clearcoatRoughness:.05,envMapIntensity:1.2})];FAR_MATS.forEach(m=>m.userData.shared=true);
+/* vertex clustering decimation for far models: snap vertices to a grid of `cells` across the longest side, drop the triangles that collapse
+   and the duplicates that land on the same three cells; positions, colours and normals are the cluster averages (smooth shading) */
+function clusterTris(P,Nn,C,cells){const n=P.length/3;if(n<300)return {P,N:Nn,C};let mnx=1e9,mny=1e9,mnz=1e9,mxx=-1e9,mxy=-1e9,mxz=-1e9;
+  for(let i=0;i<n;i++){const x=P[i*3],y=P[i*3+1],z=P[i*3+2];if(x<mnx)mnx=x;if(y<mny)mny=y;if(z<mnz)mnz=z;if(x>mxx)mxx=x;if(y>mxy)mxy=y;if(z>mxz)mxz=z;}
+  const cs=Math.max(mxx-mnx,mxy-mny,mxz-mnz)/cells||1,inv=1/cs,K=new Int32Array(n),cl=new Map();
+  for(let i=0;i<n;i++){const kx=Math.floor((P[i*3]-mnx)*inv),ky=Math.floor((P[i*3+1]-mny)*inv),kz=Math.floor((P[i*3+2]-mnz)*inv),key=kx+(ky<<10)+(kz<<20);K[i]=key;
+    let c=cl.get(key);if(!c){c=new Float64Array(10);cl.set(key,c);}c[0]+=P[i*3];c[1]+=P[i*3+1];c[2]+=P[i*3+2];c[3]+=Nn[i*3];c[4]+=Nn[i*3+1];c[5]+=Nn[i*3+2];c[6]+=C[i*3];c[7]+=C[i*3+1];c[8]+=C[i*3+2];c[9]++;}
+  const seen=new Set(),oP=[],oN=[],oC=[];
+  for(let t=0;t<n;t+=3){const a=K[t],b=K[t+1],c=K[t+2];if(a===b||b===c||a===c)continue;const lo=Math.min(a,b,c),hi=Math.max(a,b,c),mid=a+b+c-lo-hi,sk=lo+','+mid+','+hi;if(seen.has(sk))continue;seen.add(sk);
+    for(const key of [a,b,c]){const q=cl.get(key),w=1/q[9];oP.push(q[0]*w,q[1]*w,q[2]*w);const nl=Math.hypot(q[3],q[4],q[5])||1;oN.push(q[3]/nl,q[4]/nl,q[5]/nl);oC.push(q[6]*w,q[7]*w,q[8]*w);}}
+  return {P:new Float32Array(oP),N:new Float32Array(oN),C:new Float32Array(oC)};}
 /* bake every visible mesh of a kart into at most three meshes (matte, gloss, metal) in the kart's own space, with each part's colour in the vertex colours */
 function bakeFar(g,tilt,skip){try{g.updateMatrixWorld(true);const inv=new THREE.Matrix4().copy(g.matrixWorld).invert(),parts=[[],[],[]],n=[0,0,0];
   tilt.traverse(o=>{if(!o.isMesh||o.isInstancedMesh||!o.geometry)return;let p=o;while(p&&p!==g){if(!p.visible||skip.has(p))return;p=p.parent;}
@@ -1901,7 +1912,8 @@ function bakeFar(g,tilt,skip){try{g.updateMatrixWorld(true);const inv=new THREE.
     for(const q of parts[b]){const pa=q.g0.attributes.position,na=q.g0.attributes.normal,ca=q.vc,ix=q.g0.index,cnt=ix?ix.count:pa.count,flip=q.m.determinant()<0;nm.getNormalMatrix(q.m);
       for(let t=0;t<cnt;t+=3){for(let k=0;k<3;k++){const kk=flip?(k===0?0:3-k):k,i=ix?ix.getX(t+kk):t+kk;v.fromBufferAttribute(pa,i).applyMatrix4(q.m);P[o*3]=v.x;P[o*3+1]=v.y;P[o*3+2]=v.z;
         if(na){v.fromBufferAttribute(na,i).applyMatrix3(nm).normalize();Nn[o*3]=v.x;Nn[o*3+1]=v.y;Nn[o*3+2]=v.z;}let r=q.c.r,gg=q.c.g,bb=q.c.b;if(ca){r*=ca.getX(i);gg*=ca.getY(i);bb*=ca.getZ(i);}C[o*3]=r;C[o*3+1]=gg;C[o*3+2]=bb;o++;}}}
-    const fg=new THREE.BufferGeometry();fg.setAttribute('position',new THREE.BufferAttribute(P,3));fg.setAttribute('normal',new THREE.BufferAttribute(Nn,3));fg.setAttribute('color',new THREE.BufferAttribute(C,3));fg.computeBoundingSphere();
+    const R=clusterTris(P,Nn,C,30);/* a real LOD: 47k-triangle karts became 47k-triangle far models before; clustering leaves ~3-6k */
+    const fg=new THREE.BufferGeometry();fg.setAttribute('position',new THREE.BufferAttribute(R.P,3));fg.setAttribute('normal',new THREE.BufferAttribute(R.N,3));fg.setAttribute('color',new THREE.BufferAttribute(R.C,3));fg.computeBoundingSphere();
     const me=new THREE.Mesh(fg,FAR_MATS[b]);me.castShadow=true;me.receiveShadow=true;out.add(me);}
   out.userData.far=true;return out.children.length?out:null;}catch(e){console.warn('far bake',e);return null;}}
 function buildKart(spec){HQB=spec.hq!==0;
@@ -2067,6 +2079,7 @@ function burst0(x,y,z,n,cols,spd,size){for(let i=0;i<n;i++){const a=Math.random(
 
 /* ================= WORLD ================= */
 let shakeImp=0;function shake(a){if(!CFG.shake)return;shakeImp=Math.min(1.6,shakeImp+a);}
+let finPunch=0,slowT=0;function finishPunch(){finPunch=.0001;if(!NET.cfg)slowT=1.25;shake(.5);}
 let world=null,animators=[],boxes=[],IBX=null,pads=[],sky=null,ramps=[],obstacles=[],rollers=[],simTime=0;
 const THEMES={
   kitchen:{exposure:1.0,bg:'#3a1c10',fog:['#4a2414',1300,5200],hemi:['#fff1dc','#6b3a1e',.8],sun:['#fff0d8',2.3],dir:[.55,1,.35],env:['#fff6e4','#ffb26a','#7a3a1c','#1e0e08'],roadDark:false},
@@ -2454,7 +2467,7 @@ vec3 hqBump(vec3 sp,vec3 sn,vec2 dh,float fd){vec3 sx=dFdx(sp),sy=dFdy(sp),r1=cr
   return {apply,U};})();
 
 function chunkInst(geo,mat,items,opt){opt=opt||{};if(!items.length){geo.dispose();return;}
-  if(DBK&&canVC(mat)&&!opt.inst){if(HQG.active&&(geo.index?geo.index.count:geo.attributes.position.count)*items.length>250000)geo=HQG.mid(geo);const t=tplOf([[lowPoly(geo),mat.color]]);for(const it of items)dbAddM(t,it.m,it.c,!opt.noLift);geo.dispose();mat.dispose();return;}
+  if(DBK&&canVC(mat)&&!opt.inst){if(HQG.active&&(geo.index?geo.index.count:geo.attributes.position.count)*items.length>250000)geo=HQG.mid(geo);const t=tplOf([[lowPoly(geo),mat.color]]);DB_THIN=!opt.keep;for(const it of items)dbAddM(t,it.m,it.c,!opt.noLift);DB_THIN=false;geo.dispose();mat.dispose();return;}
   const cells=new Map();
   /* a sparse set (flags, a few lamps) goes into one instanced mesh with a real bounding sphere: spreading it over map cells cost a draw call per cell for one or two instances each */
   const sparse=items.length<=96;
@@ -3591,9 +3604,14 @@ function tplOf(list){const P=[],N=[],C=[],GP=[],GC=[],m=new THREE.Matrix4(),q=ne
     if(g!==g0)g.dispose();if(own)own.dispose();}
   return {P:new Float32Array(P),N:new Float32Array(N),C:new Float32Array(C),GP:new Float32Array(GP),GC:new Float32Array(GC),rad,h};}
 let DBK=null;
-function dbAdd(t,x,z,ry,s,tint,yOff,blob){const y=groundAt(x,z)+(yOff||0),key=Math.floor(x/DCELL)+','+Math.floor(z/DCELL);let c=DBK.get(key);if(!c){c={L:[],nv:0,ng:0,nb:0};DBK.set(key,c);}
+/* phone triangle budget: Lite/Fast/Balanced keep only part of the trackside scatter, chosen by a hash of the position (not the seeded
+   stream, so the race itself is identical on every preset and every machine) */
+const dbKeep=()=>{const q=QUAL[qKey]||{};return q.lite?.5:qKey==='fast'?.65:qKey==='balanced'?.85:1;};
+const dbHash=(x,z)=>{const v=Math.sin(x*12.9898+z*78.233)*43758.5453;return v-Math.floor(v);};
+let DB_THIN=false;/* true only around the bulk clutter passes: lamps, cones, arches and tyre stacks always stay */
+function dbAdd(t,x,z,ry,s,tint,yOff,blob){if(DB_THIN){const kp=dbKeep();if(kp<1&&dbHash(x,z)>kp)return;}const y=groundAt(x,z)+(yOff||0),key=Math.floor(x/DCELL)+','+Math.floor(z/DCELL);let c=DBK.get(key);if(!c){c={L:[],nv:0,ng:0,nb:0};DBK.set(key,c);}
   c.L.push([t,x,y,z,ry||0,s||1,tint||null,blob!==false]);c.nv+=t.P.length/3;c.ng+=t.GP.length/3;if(blob!==false)c.nb++;}
-function dbAddM(t,m,tint,lift){const e=m.elements,x=e[12],z=e[14],y=e[13]+(lift?groundAt(x,z):0),key=Math.floor(x/DCELL)+','+Math.floor(z/DCELL);let c=DBK.get(key);if(!c){c={L:[],nv:0,ng:0,nb:0};DBK.set(key,c);}
+function dbAddM(t,m,tint,lift){const e=m.elements,x=e[12],z=e[14];if(DB_THIN){const kp=dbKeep();if(kp<1&&dbHash(x,z)>kp)return;}const y=e[13]+(lift?groundAt(x,z):0),key=Math.floor(x/DCELL)+','+Math.floor(z/DCELL);let c=DBK.get(key);if(!c){c={L:[],nv:0,ng:0,nb:0};DBK.set(key,c);}
   c.L.push([t,x,y,z,0,1,tint||null,false,m]);c.nv+=t.P.length/3;c.ng+=t.GP.length/3;}
 const _nm3=new THREE.Matrix3();
 function dbFlush(){const mat=surfify(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.62,metalness:.04}),.26),gmat=new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false}),
@@ -3717,13 +3735,13 @@ function detail(def,R,ctx){const {pick,straight,farFrom,placed,used}=ctx,th=def.
   const area=Math.min(3.2,(R/512)*(R/512)*.55);
   /* themed props, in little clusters so the pizza reads as busy rather than sprinkled */
   const nC=Math.round(46*area);
-  for(let c=0,tries=0;c<nC&&tries<nC*30;tries++){const a=rnd()*6.283,r=Math.sqrt(rnd())*(R-120),cx=Math.cos(a)*r,cz=Math.sin(a)*r;if(!okPt(cx,cz,30,10))continue;c++;
+  DB_THIN=true;for(let c=0,tries=0;c<nC&&tries<nC*30;tries++){const a=rnd()*6.283,r=Math.sqrt(rnd())*(R-120),cx=Math.cos(a)*r,cz=Math.sin(a)*r;if(!okPt(cx,cz,30,10))continue;c++;
     const n=2+((rnd()*4)|0),kind=L.props[(rnd()*L.props.length)|0];
     for(let k=0;k<n;k++){const t=L[k===0?kind:L.props[(rnd()*L.props.length)|0]],s=.75+rnd()*.6,x=cx+(rnd()-.5)*60,z=cz+(rnd()-.5)*60,rad=t.rad*s;if(!okPt(x,z,rad,8))continue;placed.push([x,z,rad]);dbAdd(t,x,z,rnd()*6.283,s);}}
   for(let i=0,tries=0;i<Math.round(70*area)&&tries<4000;tries++){const kind=['bush','rock','bush'][(rnd()*3)|0],t=L[kind],s=.7+rnd()*.8,a=rnd()*6.283,r=Math.sqrt(rnd())*(R-90),x=Math.cos(a)*r,z=Math.sin(a)*r,rad=t.rad*s;if(!okPt(x,z,rad,6))continue;placed.push([x,z,rad]);dbAdd(t,x,z,rnd()*6.283,s);i++;}
   /* ground sprinkles: herbs and crumbs, too small to need shadows */
   for(let i=0,tries=0;i<Math.round(700*area)&&tries<20000;tries++){const a=rnd()*6.283,r=Math.sqrt(rnd())*(R-80),x=Math.cos(a)*r,z=Math.sin(a)*r;if(nearTrack(x,z,CURB+12)||(GLIDE&&pitAt(x,z)>1)||nearSC(x,z,SCW+8))continue;
-    dbAdd(L[L.ground[(rnd()*L.ground.length)|0]],x,z,rnd()*6.283,.6+rnd()*.9,null,0,false);i++;}
+    dbAdd(L[L.ground[(rnd()*L.ground.length)|0]],x,z,rnd()*6.283,.6+rnd()*.9,null,0,false);i++;}DB_THIN=false;
   /* trackside: lamps on straights, cones at the apex of bends, tyre stacks behind the outside walls, fans along the straights */
   let lastLamp=-99,lastCone=-99,lastFan=-99,lastTire=-99;
   for(let j=0;j<N;j++){if(MULTI&&isDeck(j))continue;const p=track[j],b=p.bend;if(GLIDE&&j>GLIDE.rj-25&&j<GLIDE.j1+25)continue;if(loopNear(j,30))continue;
@@ -3839,7 +3857,7 @@ function bnoise(x,y){const i=Math.floor(x),j=Math.floor(y),f=x-i,g=y-j,h=(a,b)=>
   return (h(i,j)*(1-u)+h(i+1,j)*u)*(1-v)+(h(i,j+1)*(1-u)+h(i+1,j+1)*u)*v;}
 function ridge(x,y,oct){let a=0,amp=.55,fr=1,w=1;for(let o=0;o<oct;o++){let n=1-Math.abs(bnoise(x*fr,y*fr)*2-1);n*=n;a+=n*amp*w;w=Math.min(1,n*1.6);fr*=2.05;amp*=.5;}return a;}
 /* a ring of real terrain around the arena: ridged noise, coloured by height and steepness */
-function mountainRing(o){const {r0,r1,h,cols,base=-60,seed=1,AS=480,RS=30,snow=.72,rough=.95}=o;const pos=[],col=[],idx=[],C=cols.map(c=>new THREE.Color(c)),tmp=new THREE.Color();
+function mountainRing(o){const {r0,r1,h,cols,base=-60,seed=1,AS=(QUAL[qKey].hqAll&&!QUAL[qKey].mob)?480:360,RS=(QUAL[qKey].hqAll&&!QUAL[qKey].mob)?30:22,snow=.72,rough=.95}=o;const pos=[],col=[],idx=[],C=cols.map(c=>new THREE.Color(c)),tmp=new THREE.Color();
   const H=(a,t)=>{const x=Math.cos(a)*(3+seed),y=Math.sin(a)*(3+seed);const env=Math.sin(Math.PI*Math.pow(t,.85));const n=ridge(x*1.4+t*1.7,y*1.4+t*2.3+seed,4);/* the fifth octave only aliased into needles at this vertex spacing */const peaks=.35+.65*bnoise(a*3.1+seed,seed*.7);return env*n*peaks;};
   /* uv: u runs round the ring, v follows the surface's own length outward (so the relief map climbs the cliffs instead of smearing over them); ~TILE units per repeat */
   const uv=[],TILE=380,reps=Math.round(Math.PI*(r0+r1)/TILE),L=new Float32Array(AS+1);
@@ -4276,12 +4294,28 @@ function initAudio(){if(ac)return;try{if(navigator.audioSession)navigator.audioS
   const conv=ac.createConvolver();conv.buffer=ir;revBus=ac.createGain();revBus.gain.value=.22;const rhp=ac.createBiquadFilter();rhp.type='highpass';rhp.frequency.value=260;revBus.connect(rhp);rhp.connect(conv);conv.connect(master);
   /* engine: a harmonic-rich firing pulse (not a smooth drone), chopped by the cylinder beat and band-limited so it reads as a little kart motor */
   const H=28,re=new Float32Array(H+1),im=new Float32Array(H+1);for(let n=1;n<=H;n++){im[n]=(n%2?1:.6)*Math.pow(n,-.95)*(n===1?.55:n===3?1.25:1);re[n]=(n%4===2?.25:0)/n;}const wave=ac.createPeriodicWave(re,im);
+  /* the other engine recipes (see ENG_PROF): a screaming race motor (odd harmonics, bright), a lazy V8 (even harmonics lope, dark), a near-sine hum for jets and electrics */
+  const mk=f=>{const r2=new Float32Array(H+1),i2=new Float32Array(H+1);for(let n=1;n<=H;n++)i2[n]=f(n);return ac.createPeriodicWave(r2,i2);};
+  engWaves={pulse:wave,scream:mk(n=>(n%2?1:.75)*Math.pow(n,-.7)*(n===1?.5:1)),v8:mk(n=>(n%2?.8:1.15)*Math.pow(n,-1.3)*(n===2?1.4:1)),hum:mk(n=>n===1?1:n===2?.35:n===3?.1:0)};
   eng=ac.createOscillator();eng.setPeriodicWave(wave);eng2=ac.createOscillator();eng2.setPeriodicWave(wave);eng2.detune.value=-11;
-  const am=ac.createGain();am.gain.value=.68;engAM=ac.createOscillator();engAM.type='triangle';const amd=ac.createGain();amd.gain.value=.32;engAM.connect(amd);amd.connect(am.gain);
+  const am=ac.createGain();am.gain.value=.68;engAM=ac.createOscillator();engAM.type='triangle';const amd=ac.createGain();amd.gain.value=.32;engAM.connect(amd);amd.connect(am.gain);engAMD=amd;
   const hp=ac.createBiquadFilter();hp.type='highpass';hp.frequency.value=90;hp.Q.value=.6;engLP=ac.createBiquadFilter();engLP.type='lowpass';engLP.frequency.value=1100;engLP.Q.value=.8;
   const pk=ac.createBiquadFilter();pk.type='peaking';pk.frequency.value=1500;pk.Q.value=1.1;pk.gain.value=4;engGain=ac.createGain();engGain.gain.value=0;const g2=ac.createGain();g2.gain.value=.45;
   eng.connect(am);eng2.connect(g2);g2.connect(am);am.connect(hp);hp.connect(pk);pk.connect(engLP);engLP.connect(engGain);engGain.connect(master);eng.start();eng2.start();engAM.start();engSub=null;engIn=hp;initSfx();}catch(e){ac=null;}}
 let noiseBuf=null,skidGain=null,skidFilt=null,revBus=null,engLP=null,engSub=null,driftT=0,engAM=null,engIn=null,engNG=null,voices=0;
+/* engine voices per kart body: one motor graph, re-tuned per body. f pitch, am cylinder-beat depth, amR beat rate vs pitch, lp filter opening,
+   nz intake/turbine noise, bp noise band (Hz), wave harmonic recipe, gears whether revs step through gears (electric and jets glide) */
+const ENG_PROF={std:{f:1,am:.32,amR:.5,lp:1,nz:1,bp:2400,wave:'pulse',gears:1},
+  race:{f:1.55,am:.2,amR:.5,lp:1.45,nz:1.3,bp:3200,wave:'scream',gears:1},
+  v8:{f:.62,am:.5,amR:.25,lp:.75,nz:.9,bp:1600,wave:'v8',gears:1},
+  jet:{f:2.2,am:.05,amR:.5,lp:2.2,nz:4.5,bp:2800,wave:'hum',gears:0},
+  bike:{f:1.25,am:.55,amR:.5,lp:1.2,nz:1.1,bp:2600,wave:'pulse',gears:1},
+  hum:{f:3.1,am:.04,amR:1,lp:1.6,nz:.6,bp:5200,wave:'hum',gears:0},
+  chug:{f:.8,am:.6,amR:.5,lp:.7,nz:1.6,bp:1200,wave:'v8',gears:1}};
+const ENG_BODY={delivery:'v8',formula:'race',interceptor:'race',hyper:'race',onyx:'race',roadster:'race',scissor:'race',gt:'race',coupe:'race',muscle:'v8',monster:'v8',suv:'v8',rocket:'jet',bike_rocket:'jet',bike_moto:'bike',bike_mx:'bike',bike_neutron:'bike',bike_june:'hum',oven:'chug',chariot:'chug'};
+let ENGP=ENG_PROF.std,engWaves=null,engAMD=null,engBP=null;
+function engineFor(k){const b=k&&k.spec&&BODIES[k.spec.b];return ENG_PROF[(b&&ENG_BODY[b.id])||'std'];}
+function applyEngine(k){if(!ac||!eng)return;ENGP=engineFor(k);try{const w=engWaves&&engWaves[ENGP.wave];if(w){eng.setPeriodicWave(w);eng2.setPeriodicWave(w);}if(engAMD)engAMD.gain.setTargetAtTime(ENGP.am,ac.currentTime,.05);}catch(e){}}
 /* never more than a couple of dozen effect voices at once: piles of overlapping sounds are what made the audio crackle */
 function vOK(d,delay){if(voices>=22)return false;voices++;setTimeout(()=>{voices--;},((d||.3)+(delay||0))*1000+140);return true;}
 function initSfx(){try{const n=ac.sampleRate*2;noiseBuf=ac.createBuffer(1,n,ac.sampleRate);const d=noiseBuf.getChannelData(0);
@@ -4291,7 +4325,7 @@ function initSfx(){try{const n=ac.sampleRate*2;noiseBuf=ac.createBuffer(1,n,ac.s
   const src=ac.createBufferSource();src.buffer=noiseBuf;src.loop=true;skidFilt=ac.createBiquadFilter();skidFilt.type='bandpass';skidFilt.frequency.value=900;skidFilt.Q.value=.7;
   const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2200;skidGain=ac.createGain();skidGain.gain.value=0;const am=ac.createGain();am.gain.value=.75;const lfo=ac.createOscillator();lfo.frequency.value=11;const lg=ac.createGain();lg.gain.value=.25;lfo.connect(lg);lg.connect(am.gain);lfo.start();
   src.connect(skidFilt);skidFilt.connect(lp);lp.connect(am);am.connect(skidGain);skidGain.connect(master);src.start();
-  if(engIn){const ns=ac.createBufferSource();ns.buffer=noiseBuf;ns.loop=true;const bp=ac.createBiquadFilter();bp.type='bandpass';bp.frequency.value=2400;bp.Q.value=.9;engNG=ac.createGain();engNG.gain.value=.12;ns.connect(bp);bp.connect(engNG);engNG.connect(engIn);ns.start();}}catch(e){}}
+  if(engIn){const ns=ac.createBufferSource();ns.buffer=noiseBuf;ns.loop=true;const bp=ac.createBiquadFilter();bp.type='bandpass';bp.frequency.value=2400;bp.Q.value=.9;engNG=ac.createGain();engNG.gain.value=.12;ns.connect(bp);bp.connect(engNG);engNG.connect(engIn);ns.start();engBP=bp;}}catch(e){}}
 /* one voice = two slightly detuned oscillators through a lowpass that rounds off the edges, with a soft attack */
 function tone(f,d,type,v,f2,delay,rev){if(!ac||muted||v<=.001)return;if(!vOK(d,delay))return;const t=ac.currentTime+(delay||0),g=ac.createGain(),lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(Math.min(16000,f*(type==='sine'?20:5)),t);lp.Q.value=.5;
   for(const dt of [-6,6]){const o=ac.createOscillator();o.type=type||'sine';o.detune.value=dt;o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d*.9);o.connect(lp);o.start(t);o.stop(t+d+.08);}
@@ -4312,6 +4346,15 @@ const SFX={
   pad(){noise(.6,.12,'bandpass',400,3400,0,1.3,.6);tone(260,.4,'triangle',.04,1040,0,.5);},
   pickup(){[784,988,1175,1568].forEach((f,i)=>bell(f,.5,.04,i*.045));noise(.35,.04,'highpass',4000,9000,.05,1,.6);},
   ready(){bell(1047,.3,.035);bell(1568,.4,.035,.08);},
+  /* garage: a one-second rev of a body's engine voice (its wave, pitch, beat and intake noise), so picking a body is also hearing it */
+  rev(P){if(!ac||muted||!engWaves)return;try{P=P||ENG_PROF.std;const t=ac.currentTime,D=1.05,g=ac.createGain(),lp=ac.createBiquadFilter(),am=ac.createGain(),amo=ac.createOscillator(),amd=ac.createGain();
+    lp.type='lowpass';lp.Q.value=.8;am.gain.value=.68;amo.type='triangle';amd.gain.value=P.am;amo.connect(amd);amd.connect(am.gain);
+    const f0=(24+.3*58)*P.f,f1=(24+1.1*58+8)*P.f;const curve=(o,m)=>{o.frequency.setValueAtTime(f0*m,t);o.frequency.exponentialRampToValueAtTime(f1*m,t+.55);o.frequency.exponentialRampToValueAtTime(f0*1.2*m,t+D);};
+    for(const dt of [0,1.006]){const o=ac.createOscillator();o.setPeriodicWave(engWaves[P.wave]||engWaves.pulse);curve(o,dt||1);o.connect(am);o.start(t);o.stop(t+D+.1);}curve(amo,P.amR);amo.start(t);amo.stop(t+D+.1);
+    lp.frequency.setValueAtTime((650+.3*1500)*P.lp,t);lp.frequency.exponentialRampToValueAtTime((650+1.1*1500)*P.lp,t+.55);lp.frequency.exponentialRampToValueAtTime((650+.4*1500)*P.lp,t+D);
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.02,t+.08);g.gain.setValueAtTime(.02,t+.6);g.gain.linearRampToValueAtTime(0,t+D);am.connect(lp);lp.connect(g);g.connect(master);
+    if(noiseBuf&&P.nz>.5){const ns=ac.createBufferSource();ns.buffer=noiseBuf;ns.loop=true;const bp=ac.createBiquadFilter();bp.type='bandpass';bp.Q.value=.9;bp.frequency.setValueAtTime(P.bp*.7,t);bp.frequency.exponentialRampToValueAtTime(P.bp*1.2,t+.55);bp.frequency.exponentialRampToValueAtTime(P.bp*.8,t+D);
+      const ng=ac.createGain();ng.gain.setValueAtTime(0,t);ng.gain.linearRampToValueAtTime(.012*P.nz,t+.3);ng.gain.linearRampToValueAtTime(0,t+D);ns.connect(bp);bp.connect(ng);ng.connect(master);ns.start(t);ns.stop(t+D+.1);}}catch(e){}},
   tick(){tone(1700+Math.random()*300,.03,'triangle',.012,0,0,0);},
   throwF(){noise(.32,.11,'bandpass',600,2600,0,1.6,.3);thump(180,.08,.05);},
   throwB(){noise(.32,.11,'bandpass',2400,500,0,1.6,.3);thump(140,.08,.05);},
@@ -5316,8 +5359,9 @@ function render(time,dt){
     camera.lookAt(cam.look.x,cam.look.y+cam.oy*.45,cam.look.z);camera.rotateX(-cam.gp);
     if(SPEC&&SPEC.on){specLabel();if(SPEC.mode>0)specCamera(dt);}
     cam.roll=cam.gr;camera.rotateZ(cam.roll+n3*amp*.006);
-    const hf=(camT.boost>0?(CL?100:96):(CL?92:90))*Math.PI/180,vf=clamp(2*Math.atan(Math.tan(hf/2)/camera.aspect)*180/Math.PI,52,100);
-    if(!(SPEC&&SPEC.on&&SPEC.mode>0)&&Math.abs(camera.fov-vf)>.05){camera.fov+=(vf-camera.fov)*Math.min(1,5*dt);camera.updateProjectionMatrix();}/* the spectator cameras set their own zoom */
+    const hf=(camT.boost>0?(CL?100:96):(CL?92:90))*Math.PI/180;let vf=clamp(2*Math.atan(Math.tan(hf/2)/camera.aspect)*180/Math.PI,52,100);
+    const fp=finPunch>0?Math.sin(Math.min(1,finPunch/.8)*Math.PI)*(finPunch<.12?finPunch/.12:1)*14:0;vf+=fp;/* the finish kick: wide fast, back slowly */
+    if(!(SPEC&&SPEC.on&&SPEC.mode>0)&&Math.abs(camera.fov-vf)>.05){camera.fov+=(vf-camera.fov)*Math.min(1,(fp>0?18:5)*dt);camera.updateProjectionMatrix();}/* the spectator cameras set their own zoom */
     snapSun(camT.rx+Math.cos(cam.a)*80,camT.rg,camT.ry+Math.sin(cam.a)*80);}
   if(state==='intro')introCam(dt);if(sky)sky.position.copy(camera.position);rimL.position.set(camera.position.x-sunDir.x*400,camera.position.y+260,camera.position.z-sunDir.z*400);rimL.target.position.set(camera.position.x,camera.position.y-40,camera.position.z);
   if(IBX&&boxes.length){if(!IBX.meshes||IBX.n!==boxes.length){if(IBX.meshes)for(const m of IBX.meshes)world.remove(m);const nN=boxes.filter(b=>!b.dbl).length,nD=boxes.length-nN,mk=(geo,mat,n,cast)=>{const im=new THREE.InstancedMesh(geo,mat,Math.max(1,n));im.castShadow=cast;im.receiveShadow=cast;im.frustumCulled=false;im.userData.dyn=true;im.userData.noMerge=true;im.count=n;world.add(im);return im;};
@@ -5403,7 +5447,7 @@ function goFullscreen(){const el=document.documentElement;try{const p=el.request
   if(p&&p.then)p.then(()=>{try{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{});}catch(e){}}).catch(()=>{});}catch(e){}}
 function buildProg(){const el=$('tbProg');if(!el)return;el.querySelectorAll('i,.tb-lap').forEach(n=>n.remove());for(let l=1;l<LAPS;l++){const t=document.createElement('span');t.className='tb-lap';t.style.left='calc(8px + (100% - 16px)*'+(l/LAPS).toFixed(4)+')';t.innerHTML='<b>L'+(l+1)+'</b>';el.appendChild(t);}for(const k of karts){const n=document.createElement('i');if(k===player)n.className='me';n.style.setProperty('--c',k.r.color);if(PORTRAITS[k.ri])n.style.backgroundImage='url('+PORTRAITS[k.ri]+')';el.appendChild(n);k.pm=n;}}
 let _abSetup=false;function startRace(){try{drsReset();}catch(e){}if(!_abSetup){_abSetup=true;setupAbilityHud();const ci=$('cine');ci.addEventListener('pointerdown',e=>{e.preventDefault();introSkip=true;});addEventListener('keydown',()=>{if(state==='intro')introSkip=true;});}if(window.__clearInput)window.__clearInput();initAudio();if(ac&&ac.state==='suspended')ac.resume();if(CFG.fullscr!==false)goFullscreen();
-  menu.hidden=true;results.hidden=true;pauseOv.hidden=true;resetRace(false);state='countdown';cd=3.4;lastCd=4;abilReset();stage.classList.remove('demo');raceDone=false;
+  menu.hidden=true;results.hidden=true;pauseOv.hidden=true;resetRace(false);try{applyEngine(player);}catch(e){}slowT=0;finPunch=0;state='countdown';cd=3.4;lastCd=4;abilReset();stage.classList.remove('demo');raceDone=false;
   buildProg();ghostStart();{const r=loadRecs()[recKey()],e=$('hudPB');if(e){e.hidden=!r;if(r)e.textContent='Best '+fmt(r.t);}}lastPos=lastLap=lastItem=lastTimeStr='';lastSpd=-1;hud.ch=-1;hud.bst=null;hud.dr=null;banner.textContent='';hintShown=false;itemQueued=null;}
 const paint=()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
 let raceLoading=false;
@@ -5573,7 +5617,7 @@ function achToast(a,msg){const el=$('achToast');if(!el)return;const lv=a?livOf(a
   clearTimeout(achToastT);achToastT=setTimeout(()=>{el.classList.remove('in');achToastT=setTimeout(()=>el.hidden=true,400);},a?3800:2600);
   if(a&&!ACH_THUMB[a.lv]&&state!=='race')renderAchThumbs();}
 
-function onPlayerFinish(){saveRun();try{achFinish();}catch(e){}player.auto=true;showBanner('Finish!',2.4,'md');SFX.finish();resultsAt=2.4;}
+function onPlayerFinish(){saveRun();try{achFinish();}catch(e){}player.auto=true;showBanner('Finish!',2.4,'md');SFX.finish();try{finishPunch();}catch(e){}resultsAt=2.4;}
 const TROPHY=c=>'<svg class="trophy" viewBox="0 0 24 24"><path d="M7 3h10v4.5a5 5 0 0 1-10 0z" fill="'+c+'"/><path d="M7 5H4a3 3 0 0 0 3 4.2M17 5h3a3 3 0 0 1-3 4.2" stroke="'+c+'" stroke-width="1.6" fill="none"/><rect x="10.5" y="12" width="3" height="5" fill="'+c+'"/><rect x="7" y="17" width="10" height="3.4" rx="1" fill="#8a5f42"/></svg>';
 /* online: after the host's own finish the computer racers get estimated times; a friend who finishes later slots in by time */
 function netRerank(){const f=karts.filter(k=>k.finished).sort((a,b)=>a.finishTime-b.finishTime);f.forEach((k,i)=>k.place=i+1);}
@@ -5780,7 +5824,7 @@ function saveBuild(){store.set('crust-build',JSON.stringify(playerBuild));}
 function buildSummary(){const lv=playerBuild.t&&livOf(playerBuild.t);return BODIES[playerBuild.b].name+(lv?' · '+lv.name:'')+' · '+WHEELS[playerBuild.w].name+' · '+GLIDERS[playerBuild.g].name+(statsOn?'':' · stats off');}
 function buildGarage(){
   const mk=(wrap,list,key,idx)=>list.forEach((p,j)=>{const i=idx?idx[j]:j;const b=document.createElement('button');b.type='button';b.className='part';b.dataset.i=i;
-    b.innerHTML='<b>'+p.name+'</b><span class="pd">'+p.desc+'</span><span class="chips">'+partChips(p.st)+'</span>';b.onclick=()=>{playerBuild[key]=i;if(key==='b'&&playerBuild.t&&!liveriesFor(BODIES[i].id).some(l=>l.id===playerBuild.t))playerBuild.t='';saveBuild();refreshGarage(true);};wrap.appendChild(b);});
+    b.innerHTML='<b>'+p.name+'</b><span class="pd">'+p.desc+'</span><span class="chips">'+partChips(p.st)+'</span>';b.onclick=()=>{playerBuild[key]=i;if(key==='b'&&playerBuild.t&&!liveriesFor(BODIES[i].id).some(l=>l.id===playerBuild.t))playerBuild.t='';saveBuild();refreshGarage(true);if(key==='b')SFX.rev(ENG_PROF[ENG_BODY[BODIES[i].id]||'std']);};wrap.appendChild(b);});
   {const ki=[],ci=[],bi=[];BODIES.forEach((p,i)=>(p.bike?bi:CAR_BODIES.includes(p.id)?ci:ki).push(i));mk($('pKart'),ki.map(i=>BODIES[i]),'b',ki);mk($('pCar'),ci.map(i=>BODIES[i]),'b',ci);mk($('pBike'),bi.map(i=>BODIES[i]),'b',bi);}mk($('pWheel'),WHEELS,'w');mk($('pGlider'),GLIDERS,'g');$('pGlider').addEventListener('click',()=>{gGlT=3.2;});
   PAINTS.forEach((c,i)=>{const b=document.createElement('button');b.type='button';b.className='pw'+(c?'':' drv');b.dataset.i=i;b.setAttribute('aria-label',PAINT_NAMES[i]);b.title=PAINT_NAMES[i];if(c)b.style.background=c;
     b.onclick=()=>{playerBuild.p=i;playerBuild.t='';saveBuild();refreshGarage(true);};$('pPaint').appendChild(b);});
@@ -7062,6 +7106,8 @@ function frame(now){
   if(CFG.fps==='60'){if(now<frame.due-2.5){requestAnimationFrame(frame);return;}frame.due+=1000/60;if(now-frame.due>1000/60)frame.due=now;}{const fd=now-lastFrameT;if(fd>fpsMax&&fd<1000)fpsMax=fd;if(state==='race'&&fd>0&&fd<200)capWatch(fd);}lastFrameT=now;
   fpsN++;if(now-fpsT>500){const show=CFG.showfps&&state!=='menu';fpsEl.hidden=!show;if(show)fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' FPS'+(CAPW.capped?' (capped by phone)':'')+' · '+((now-fpsT)/fpsN).toFixed(1)+' ms · worst '+Math.round(fpsMax)+' ms · CPU '+CPUMS.toFixed(1)+(GPUT&&GPUT.ms>0?' · GPU '+GPUT.ms.toFixed(1):'')+(ssMul()>1?' · '+ssMul()+'×':'')+netStat(now-fpsT)+((SCR.cur||SCR.hz.win)?' · screen '+(SCR.fs?SCR.hz.fs||SCR.cur:SCR.hz.win||SCR.cur)+' Hz':'')+scrWhy(fpsN*1000/(now-fpsT));fpsN=0;fpsT=now;fpsMax=0;}
   let dt=(now-last)/1000;last=now;if(dt>.1)dt=.1;if(dt<0)dt=0;const time=now/1000;const cw0=performance.now();
+  /* finish-line punch: a beat of slow motion (offline only: online the race runs on the host's clock) and a wide-angle kick in the camera */
+  if(finPunch>0){finPunch+=dt;if(finPunch>.8)finPunch=0;}if(slowT>0){slowT-=dt;const ts=slowT>.5?.38:.38+.62*(1-slowT/.5);dt*=Math.max(.38,Math.min(1,ts));}
   if(state==='menu'||state==='race'){acc+=dt;let n=0;const gs=NET.role==='guest'&&NET.cfg&&state==='race';while(acc>=STEP&&n<12){if(gs)netGuestStep(STEP);else update(STEP);acc-=STEP;n++;}if(n>=12)acc=0;alpha=acc/STEP;netFlush();netQUpdate();NETLOG.frame();NETLOG.tick();if(gs&&NET.snaps.length){/* other karts on a guest are drawn exactly at this frame's moment of the host's race (not blended between simulation steps), so every frame on a 144 Hz screen shows their motion */if(n===0)netInterp(player.finished?null:player);for(const o of karts)if(o!==player){o.px=o.x;o.py=o.y;o.pa=o.a;o.pma=o.ma;o.pwy=o.wy;o.pth=o.loopTh||0;}}
     if(state==='race'){if(resLive>0&&!results.hidden&&NET.cfg){resLive-=dt;if(resLive<=0)renderResultsNet();}if(resultsAt>0){resultsAt-=dt;if(resultsAt<=0){/* the results own the screen: close the pause menu and any settings opened from it, so the controller can't get stuck behind them */if(!setOv.hidden&&setFrom===pauseOv){setOv.hidden=true;setFrom=null;}pauseOv.hidden=true;results.hidden=false;renderResults();PAD.focEl=null;if(NET.cfg)NETLOG.stop();}}}}
   else if(state==='netwait'){alpha=1;netQUpdate();if(NET.role==='host'){netMaybeGo();if(state==='netwait'&&performance.now()-NET.waitTimer>45000){netAll({t:'go'});netGo();}}else if(NET.conns[0]&&!NET.conns[0].direct&&NET.conns[0].rtcSt!=='failed'&&(!NET.linkMsgT||performance.now()-NET.linkMsgT>400)){NET.linkMsgT=performance.now();showBanner('Linking with the host…',1,'sm');}if(NET.role==='guest'){const gs=NET.snaps.length;if(gs)netInterp(null);}}
@@ -7076,9 +7122,9 @@ function frame(now){
     if(skidGain){const dr=on&&player.drift&&!player.air,c=player?Math.min(1,player.charge/2.6):0;driftT=dr?driftT+dt:0;const fat=1-.45*Math.min(1,Math.max(0,driftT-1.2)/2.5);/* long drifts settle down instead of droning */
       skidGain.gain.setTargetAtTime(dr?(.022+.022*c)*fat:0,ac.currentTime,dr?.09:.05);skidFilt.frequency.setTargetAtTime(760+c*520,ac.currentTime,.15);}
     const sp=player?Math.max(0,player.speed):0,bst=player&&player.boost>0,r=Math.min(1.3,sp/(BASE_MAX||170)),GT=[0,.2,.42,.64,.86,1.31];let gi=0;while(gi<4&&r>GT[gi+1])gi++;
-    const rpm=Math.min(1.12,.3+.7*Math.min(1,(r-GT[gi])/(GT[gi+1]-GT[gi]))+(bst?.12:0)),ef=24+rpm*58+gi*4,T0=ac.currentTime;/* gears: revs climb, then drop at each shift like a real motor */
-    eng.frequency.setTargetAtTime(ef,T0,.05);eng2.frequency.setTargetAtTime(ef*1.006,T0,.05);if(engAM)engAM.frequency.setTargetAtTime(ef*.5,T0,.05);
-    if(engLP)engLP.frequency.setTargetAtTime(650+rpm*1500+(bst?500:0),T0,.08);if(engNG)engNG.gain.setTargetAtTime(.06+rpm*.12,T0,.1);engGain.gain.setTargetAtTime(on?.0065+.0055*rpm:0,T0,.06);}
+    const rpm=ENGP.gears?Math.min(1.12,.3+.7*Math.min(1,(r-GT[gi])/(GT[gi+1]-GT[gi]))+(bst?.12:0)):Math.min(1.12,.25+.7*Math.min(1.2,r)+(bst?.12:0)),ef=(24+rpm*58+(ENGP.gears?gi*4:0))*ENGP.f,T0=ac.currentTime;/* gears: revs climb, then drop at each shift like a real motor; jets and electrics glide */
+    eng.frequency.setTargetAtTime(ef,T0,.05);eng2.frequency.setTargetAtTime(ef*1.006,T0,.05);if(engAM)engAM.frequency.setTargetAtTime(ef*ENGP.amR,T0,.05);if(engBP)engBP.frequency.setTargetAtTime(ENGP.bp*(.65+rpm*.5),T0,.1);
+    if(engLP)engLP.frequency.setTargetAtTime((650+rpm*1500+(bst?500:0))*ENGP.lp,T0,.08);if(engNG)engNG.gain.setTargetAtTime((.06+rpm*.12)*ENGP.nz,T0,.1);engGain.gain.setTargetAtTime(on?.0065+.0055*rpm:0,T0,.06);}
   requestAnimationFrame(frame);
 }
 boot();
