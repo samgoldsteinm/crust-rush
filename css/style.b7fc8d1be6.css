@@ -747,7 +747,7 @@ body.looking .lookbtn{background:rgba(140,220,255,.32);border-color:#bfe9ff}
 .brk svg{margin:0}.brk.on{background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(224,69,44,.5) 40%,rgba(160,40,20,.6));transform:translateY(2px) scale(.98)}
 .brk.drifting{background:linear-gradient(180deg,#ffe39a,#ff8a1f 48%,#c4300f);border-color:#fff4dc;box-shadow:0 0 0 3px rgba(255,154,31,.3),0 0 24px rgba(255,122,26,.5)}
 /* "you hit them": item icon, arrow, the victim's portrait, bottom centre for a moment */
-.hittoast{position:absolute;left:50%;bottom:calc(var(--btn)*.25 + env(safe-area-inset-bottom,0px));transform:translate(-50%,0);display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:rgba(14,7,4,.55);border:1px solid rgba(255,244,220,.3);pointer-events:none;will-change:transform,opacity;animation:htin .22s ease-out}
+.hittoast{position:absolute;left:50%;bottom:calc(var(--btn)*.1 + env(safe-area-inset-bottom,0px));transform:translate(-50%,0);display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:rgba(14,7,4,.55);border:1px solid rgba(255,244,220,.3);pointer-events:none;will-change:transform,opacity;animation:htin .22s ease-out}
 .hittoast[hidden]{display:none}.hittoast .ht-item{width:34px;height:34px;display:grid;place-items:center}.hittoast .ht-item svg,.hittoast .ht-item img{width:100%;height:100%}
 .hittoast .ht-arrow{color:var(--cheese);font-size:14px}.hittoast .ht-who{display:flex;gap:4px}.hittoast .ht-who i{width:32px;height:32px;border-radius:50%;background-size:230%;background-position:50% 26%;background-color:#2a1810;box-shadow:0 0 0 2px var(--c,#fff)}
 @keyframes htin{from{transform:translate(-50%,14px);opacity:0}to{transform:translate(-50%,0);opacity:1}}

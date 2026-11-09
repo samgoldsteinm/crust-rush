@@ -1,6 +1,6 @@
 // Crust Rush service worker: installs the game as an app and keeps every file for offline play.
 // Game files have their content hash in the name, so a saved copy never goes stale; only the page itself is re-checked.
-const VERSION = 'crust-rush-v132';
+const VERSION = 'crust-rush-v133';
 const SHELL = [
   "./",
   "./index.html",
@@ -134,8 +134,8 @@ const SHELL = [
   "./assets/shots/grid-h.15003090c1.jpg",
   "./assets/shots/grid-m.31de56a1bf.jpg",
   "./assets/shots/grid-a.c36c42a4dd.jpg",
-  "./css/style.bfeca57cc4.css",
-  "./js/game.ec98e6ff0b.js",
+  "./css/style.b7fc8d1be6.css",
+  "./js/game.70dcb81da5.js",
   "./vendor/three-0.149.0.min.js"
 ];
 
@@ -173,12 +173,14 @@ self.addEventListener('fetch', (event) => {
   // The page: network first so updates show up, saved copy when offline.
   if (req.mode === 'navigate' || (url.origin === location.origin && (url.pathname.endsWith('.html') || url.pathname.endsWith('/')))) {
     event.respondWith(
-      fetch(req)
+      fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' })
         .then((res) => { if (res.ok && (url.pathname.endsWith('/') || url.pathname.endsWith('/index.html'))) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put('./index.html', copy)); } return res; })
         .catch(() => caches.match(url.pathname.endsWith('/') || url.pathname.endsWith('/index.html') ? './index.html' : req))
     );
     return;
   }
+
+  if (url.pathname.endsWith('/version.json')) { event.respondWith(fetch(req.url, { cache: 'no-store' })); return; }
 
   // Hashed game files never change: saved copy first.
   if (url.origin === location.origin && /\.[0-9a-f]{10}\.(js|css|bin|jpg)$/.test(url.pathname)) {
