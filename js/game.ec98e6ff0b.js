@@ -2154,6 +2154,8 @@ function scClear(){if(!SHORTS.length)return;const cd=(a,b)=>{const d=Math.abs(a-
   const near=(j,lat)=>j!=null&&SHORTS.some(sc=>[sc.a,sc.b].some(e=>{const d=cd(j,e);return d<12||(d<30&&(lat==null||lat*sc.s>0));}));
   for(let i=obstacles.length-1;i>=0;i--){const o=obstacles[i];if(o.mesh&&near(o.j,o.lat)){world.remove(o.mesh);obstacles.splice(i,1);}}
   for(let i=rollers.length-1;i>=0;i--){const r=rollers[i];if(near(r.j,null)){if(r.m.parent)r.m.parent.remove(r.m);rollers.splice(i,1);}}}
+/* is this kart over a shortcut's corridor anywhere along it (not just at the mouth)? Used to let a jump land on a shortcut */
+function scOver(k,pad){for(const sc of SHORTS){const P=sc.pts,SW=(sc.w||SCW)+pad;for(let i=1;i<sc.n-1;i++){const p=P[i],off=(k.x-p.x)*p.nx+(k.y-p.y)*p.ny;if(Math.abs(off)>SW)continue;const al=(k.x-p.x)*p.tx+(k.y-p.y)*p.ty;if(Math.abs(al)<10)return [sc,i];}}return null;}
 /* per-step: karts on a shortcut follow its own path for progress and walls */
 function scStep(k){if(!SHORTS.length)return;
   if(k.sc){const sc=k.sc,P=sc.pts;let bi=k.scI,bd=1e18;for(let i=Math.max(0,k.scI-3);i<=Math.min(sc.n-1,k.scI+6);i++){const d=(P[i].x-k.x)**2+(P[i].y-k.y)**2;if(d<bd){bd=d;bi=i;}}k.scI=bi;
@@ -2167,7 +2169,9 @@ function scStep(k){if(!SHORTS.length)return;
   for(const sc of SHORTS){let dj=k.idx-sc.a;if(dj>N/2)dj-=N;if(dj<-N/2)dj+=N;if(Math.abs(dj)>9)continue;const P=sc.pts;
     const pj=track[k.idx],lat=((k.x-pj.x)*pj.nx+(k.y-pj.y)*pj.ny)*sc.s,mouth=Math.abs(dj)<=(sc.route?8:4)&&lat>WALLD-(sc.route?40:16);
     for(let i=0;i<8;i++){const p=P[i],off=(k.x-p.x)*p.nx+(k.y-p.y)*p.ny,al=(k.x-p.x)*p.tx+(k.y-p.y)*p.ty;
-      const SW=sc.w||SCW;if((Math.abs(off)<SW-1&&Math.abs(al)<9||mouth&&Math.abs(off)<SW+4&&Math.abs(al)<12)&&Math.cos(k.ma)*p.tx+Math.sin(k.ma)*p.ty>-.1){k.sc=sc;k.scI=i;if(achMe(k))achAdd('routes');if(k===player&&!sc.found&&!sc.route){sc.found=true;SFX.ring();edgeFx('#7dff8a',1);}return;}}}}
+      const SW=sc.w||SCW;if((Math.abs(off)<SW-1&&Math.abs(al)<9||mouth&&Math.abs(off)<SW+4&&Math.abs(al)<12)&&Math.cos(k.ma)*p.tx+Math.sin(k.ma)*p.ty>-.1){k.sc=sc;k.scI=i;if(achMe(k))achAdd('routes');if(k===player&&!sc.found&&!sc.route){sc.found=true;SFX.ring();edgeFx('#7dff8a',1);}return;}}}
+  /* a jump that comes down on a shortcut (past its mouth) joins it there: the kart is off the main road, so there is nothing else it could be on */
+  {const pj=track[k.idx],lt=Math.abs((k.x-pj.x)*pj.nx+(k.y-pj.y)*pj.ny);if(lt>WALLD-8||k.air){const h=scOver(k,-1);if(h){const [sc,i]=h;if(i>2){k.sc=sc;k.scI=i;if(achMe(k))achAdd('routes');if(k===player&&!sc.found&&!sc.route){sc.found=true;SFX.ring();edgeFx('#7dff8a',1);}}}}}}
 
 function glideTex(){const c=cnv(256,256),g=c.getContext('2d');const gr=g.createLinearGradient(0,0,256,0);gr.addColorStop(0,'#0e4f7a');gr.addColorStop(.5,'#2fb4ff');gr.addColorStop(1,'#0e4f7a');g.fillStyle=gr;g.fillRect(0,0,256,256);
   g.fillStyle='#ffffff';for(let i=0;i<3;i++){const y=i*84+14;g.beginPath();g.moveTo(128,y);g.lineTo(196,y+44);g.lineTo(196,y+66);g.lineTo(128,y+22);g.lineTo(60,y+66);g.lineTo(60,y+44);g.closePath();g.fill();}
@@ -3417,7 +3421,7 @@ function loadMap0(mi,rev){
   const straight=(j,w,lim)=>{for(let o=-w;o<=w;o+=2)if(Math.abs(track[(j+o+N)%N].bend)>lim)return false;return true;};
   const pick=(target,ok)=>{let best=null,bd=1e9;for(let j=30;j<N-30;j++){if(MULTI){let dk=false;for(let o=-16;o<=16;o+=2)if(isDeck(j+o)){dk=true;break;}if(dk)continue;}if(!ok(j))continue;let d=Math.abs(j-target);d=Math.min(d,N-d);if(d<bd){bd=d;best=j;}}return best;};
   (function(){const topM=new THREE.MeshStandardMaterial({map:T2(rampTex()),roughness:.45}),sideM2=new THREE.MeshStandardMaterial({map:T2(TX.crust,1,1),roughness:.7,side:THREE.DoubleSide});
-    for(let i=0;i<3;i++){const b=pick(Math.floor((i+.55)*N/3),j=>straight(j,12,.3)&&farFrom(j,40));if(b==null)continue;used.push(b);const r={j:b,len:4*T.L/N,w:RW-3,h:6};ramps.push(r);buildRamp(r,topM,sideM2);}})();
+    for(let i=0;i<3;i++){const b=pick(Math.floor((i+.55)*N/3),j=>straight(j,12,.3)&&straight(j+18,10,.3)&&farFrom(j,40));/* the landing run (10-28 points past the ramp) must be straight as well: a ramp that fired you into a bend was unwinnable */if(b==null)continue;used.push(b);const r={j:b,len:4*T.L/N,w:RW-3,h:6};ramps.push(r);buildRamp(r,topM,sideM2);}})();
   if(GLIDE)buildGlide(def);
   (function(){const make=OBST[def.theme]();const pats=[[29],[-29],[-36,36],[31],[-31],[-36,36],[26],[-26]];
     const offLoop=j=>!LOOPS.some(L=>{const d=(j-L.j+N)%N;return d<170||d>N-50;});/* nothing in the run-out after a loop (or just before it) */
@@ -4776,7 +4780,7 @@ const ABIL={pep:['Pepperoni Storm','Fires a fan of six spinning pepperoni slices
   olive:['Slick Trail','Leaves a trail of olive-oil slicks behind. Drops five slicks; drive through one and your wheels get coated: no spin, but you are slowed a lot for 5 seconds.','#c8b23a'],
   mozz:['Melt Shield','Wraps the kart in stretchy cheese that blocks every hit for a while, with a quick burst of speed.','#fff4c0'],
   chili:['Fire Trail','A fiery boost that leaves burning flames on the road: anyone who drives into them spins out and catches fire. Nothing can hit you while it burns.','#ff3a12'],
-  shroom:['Mega Shroom','Grows huge and unstoppable and flattens anyone it touches, front, side or back, even if they drive into you. They stay squashed and slow for 3 seconds. You can still steer and drift.','#c8a06a'],
+  shroom:['Mega Shroom','Grows huge and unstoppable with a small surge forward, and flattens anyone it touches, front, side or back, even if they drive into you. They stay squashed and slow for 3 seconds. You can still steer and drift.','#c8a06a'],
   pineapple:['Spiky Shockwave','A huge spiky blast that spins out every racer anywhere near you, even in the air. The only hit in the game that goes through shields, ability boosts, Delivery Rush and the blink after a hit.','#ffd23a'],
   anchovy:['School of Fish','Launches three anchovies that hunt down the next three racers ahead, or the three behind you if you launch them looking back. They always reach their target, but a well-timed hop dodges one.','#8fc8e8']};
 const ABIL_TIME=30,MEGA_T=5.5,PESTO_T=5.9;
@@ -4788,7 +4792,7 @@ function useAbility(k,back){const id=abilKey(k),A=ABIL[id];if(!A||!(k.abC>=1)||k
   else if(id==='olive'){k.abQ=[0,.25,.5,.75,1].map(t=>[t,()=>hazards.push({x:k.x-Math.cos(k.ma)*22,y:k.y-Math.sin(k.ma)*22,t:25,born:0,owner:k,armed:false,olive:1,mesh:itemMesh('oil')})]);}
   else if(id==='mozz'){k.shield=7;k.mzH=3;k.boost=Math.max(k.boost,.7);k.pBoost=0;if(v>0)SFX.garlic(v||.3);}
   else if(id==='chili'){k.boost=Math.max(k.boost,2.2);k.fireT=2.2;k.chiliT=2.2;/* untouchable while it burns */k.abFx=2.2;k.abCol=A[2];if(k===player)SFX.chili();}
-  else if(id==='shroom'){k.megaT=MEGA_T;}/* no speed boost: the size is the power */
+  else if(id==='shroom'){k.megaT=MEGA_T;k.boost=Math.max(k.boost,.55);k.speed=Math.max(k.speed,Math.min(k.speed+12,BASE_MAX*1.15));k.pBoost=k.boost;k.bAge=9;k.bPk=k.boost;/* a small surge, about a first-tier drift boost: enough to catch the kart just ahead and squash it */}
   else if(id==='pineapple'){blast(k.x,k.y,260,k,'pep','#ffd23a',true);/* a huge forced blast: the one hit that goes through every protection, and it reaches karts in the air */k.inv=Math.max(k.inv,.6);}
   else if(id==='anchovy'){for(let j=1;j<=3;j++){const tg=st[back?i+j:i-j];/* looking back: the three behind you */const sp=360+Math.max(0,k.speed),an=k.a+(back?Math.PI:0)+(j-2)*.25;projectiles.push({type:'torp',custom:1,x:k.x+Math.cos(an)*12,y:k.y+Math.sin(an)*12,vx:Math.cos(an)*sp,vy:Math.sin(an)*sp,t:tg?600:8,sure:tg?1:0,owner:k,safe:.3,b:0,target:tg||null,mesh:itemMesh('torpedo')});}SFX.torpedo(v||.4);}}
 function abilityTick(dt){for(const k of karts){if(state==='race'&&!k.finished&&!(k.abC>=1)){k.abC=Math.min(1,(k.abC||0)+dt/ABIL_TIME);if(k===player&&k.abC>=1){SFX.ready();abilBtn&&abilBtn.classList.add('ready');}}
@@ -4970,7 +4974,7 @@ function stepKart(k,inp,dt){
   k.acc+=((k.speed-v0)/dt-k.acc)*Math.min(1,dt*6);
   k.x+=Math.cos(k.ma)*k.speed*dt;k.y+=Math.sin(k.ma)*k.speed*dt;
   scStep(k);
-  {const pj=track[k.idx],lt=(k.x-pj.x)*pj.nx+(k.y-pj.y)*pj.ny,sg=lt<0?-1:1,lim=pj.wall===sg?CURB+7:pj.pond===sg?CURB+2*POND.GR*POND.SZ+30:WALLD-3.5;if(!pj.open&&!k.glide&&!k.loop&&!k.sc&&lt*sg>lim&&!SHORTS.some(sc=>sc.s===sg&&lt*sg<WALLD+(sc.route?70:30)&&Math.min(Math.abs(k.idx-sc.a)%N,N-Math.abs(k.idx-sc.a)%N)<=(sc.route?8:3))){const ov=lt*sg-lim,nx=pj.nx*sg,ny=pj.ny*sg;k.x-=nx*ov;k.y-=ny*ov;
+  {const pj=track[k.idx],lt=(k.x-pj.x)*pj.nx+(k.y-pj.y)*pj.ny,sg=lt<0?-1:1,lim=pj.wall===sg?CURB+7:pj.pond===sg?CURB+2*POND.GR*POND.SZ+30:WALLD-3.5;if(!pj.open&&!k.glide&&!k.loop&&!k.sc&&lt*sg>lim&&!SHORTS.some(sc=>sc.s===sg&&lt*sg<WALLD+(sc.route?70:30)&&Math.min(Math.abs(k.idx-sc.a)%N,N-Math.abs(k.idx-sc.a)%N)<=(sc.route?8:3))&&!(k.air&&scOver(k,8))){const ov=lt*sg-lim,nx=pj.nx*sg,ny=pj.ny*sg;k.x-=nx*ov;k.y-=ny*ov;
     const vx=Math.cos(k.ma),vy=Math.sin(k.ma),dot=vx*nx+vy*ny;if(dot>0){if(k===camT&&dot>.3)shake(.25);k.speed*=1-.22*dot;const tx=vx-dot*nx,ty=vy-dot*ny;if(Math.hypot(tx,ty)>.05){const na=Math.atan2(ty,tx);k.ma=na;k.a+=angDiff(na,k.a)*.5;}if(dot>.45&&k.wallT<=0){k.wallT=.35;if(k===player)SFX.bump(.7);sparkWall(k,nx,ny);}}}}
   {const pj=track[k.idx];if(pj.flo!==undefined&&!k.loop&&!k.glide&&!k.sc){const lt=(k.x-pj.x)*pj.nx+(k.y-pj.y)*pj.ny;let ov=0,sg=0;if(lt<pj.flo){ov=pj.flo-lt;sg=-1;}else if(lt>pj.fhi){ov=lt-pj.fhi;sg=1;}
     if(ov>0){const nx=pj.nx*sg,ny=pj.ny*sg;k.x-=nx*ov;k.y-=ny*ov;const vx=Math.cos(k.ma),vy=Math.sin(k.ma),dot=vx*nx+vy*ny;if(dot>0){k.speed*=1-.15*dot;const tx=vx-dot*nx,ty=vy-dot*ny;if(Math.hypot(tx,ty)>.05){const na=Math.atan2(ty,tx);k.ma=na;k.a+=angDiff(na,k.a)*.5;}if(dot>.45&&k.wallT<=0){k.wallT=.35;if(k===player)SFX.bump(.6);sparkWall(k,nx,ny);}}}}}
@@ -6348,7 +6352,7 @@ function musTick(){if(!ac||!master)return;musInit();if(!MUS.bus)return;
    Phones find each other through a short room code over a relay server; the race data uses a direct link when one opens. */
 const NET={role:null,code:'',peer:null,conns:[],me:0,pl:[],cfg:null,fromNet:false,loaded:new Set(),tick:0,seq:0,hist:[],outQ:[],inQ:{},inS:{},inLast:{},ack:{},
   snaps:[],mir:new Map(),mirH:new Map(),mirList:[],fxQ:[],nid:0,inUpd:false,finSeen:false,lastRecv:0,goT:0,waitTimer:0,replay:false,abQ:false,relay:null,lastFl:0,unack:[],ackRx:0};
-const NET_PROTO=94;/* bump when race messages or kart physics change: friends on different versions would drive differently */
+const NET_PROTO=95;/* bump when race messages or kart physics change: friends on different versions would drive differently */
 const NET_SLOTS=[4,3,5,2],NET_ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const netId=c=>'crustrush-v1-'+c.toUpperCase();
 const NET_REM=['x','y','a','ma','z','wy','speed','steer','drift','charge','boost','spin','air','glide','loopTh','onRamp','rush','shL','shield','mzH','sink','sinkT','trickK','trickT','frozen','acc','brake','dAmt','fx','prog','finished','place','finishTime','inv','big','ghostT','shrinkT','absT','idx','gRings','trick','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT','est'];
