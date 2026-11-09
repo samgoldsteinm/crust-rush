@@ -4461,7 +4461,7 @@ function blockedCallout(p){const it=PROJ_ITEM[p.type];if(!it)return;if(!_hitEl){
   _hitEl.innerHTML='<span class="hb-ic">'+(SVG[it]||'')+'</span><span class="hb-t"><b>Blocked!</b><i>'+itemLabel(it)+' stopped by your held item</i></span>';_hitEl.style.setProperty('--ic','#7fe07f');
   _hitEl.classList.remove('on');void _hitEl.offsetWidth;_hitEl.classList.add('on');clearTimeout(_hitT);_hitT=setTimeout(()=>_hitEl.classList.remove('on'),1400);}
 
-const abInv=k=>k.pestoT>0||k.chiliT>0||k.megaT>0;/* Mega Shroom is unstoppable too *//* Pesto Rush and Chili's Fire Trail: nothing can touch you */
+const OLIVE_T=2.6;const abInv=k=>k.pestoT>0||k.chiliT>0||k.megaT>0||k.oliveT>0;/* Mega Shroom is unstoppable too *//* Pesto Rush and Chili's Fire Trail: nothing can touch you */
 function spinOut(k,kind,world,force){/* force: the Spiky Shockwave, the one hit nothing protects against — not an ability boost, not a shield, not the blink after a hit, not Delivery Rush */
   if(force){if(k.loop)return false;k.shield=0;k.mzH=0;k.absT=0;}
   else{if(k.inv>0||k.rush>0||abInv(k)||k.ghostT>0||k.absT>0)return false;
@@ -4823,7 +4823,7 @@ function heatFlash(){const e=document.createElement('div');e.className='heatfx';
 /* ================= CHARACTER ABILITIES: a special move that recharges every 30 seconds ================= */
 const ABIL={pep:['Pepperoni Storm','Fires a fan of six spinning pepperoni slices low along the track, ahead or, while you look back, behind you. Each slice ricochets between the track walls and off anything it hits (spinning out racers, smashing items) and vanishes on its third hit.','#ff5a2a'],
   basil:['Pesto Rush','The longest ability boost: nothing can hit you while it lasts, and it ignores the slow cheese.','#3fd06a'],
-  olive:['Slick Trail','Leaves a trail of olive-oil slicks behind. Drops five slicks; drive through one and your wheels get coated: no spin, but you are slowed a lot for 5 seconds.','#c8b23a'],
+  olive:['Slick Trail','Leaves a trail of olive-oil slicks behind. Drops ten slicks, and nothing can touch you while you lay them; drive through one and your wheels get coated: no spin, but you are slowed a lot for 5 seconds.','#c8b23a'],
   mozz:['Melt Shield','Wraps the kart in stretchy cheese that blocks every hit for a while, with a quick burst of speed.','#fff4c0'],
   chili:['Fire Trail','A fiery boost that leaves burning flames on the road: anyone who drives into them spins out and catches fire. Nothing can hit you while it burns.','#ff3a12'],
   shroom:['Mega Shroom','Grows huge and unstoppable with a small surge forward, and flattens anyone it touches, front, side or back, even if they drive into you. They stay squashed and slow for 3 seconds. You can still steer and drift.','#c8a06a'],
@@ -4835,7 +4835,7 @@ function useAbility(k,back){const id=abilKey(k),A=ABIL[id];if(!A||!(k.abC>=1)||k
   itemFx(k,A[2],50);spawnRing(k.x,(k.wy||0)+.6,k.y,A[2],70,.8);if(k===player){SFX.ability();showBanner(A[0],1.1,'sm');shake(.6);abilFlash(A[2]);}else if(v>0)SFX.ability();
   if(id==='pep'){const vol=()=>{const n0=projectiles.length;fireItem(k,'trio',back);for(let q=n0;q<projectiles.length;q++){const P=projectiles[q];P.storm=1;P.hp=3;P.wb=0;P.t=8;}};vol();k.abQ=[[.25,vol]];}/* storm slices ricochet: walls, racers and items each count as a hit; the third hit ends the slice */
   else if(id==='basil'){/* the longest ability boost (normal boost speed), untouchable while it lasts but it doesn't spin anyone out */k.boost=Math.max(k.boost,PESTO_T);k.rush=Math.max(k.rush||0,PESTO_T);k.pestoT=PESTO_T;k.abFx=PESTO_T;k.abCol=A[2];if(k===player)SFX.boost(3);}
-  else if(id==='olive'){k.abQ=[0,.25,.5,.75,1].map(t=>[t,()=>hazards.push({x:k.x-Math.cos(k.ma)*22,y:k.y-Math.sin(k.ma)*22,t:25,born:0,owner:k,armed:false,olive:1,mesh:itemMesh('oil')})]);}
+  else if(id==='olive'){/* ten slicks over 2.25 s; untouchable while laying them (OLIVE_T), like the other ability boosts */k.abQ=[0,1,2,3,4,5,6,7,8,9].map(n=>[n*.25,()=>hazards.push({x:k.x-Math.cos(k.ma)*22,y:k.y-Math.sin(k.ma)*22,t:25,born:0,owner:k,armed:false,olive:1,mesh:itemMesh('oil')})]);k.oliveT=OLIVE_T;k.abFx=OLIVE_T;k.abCol=A[2];}
   else if(id==='mozz'){k.shield=7;k.mzH=3;k.boost=Math.max(k.boost,.7);k.pBoost=0;if(v>0)SFX.garlic(v||.3);}
   else if(id==='chili'){k.boost=Math.max(k.boost,2.2);k.fireT=2.2;k.chiliT=2.2;/* untouchable while it burns */k.abFx=2.2;k.abCol=A[2];if(k===player)SFX.chili();}
   else if(id==='shroom'){k.megaT=MEGA_T;k.boost=Math.max(k.boost,.55);k.speed=Math.max(k.speed,Math.min(k.speed+12,BASE_MAX*1.15));k.pBoost=k.boost;k.bAge=9;k.bPk=k.boost;/* a small surge, about a first-tier drift boost: enough to catch the kart just ahead and squash it */}
@@ -4844,7 +4844,7 @@ function useAbility(k,back){const id=abilKey(k),A=ABIL[id];if(!A||!(k.abC>=1)||k
 function abilityTick(dt){for(const k of karts){if(state==='race'&&!k.finished&&!(k.abC>=1)){k.abC=Math.min(1,(k.abC||0)+dt/ABIL_TIME);if(k===player&&k.abC>=1){SFX.ready();abilBtn&&abilBtn.classList.add('ready');}}
     if(k.abQ&&k.abQ.length){for(const q of k.abQ)q[0]-=dt;while(k.abQ.length&&k.abQ[0][0]<=0)k.abQ.shift()[1]();}
     if(k.fireT>0){k.fireT-=dt;k.fireAcc=(k.fireAcc||0)+dt;if(k.fireAcc>.12){k.fireAcc=0;hazards.push({x:k.x-Math.cos(k.ma)*16,y:k.y-Math.sin(k.ma)*16,t:2.2,born:0,owner:k,armed:false,kind:'fire',mesh:fireMesh()});}}
-    if(k.megaT>0)k.megaT-=dt;if(k.flatT>0)k.flatT-=dt;if(k.flatImm>0)k.flatImm-=dt;if(k.pestoT>0)k.pestoT-=dt;if(k.chiliT>0)k.chiliT-=dt;if(k.abFx>0)k.abFx-=dt;
+    if(k.megaT>0)k.megaT-=dt;if(k.flatT>0)k.flatT-=dt;if(k.flatImm>0)k.flatImm-=dt;if(k.pestoT>0)k.pestoT-=dt;if(k.chiliT>0)k.chiliT-=dt;if(k.oliveT>0)k.oliveT-=dt;if(k.abFx>0)k.abFx-=dt;
     /* rivals fire their ability when it makes sense */
     if(!isHuman(k)&&!k.isPlayer&&k.abC>=1&&state==='race'){k.abWait=(k.abWait==null?1+Math.random()*4:k.abWait)-dt;if(k.abWait<=0){const id=abilKey(k),st=standCache,i=st.indexOf(k);let go=true;
       if(id==='pineapple')go=karts.some(o=>o!==k&&(o.x-k.x)**2+(o.y-k.y)**2<70*70);else if(id==='anchovy'||id==='pep')go=i>0;else if(id==='olive')go=i<st.length-1;
@@ -5227,7 +5227,7 @@ function syncKart(k,dt,time){
   for(const fw of m.front)fw.rotation.y=-k.steer*.42;
   m.drv.rotation.x=-k.steer*.14;m.drv.position.y=m.drvY+Math.sin(time*18+k.ri)*.03*Math.min(1,Math.abs(k.speed)/100);
   m.tailM.emissiveIntensity=m.flash?(Math.floor(time*7+k.ri)%2?3.2:.4):.8+k.brake*3;if(m.flash)m.flash.emissiveIntensity=Math.floor(time*7+k.ri)%2?.3:3.2;
-  {const shOn=(k.shield>0&&(k.shield>1.2||Math.floor(time*10)%2===0))||k.shL>0,ruOn=k.rush>0||k.chiliT>0;m.bub.visible=shOn||ruOn;if(m.bub.visible){m.bub.material=shOn?bubbleMat:bubRushMat;m.bub.rotation.y+=dt*(shOn?2:4);}
+  {const shOn=(k.shield>0&&(k.shield>1.2||Math.floor(time*10)%2===0))||k.shL>0,ruOn=k.rush>0||k.chiliT>0||k.oliveT>0;m.bub.visible=shOn||ruOn;if(m.bub.visible){m.bub.material=shOn?bubbleMat:bubRushMat;m.bub.rotation.y+=dt*(shOn?2:4);}
    /* pieces left = hits left */const ud=m.bub.userData,gl=k.shL|0,mzn=k.shield>0?(k.mzH|0):0;if(ud.cl){ud.cl.visible=gl>0;ud.cl.children.forEach((c,i)=>c.visible=i<gl);}if(ud.mz){ud.mz.visible=mzn>0;ud.mz.children.forEach((c,i)=>c.visible=i<mzn);}}
   if(k.frozen>0&&Math.random()<.5)FXA.spawn(x+(Math.random()-.5)*10,z+8*KS,y+(Math.random()-.5)*10,0,-6,0,'#bfe6ff',2.4,.6,.5,0,0);
   if(k.shield>0&&Math.random()<.4)FXA.spawn(x+(Math.random()-.5)*12,z+2+Math.random()*10,y+(Math.random()-.5)*12,0,8,0,'#7fe07a',1.8,.4,.5,0,0);
@@ -6410,15 +6410,15 @@ function musTick(){if(!ac||!master)return;musInit();if(!MUS.bus)return;
    Phones find each other through a short room code over a relay server; the race data uses a direct link when one opens. */
 const NET={role:null,code:'',peer:null,conns:[],me:0,pl:[],cfg:null,fromNet:false,loaded:new Set(),tick:0,seq:0,hist:[],outQ:[],inQ:{},inS:{},inLast:{},ack:{},
   snaps:[],mir:new Map(),mirH:new Map(),mirList:[],fxQ:[],nid:0,inUpd:false,finSeen:false,lastRecv:0,goT:0,waitTimer:0,replay:false,abQ:false,relay:null,lastFl:0,unack:[],ackRx:0};
-const NET_PROTO=95;/* bump when race messages or kart physics change: friends on different versions would drive differently */
+const NET_PROTO=96;/* bump when race messages or kart physics change: friends on different versions would drive differently */
 const NET_SLOTS=[4,3,5,2],NET_ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const netId=c=>'crustrush-v1-'+c.toUpperCase();
-const NET_REM=['x','y','a','ma','z','wy','speed','steer','drift','charge','boost','spin','air','glide','loopTh','onRamp','rush','shL','shield','mzH','sink','sinkT','trickK','trickT','frozen','acc','brake','dAmt','fx','prog','finished','place','finishTime','inv','big','ghostT','shrinkT','absT','idx','gRings','trick','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT','est'];
+const NET_REM=['x','y','a','ma','z','wy','speed','steer','drift','charge','boost','spin','air','glide','loopTh','onRamp','rush','shL','shield','mzH','sink','sinkT','trickK','trickT','frozen','acc','brake','dAmt','fx','prog','finished','place','finishTime','inv','big','ghostT','shrinkT','absT','idx','gRings','trick','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT','est','oliveT'];
 const NET_SKIP=new Set(['px','py','pa','pma','pz','pwy','pth','rx','ry','rz','rg','rma','rth','isPlayer','auto','ri','netId','cox','coy','coz','coth','sf','col','stall','vl','nst']);
 const NET_ANG=new Set(['a','ma']),NET_POS=new Set(['x','y','z','wy','loopTh','speed','charge','steer','prog']);
 /* compact kart records: the first 8 fields always, then only the fields that differ from their resting value, as [index,value] pairs
    (a resting kart field is 0, false or null); the receiver rebuilds the full row, so everything downstream is unchanged */
-const NET_ZB=new Set(['air','glide','onRamp','finished','big','trick','est']),NET_ZN=new Set(['shL','sink','sinkT','trickK','dAmt','ghostT','shrinkT','absT','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT']);
+const NET_ZB=new Set(['air','glide','onRamp','finished','big','trick','est']),NET_ZN=new Set(['shL','sink','sinkT','trickK','dAmt','ghostT','shrinkT','absT','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT','oliveT']);
 let NET_Z=null;const netZ=()=>NET_Z||(NET_Z=NET_REM.map(f=>NET_ZB.has(f)?false:NET_ZN.has(f)?null:0));
 function netKEnc(v){const Z=netZ(),o=v.slice(0,8);for(let j=8;j<v.length;j++){let x=v[j];if(x===undefined)x=null;if(x!==Z[j])o.push(j,x);}return o;}
 function netKDec(a){const v=netZ().slice();for(let j=0;j<8;j++)v[j]=a[j];for(let i=8;i+1<a.length;i+=2)v[a[i]]=a[i+1];return v;}
