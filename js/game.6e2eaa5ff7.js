@@ -69,7 +69,7 @@ const lerpA=(a,b,t)=>a+angDiff(b,a)*t;
 function cnv(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
 function shade(hex,amt){const n=parseInt(hex.slice(1),16);let r=n>>16,g=(n>>8)&255,b=n&255;const tg=amt<0?0:255,a=Math.abs(amt);r=Math.round(r+(tg-r)*a);g=Math.round(g+(tg-g)*a);b=Math.round(b+(tg-b)*a);return '#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1);}
 const store={get(k){try{return localStorage.getItem(k);}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,v);}catch(e){}}};
-const CFG_DEF={shadows:true,sharpen:true,look:'vivid',detail:'normal',fps:'auto',fullscr:true,showfps:false,vol:80,units:'mph',shake:true,mini:true,ghost:true,cam:'close',camd:100,music:true,mvol:45};
+const CFG_DEF={shadows:true,sharpen:true,ao:true,look:'vivid',detail:'normal',fps:'auto',fullscr:true,showfps:false,vol:80,units:'mph',shake:true,mini:true,ghost:true,cam:'close',camd:100,music:true,mvol:45};
 const CFG=Object.assign({},CFG_DEF,(()=>{try{return JSON.parse(store.get('crust-cfg')||'{}')||{};}catch(e){return {};}})());
 if(!CFG.v33){CFG.v33=1;CFG.fps='60';}/* everyone moves to the steady 60 fps default once */
 if(!CFG.v68){CFG.v68=1;if(!matchMedia('(pointer:coarse)').matches)CFG.fps='auto';}/* computers chase their screen's rate (120 Hz and up) */
@@ -2222,11 +2222,16 @@ function buildRamp(r,topM,sideM){const K=4,pos=[],uv=[],spos=[],P=[];
   const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.Float32BufferAttribute(spos,3));const su=new Float32Array(spos.length/3*2);for(let i=0;i<su.length/2;i++){su[i*2]=(spos[i*3]+spos[i*3+2])*.03;su[i*2+1]=spos[i*3+1]*.1;}
   sg.setAttribute('uv',new THREE.BufferAttribute(su,2));sg.computeVertexNormals();
   const tm=new THREE.Mesh(tg,topM),sm=new THREE.Mesh(sg,sideM);tm.castShadow=sm.castShadow=true;tm.receiveShadow=sm.receiveShadow=true;tm.userData.noLift=sm.userData.noLift=true;world.add(tm);world.add(sm);}
+/* barrel staves: planks around the drum, each its own shade, with grain lines and a dark seam between them */
+function staveTex(col){const c=cnv(256,256),g=c.getContext('2d');const n=parseInt(col.slice(1),16),r=prng(hashStr(col)),sh=k=>'rgb('+Math.min(255,Math.round((n>>16)*k))+','+Math.min(255,Math.round(((n>>8)&255)*k))+','+Math.min(255,Math.round((n&255)*k))+')';
+  for(let i=0;i<8;i++){const x=i*32;g.fillStyle=sh(.82+r()*.3);g.fillRect(x,0,32,256);for(let k=0;k<9;k++){g.strokeStyle='rgba(0,0,0,'+(.08+r()*.16)+')';g.lineWidth=1+r()*1.4;g.beginPath();const gx=x+3+r()*26;g.moveTo(gx,0);g.bezierCurveTo(gx+(r()-.5)*5,85,gx+(r()-.5)*5,170,gx+(r()-.5)*3,256);g.stroke();}
+    g.fillStyle='rgba(255,255,255,.12)';g.fillRect(x,0,3,256);g.fillStyle='rgba(0,0,0,.45)';g.fillRect(x+29,0,3,256);}
+  const t=T2(c);t.wrapS=THREE.RepeatWrapping;return t;}
 const OBST={
-  kitchen:()=>{const wood=new THREE.MeshStandardMaterial({color:'#6e3f1f',roughness:.35}),metal=wm('#d4d8db',{metalness:1,roughness:.2}),pr0=new THREE.Group();
+  kitchen:()=>{const wood=new THREE.MeshStandardMaterial({map:staveTex('#6e3f1f'),roughness:.4}),metal=wm('#d4d8db',{metalness:1,roughness:.2}),pr0=new THREE.Group();
     P3(new THREE.CylinderGeometry(5.6,6.6,4,24),metal,0,2,0,pr0);P3(new THREE.CylinderGeometry(5,6,16,24),wood,0,12,0,pr0);P3(new THREE.CylinderGeometry(6.2,6.2,1.6,24),metal,0,20.6,0,pr0);
     P3(new THREE.SphereGeometry(5,24,16),wood,0,23,0,pr0);P3(new THREE.SphereGeometry(1.7,12,8),metal,0,28,0,pr0);bake(pr0);return ()=>pr0.clone();},
-  bay:()=>{const wood=wm('#8a5a32',{roughness:.6}),band=wm('#3a2414',{roughness:.5}),leaf=wm('#3f9a35',{roughness:.45}),pr0=new THREE.Group();
+  bay:()=>{const wood=new THREE.MeshStandardMaterial({map:staveTex('#8a5a32'),roughness:.62}),band=wm('#3a2414',{roughness:.5,metalness:.4}),leaf=wm('#3f9a35',{roughness:.45}),pr0=new THREE.Group();
     const prof=[[0,0],[5.6,0],[6.4,6],[6.6,12],[6.4,18],[5.6,22],[0,22]].map(([x,y])=>new THREE.Vector2(x,y));P3(faceOut(new THREE.LatheGeometry(prof,28)),wood,0,0,0,pr0);
     for(const y of [4,11,18]){const t=P3(new THREE.TorusGeometry(6.5,.45,8,28),band,0,y,0,pr0);t.rotation.x=Math.PI/2;}
     for(let i=0;i<7;i++){const a=i/7*Math.PI*2,l=P3(new THREE.ConeGeometry(1.6,10,6),leaf,Math.cos(a)*2,27,Math.sin(a)*2,pr0);l.rotation.set(Math.sin(a)*.6,0,-Math.cos(a)*.6);}bake(pr0);return ()=>pr0.clone();},
@@ -5577,7 +5582,7 @@ function togglePause(){if(!results.hidden)return;/* nothing to pause once the re
 $('startBtn').onclick=startFromMenu;$('againBtn').onclick=()=>{if(gp){if(gp.race>=3)startGP();else{gp.race++;goRace(CUP_TRACKS[gp.cup][gp.race]);}}else goRace(mapIdx);};$('restartBtn').onclick=()=>{if(gp)gp.pts.forEach((v,i)=>gp.pts[i]=v);startRace();};
 $('toMenuBtn').onclick=toMenu;$('trackBtn').onclick=()=>{toMenu();goStep('track');};/* straight to the track list, keeping driver, kart, class and mode */$('mpBtn').onclick=()=>netShowLobby();$('mpBadge').onclick=()=>netShowLobby();$('mpClose').onclick=()=>netHideLobby();$('quitBtn').onclick=toMenu;$('resumeBtn').onclick=togglePause;$('pauseBtn').addEventListener('pointerup',e=>{e.preventDefault();togglePause();});
 const setOv=$('setOv'),howOv=$('howOv'),fpsEl=$('fpsEl');let setFrom=null;
-const BOOLK=['shadows','sharpen','showfps','shake','mini','ghost','music','fullscr'];
+const BOOLK=['shadows','sharpen','ao','showfps','shake','mini','ghost','music','fullscr'];
 const cfgVal=k=>k==='sound'?!muted:k==='stats'?statsOn:CFG[k];
 /* settings are split into tabs; the last one you looked at opens next time */
 let setTabK=(()=>{try{return store.get('crust-settab')||'graphics';}catch(e){return 'graphics';}})();
