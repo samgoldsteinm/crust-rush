@@ -734,7 +734,7 @@ body.netguest #againBtn,body.netguest #restartBtn{display:none}
 body.netguest .mp-wait{display:block}
 
 /* rear-view mirror: hold to look behind; translucent so the road shows through */
-.lookbtn{pointer-events:auto;position:absolute;left:max(8px,calc(var(--btn)*.12));top:calc(var(--hudTop,66px) + var(--btn)*.95 + 32px);/* below the Special button's ring and its label */width:calc(var(--btn)*.95);height:calc(var(--btn)*.62);border-radius:14px;padding:0;display:grid;place-content:center;gap:1px;
+.lookbtn{pointer-events:auto;position:absolute;left:max(8px,calc(var(--btn)*.12));top:calc(var(--hudTop,66px) + var(--btn)*.95 + 20px);/* just below the Special button's label */width:calc(var(--btn)*.95);height:calc(var(--btn)*.62);border-radius:14px;padding:0;display:grid;place-content:center;gap:1px;
   background:rgba(14,7,4,.34);border:1.5px solid rgba(255,244,220,.38);box-shadow:0 4px 14px rgba(0,0,0,.25);color:var(--cream);touch-action:none;will-change:transform;transition:background .08s,transform .08s}
 .lookbtn svg{width:58%;height:auto;margin:0 auto}.lookbtn small{font-family:var(--display);font-size:9px;letter-spacing:.14em;color:rgba(255,244,220,.8)}
 .lookbtn.on{background:rgba(140,220,255,.32);border-color:#bfe9ff;transform:scale(.95)}
@@ -743,7 +743,7 @@ body.looking .lookbtn{background:rgba(140,220,255,.32);border-color:#bfe9ff}
 /* brake / drift: a wide pedal, translucent, low in each corner */
 .brk{width:calc(var(--btn)*1.85);height:calc(var(--btn)*.92);border-radius:16px 16px 10px 10px;background:linear-gradient(180deg,rgba(255,255,255,.1),rgba(30,15,9,.34) 40%,rgba(14,7,4,.42));border:1.5px solid rgba(255,244,220,.34);
   box-shadow:inset 0 -6px 12px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.12),0 6px 16px rgba(0,0,0,.25);grid-auto-flow:column;align-items:center;gap:8px;padding:0 10px}
-.brk.l{left:4px;bottom:4px}.brk.r{right:4px;bottom:4px}/* right in the corners, where thumbs rest, even beside the notch */
+.brk.l{left:4px;bottom:-6px}.brk.r{right:4px;bottom:-6px}/* right in the corners, where thumbs rest, even beside the notch; the pedal's lower edge tucks just past the screen edge */
 .brk svg{margin:0}.brk.on{background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(224,69,44,.5) 40%,rgba(160,40,20,.6));transform:translateY(2px) scale(.98)}
 .brk.drifting{background:linear-gradient(180deg,#ffe39a,#ff8a1f 48%,#c4300f);border-color:#fff4dc;box-shadow:0 0 0 3px rgba(255,154,31,.3),0 0 24px rgba(255,122,26,.5)}
 /* "you hit them": item icon, arrow, the victim's portrait, bottom centre for a moment */
