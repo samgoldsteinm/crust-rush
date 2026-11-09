@@ -4391,7 +4391,7 @@ const hitAnims=[];
    so everyone in an online race sees the squash. Returns true while the big kart should pass through b. */
 /* "you got them": a small strip at the bottom of the screen with the item you used, an arrow and the portrait of whoever it hit */
 let CURP=null;const TOAST_ICON={pep:'pepperoni',meat:'meatball',meat2:'meatball',lob:'bomb',olive:'oil'};
-function hitToast(type,victim){if(!player||victim===player||(NET&&NET.replay)||state!=='race')return;const el=document.getElementById('hitToast');if(!el)return;const key=TOAST_ICON[type]||type,icon=SVG[key]||SVG[type]||'';
+function hitToast(type,victim){if(!player||victim===player||(NET&&NET.replay)||state!=='race')return;const el=document.getElementById('hitToast');if(!el)return;const key=TOAST_ICON[type]||type,icon=SVG[key]||SVG[type]||(typeof ABIL!=='undefined'&&ABIL[key]?'<span style="display:block;width:70%;height:70%;border-radius:50%;background:'+ABIL[key][2]+';box-shadow:0 0 10px '+ABIL[key][2]+'"></span>':'');
   const now=performance.now(),same=el._t&&now-el._t<1500&&el._key===key;el._t=now;el._key=key;
   el.querySelector('.ht-item').innerHTML=icon;const who=el.querySelector('.ht-who');if(!same)who.innerHTML='';
   if(![...who.children].some(i=>i._k===victim)){const n=document.createElement('i');n._k=victim;n.style.setProperty('--c',victim.r.color);if(PORTRAITS[victim.ri])n.style.backgroundImage='url('+PORTRAITS[victim.ri]+')';who.appendChild(n);}
@@ -4412,9 +4412,11 @@ function blockedCallout(p){const it=PROJ_ITEM[p.type];if(!it)return;if(!_hitEl){
   _hitEl.classList.remove('on');void _hitEl.offsetWidth;_hitEl.classList.add('on');clearTimeout(_hitT);_hitT=setTimeout(()=>_hitEl.classList.remove('on'),1400);}
 
 const abInv=k=>k.pestoT>0||k.chiliT>0||k.megaT>0;/* Mega Shroom is unstoppable too *//* Pesto Rush and Chili's Fire Trail: nothing can touch you */
-function spinOut(k,kind,world){if(k.inv>0||k.rush>0||abInv(k)||k.ghostT>0||k.absT>0)return false;
-  if(!world&&(k.air||k.glide||k.loop))return false;/* items never hit a kart in the air */
-  if(k.shield>0){if(k.mzH>0){k.mzH--;k.absT=.6;const gy=(k.wy||0)+7;burst(k.x,gy,k.y,30,['#fbf5e6','#fff2cf','#ffffff'],90,2.8);spawnRing(k.x,gy,k.y,'#fff2cf',50,.45);if(k===player){SFX.garlic(1);SFX.clash(.7);shake(.2);}if(k.mzH<=0)k.shield=0;}return false;}if(!world&&absorbHeld(k))return false;if(!world&&absorb(k))return false;if(k===camT&&!NET.replay)shake(1.1);k.spin=1.1*(1.25-.25*k.sm.wgt);k.inv=k.spin+3;if(CURP&&CURP.owner===player&&k!==player)hitToast(CURP.type||(CURP.olive?'oil':CURP.kind)||kind,k);/* three seconds of protection after the spin, shown by blinking */k.speed*=.3;k.drift=0;k.charge=0;k.boost=0;if(!k.air&&!k.loop){k.air=true;k.big=false;k.airT=0;k.wvy=(k.gRate||0)+40;}
+function spinOut(k,kind,world,force){/* force: the Spiky Shockwave, the one hit nothing protects against — not an ability boost, not a shield, not the blink after a hit, not Delivery Rush */
+  if(force){if(k.loop)return false;k.shield=0;k.mzH=0;k.absT=0;}
+  else{if(k.inv>0||k.rush>0||abInv(k)||k.ghostT>0||k.absT>0)return false;
+  if(!world&&(k.air||k.glide||k.loop))return false;}/* items never hit a kart in the air */
+  if(k.shield>0){if(k.mzH>0){k.mzH--;k.absT=.6;const gy=(k.wy||0)+7;burst(k.x,gy,k.y,30,['#fbf5e6','#fff2cf','#ffffff'],90,2.8);spawnRing(k.x,gy,k.y,'#fff2cf',50,.45);if(k===player){SFX.garlic(1);SFX.clash(.7);shake(.2);}if(k.mzH<=0)k.shield=0;}return false;}if(!force&&!world&&absorbHeld(k))return false;if(!force&&!world&&absorb(k))return false;if(k===camT&&!NET.replay)shake(1.1);k.spin=1.1*(1.25-.25*k.sm.wgt);k.inv=k.spin+3;if(CURP&&CURP.owner===player&&k!==player)hitToast(CURP.type||(CURP.olive?'oil':CURP.kind)||kind,k);/* three seconds of protection after the spin, shown by blinking */k.speed*=.3;k.drift=0;k.charge=0;k.boost=0;if(!k.air&&!k.loop){k.air=true;k.big=false;k.airT=0;k.wvy=(k.gRate||0)+40;}
   const cols=HITC[kind]||['#fff4dc','#ffe066','#ff3b1a'],y=6*KS;burst(k.x,y,k.y,34,cols,70,3.4);
   for(let i=0;i<12;i++){const a=i/12*Math.PI*2;FXA.spawn(k.x,y,k.y,Math.cos(a)*90,8,Math.sin(a)*90,'#ffffff',2.4,.3,.35,0,4);}
   for(let i=0;i<8;i++){const a=Math.random()*Math.PI*2;FXN.spawn(k.x+Math.cos(a)*3,2,k.y+Math.sin(a)*3,Math.cos(a)*14,6+Math.random()*8,Math.sin(a)*14,kind==='dough'?'#fff4dc':'#d8d0c4',4,14,.9,-2,1.5);}
@@ -4656,9 +4658,9 @@ Object.assign(SFX,{
 function fireItem(k,it,back){const a=k.item,b=k.item2,d=k.ai.itemDelay;k.item=it;k.item2=null;useItem(k,back,true);k.item=a;k.item2=b;k.ai.itemDelay=d;}
 function kartAhead(k){const st=standCache,i=st.indexOf(k);return i>0?st[i-1]:null;}
 function itemFx(k,col,n){const gy=(k.wy||0)+7;spawnRing(k.x,(k.wy||0)+.6,k.y,col,40,.5);spawnRing(k.x,gy,k.y,'#ffffff',22,.3,false);burst(k.x,gy,k.y,n||30,[col,'#ffffff','#ffe066'],90,3);FXA.spawn(k.x,gy,k.y,0,0,0,col,40,8,.22,0,0);}
-function blast(x,y,r,owner,kind,col){const gy=groundAt(x,y);for(const k of karts){if(k===owner&&kind!=='self')continue;if(k.loop)continue;if((k.x-x)**2+(k.y-y)**2<r*r){if(spinOut(k,kind==='self'?'pep':kind)&&k.air&&!k.loop){k.big=true;k.wvy=Math.max(k.wvy,55);}}}
-  burst(x,gy+6,y,60,[col,'#ffe066','#ffffff','#ff5a14'],140,4.2);for(let n=0;n<24;n++){const a=Math.random()*6.28,u=.3+Math.random()*.7;FXN.spawn(x+Math.cos(a)*6,gy+4,y+Math.sin(a)*6,Math.cos(a)*70*u,14+Math.random()*30,Math.sin(a)*70*u,'#5a4a3a',9,28,1.4,-3,1.2);}
-  spawnRing(x,gy+.8,y,col,r*1.3,.7);spawnRing(x,gy+8,y,'#ffffff',r,.4,false);FXA.spawn(x,gy+8,y,0,0,0,'#fff2c8',70,12,.25,0,0);SFX.boom(near({x,y})||.3);if(Math.hypot(x-camera.position.x,y-camera.position.z)<160)shake(.9);}
+function blast(x,y,r,owner,kind,col,force){const gy=groundAt(x,y),sc=Math.max(1,r/130);for(const k of karts){if(k===owner&&kind!=='self')continue;if(k.loop)continue;if((k.x-x)**2+(k.y-y)**2<r*r){const hit=spinOut(k,kind==='self'?'pep':kind,!!force,!!force);if(hit&&owner===player&&k!==player)hitToast(force?'pineapple':(kind==='self'?'bomb':kind),k);if(hit&&k.air&&!k.loop){k.big=true;k.wvy=Math.max(k.wvy,55*sc);}}}
+  burst(x,gy+6,y,Math.round(60*sc),[col,'#ffe066','#ffffff','#ff5a14'],140*sc,4.2*sc);for(let n=0;n<Math.round(24*sc);n++){const a=Math.random()*6.28,u=.3+Math.random()*.7;FXN.spawn(x+Math.cos(a)*6,gy+4,y+Math.sin(a)*6,Math.cos(a)*70*u,14+Math.random()*30,Math.sin(a)*70*u,'#5a4a3a',9,28,1.4,-3,1.2);}
+  spawnRing(x,gy+.8,y,col,r*1.3,.7+.3*(sc-1));spawnRing(x,gy+8,y,'#ffffff',r,.4+.2*(sc-1),false);if(sc>1.5)spawnRing(x,gy+16,y,col,r*.8,.9,false);FXA.spawn(x,gy+8,y,0,0,0,'#fff2c8',70*sc,12*sc,.25,0,0);SFX.boom(near({x,y})||.3);if(Math.hypot(x-camera.position.x,y-camera.position.z)<160*sc)shake(.9*Math.min(1.6,sc));}
 const TRAIL={pep:'#ff7a3a',dough:'#ffe2a0',lob:'#c9e86a',flour:'#ffffff',torp:'#9fd8ff',meat2:'#c8784a',bomb:'#ffcc33',twist:'#f3dfb4'};
 /* ---------- using the new items ---------- */
 function useItem2(k,it,back){const ca=Math.cos(k.a),sa=Math.sin(k.a),st=standCache,i=st.indexOf(k),col=ITEM_COL[it]||'#ffe066',v=near(k);
@@ -4775,7 +4777,7 @@ const ABIL={pep:['Pepperoni Storm','Fires a fan of six spinning pepperoni slices
   mozz:['Melt Shield','Wraps the kart in stretchy cheese that blocks every hit for a while, with a quick burst of speed.','#fff4c0'],
   chili:['Fire Trail','A fiery boost that leaves burning flames on the road: anyone who drives into them spins out and catches fire. Nothing can hit you while it burns.','#ff3a12'],
   shroom:['Mega Shroom','Grows huge and unstoppable and flattens anyone it touches, front, side or back, even if they drive into you. They stay squashed and slow for 3 seconds. You can still steer and drift.','#c8a06a'],
-  pineapple:['Spiky Shockwave','A big spiky blast that spins out every racer close around you.','#ffd23a'],
+  pineapple:['Spiky Shockwave','A huge spiky blast that spins out every racer anywhere near you, even in the air. The only hit in the game that goes through shields, ability boosts, Delivery Rush and the blink after a hit.','#ffd23a'],
   anchovy:['School of Fish','Launches three anchovies that hunt down the next three racers ahead, or the three behind you if you launch them looking back. They always reach their target, but a well-timed hop dodges one.','#8fc8e8']};
 const ABIL_TIME=30,MEGA_T=5.5,PESTO_T=5.9;
 const abilKey=k=>k.r.name.toLowerCase();
@@ -4787,7 +4789,7 @@ function useAbility(k,back){const id=abilKey(k),A=ABIL[id];if(!A||!(k.abC>=1)||k
   else if(id==='mozz'){k.shield=7;k.mzH=3;k.boost=Math.max(k.boost,.7);k.pBoost=0;if(v>0)SFX.garlic(v||.3);}
   else if(id==='chili'){k.boost=Math.max(k.boost,2.2);k.fireT=2.2;k.chiliT=2.2;/* untouchable while it burns */k.abFx=2.2;k.abCol=A[2];if(k===player)SFX.chili();}
   else if(id==='shroom'){k.megaT=MEGA_T;}/* no speed boost: the size is the power */
-  else if(id==='pineapple'){blast(k.x,k.y,130,k,'pep','#ffd23a');/* wide enough to catch the 3 or 4 karts packed around you */k.inv=Math.max(k.inv,.6);}
+  else if(id==='pineapple'){blast(k.x,k.y,260,k,'pep','#ffd23a',true);/* a huge forced blast: the one hit that goes through every protection, and it reaches karts in the air */k.inv=Math.max(k.inv,.6);}
   else if(id==='anchovy'){for(let j=1;j<=3;j++){const tg=st[back?i+j:i-j];/* looking back: the three behind you */const sp=360+Math.max(0,k.speed),an=k.a+(back?Math.PI:0)+(j-2)*.25;projectiles.push({type:'torp',custom:1,x:k.x+Math.cos(an)*12,y:k.y+Math.sin(an)*12,vx:Math.cos(an)*sp,vy:Math.sin(an)*sp,t:tg?600:8,sure:tg?1:0,owner:k,safe:.3,b:0,target:tg||null,mesh:itemMesh('torpedo')});}SFX.torpedo(v||.4);}}
 function abilityTick(dt){for(const k of karts){if(state==='race'&&!k.finished&&!(k.abC>=1)){k.abC=Math.min(1,(k.abC||0)+dt/ABIL_TIME);if(k===player&&k.abC>=1){SFX.ready();abilBtn&&abilBtn.classList.add('ready');}}
     if(k.abQ&&k.abQ.length){for(const q of k.abQ)q[0]-=dt;while(k.abQ.length&&k.abQ[0][0]<=0)k.abQ.shift()[1]();}
