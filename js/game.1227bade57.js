@@ -6730,8 +6730,11 @@ addEventListener('gamepadconnected',e=>{PAD.id=e.gamepad.id;showBanner('Controll
    for windowed and full screen so the frame counter can say what is holding the game back */
 const SCR={a:[],l:0,hz:{win:0,fs:0},cur:0,noted:false};
 function scrTrack(now){const ri=now-(SCR.l||now);SCR.l=now;if(ri>3&&ri<60)SCR.a.push(ri);if(SCR.a.length<150)return;
-  const b=SCR.a.sort((x,y)=>x-y),p=b[Math.floor(b.length*.3)];SCR.a.length=0;const raw=1000/p,hz=[60,75,90,100,120,144,165,240].reduce((m,v)=>Math.abs(v-raw)<Math.abs(m-raw)?v:m,60),fs=!!(document.fullscreenElement||document.webkitFullscreenElement);
-  if(fs)SCR.hz.fs=hz;else SCR.hz.win=Math.max(SCR.hz.win,hz);SCR.cur=hz;SCR.fs=fs;
+  /* the most common frame interval (half-millisecond bins), not a low percentile: Safari's frame timestamps jitter, and a few short gaps
+     once read a 120 Hz iPhone as 165 Hz. iPhones and iPads never exceed 120, and the window rate is the median of the last three readings. */
+  const H=new Map();for(const v of SCR.a){const k=Math.round(v*2);H.set(k,(H.get(k)||0)+1);}let bk=0,bn=0;for(const [k,n] of H)if(n>bn){bn=n;bk=k;}SCR.a.length=0;const raw=1000/(bk/2);
+  let hz=[60,75,90,100,120,144,165,240].reduce((m,v)=>Math.abs(v-raw)<Math.abs(m-raw)?v:m,60);if(COARSE&&APPLEWK&&hz>120)hz=120;const fs=!!(document.fullscreenElement||document.webkitFullscreenElement);
+  if(fs)SCR.hz.fs=hz;else{SCR.hist=(SCR.hist||[]).concat(hz).slice(-3);SCR.hz.win=SCR.hist.slice().sort((x,y)=>x-y)[SCR.hist.length>>1];}SCR.cur=hz;SCR.fs=fs;
   /* full screen stuck at 60 while the same screen does 100+ in the window, with time to spare: say so once */
   if(!SCR.noted&&fs&&state==='race'&&CFG.fps!=='60'&&SCR.hz.win>=100&&hz<=65&&CPUMS<6&&!(GPUT&&GPUT.ms>9)){SCR.noted=true;fsNote();}}
 /* graphics test: while the kart drives itself, each graphics feature is switched off in turn for a few seconds and the frame time is
