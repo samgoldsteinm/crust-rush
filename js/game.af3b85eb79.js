@@ -463,6 +463,12 @@ function placeTunnel(len){const step=T.L/N,K=Math.round(len/step),near=(j,list,r
    Purely decorative: nothing here is an obstacle, and it uses its own random stream, so the race itself
    (and online play against phones on other settings) is exactly the same as on every other quality. */
 function ultraDetail(def){if(!QUAL[qKey].hqAll||def.arena)return;HQG.pause();try{return ultraDetail0(def);}finally{HQG.resume();}}
+/* small scattered props (herb tufts, crumbs, pebbles, sprinkles) shrink to nothing once they are far enough away to be smaller than a pixel or
+   two: at that size they only shimmer as grain and still cost the GPU a full 2x2 pixel block per triangle. The cut-off scales with each
+   instance's own size (a 5-unit tuft fades out from ~450 to ~600 units; a 2-unit sprinkle from ~180 to ~240), and it happens in the vertex
+   shader, so no per-frame work and no popping: the prop melts into the ground over the last 25% of its range */
+function farFade(m){m.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n#ifdef USE_INSTANCING\n{float sz=length(instanceMatrix[0].xyz);vec3 iw=(modelMatrix*instanceMatrix*vec4(0.,0.,0.,1.)).xyz;float fd=1.-smoothstep(sz*90.,sz*120.,distance(iw,cameraPosition));transformed*=fd;}\n#endif');};
+  m.customProgramCacheKey=()=>'farFade';return m;}
 function ultraDetail0(def){const R=mrand(90210+(MAPS.indexOf(def)+1)*131),th=def.theme;
   const keepOff=(x,z,pad)=>{if(nearTrack(x,z,CURB+pad))return true;for(const sc of SHORTS){const W=(sc.w||SCW)+pad;for(let i=0;i<sc.pts.length;i+=2){const p=sc.pts[i];if((p.x-x)**2+(p.y-z)**2<W*W)return true;}}
     if(PITS.length&&pitAt(x,z)>2)return true;if(WATER_Y!=null&&groundAt(x,z)<WATER_Y+.5)return true;return x*x+z*z>(def.R*.97)**2;};
@@ -478,7 +484,7 @@ function ultraDetail0(def){const R=mrand(90210+(MAPS.indexOf(def)+1)*131),th=def
     for(const g of parts){P.set(g.attributes.position.array,o*3);Nn.set(g.attributes.normal.array,o*3);o+=g.attributes.position.count;}const out=new THREE.BufferGeometry();out.setAttribute('position',new THREE.BufferAttribute(P,3));out.setAttribute('normal',new THREE.BufferAttribute(Nn,3));return out;};
   const tuft=()=>{/* a clump of five leaning blades */const g=[];for(let i=0;i<5;i++){const b=new THREE.ConeGeometry(.16,1,3);b.translate(0,.5,0);b.rotateZ((i-2)*.22);b.rotateY(i*1.26);b.translate(Math.cos(i*1.26)*.18,0,Math.sin(i*1.26)*.18);g.push(b);}
     return mergeGeos(g);};
-  const lit=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.85},o||{}));
+  const lit=(c,o)=>farFade(new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.85},o||{})));
   /* full-detail tree models near the track, low-poly ones further out (they cast shadows on Ultra) */
   const trees=(names,n,snow,tint)=>{const near=[],far=[];for(const [x,z] of spots(n,26,700,16)){const t=[names[Math.floor(R()*names.length)],x,z,1.6+R()*1.6];(nearTrack(x,z,CURB+170)?near:far).push(t);}
     if(near.length)forest(near,(x,z)=>groundAt(x,z),snow,R,true,tint);if(far.length)forest(far,(x,z)=>groundAt(x,z),snow,R,false,tint);};
@@ -2602,7 +2608,33 @@ function beachHutHQ_(h,c){const m=wm(c,{roughness:.6}),w=wm('#fff4dc',{roughness
   put(new THREE.ConeGeometry(78,56,4),w,0,121,0,h,false).rotation.y=Math.PI/4;put(new THREE.ConeGeometry(82,8,4),m,0,95,0,h,false).rotation.y=Math.PI/4;put(new THREE.SphereGeometry(5,16,10),m,0,152,0,h,false);put(new THREE.CylinderGeometry(1,1,20,8),dk,0,160,0,h,false);}
 function sailboat(g,x,z,s,col){const b=new THREE.Group();b.position.set(x,-14,z);b.scale.setScalar(s);b.rotation.y=rnd()*6;g.add(b);if(HQD.on){sailboatHQ(b,col);bake(b,false,true);b.userData.p=rnd()*6;return b;}put(new THREE.BoxGeometry(160,30,50),wm('#f4f4f2'),0,10,0,b,false);put(new THREE.ConeGeometry(25,40,4),wm('#f4f4f2'),95,10,0,b,false).rotation.z=-Math.PI/2;
   put(new THREE.CylinderGeometry(2.5,2.5,220,6),wm('#6b4a2a'),0,130,0,b,false);const sh=new THREE.Shape();sh.moveTo(0,0);sh.lineTo(0,190);sh.lineTo(110,0);sh.closePath();put(new THREE.ShapeGeometry(sh),wm(col,{side:THREE.DoubleSide,roughness:.7}),4,30,0,b,false);b.userData.p=rnd()*6;return b;}
+/* the Flying Calzone: a three-masted galleon anchored offshore. Curved hull from hqHull, a raised stern castle with lit windows, a bowsprit,
+   three masts with yards and bellied square sails, a crow's nest, rigging, lanterns, and a pizza-slice pennant. Baked into a few draws. */
+function galleon(g,x,z,s){const b=new THREE.Group();b.position.set(x,-14,z);b.scale.setScalar(s);b.rotation.y=rnd()*6;g.add(b);
+  const H=hqHull(400,62,66,'#f7c948'),hullM=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.6,metalness:.02}),wood=wm('#6b4423',{roughness:.8}),deck=wm('#c9a173',{roughness:.75}),trim=wm('#f7c948',{roughness:.5,metalness:.2}),sailM=wm('#f6efe0',{side:THREE.DoubleSide,roughness:.85}),rope=wm('#3a2a18',{roughness:.9}),glow=new THREE.MeshBasicMaterial({color:'#ffd27a',toneMapped:false});
+  put(H.g,hullM,0,30,0,b,false);put(H.dg,deck,0,30,0,b,false);for(const r of H.rail)put(new THREE.TubeGeometry(r,48,2.2,6),wood,0,30,0,b,false);
+  /* stern castle: two stepped decks, a gallery of windows and a lantern at each corner */
+  put(new THREE.BoxGeometry(100,34,112),wood,-125,47,0,b,false);put(new THREE.BoxGeometry(64,24,96),wood,-143,76,0,b,false);put(new THREE.BoxGeometry(102,3,118),trim,-125,65.5,0,b,false);put(new THREE.BoxGeometry(66,3,102),trim,-143,89.5,0,b,false);
+  for(const sd of [-1,1])for(let i=0;i<4;i++)put(new THREE.BoxGeometry(14,10,1.2),glow,-160+i*22,50,sd*56.6,b,false);for(let i=0;i<3;i++)put(new THREE.BoxGeometry(1.2,10,18),glow,-175.6,52,-24+i*24,b,false);
+  for(const sd of [-1,1])put(new THREE.SphereGeometry(4,10,8),glow,-172,96,sd*44,b,false);
+  /* bowsprit and figurehead (a golden pizza wheel) */
+  const bs=put(new THREE.CylinderGeometry(2.6,4,150,10),wood,262,80,0,b,false);bs.rotation.z=-1.18;put(new THREE.TorusGeometry(10,3.2,8,20),trim,214,58,0,b,false).rotation.y=Math.PI/2;
+  /* masts, yards, sails */
+  const sail=(w,h)=>{const g2=new THREE.PlaneGeometry(w,h,8,5),P=g2.attributes.position;for(let i=0;i<P.count;i++){const u=P.getX(i)/w+.5,v=P.getY(i)/h+.5;P.setZ(i,Math.sin(u*Math.PI)*(.35+.65*(1-v))*w*.14);}g2.computeVertexNormals();return g2;};
+  const masts=[[-70,330,[[70,210,120],[140,170,98]]],[40,380,[[80,240,140],[170,190,112],[250,140,84]]],[150,300,[[70,190,112],[140,150,90]]]];
+  for(const [mx,mh,ys] of masts){put(new THREE.CylinderGeometry(3,5,mh,12),wood,mx,30+mh/2,0,b,false);put(new THREE.SphereGeometry(5,10,8),trim,mx,30+mh+4,0,b,false);
+    for(const [yy,yw,sh] of ys){const yd=put(new THREE.CylinderGeometry(2,2,yw,8),wood,mx,30+yy+sh,0,b,false);yd.rotation.x=Math.PI/2;const sm=put(sail(yw*.92,sh),sailM,mx+6,30+yy+sh/2,0,b,false);sm.rotation.y=-Math.PI/2;}
+    /* shrouds: ropes from the masthead to the rails */
+    for(const sd of [-1,1])for(const dx of [-26,0,26]){const a=new THREE.Vector3(mx,30+mh*.78,0),c=new THREE.Vector3(mx+dx,46,sd*58);const r=put(new THREE.CylinderGeometry(.5,.5,a.distanceTo(c),4),rope,(a.x+c.x)/2,(a.y+c.y)/2,(a.z+c.z)/2,b,false);r.lookAt(c);r.rotateX(Math.PI/2);}}
+  /* crow's nest on the main mast, and a pizza-slice pennant */
+  put(new THREE.CylinderGeometry(14,10,14,10,1,true),wood,40,30+270,0,b,false);
+  {const c=cnv(128,64),g2=c.getContext('2d');g2.fillStyle='#e0452c';g2.fillRect(0,0,128,64);g2.fillStyle='#f7c948';g2.beginPath();g2.moveTo(20,10);g2.lineTo(108,32);g2.lineTo(20,54);g2.closePath();g2.fill();g2.fillStyle='#b5221a';for(const [x,y] of [[40,32],[62,24],[62,42],[84,32]]){g2.beginPath();g2.arc(x,y,5,0,7);g2.fill();}
+    const fm=new THREE.MeshBasicMaterial({map:T2(c),side:THREE.DoubleSide,toneMapped:false});put(new THREE.PlaneGeometry(44,22),fm,62,30+380+8,0,b,false);}
+  /* anchor and a row of gunports */
+  put(new THREE.TorusGeometry(7,1.8,6,12),rope,150,58,62,b,false);const gp=wm('#2a1a0e');for(let i=0;i<6;i++)for(const sd of [-1,1]){const gx=-90+i*40,u=(gx+180)/400;put(new THREE.BoxGeometry(12,10,1.2),gp,gx,40,sd*H.wid(u)*1.0,b,false);}
+  bake(b,false,true);b.userData.p=rnd()*6;b.userData.galleon=true;return b;}
 function bayExtras(R,L1){const v=VAR,G=VG(),boats=[];
+  {const [gx,gz]=atA(1.9+rnd()*.6,R+1500);boats.push(galleon(G,gx,gz,1.15));}
   if(v===1){/* lighthouse cape, pier and beach huts */
     const [lx,lz]=atA(1.1,R+900),lh=new THREE.Group();lh.position.set(lx,-14,lz);G.add(lh);put(new THREE.SphereGeometry(260,24,10,0,Math.PI*2,0,Math.PI/2),wm('#7a7068',{roughness:.95}),0,-40,0,lh,false);
     for(let i=0;i<6;i++)put(new THREE.CylinderGeometry(70-i*6,76-i*6,90,24),wm(i%2?'#f4f4f2':'#c8261b',{roughness:.5}),0,120+i*90,0,lh,false);
@@ -2828,6 +2860,8 @@ function buildTrain(def){let best=null;for(const r of ramps){if(r.glide)continue
     for(const wx of [-L/2+6,L/2-6])for(const wz of [-6,6]){const w=put(new THREE.CylinderGeometry(3.2,3.2,1.6,14),blk,wx,3.6,wz,g);w.rotation.x=Math.PI/2;}
     put(new THREE.BoxGeometry(L-2,3,13),blk,0,5,0,g);g.scale.setScalar(TS);cars.push({g,L:L*TS});}
   let tot=0;cars.forEach(c=>{c.off=tot+c.L/2;tot+=c.L+1.6;});
+  /* item boxes ride the three wagon roofs (the middle one a double): take the jump over the train to grab them. They move with the train every step. */
+  for(let c=1;c<cars.length;c++)boxes.push({x:p.x,y:p.y,r:0,sv:120+c,gy:groundAt(p.x,p.y)+21,trainCar:c,dbl:c===2});
   HAZ.train={p,ux,uy,span,cars,len:tot,t:0,dir:1,state:'wait',wait:3+Math.random()*3,pos:-span-tot,lamps,j:best.j,v:120,gap:0,bell:0};}
 /* --- walkers: little themed critters that wander across the road; touching one spins you out --- */
 function mkWalker(theme,i){const g=new THREE.Group();g.userData.noLift=true;world.add(g);const eyeW=new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.2}),eyeB=new THREE.MeshStandardMaterial({color:'#111111',roughness:.2});const legs=[];let H=12;
@@ -2959,8 +2993,9 @@ function updateHazards(dt){if(state==='menu'&&!HAZ.traffic.length&&!HAZ.train&&!
   /* train */
   const tr=HAZ.train;if(tr){if(tr.state==='wait'){tr.wait-=dt;if(tr.wait<=0){tr.state='run';tr.dir=Math.random()<.5?1:-1;tr.pos=-tr.span-tr.len;}}
     else{tr.pos+=tr.v*dt;if(tr.pos>tr.span+10){tr.state='wait';tr.wait=4+Math.random()*5;}}
+    for(const b of boxes){if(!b.trainCar)continue;const c=tr.cars[b.trainCar];const t=(tr.pos+tr.len-c.off)*tr.dir;b.x=tr.p.x+tr.ux*t;b.y=tr.p.y+tr.uy*t;b.gy=groundAt(b.x,b.y)+21;}
     if(tr.state==='run')for(const c of tr.cars){const t=(tr.pos+tr.len-c.off)*tr.dir,x=tr.p.x+tr.ux*t,y=tr.p.y+tr.uy*t;c.t=t;
-      for(const k of karts){if(k.loop||k.z>14||k.sink!=null)continue;const dx=k.x-x,dy=k.y-y,u=dx*tr.ux+dy*tr.uy,v=dy*tr.ux-dx*tr.uy;if(Math.abs(u)<c.L/2+6&&Math.abs(v)<12){const sg=Math.sign(v)||1;k.x+=-tr.uy*sg*(14-Math.abs(v));k.y+=tr.ux*sg*(14-Math.abs(v));spinOut(k,'wheel',1);}}}}
+      for(const k of karts){if(k.loop||k.z>18||k.sink!=null)continue;const dx=k.x-x,dy=k.y-y,u=dx*tr.ux+dy*tr.uy,v=dy*tr.ux-dx*tr.uy;if(Math.abs(u)<c.L/2+6&&Math.abs(v)<12){const sg=Math.sign(v)||1;k.x+=-tr.uy*sg*(14-Math.abs(v));k.y+=tr.ux*sg*(14-Math.abs(v));spinOut(k,'wheel',1);}}}}
   /* walkers */
   for(const w of HAZ.walk){if(w.pause>0){w.pause-=dt;}else{if(Math.abs(w.lat-w.latT)<2){w.latT=(Math.random()*2-1)*(RW+8);w.pause=.4+Math.random()*1.8;}else w.lat+=Math.sign(w.latT-w.lat)*w.v*dt;}
     w.along=Math.sin(simTime*.3+w.ph)*3;const P=trackAt(w.j+w.along,w.lat);w.x=P.x;w.y=P.y;w.face=P.ang+(w.pause>0?Math.sin(simTime+w.ph)*.6:Math.sign(w.latT-w.lat)*Math.PI/2);
@@ -3075,20 +3110,70 @@ function buildWater(def){if(WATER_Y==null)return;const R=def.R,th=def.theme;
     instBatch(new THREE.BoxGeometry(3.4,9,3.4),postM,PO,true);instBatch(new THREE.CylinderGeometry(.35,.35,16,8),postM,PL,false);instBatch(new THREE.SphereGeometry(1.4,12,8),lampM,LA,false);}}
 
 /* ================= DRIVE-THROUGH BUILDINGS: the road runs straight through a hall ================= */
-function hallTex(th){const c=cnv(512,256),g=c.getContext('2d');const L={kitchen:['#b5532f','#7a2e16','#ffd27a'],bay:['#f2e2c4','#c9a272','#8fe0ff'],night:['#1c1830','#0c0a18','#ff4fd8'],freezer:['#dff1ff','#9cc7ea','#7fe8ff']}[th]||['#b5532f','#7a2e16','#ffd27a'];
-  g.fillStyle=L[0];g.fillRect(0,0,512,256);
-  if(th==='kitchen'){g.strokeStyle='rgba(60,20,8,.35)';g.lineWidth=2;for(let y=0;y<256;y+=16){g.beginPath();g.moveTo(0,y);g.lineTo(512,y);g.stroke();for(let x=((y/16)%2)*24;x<512;x+=48){g.beginPath();g.moveTo(x,y);g.lineTo(x,y+16);g.stroke();}}}
-  else if(th==='bay'){g.strokeStyle='rgba(120,80,40,.3)';g.lineWidth=3;for(let x=0;x<512;x+=22){g.beginPath();g.moveTo(x,0);g.lineTo(x,256);g.stroke();}}
-  else if(th==='freezer'){for(let i=0;i<60;i++){g.strokeStyle='rgba(255,255,255,.35)';g.lineWidth=1.5;g.beginPath();const x=Math.random()*512,y=Math.random()*256;g.moveTo(x,y);g.lineTo(x+Math.random()*60-30,y+Math.random()*60-30);g.stroke();}}
-  for(let wx=24;wx<512;wx+=64){g.fillStyle=L[1];g.fillRect(wx-3,60,46,92);g.fillStyle=L[2];g.globalAlpha=.85;g.fillRect(wx,64,40,84);g.globalAlpha=1;g.fillStyle='rgba(0,0,0,.25)';g.fillRect(wx+18,64,4,84);g.fillRect(wx,104,40,4);}
-  g.fillStyle=L[1];g.fillRect(0,0,512,14);g.fillRect(0,232,512,24);
+function hallTex(th){/* one repeat = 64 units of road and the wall's full height. Boards, bricks, panels or ice blocks drawn piece by piece with
+  their own shading, a stone plinth, windows with frames, sills, shutters and striped awnings; the window glass doubles as the emissive map */
+  const W=1024,Hh=768,c=cnv(W,Hh),g=c.getContext('2d');
+  const L={kitchen:{base:'#b5532f',dark:'#7a2e16',glass:'#ffd27a',trim:'#f3e3c3',shutter:'#3b6e3a',awn:['#e0452c','#fff4dc'],stone:'#6e5a4a'},
+    bay:{base:'#f4ead8',dark:'#c9a272',glass:'#8fe0ff',trim:'#ffffff',shutter:'#1f8fa8',awn:['#1f8fa8','#fff4dc'],stone:'#b8a88c'},
+    night:{base:'#1c1830',dark:'#0c0a18',glass:'#ff4fd8',trim:'#3a2f5c',shutter:'#2a2050',awn:['#ff4fd8','#1c1830'],stone:'#141020'},
+    freezer:{base:'#dff1ff',dark:'#9cc7ea',glass:'#7fe8ff',trim:'#ffffff',shutter:'#6fb6e8',awn:['#7fc8ee','#ffffff'],stone:'#a9c6dd'}}[th]||{base:'#b5532f',dark:'#7a2e16',glass:'#ffd27a',trim:'#f3e3c3',shutter:'#3b6e3a',awn:['#e0452c','#fff4dc'],stone:'#6e5a4a'};
+  const r=(()=>{let s0=7;return ()=>{s0=(s0*16807)%2147483647;return s0/2147483647;};})();const shade=(hex,k)=>{const n=parseInt(hex.slice(1),16),f=v=>Math.max(0,Math.min(255,Math.round(v*k)));return 'rgb('+f(n>>16)+','+f((n>>8)&255)+','+f(n&255)+')';};
+  g.fillStyle=L.base;g.fillRect(0,0,W,Hh);
+  if(th==='kitchen'){/* brick courses, every brick its own tint, with pale mortar */for(let y=0;y<Hh;y+=24){const off=((y/24)%2)*36;for(let x=-36;x<W;x+=72){g.fillStyle=shade(L.base,.82+r()*.36);g.fillRect(x+off+2,y+2,68,20);g.fillStyle='rgba(0,0,0,.18)';g.fillRect(x+off+2,y+19,68,3);}}g.fillStyle='rgba(255,230,200,.18)';for(let y=0;y<Hh;y+=24)g.fillRect(0,y,W,2);}
+  else if(th==='bay'){/* painted clapboard: each board lit at its top edge and shadowed under its lip, with the odd knot and a few sun-faded boards */
+    for(let y=0;y<Hh;y+=26){g.fillStyle=shade(L.base,.94+r()*.1);g.fillRect(0,y,W,26);g.fillStyle='rgba(255,255,255,.35)';g.fillRect(0,y,W,3);g.fillStyle='rgba(60,40,20,.28)';g.fillRect(0,y+22,W,4);
+      for(let k=0;k<3;k++){if(r()<.5){const x=r()*W,rr=3+r()*4;g.fillStyle='rgba(120,80,40,.35)';g.beginPath();g.ellipse(x,y+13,rr*1.4,rr,0,0,7);g.fill();}}}
+    g.strokeStyle='rgba(90,60,30,.22)';g.lineWidth=2;for(let x=0;x<W;x+=256){g.beginPath();g.moveTo(x+(r()*40|0),0);g.lineTo(x+(r()*40|0),Hh);g.stroke();}}
+  else if(th==='night'){/* dark panels with bevelled edges and thin neon seams */for(let y=0;y<Hh;y+=128)for(let x=0;x<W;x+=128){g.fillStyle=shade(L.base,.9+r()*.2);g.fillRect(x+4,y+4,120,120);g.fillStyle='rgba(255,255,255,.07)';g.fillRect(x+4,y+4,120,6);g.fillRect(x+4,y+4,6,120);g.fillStyle='rgba(0,0,0,.35)';g.fillRect(x+4,y+118,120,6);}
+    g.fillStyle='rgba(255,79,216,.5)';for(let y=128;y<Hh;y+=256)g.fillRect(0,y-2,W,3);}
+  else if(th==='freezer'){/* ice blocks with a bright lip, frost and cracks */for(let y=0;y<Hh;y+=96){const off=((y/96)%2)*80;for(let x=-80;x<W;x+=160){g.fillStyle=shade(L.base,.92+r()*.14);g.fillRect(x+off+3,y+3,154,90);g.fillStyle='rgba(255,255,255,.55)';g.fillRect(x+off+3,y+3,154,6);g.fillStyle='rgba(60,120,180,.25)';g.fillRect(x+off+3,y+87,154,6);}}
+    g.strokeStyle='rgba(255,255,255,.4)';g.lineWidth=1.5;for(let i=0;i<40;i++){g.beginPath();const x=r()*W,y=r()*Hh;g.moveTo(x,y);g.lineTo(x+r()*80-40,y+r()*80-40);g.stroke();}}
+  /* stone plinth along the bottom: two courses of blocks */
+  for(let y=Hh-96;y<Hh;y+=48){const off=((y/48)%2)*60;for(let x=-60;x<W;x+=120){g.fillStyle=shade(L.stone,.85+r()*.3);g.fillRect(x+off+3,y+3,114,42);g.fillStyle='rgba(255,255,255,.14)';g.fillRect(x+off+3,y+3,114,5);g.fillStyle='rgba(0,0,0,.22)';g.fillRect(x+off+3,y+40,114,5);}}
+  g.fillStyle='rgba(0,0,0,.25)';g.fillRect(0,Hh-100,W,6);
+  /* windows: frame, sill, two panes with a mullion, a diagonal reflection, shutters and a striped awning */
+  for(let wx=64;wx<W;wx+=256){const wy=200,ww=120,wh=190;
+    if(th!=='night'){g.fillStyle=L.shutter;for(const sx of [wx-34,wx+ww+6]){g.fillRect(sx,wy-4,28,wh+8);g.fillStyle='rgba(0,0,0,.25)';for(let y=wy+8;y<wy+wh;y+=14)g.fillRect(sx+3,y,22,4);g.fillStyle=L.shutter;}}
+    g.fillStyle=L.trim;g.fillRect(wx-10,wy-12,ww+20,wh+24);g.fillStyle='rgba(0,0,0,.3)';g.fillRect(wx-10,wy+wh+6,ww+20,6);
+    g.fillStyle=L.dark;g.fillRect(wx-2,wy-4,ww+4,wh+8);g.fillStyle=L.glass;g.fillRect(wx+3,wy+2,ww-6,wh-4);
+    const gr=g.createLinearGradient(wx,wy,wx+ww,wy+wh);gr.addColorStop(0,'rgba(255,255,255,.45)');gr.addColorStop(.45,'rgba(255,255,255,0)');gr.addColorStop(.5,'rgba(255,255,255,.22)');gr.addColorStop(.6,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(wx+3,wy+2,ww-6,wh-4);
+    g.fillStyle=L.trim;g.fillRect(wx+ww/2-3,wy,6,wh);g.fillRect(wx,wy+wh/2-3,ww,6);
+    g.fillStyle=L.trim;g.fillRect(wx-16,wy+wh+8,ww+32,12);/* sill */
+    /* awning: a striped canopy over the window */
+    const ay=wy-70;g.beginPath();g.moveTo(wx-40,ay+56);g.lineTo(wx-22,ay);g.lineTo(wx+ww+22,ay);g.lineTo(wx+ww+40,ay+56);g.closePath();g.save();g.clip();for(let x=wx-40;x<wx+ww+40;x+=24){g.fillStyle=((x-wx+40)/24)%2<1?L.awn[0]:L.awn[1];g.fillRect(x,ay,24,60);}g.fillStyle='rgba(0,0,0,.25)';g.fillRect(wx-40,ay+44,ww+80,12);g.restore();
+    g.fillStyle=L.awn[0];for(let x=wx-40;x<wx+ww+40;x+=12){g.beginPath();g.arc(x+6,ay+56,6,0,Math.PI);g.fill();}}
+  /* fascia along the top and a shadow line under the eaves */
+  g.fillStyle=L.dark;g.fillRect(0,0,W,22);g.fillStyle='rgba(0,0,0,.3)';g.fillRect(0,22,W,10);
   const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.wrapS=THREE.RepeatWrapping;t.anisotropy=8;return t;}
+/* roof covering per theme: palm thatch (bay), terracotta barrel tiles (kitchen), dark shingles with a neon edge (night) and blue slate (freezer) */
+function hallRoofTex(th){const W=512,Hh=512,c=cnv(W,Hh),g=c.getContext('2d');const r=(()=>{let s0=11;return ()=>{s0=(s0*16807)%2147483647;return s0/2147483647;};})();
+  const C={kitchen:['#c8623a','#8a3a1c'],bay:['#d9b36a','#8a6a32'],night:['#241e3c','#0c0a18'],freezer:['#a9cbe6','#5e8fb8']}[th]||['#c8623a','#8a3a1c'];
+  g.fillStyle=C[1];g.fillRect(0,0,W,Hh);
+  if(th==='bay'){for(let y=0;y<Hh;y+=64){for(let i=0;i<260;i++){const x=r()*W,l=38+r()*26;g.strokeStyle='rgba('+(190+r()*50|0)+','+(140+r()*50|0)+','+(70+r()*40|0)+','+(.55+r()*.4)+')';g.lineWidth=1.5+r()*1.5;g.beginPath();g.moveTo(x,y-6);g.lineTo(x+(r()-.5)*8,y+l);g.stroke();}g.fillStyle='rgba(60,40,10,.35)';g.fillRect(0,y+56,W,8);}}
+  else if(th==='kitchen'){for(let y=0;y<Hh;y+=48){const off=((y/48)%2)*24;for(let x=-24;x<W;x+=48){const gr=g.createLinearGradient(x+off,0,x+off+48,0);gr.addColorStop(0,'rgba(0,0,0,.35)');gr.addColorStop(.5,'rgba(255,255,255,.18)');gr.addColorStop(1,'rgba(0,0,0,.3)');g.fillStyle=C[0];g.fillRect(x+off,y,46,46);g.fillStyle=gr;g.fillRect(x+off,y,46,46);g.fillStyle='rgba(0,0,0,.3)';g.fillRect(x+off,y+40,46,6);}}}
+  else{for(let y=0;y<Hh;y+=40){const off=((y/40)%2)*32;for(let x=-32;x<W;x+=64){g.fillStyle=th==='freezer'?'rgba(255,255,255,'+(.15+r()*.25)+')':'rgba(255,255,255,'+(.03+r()*.05)+')';g.fillRect(x+off+2,y+2,60,34);g.fillStyle='rgba(0,0,0,.35)';g.fillRect(x+off+2,y+32,60,6);}if(th==='night'){g.fillStyle='rgba(255,79,216,.35)';g.fillRect(0,y+36,W,2);}}}
+  const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;}
+/* stone blocks for the portal piers and a timber beam for the lintel, so the entrance reads as masonry and wood rather than painted boxes */
+function hallStoneTex(th){const c=cnv(256,256),g=c.getContext('2d');const r=(()=>{let s0=5;return ()=>{s0=(s0*16807)%2147483647;return s0/2147483647;};})();const base={kitchen:'#8a7560',bay:'#c9b690',night:'#2a2440',freezer:'#b9d3e8'}[th]||'#8a7560';
+  const n=parseInt(base.slice(1),16),sh=k=>'rgb('+Math.min(255,Math.round((n>>16)*k))+','+Math.min(255,Math.round(((n>>8)&255)*k))+','+Math.min(255,Math.round((n&255)*k))+')';g.fillStyle=sh(.7);g.fillRect(0,0,256,256);
+  for(let y=0;y<256;y+=64){const off=((y/64)%2)*64;for(let x=-64;x<256;x+=128){g.fillStyle=sh(.86+r()*.28);g.fillRect(x+off+3,y+3,122,58);g.fillStyle='rgba(255,255,255,.16)';g.fillRect(x+off+3,y+3,122,5);g.fillStyle='rgba(0,0,0,.25)';g.fillRect(x+off+3,y+56,122,5);for(let k=0;k<6;k++){g.fillStyle='rgba(0,0,0,'+(.04+r()*.08)+')';g.beginPath();g.arc(x+off+10+r()*108,y+8+r()*46,1+r()*3,0,7);g.fill();}}}
+  const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;}
+function hallBeamTex(th){const c=cnv(512,128),g=c.getContext('2d');const r=(()=>{let s0=9;return ()=>{s0=(s0*16807)%2147483647;return s0/2147483647;};})();const base={kitchen:'#6b3a1e',bay:'#8a5a32',night:'#1a1428',freezer:'#9fbdd6'}[th]||'#6b3a1e';
+  g.fillStyle=base;g.fillRect(0,0,512,128);for(let i=0;i<70;i++){g.strokeStyle='rgba(0,0,0,'+(.08+r()*.18)+')';g.lineWidth=1+r()*2;g.beginPath();const y=r()*128;g.moveTo(0,y);g.bezierCurveTo(170,y+(r()-.5)*14,340,y+(r()-.5)*14,512,y);g.stroke();}
+  for(let i=0;i<5;i++){g.fillStyle='rgba(0,0,0,.3)';g.beginPath();g.ellipse(40+r()*440,20+r()*88,4+r()*4,3+r()*3,0,0,7);g.fill();}g.fillStyle='rgba(255,255,255,.12)';g.fillRect(0,0,512,6);g.fillStyle='rgba(0,0,0,.3)';g.fillRect(0,122,512,6);
+  const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;}
+function hallBuntingTex(){const c=cnv(512,64),g=c.getContext('2d');const cols=['#e0452c','#f7c948','#1f8fa8','#fff4dc','#ff8a1f','#3f9a35'];g.strokeStyle='#5a3a1e';g.lineWidth=2;g.beginPath();g.moveTo(0,6);g.quadraticCurveTo(256,22,512,6);g.stroke();
+  for(let i=0;i<12;i++){const x=i*42+8,t=x/512,y=6+(1-(2*t-1)**2)*8;g.fillStyle=cols[i%cols.length];g.beginPath();g.moveTo(x,y);g.lineTo(x+34,y);g.lineTo(x+17,y+34);g.closePath();g.fill();g.fillStyle='rgba(0,0,0,.18)';g.beginPath();g.moveTo(x+17,y);g.lineTo(x+34,y);g.lineTo(x+17,y+34);g.closePath();g.fill();}
+  const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;return t;}
 function hallSignTex(word,th){const c=cnv(512,128),g=c.getContext('2d');const L={kitchen:['#2a0f07','#ffd27a'],bay:['#0d3a4a','#fff2cc'],night:['#100820','#ff5ad8'],freezer:['#0d2a4a','#bff0ff']}[th]||['#2a0f07','#ffd27a'];
   g.fillStyle=L[0];g.fillRect(0,0,512,128);g.strokeStyle=L[1];g.lineWidth=6;g.strokeRect(8,8,496,112);g.fillStyle=L[1];g.font='900 64px system-ui,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(word,256,68);
   const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;return t;}
 function buildHall(def,j,K){(window.__hallJ=window.__hallJ||[]).push(j);const th=def.theme,H=46,wI=WALLD+1,wO=WALLD+13,tex=hallTex(th);
   const wallM=new THREE.MeshStandardMaterial({map:tex,emissive:'#ffffff',emissiveMap:tex,emissiveIntensity:th==='night'?.55:.12,roughness:.7,side:THREE.DoubleSide});
   const roofM=wm(th==='night'?'#141024':th==='freezer'?'#cfe6fa':th==='bay'?'#8a5a32':'#5a2a16',{roughness:.6,side:THREE.DoubleSide});
+  const rtex=hallRoofTex(th),tileM=new THREE.MeshStandardMaterial({map:rtex,roughness:th==='freezer'?.35:.85,side:THREE.DoubleSide}),RH=15,OV=7;/* ridge rise over the eaves, eave overhang beyond the outer wall */
+  const gableM=wm({kitchen:'#e9cfa6',bay:'#f2e6cc',night:'#2c2148',freezer:'#ffffff'}[th]||'#e9cfa6',{roughness:.6,side:THREE.DoubleSide});const sp=[],su=[];
+  const stT=hallStoneTex(th);stT.repeat.set(1,4);const stoneM=new THREE.MeshStandardMaterial({map:stT,roughness:.9});const bmT=hallBeamTex(th);bmT.repeat.set(5,1);const beamM=new THREE.MeshStandardMaterial({map:bmT,roughness:.8});
   const lightM=new THREE.MeshBasicMaterial({color:th==='night'?'#ff8af0':th==='freezer'?'#bff6ff':'#fff0c0',toneMapped:false});
   const pos=[],uv=[],rp=[];const P=a=>track[(a+N)%N],gy=a=>{const p=P(a);return groundAt(p.x,p.y);};let ua=0;
   const quad=(arr,A,B,C,D2)=>{arr.push(...A,...B,...C,...A,...C,...D2);};
@@ -3096,9 +3181,14 @@ function buildHall(def,j,K){(window.__hallJ=window.__hallJ||[]).push(j);const th
     for(const sd of [-1,1])for(const w of [wI,wO]){const px=p.x+p.nx*w*sd,pz=p.y+p.ny*w*sd,qx=q.x+q.nx*w*sd,qz=q.y+q.ny*w*sd,g0=gy(a),g1=gy(a+1);
       const b0=Math.min(g0,groundAt(px,pz))-3,b1=Math.min(g1,groundAt(qx,qz))-3;/* walls reach down to the ground beside the road, which can sit lower than the road */
       quad(pos,[px,b0,pz],[qx,b1,qz],[qx,g1+H,qz],[px,g0+H,pz]);uv.push(ua,0,ub,0,ub,1,ua,0,ub,1,ua,1);}
-    /* roof: underside and top */
-    for(const yo of [0,4]){const g0=gy(a)+H+yo,g1=gy(a+1)+H+yo;quad(rp,[p.x-p.nx*wO,g0,p.y-p.ny*wO],[p.x+p.nx*wO,g0,p.y+p.ny*wO],[q.x+q.nx*wO,g1,q.y+q.ny*wO],[q.x-q.nx*wO,g1,q.y-q.ny*wO]);}
+    /* roof: a flat ceiling inside, and outside two tiled slopes meeting at a ridge over the road, overhanging the walls as eaves */
+    {const g0=gy(a)+H,g1=gy(a+1)+H;quad(rp,[p.x-p.nx*wO,g0,p.y-p.ny*wO],[p.x+p.nx*wO,g0,p.y+p.ny*wO],[q.x+q.nx*wO,g1,q.y+q.ny*wO],[q.x-q.nx*wO,g1,q.y-q.ny*wO]);
+      for(const sd of [-1,1]){const e=(wO+OV)*sd;quad(sp,[p.x+p.nx*e,g0-2,p.y+p.ny*e],[q.x+q.nx*e,g1-2,q.y+q.ny*e],[q.x,g1+RH,q.y],[p.x,g0+RH,p.y]);su.push(ua*2,0,ub*2,0,ub*2,1,ua*2,0,ub*2,1,ua*2,1);}}
     ua=ub;}
+  {const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));sg.setAttribute('uv',new THREE.Float32BufferAttribute(su,2));sg.computeVertexNormals();const sm=new THREE.Mesh(sg,tileM);sm.castShadow=true;sm.receiveShadow=true;sm.userData.noLift=true;world.add(sm);
+    /* gable ends close the roof above each portal */
+    const gp=[];for(const e of [-1,1]){const a=j+e*K,p=P(a),g0=gy(a)+H;gp.push(p.x-p.nx*(wO+OV),g0-2,p.y-p.ny*(wO+OV),p.x+p.nx*(wO+OV),g0-2,p.y+p.ny*(wO+OV),p.x,g0+RH,p.y);}
+    const gg=new THREE.BufferGeometry();gg.setAttribute('position',new THREE.Float32BufferAttribute(gp,3));gg.computeVertexNormals();const gm=new THREE.Mesh(gg,gableM);gm.castShadow=true;gm.userData.noLift=true;world.add(gm);}
   const wg=new THREE.BufferGeometry();wg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));wg.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));wg.computeVertexNormals();
   const wm2=new THREE.Mesh(wg,wallM);wm2.castShadow=true;wm2.receiveShadow=true;wm2.userData.noLift=true;world.add(wm2);
   const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(rp,3));rg.computeVertexNormals();const rm=new THREE.Mesh(rg,roofM);rm.castShadow=true;rm.receiveShadow=true;rm.userData.noLift=true;world.add(rm);
@@ -3107,10 +3197,10 @@ function buildHall(def,j,K){(window.__hallJ=window.__hallJ||[]).push(j);const th
   /* end facades: a lintel over the road opening with the hall's name */
   const word={kitchen:'PIZZERIA',bay:'PAVILION',night:'ARCADE',freezer:'ICE HALL'}[th]||'HALL',sM=new THREE.MeshStandardMaterial({map:hallSignTex(word,th),emissive:'#ffffff',emissiveMap:hallSignTex(word,th),emissiveIntensity:.6,roughness:.5});
   for(const e of [-1,1]){const a=j+e*K,p=P(a),g0=gy(a),ang=-p.ang;
-    const lin=put(new THREE.BoxGeometry(3,H-36+4,2*wO),[roofM,roofM,roofM,roofM,roofM,roofM],p.x,g0+36+(H-36+4)/2,p.y,world);lin.rotation.y=ang;lin.userData.noLift=true;lin.castShadow=true;
+    const lin=put(new THREE.BoxGeometry(3,H-36,2*wO),beamM,p.x,g0+36+(H-36)/2,p.y,world);lin.rotation.y=ang;lin.userData.noLift=true;lin.castShadow=true;
     const sg=new THREE.Mesh(new THREE.PlaneGeometry(64,16),sM);sg.position.set(p.x+p.tx*e*1.8,g0+42,p.y+p.ty*e*1.8);sg.rotation.y=Math.atan2(p.tx*e,p.ty*e);sg.userData.noLift=true;world.add(sg);
     for(const sd of [-1,1]){const cx=p.x+p.nx*(wI+wO)/2*sd,cz=p.y+p.ny*(wI+wO)/2*sd,hw=(wO-wI+6)/2;let gb=g0;for(const o of [-hw,0,hw])for(const t of [-2.5,2.5])gb=Math.min(gb,groundAt(cx+p.nx*o*sd+p.tx*t,cz+p.ny*o*sd+p.ty*t));
-      const top=g0+H+2,bot=gb-2,pil=put(new THREE.BoxGeometry(5,top-bot,wO-wI+6),roofM,cx,(top+bot)/2,cz,world);pil.rotation.y=ang;pil.userData.noLift=true;pil.castShadow=true;}}
+      const top=g0+H+2,bot=gb-2,pil=put(new THREE.BoxGeometry(5,top-bot,wO-wI+6),stoneM,cx,(top+bot)/2,cz,world);pil.rotation.y=ang;pil.userData.noLift=true;pil.castShadow=true;}}
   if(HQD.on)hallHQ(th,j,K,H,wI,wO,P,gy,roofM);}
 /* Ultra: the hall as a piece of architecture: pilasters down the outside, ribs inside, a cornice along the eaves, ceiling beams,
    and at each end a moulded portal (plinths, capitals, a corniced lintel and a framed name board) */
@@ -3126,9 +3216,14 @@ function hallHQ_(th,j,K,H,wI,wO,P,gy,roofM){const trim=wm({kitchen:'#e9cfa6',bay
       add(new THREE.BoxGeometry(2.6,H-6,1.2),trim,p,0,g+6+(H-6)/2,(wI-.6)*sd,false);}
     add(new THREE.BoxGeometry(3.2,2.8,2*wO-2),dark,p,0,g+H-1.4,0,false);
     for(const sd of [-1,1])add(new THREE.BoxGeometry(3,5,3),dark,p,0,g+H-4,(wI-1.6)*sd,false);}
-  /* eaves cornice and a fascia band, segment by segment so they follow the road's rise and fall */
+  /* fascia boards along the eaves and a ridge cap, segment by segment so they follow the road's rise and fall; rafter tails under the overhang */
   for(let a=j-K;a<j+K;a++){const p=P(a),q=P(a+1),la=Math.hypot(q.x-p.x,q.y-p.y),g=(gy(a)+gy(a+1))/2,m={x:(p.x+q.x)/2,y:(p.y+q.y)/2,tx:p.tx,ty:p.ty,nx:p.nx,ny:p.ny,ang:p.ang};
-    for(const sd of [-1,1]){add(new THREE.BoxGeometry(la+.3,2.6,3.6),trim,m,0,g+H+3.6,(wO+.8)*sd);add(new THREE.BoxGeometry(la+.3,1.4,1.6),dark,m,0,g+H+.6,(wO+.5)*sd,false);}}
+    for(const sd of [-1,1])add(new THREE.BoxGeometry(la+.3,2.2,1.2),trim,m,0,g+H-2.2,(wO+7.2)*sd,false);add(new THREE.BoxGeometry(la+.3,1.6,3.2),dark,m,0,g+H+15.4,0,false);
+    if(a%4===0)for(const sd of [-1,1])add(new THREE.BoxGeometry(1.4,1.6,8),dark,p,0,gy(a)+H-3.4,(wO+3)*sd,false);}
+  /* pavilion: strings of bunting swinging between the pilasters along both eaves */
+  if(th==='bay'){const bt=hallBuntingTex(),bm=new THREE.MeshBasicMaterial({map:bt,alphaTest:.5,side:THREE.DoubleSide,toneMapped:false});
+    for(let a=j-K+3;a<j+K-6;a+=6){const p=P(a),q=P(a+6),la=Math.hypot(q.x-p.x,q.y-p.y),g=(gy(a)+gy(a+6))/2,m={x:(p.x+q.x)/2,y:(p.y+q.y)/2,tx:p.tx,ty:p.ty,nx:p.nx,ny:p.ny,ang:p.ang};
+      for(const sd of [-1,1]){const pl=new THREE.Mesh(new THREE.PlaneGeometry(la-1,5,1,1),bm);const [x,z]=at(m,0,(wO+9)*sd);pl.position.set(x,g+H-6.5,z);pl.rotation.y=-m.ang;pl.userData.noLift=true;world.add(pl);}}}
   for(const e of [-1,1]){const a=j+e*K,p=P(a),g0=gy(a);
     /* lintel mouldings */
     add(new THREE.BoxGeometry(6.6,2.4,2*wO+9),trim,p,0,g0+H+5.2,0);add(new THREE.BoxGeometry(5,1.4,2*wO+5),dark,p,0,g0+H+3.3,0);add(new THREE.BoxGeometry(4.8,1.8,2*wO+2),trim,p,0,g0+36.6,0);
@@ -3486,12 +3581,29 @@ function detailLib(th){const T=tplOf,L={};
       const F=hqFrond(11,1.9,3.4);for(let k=0;k<9;k++){const ang=k/9*Math.PI*2+(k%2)*.2;a.push([F,k%3?'#2f8a35':'#3a9a3c',[x,y-.6,0],[0,-ang,-.18-(k%3)*.12]]);}
       for(let k=0;k<3;k++){const ang=k/3*Math.PI*2;a.push([new THREE.SphereGeometry(.85,14,10),'#6b4a2a',[x+Math.cos(ang)*1.1,y-1.6,Math.sin(ang)*1.1]]);}a.push([new THREE.SphereGeometry(1.4,16,12),'#6b4a2a',[x,y-.4,0]]);return T(a);})():(()=>{const a=[];let x=0,y=0;for(let k=0;k<7;k++){const nx=x+k*.5,ny=y+6;a.push([DG.cyl6,k%2?'#8a6a44':'#7a5c3a',[(x+nx)/2,(y+ny)/2,0],[0,0,-.08],[1.6-k*.08,6.4,1.6-k*.08]]);x=nx;y=ny;}
       for(let k=0;k<7;k++){const ang=k/7*Math.PI*2;a.push([DG.sphL,'#2f8a35',[x+Math.cos(ang)*8,y-1.5,Math.sin(ang)*8],[0,-ang,-.4],[10,.6,2.6]]);}a.push([DG.sph,'#6b4a2a',[x,y-1,0],0,1.6]);return T(a);})();
-    L.hut=T([[DG.box,'#fff4dc',[0,6,0],0,[14,12,12]],[DG.box,'#2a7fd8',[0,6,6.05],0,[14,12,.1]],[DG.cone,'#e0452c',[0,15,0],[0,Math.PI/4,0],[12,6,12]],[DG.box,'#6b3a1e',[0,3.5,6.1],0,[4,7,.2]]]);
+    /* beach bungalow: a deck with steps, boarded walls with teal corner posts and trim bands, a door with a brass knob, framed windows
+       with mullions and flower boxes, a porch on two posts under a striped lean-to, a thatched roof with a finial, and a surfboard leaning on the wall */
+    const TEAL='#1f8fa8',BOARD='#fff4dc',WOOD='#8a6a44',GLASS='#8fe0ff';
+    L.hut=T([[DG.box,'#c9a272',[0,.6,0],0,[18,1.2,16]],[DG.box,'#c9a272',[0,.5,9.4],0,[5,1,2.4]],[DG.box,'#c9a272',[0,1.1,8.3],0,[5,1,1.2]],
+      [DG.box,BOARD,[0,6.6,0],0,[14,12,12]],...[[-7,-6],[7,-6],[-7,6],[7,6]].map(([x,z])=>[DG.box,TEAL,[x,6.6,z],0,[.9,12,.9]]),[DG.box,TEAL,[0,12.2,0],0,[14.6,.8,12.6]],[DG.box,TEAL,[0,2.2,0],0,[14.6,.6,12.6]],
+      [DG.box,'#6b3a1e',[0,4.9,6.1],0,[4,7.4,.3]],[DG.box,BOARD,[0,4.9,6.05],0,[4.8,8.2,.2]],[DG.sph,'#f7c948',[1.3,4.6,6.35],0,.3],
+      ...[-4.6,4.6].flatMap(x=>[[DG.box,TEAL,[x,7.4,6.1],0,[3.8,3.8,.25]],[DG.box,GLASS,[x,7.4,6.25],0,[3,3,.2]],[DG.box,BOARD,[x,7.4,6.4],0,[.3,3,.15]],[DG.box,BOARD,[x,7.4,6.4],0,[3,.3,.15]],
+        [DG.box,WOOD,[x,5.2,6.6],0,[3.6,.8,1]],[DG.sph,'#ff6fae',[x-.9,5.8,6.6],0,.5],[DG.sph,'#f7c948',[x+.2,5.9,6.6],0,.5],[DG.sph,'#ff8a1f',[x+1.1,5.7,6.6],0,.45]]),
+      ...[-7.1,7.1].flatMap(x=>[[DG.box,TEAL,[x,7.6,0],0,[.25,3.8,3.8]],[DG.box,GLASS,[x*1.02,7.6,0],0,[.2,3,3]],[DG.box,BOARD,[x*1.04,7.6,0],0,[.15,3,.3]]]),
+      [DG.cyl6,WOOD,[-6,4.8,9.6],0,[.6,9.6,.6]],[DG.cyl6,WOOD,[6,4.8,9.6],0,[.6,9.6,.6]],[DG.box,'#e0452c',[0,9.9,8.4],[.28,0,0],[16,.5,6.4]],[DG.box,BOARD,[0,9.3,10.9],0,[16.2,.5,.6]],
+      [DG.cone,'#d9b36a',[0,16.2,0],0,[13.4,7.6,13.4]],[DG.cone,'#8a6a32',[0,12.9,0],0,[13.8,1,13.8]],[DG.sph,'#8a6a32',[0,20.1,0],0,.8],
+      [DG.cap,'#ff8a1f',[8.9,5.2,3.5],[0,0,.24],[2.2,9,.6]],[DG.cap,BOARD,[8.95,5.2,3.5],[0,0,.24],[.6,9.3,.62]]]);
     L.surf=T([[DG.cap,'#ff6fae',[0,7,0],[0,0,.15],[2.6,10,.7]],[DG.cap,'#fff4dc',[0,7,.1],[0,0,.15],[.6,10.4,.72]]]);
     L.castle=T([[DG.box,'#e8c88a',[0,2.5,0],0,[12,5,12]],...[[-5,-5],[5,-5],[-5,5],[5,5]].flatMap(([x,z])=>[[DG.cyl,'#e2bf7d',[x,4.5,z],0,[2.2,9,2.2]],[DG.cone,'#d9b26e',[x,10.5,z],0,[2.6,3,2.6]]]),[DG.box,'#e0452c',[0,10,0],0,[.2,4,2.6]]]);
     L.starfish=T([[DG.star,'#ff8a1f',[0,.3,0],[-Math.PI/2,0,0],3.2]]);
     L.ball=T([[DG.sph,'#ffffff',[0,3,0],0,3],[DG.sph,'#e0452c',[0,3,0],0,[3.05,3.05,1.2]],[DG.sph,'#2a7fd8',[0,3,0],0,[1.2,3.05,3.05]]]);
-    L.tower=T([...[[-3,-3],[3,-3],[-3,3],[3,3]].map(([x,z])=>[DG.box,'#fff4dc',[x,7,z],0,[.8,14,.8]]),[DG.box,'#e0452c',[0,15,0],0,[9,4,9]],[DG.cone,'#fff4dc',[0,20,0],[0,Math.PI/4,0],[8,4,8]],[DG.box,'#e8e2d8',[0,8,4.5],[.5,0,0],[3,.4,10]]]);
+    /* lifeguard tower: cross-braced legs, a striped cabin with a wrap-around window band and railed balcony, a ladder, a flag and a life ring */
+    L.tower=T([...[[-3,-3],[3,-3],[-3,3],[3,3]].map(([x,z])=>[DG.box,BOARD,[x,7,z],0,[.8,14,.8]]),[DG.box,BOARD,[0,4,-3.1],[0,0,.78],[.4,8.4,.4]],[DG.box,BOARD,[0,4,-3.1],[0,0,-.78],[.4,8.4,.4]],[DG.box,BOARD,[0,10,-3.1],[0,0,.78],[.4,8.4,.4]],[DG.box,BOARD,[0,10,-3.1],[0,0,-.78],[.4,8.4,.4]],
+      [DG.box,WOOD,[0,13.2,0],0,[11,.7,11]],[DG.box,'#e0452c',[0,15.2,0],0,[9,3.4,9]],[DG.box,BOARD,[0,16.2,0],0,[9.1,.7,9.1]],[DG.box,GLASS,[0,17.6,0],0,[9.2,2,9.2]],[DG.box,'#e0452c',[0,18.9,0],0,[9.4,.6,9.4]],
+      [DG.cone,BOARD,[0,21,0],[0,Math.PI/4,0],[8.6,4,8.6]],[DG.cone,BOARD,[0,21,0],0,[8.6,4,8.6]],
+      ...[[-5.3,0],[5.3,0],[0,-5.3],[0,5.3]].map(([x,z])=>[DG.box,TEAL,[x,14.6,z],0,x?[.3,2.2,11]:[11,2.2,.3]]),...[[-5.3,-5.3],[5.3,-5.3],[-5.3,5.3],[5.3,5.3]].map(([x,z])=>[DG.box,TEAL,[x,14.6,z],0,[.5,2.6,.5]]),
+      [DG.box,WOOD,[0,7,5.2],[.3,0,0],[2.6,.4,14]],...[0,1,2,3,4,5].map(i=>[DG.box,WOOD,[0,1.6+i*2.2,5.2+ (i*2.2-5.5)*.3],0,[2.6,.3,.3]]),
+      [DG.cyl6,WOOD,[4,24.5,4],0,[.25,7,.25]],[DG.box,'#e0452c',[5.4,27,4],0,[2.8,1.6,.1]],[DG.tor,'#ff8a1f',[-5.6,15.4,4.6],[0,Math.PI/2,0],[1.3,1.3,1.3]]]);
     L.shell=T([[DG.hemi,'#f6d3c4',[0,0,0],0,[2.2,1.4,2.6]]]);
     const PG=n=>propGeos(n)[n];L.treeA=T([[PG('tree_round1'),null,[0,0,0],0,1.15]]);L.treeB=T([[PG('tree_round2'),null,[0,0,0],0,1.0]]);L.shrub=T([[PG('tree_shrub'),null,[0,0,0],0,1.6]]);
     L.props=['palm','palm','hut','surf','castle','starfish','ball','tower','rock','treeA','treeB','treeA','shrub','shrub','crate'];L.ground=['shell','starfish'];}
@@ -3742,7 +3854,9 @@ function buildBay(R,L1,L2){
   /* Ultra (PC and phone): break up the repeating ripple grid on the open sea with a second, rotated, larger-scale ripple sample,
      and calm the ripples with distance so the horizon reads as smooth water instead of a tiled pattern. One extra texture read on water pixels. */
   if(QUAL[qKey].hqAll){const wm0=water.material;wm0.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;',
-    'vec2 sUv=mat2(.8,-.6,.6,.8)*vUv*.31+vec2(.37,.11);vec3 mapN=(texture2D(normalMap,vUv).xyz*.55+texture2D(normalMap,sUv).xyz*.45)*2.-1.;mapN.xy*=mix(1.15,.22,smoothstep(500.,7000.,length(vViewPosition)));');};wm0.customProgramCacheKey=()=>'seaHQ';}
+    'vec2 sUv=mat2(.8,-.6,.6,.8)*vUv*.31+vec2(.37,.11);vec3 mapN=(texture2D(normalMap,vUv).xyz*.55+texture2D(normalMap,sUv).xyz*.45)*2.-1.;mapN.xy*=mix(1.15,.22,smoothstep(500.,7000.,length(vViewPosition)));');};}
+  {const wm0=water.material,prev=wm0.onBeforeCompile;wm0.onBeforeCompile=sh=>{if(prev)prev(sh);/* far water: a glossy sea sampled at a few pixels per wave sparkles as grain; roughen it with distance so the horizon reads calm */
+    sh.fragmentShader=sh.fragmentShader.replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,.5,smoothstep(350.,4500.,length(vViewPosition)));');};const pk=wm0.customProgramCacheKey;wm0.customProgramCacheKey=()=>'sea'+(QUAL[qKey].hqAll?'HQ':'')+'R';}
   animators.push((t,dt)=>{wn.offset.x+=dt*.01;wn.offset.y+=dt*.006;});
   const sandM=new THREE.MeshStandardMaterial({map:T2(sandTex(),6,6),roughness:.9}),trunkM=wm('#8a6a44',{roughness:.8}),leafM=wm('#2f8a35',{roughness:.5,side:THREE.DoubleSide});
   const leafG=new THREE.SphereGeometry(1,12,6),trunkG=new THREE.CylinderGeometry(4,4.6,1,10),nutG=new THREE.SphereGeometry(5,10,8),nutM=wm('#5a3a1e');
@@ -3842,11 +3956,13 @@ function resetRace(demo){
   const diff=DIFFS[demo?'normal':aiKey()];
   const others=RACERS.map((_,i)=>i).filter(i=>demo||i!==selected);
   for(let i=others.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[others[i],others[j]]=[others[j],others[i]];}
+  /* the previous race's karts leave the scene first: their orbiting pizza cutters and held items are theirs, not the new karts' (the blades used to be left lying on the road race after race) */
+  for(const k of karts){if(k.cutM){k.cutM.forEach(m=>scene.remove(m));k.cutM=null;}if(k.held)dropHeld(k);}
   karts=[];if(!demo&&NET.cfg){for(const c of NET.cfg.karts){const k=makeKart(c.ri,c.slot,c.who===NET.me,diff,Object.assign({},c.build,{u:c.who>=0?c.slot+1:0}));if(c.who>0&&NET.role==='host'){k.netId=c.who;k.auto=false;}if(c.who>=0)k.netName=c.name;karts.push(k);}}
   else for(let s=0;s<8;s++){if(!demo&&s===4)karts.push(makeKart(selected,s,true,diff,playerBuild));else{const ri=others.shift();karts.push(makeKart(ri,s,false,diff,cpuBuilds[ri]));}}
   const keep=new Set(karts.map(k=>k.m));modelCache.forEach(m=>{m.g.visible=keep.has(m);});pruneModels(keep);
   {const me=demo?null:(karts.find(k=>k.isPlayer)||karts[4]);player=me;camT=me||karts[4];}mfzReset();if(SPEC&&SPEC.on){SPEC.on=false;document.body.classList.remove('spectating');$('specBar').hidden=true;}
-  for(const k of karts){if(k.cutM)k.cutM.forEach(m=>scene.remove(m));if(k.held)dropHeld(k);}if(typeof sauceFx==='function'&&_sauceEl)sauceFx(false);projectiles.forEach(p=>scene.remove(p.mesh));hazards.forEach(h=>scene.remove(h.mesh));projectiles=[];hazards=[];
+  if(typeof sauceFx==='function'&&_sauceEl)sauceFx(false);projectiles.forEach(p=>scene.remove(p.mesh));hazards.forEach(h=>scene.remove(h.mesh));projectiles=[];hazards=[];
   boxes.forEach(b=>b.r=0);resetHazards();raceTime=0;WHEEL_N=0;WHEEL_AT=-99;BUMPT.clear();POPS.forEach(q=>scene.remove(q.m));POPS.length=0;finishCount=0;lapShown=1;resultsAt=0;cam.a=camT.ma;camSnap=true;acc=0;camera.up.set(0,1,0);standCache=standings();
   if(ladPending!=null){applyLad(ladPending,true);ladPending=null;}if(ssPending!=null){applySS(ssPending);ssPending=null;fit();}
   warmScene();
@@ -4032,9 +4148,18 @@ function tdTick(){const bar=$('tdBar'),tag=$('tdTag');if(!bar)return;const live=
   if(live)for(const sc of [...TD.ch.keys()]){let dj=player.idx-sc.b;if(dj<0)dj+=N;if(dj>20&&dj<140&&!player.sc){TD.ch.delete(sc);if(TD.sc===sc)TD.sc=null;}}
   if(bar.hidden===show)bar.hidden=!show;}
 function tdPick(take){if(TD.sc)TD.ch.set(TD.sc,!!take);tdTick();}
+/* graphics test under load: a quiet lap would flatter every preset. While the test runs the kart fires a heavy item every 1.6 s (explosions,
+   flour clouds, trails, thrown slices and traps), two rivals are handed items every 2.5 s and use them in their own time, and every 5 s the
+   kart drifts for 2.6 s and lets go for a boost (sparks, speed lines, the glow pass working hardest). Single player only; items are given
+   straight into the slot, not rolled. */
+const BLOAD_ITEMS=['trio','bomb','flour','meatball','pepperoni','cutter','chili','dough','oil','twister','boxes','jalapeno','forks','torpedo'];
+function benchLoad(k,o){const B=BENCH,L=B.load||(B.load={t:0,ni:1,nr:2,ii:0});L.t+=STEP;
+  if(L.t>=L.ni){if(!k.item&&!k.held&&!(k.roll>0))k.item=BLOAD_ITEMS[L.ii++%BLOAD_ITEMS.length];if(k.item&&k.spin<=0){o.use=true;o.back=DROPS.includes(k.item);L.ni=L.t+1.6;}}
+  if(L.t>=L.nr){L.nr=L.t+2.5;let n=0;for(const r of karts){if(r===k||r.item||r.finished||!r.ai)continue;r.item=BLOAD_ITEMS[(L.ii+n*3)%BLOAD_ITEMS.length];r.ai.itemDelay=.3;if(++n>=2)break;}}
+  const ph=L.t%5;if(ph<2.6&&(k.drift||(k.speed>70&&!k.air)))o.brake=true;}
 function playerInput(){const it=itemQueued;itemQueued=null;const o={steer:clamp((keys.right?1:0)-(keys.left?1:0)+(PAD.act?PAD.steer:0),-1,1),brake:keys.brake||(PAD.act&&PAD.brake),nb:!keys.brake&&PAD.act&&!!PAD.nb,mul:PAD.act&&!PAD.gas&&performance.now()-PAD.lastUse<20000?0:1,use:false,back:false,hold:false,holdSl:1,release:null};
   /* tap the dimmed slot to fire the item you are holding; swipe it down to leave it on the track. In a friends' race the host does this for you. */
-  if(TD.on&&player&&state==='race'&&!player.finished)tdDrive(player,o);
+  if(TD.on&&player&&state==='race'&&!player.finished){tdDrive(player,o);if(BENCH.on&&!NET.cfg)benchLoad(player,o);}
   if(NET.role==='guest'&&NET.cfg){o.ev=it||0;return o;}
   if(it&&player)itemIntent(player,it,o);
   return o;}
@@ -4803,7 +4928,7 @@ function stepKart(k,inp,dt){
   if(k.onRamp&&!onR&&k.speed>20&&k.air&&!k.big&&!k.glide&&k.z<4){k.air=false;}
   if(k.air){k.airT+=dt;if(k.glide){k.wvy-=70*dt;const sk=-(k.gsink||15);if(k.wvy<sk)k.wvy+=(sk-k.wvy)*Math.min(1,dt*4);if(GLIDE){const gyy=glideY(k.x,k.y);if(G<gyy-20&&k.wy<gyy+6&&k.wvy<0)k.wvy*=.8;}glideRings(k);k.gH=k.wy-Math.max(G,glideY(k.x,k.y));}else k.wvy-=(k.big?(k.wvy>0?80:110):260)*dt;
     k.wy+=k.wvy*dt;if(k.wy<=G){k.wy=G;k.air=false;if(k.big||k.glide)land(k);k.big=false;k.glide=false;k.wvy=rate;k.gRate=rate;}}
-  else if(k.onRamp&&!onR&&k.speed>20){k.air=true;k.big=true;k.airT=0;k.wvy=32+Math.min(Math.max(0,k.speed),BASE_MAX*1.6)*.05+(trainRamp(k)?16:0);k.speed=Math.max(k.speed,BASE_MAX*.9);k.trick=false;k.drift=0;
+  else if(k.onRamp&&!onR&&k.speed>20){k.air=true;k.big=true;k.airT=0;k.wvy=32+Math.min(Math.max(0,k.speed),BASE_MAX*1.6)*.05+(trainRamp(k)?30:0);/* the train crossing sits ~130 units past its ramp: this launch peaks at ~28 units about there, well over the wagons' crust roofs */k.speed=Math.max(k.speed,BASE_MAX*.9);k.trick=false;k.drift=0;
     if(k.onGlide)startGlide(k);
     k.wy+=k.wvy*dt;}
   else if(rate<k.gRate-260*dt*1.1&&k.speed>60&&!(MULTI&&(track[k.idx].ey||0)>1)){k.air=true;k.big=(k.gRate-rate)>55;k.airT=0;k.wvy=Math.min(k.gRate,42);k.wy+=k.wvy*dt;}
@@ -4860,7 +4985,7 @@ function update0(dt){
         if(cl>28&&!NET.replay&&simTime-(BUMPT.get(key)||-9)>.45){BUMPT.set(key,simTime);const mx=(a.x+b.x)/2,my=(a.y+b.y)/2,gy=((a.wy||0)+(b.wy||0))/2+3.5,n0=Math.min(14,6+cl/12|0);
           for(let q=0;q<n0;q++){const an=Math.random()*6.283,sp=40+Math.random()*70;FXA.spawn(mx,gy,my,Math.cos(an)*sp+ny*30*(Math.random()-.5),15+Math.random()*45,Math.sin(an)*sp-nx*30*(Math.random()-.5),q%3?'#ffd36b':'#ffffff',1.7,.3,.22,90,1);}
           FXA.spawn(mx,gy,my,0,0,0,'#fff2c8',9,3,.12,0,0);if(a===camT||b===camT){shake(.22);SFX.bump(.55);}else{const v=Math.max(near(a),near(b));if(v>0)SFX.bump(v*.5);}}}}}
-  for(const b of boxes){if(b.r>0){b.r-=dt;continue;}for(const k of karts){if(b.air?(k.glide&&(k.x-b.x)**2+(k.y-b.y)**2<400):((k.x-b.x)**2+(k.y-b.y)**2<270&&(!MULTI||Math.abs((k.wy||0)-b.gy)<18))){b.r=4;burst(b.x,(b.air?b.gy:0)+6,b.y,26,['#ffe066','#e0452c','#fff4dc','#7fd0ff'],60,2.4);
+  for(const b of boxes){if(b.r>0){b.r-=dt;continue;}for(const k of karts){if(b.air?(k.glide&&(k.x-b.x)**2+(k.y-b.y)**2<400):((k.x-b.x)**2+(k.y-b.y)**2<270&&((!MULTI&&!b.trainCar)||Math.abs((k.wy||0)-b.gy)<18))){b.r=4;burst(b.x,(b.air?b.gy:0)+6,b.y,26,['#ffe066','#e0452c','#fff4dc','#7fd0ff'],60,2.4);
     const cap=2-(k.item?1:0)-(k.item2?1:0)-(k.held?1:0)-k.pend.length,give=Math.min(cap,b.dbl?2:1);for(let g2=0;g2<give;g2++)k.pend.push(rollItem(standCache.indexOf(k)));if(give>0&&k.roll<=0)k.roll=isHuman(k)?1.1:.5;boxFx(b,k);break;}}}
   /* two items from different racers that meet cancel out, so a slice dropped behind you can stop whatever is chasing you */
   for(let i=projectiles.length-1;i>=0;i--){const a=projectiles[i];if(a.type==='flour'||a.type==='lob'||a.ph||a.sure)continue;for(let j=i-1;j>=0;j--){const b=projectiles[j];if(b.owner===a.owner||b.type==='flour'||b.type==='lob'||b.ph||b.sure)continue;
@@ -5120,7 +5245,7 @@ function render(time,dt){
   /* above ~85 fps the shadow map is redrawn every other frame: shadows still update 60+ times a second (exactly as at 60 fps), so they look
      the same, but a 120 Hz screen doesn't pay for the 4096 shadow map twice as often */
   renderer.shadowMap.needsUpdate=BENCH.noShUp?false:LOWQF()?render.n%(QUAL[qKey].shEvery||2)===0:(render.fdt>.0118||render.n%2===0);/* half-rate shadows made moving shadows judder */
-  if(!LOWQF()&&CFG.post!==false&&!LADV.np&&!BENCH.noPost){try{postRender();}catch(e){console.warn('post',e);CFG.post=false;renderer.setRenderTarget(null);renderer.render(scene,camera);}}else if(APPLEWK&&!POST.liteFail){try{postLite();}catch(e){console.warn('post lite',e);POST.liteFail=true;renderer.setRenderTarget(null);renderer.render(scene,camera);}}else renderer.render(scene,camera);
+  if(!LOWQF()&&CFG.post!==false&&!LADV.np&&!BENCH.noPost){try{postRender();}catch(e){console.warn('post',e);CFG.post=false;renderer.setRenderTarget(null);renderer.render(scene,camera);}}else if(APPLEWK&&!POST.liteFail){try{postLite();}catch(e){console.warn('post lite',e);POST.liteFail=true;renderer.setRenderTarget(null);renderer.render(scene,camera);}}else{renderer.render(scene,camera);render.calls=renderer.info.render.calls;render.tris=renderer.info.render.triangles;}
 }
 
 /* ================= HUD ================= */
@@ -5368,13 +5493,15 @@ function specCamera(dt){const k=camT,kx=k.rx,ky=k.ry,kz=k.rz||0,sn=SPEC.snap;SPE
     camera.position.copy(SPEC.bp);camera.lookAt(kx+Math.cos(f)*10,kz,ky+Math.sin(f)*10);/* racer just below the middle, the road ahead and the pack around in view */if(Math.abs(camera.fov-58)>.1){camera.fov=58;camera.updateProjectionMatrix();}}}
 [['tdTake',()=>tdPick(true)],['tdSkip',()=>tdPick(false)]].forEach(([id,f])=>{const el=$(id);el.addEventListener('pointerdown',e=>{e.stopPropagation();});el.addEventListener('pointerup',e=>{e.preventDefault();e.stopPropagation();f();});el.addEventListener('click',e=>{if(e.detail===0)f();});});
 addEventListener('keydown',e=>{if(!TD.on||state!=='race'||$('tdBar').hidden)return;if(e.code==='KeyY'){tdPick(true);}else if(e.code==='KeyN'){tdPick(false);}});
+/* the test races Hawaiian Bay: water, sailboats, the ferris wheel, the train, the carousel and the pavilion make it the heaviest track, so a setup that holds there holds everywhere */
+function benchMap(){const i=MAPS.findIndex(m=>m.id==='bay');return i<0?mapIdx:i;}
 $('benchBtn').onclick=()=>{const inRace=((state==='paused'&&pauseOv._prev==='race')||(NET.cfg&&state==='race'))&&player&&!player.finished&&results.hidden;
   /* anywhere else (menus, results, a finished race): leave it and start a single race on the chosen track, then test */
   if(!inRace&&!NET.cfg&&!NET.role&&state!=='loading'){closeSettings();for(const o of document.querySelectorAll('.overlay'))if(o!==$('benchOv'))o.hidden=true;if(state==='paused'){state=pauseOv._prev||'race';}
-    BENCH.pending=true;BENCH.pt=0;introSkip=true;cpuBuilds=RACERS.map(randomBuild);gp=null;mode='single';try{refreshMenu();}catch(e){}menu.hidden=true;goRace(mapIdx);return;}
+    BENCH.pending=true;BENCH.pt=0;introSkip=true;cpuBuilds=RACERS.map(randomBuild);gp=null;mode='single';try{refreshMenu();}catch(e){}menu.hidden=true;goRace(benchMap());return;}
   if(!inRace){
     if(NET.role||state!=='menu'){$('benchNote').textContent='Finish or leave the online room first, then run the test from the main menu or from the pause menu in a race.';$('benchNote').classList.add('flash');return;}
-    closeSettings();BENCH.pending=true;BENCH.pt=0;introSkip=true;cpuBuilds=RACERS.map(randomBuild);gp=null;mode='single';try{refreshMenu();}catch(e){}goRace(mapIdx);return;}
+    closeSettings();BENCH.pending=true;BENCH.pt=0;introSkip=true;cpuBuilds=RACERS.map(randomBuild);gp=null;mode='single';try{refreshMenu();}catch(e){}goRace(benchMap());return;}
   closeSettings();if(state==='paused')togglePause();else pauseOv.hidden=true;setTimeout(()=>{if(benchStart())showBanner('Graphics test: hands off for 40 s',1.6,'sm');},400);};
 $('benchDone').onclick=()=>{$('benchOv').hidden=true;};$('benchUndo').onclick=benchUndo;$('benchUse120').onclick=()=>benchApply('o120');$('benchUse60').onclick=()=>benchApply('o60');
 $('benchCopy').onclick=()=>{const t=$('benchText').textContent,el=$('benchText');const sel=()=>{const r=document.createRange();r.selectNodeContents(el);const sl=getSelection();sl.removeAllRanges();sl.addRange(r);};
@@ -5683,11 +5810,11 @@ function postSize(w,h){const lite=LOWQF()||CFG.post===false||LADV.np||BENCH.noPo
   POST.b1=new THREE.WebGLRenderTarget(w4,h4,opt);POST.b2=new THREE.WebGLRenderTarget(w4,h4,opt);POST.b3=new THREE.WebGLRenderTarget(w8,h8,opt);POST.b4=new THREE.WebGLRenderTarget(w8,h8,opt);}
 function pass(mat,target){POST.q.material=mat;renderer.setRenderTarget(target);renderer.render(POST.qs,POST.qc);}
 function postLite(){postInit();const sz=renderer.getDrawingBufferSize(v2);postSize(sz.x,sz.y);POST.rt.viewport.set(0,0,sz.x,sz.y);POST.rt.scissor.set(0,0,sz.x,sz.y);POST.rt.scissorTest=false;
-  renderer.setRenderTarget(POST.rt);renderer.render(scene,camera);const U=POST.M.copy.uniforms;U.tex.value=POST.rt.texture;U.us.value.set(1,1);U.uc.value.set(1-.5/sz.x,1-.5/sz.y);pass(POST.M.copy,null);}
+  renderer.setRenderTarget(POST.rt);renderer.render(scene,camera);render.calls=renderer.info.render.calls;render.tris=renderer.info.render.triangles;const U=POST.M.copy.uniforms;U.tex.value=POST.rt.texture;U.us.value.set(1,1);U.uc.value.set(1-.5/sz.x,1-.5/sz.y);pass(POST.M.copy,null);}
 function postRender(){postInit();const sz=renderer.getDrawingBufferSize(v2);postSize(sz.x,sz.y);const M=POST.M,G=POST.grade;
   const ds=POST.aoW?1:DRS.s,ws=Math.max(1,Math.round(sz.x*ds)),hs=Math.max(1,Math.round(sz.y*ds));POST.rt.viewport.set(0,0,ws,hs);POST.rt.scissor.set(0,0,ws,hs);POST.rt.scissorTest=ds<.999;
-  const ux=ws/sz.x,uy=hs/sz.y,cx=ux-.5/sz.x,cy=uy-.5/sz.y;M.bright.uniforms.us.value.set(ux,uy);M.bright.uniforms.uc.value.set(cx,cy);M.final.uniforms.us.value.set(ux,uy);M.final.uniforms.uc.value.set(cx,cy);M.final.uniforms.px.value.set(1/sz.x,1/sz.y);M.final.uniforms.shp.value=CFG.sharpen===false?0:clamp((1-ds)*3.2,0,1);/* 80% size: 0.64 · 70%: 0.96 */
-  renderer.setRenderTarget(POST.rt);renderer.render(scene,camera);
+  const ux=ws/sz.x,uy=hs/sz.y,cx=ux-.5/sz.x,cy=uy-.5/sz.y;M.bright.uniforms.us.value.set(ux,uy);M.bright.uniforms.uc.value.set(cx,cy);M.final.uniforms.us.value.set(ux,uy);M.final.uniforms.uc.value.set(cx,cy);M.final.uniforms.px.value.set(1/sz.x,1/sz.y);M.final.uniforms.shp.value=CFG.sharpen===false?0:clamp((1-ds)*3.2,0,.8);/* 80% size: 0.64 · 70%: 0.8 (capped: more pushes fine far detail into grain) */
+  renderer.setRenderTarget(POST.rt);renderer.render(scene,camera);render.calls=renderer.info.render.calls;render.tris=renderer.info.render.triangles;/* the scene's own draw count, before the post passes overwrite the counters */
   if(POST.aoW&&POST.ao1){const A=M.ao.uniforms;A.tD.value=POST.rt.depthTexture;A.pM.value.copy(camera.projectionMatrix);A.ipM.value.copy(camera.projectionMatrixInverse);A.px.value.set(1/sz.x,1/sz.y);A.asp.value.set(sz.y/sz.x,1);pass(M.ao,POST.ao1);
     const B=M.aob.uniforms;B.tA.value=POST.ao1.texture;B.tD.value=POST.rt.depthTexture;B.ipM.value.copy(camera.projectionMatrixInverse);B.px.value.set(1/POST.ao1.width,1/POST.ao1.height);pass(M.aob,POST.ao2);M.final.uniforms.aoT.value=POST.ao2.texture;M.final.uniforms.aoOn.value=1;}
   else M.final.uniforms.aoOn.value=0;
@@ -6474,7 +6601,7 @@ function netGuestStep(dt){simTime+=dt;standCache=standings();const k=player;
   for(const r of rollers){const p=track[r.j];r.lat=Math.sin(simTime*1.05+r.ph)*(RW+6);r.x=p.x+p.nx*r.lat;r.y=p.y+p.ny*r.lat;if(!k.loop&&k.z<14&&(k.x-r.x)**2+(k.y-r.y)**2<306)spinOut(k,'meat',1);}
   try{updateHazards(dt);}catch(e){}
   for(const o of karts){o.px=o.x;o.py=o.y;o.pa=o.a;o.pma=o.ma;o.pz=o.z;o.pwy=o.wy;o.pth=o.loopTh||0;}
-  if(state==='race'&&!k.finished)for(const b of boxes){if(b.r>0||b.pr>simTime)continue;if(b.air?(k.glide&&(k.x-b.x)**2+(k.y-b.y)**2<400):((k.x-b.x)**2+(k.y-b.y)**2<270&&(!MULTI||Math.abs((k.wy||0)-b.gy)<18))){b.pr=simTime+1.5;boxFx(b,k);}}
+  if(state==='race'&&!k.finished)for(const b of boxes){if(b.r>0||b.pr>simTime)continue;if(b.air?(k.glide&&(k.x-b.x)**2+(k.y-b.y)**2<400):((k.x-b.x)**2+(k.y-b.y)**2<270&&((!MULTI&&!b.trainCar)||Math.abs((k.wy||0)-b.gy)<18))){b.pr=simTime+1.5;boxFx(b,k);}}
   const LS=NET.snaps[NET.snaps.length-1],quiet=LS&&performance.now()-LS.at>1300;
   /* the host runs the race: when they leave the app (or go silent) everyone waits together instead of driving on while the computer racers freeze */
   if((NET.hostAway||quiet)&&state==='race'&&!k.finished){if(!NET.awayShown){NET.awayShown=true;NETLOG.ev('host-quiet',0);showBanner('Waiting for the host…',600,'sm');}}else if(NET.awayShown){NET.awayShown=false;banner.textContent='';bannerT=0;}
@@ -6768,11 +6895,11 @@ function benchPick(){const B=BENCH,rs=B.res.filter(r=>r[6]),P=benchPresets();con
   return {o120:{pick:a,got:Math.round(f(a)),hit:f(a)>=108},o60:{pick:b,got:Math.round(f(b)),hit:f(b)>=66}};}
 function benchApply(which){const B=BENCH,o=B.pickR&&B.pickR[which];if(!o)return;qKey=o.pick;store.set('crust-q',qKey);store.set(ladKey(),'0');store.set('crust-drs-'+qKey,'1');CFG.fps=which==='o60'?'60':'auto';saveCfg();applyQuality();applyLad(0,true);DRS.s=1;try{refreshMenu();refreshSettings();}catch(e){}
   for(const id of ['benchUse120','benchUse60'])$(id).classList.toggle('on',id===(which==='o60'?'benchUse60':'benchUse120'));$('benchChosen').textContent='Now using '+qName(qKey)+' with frame rate '+(CFG.fps==='60'?'60 fps':'Auto')+'.';$('benchUndo').hidden=false;}
-function benchStart(){if(state!=='race'||BENCH.on)return false;benchBuild();Object.assign(BENCH,{prevQ:qKey,prevFps:CFG.fps,on:true,i:0,t:0,f:[],cpu:[],js:[],res:[],td:TD.on,ds:DRS.s,info:null,lad0:LAD});TD.on=true;DRS.s=1;
+function benchStart(){if(state!=='race'||BENCH.on)return false;benchBuild();Object.assign(BENCH,{prevQ:qKey,prevFps:CFG.fps,on:true,i:0,t:0,f:[],cpu:[],js:[],res:[],td:TD.on,ds:DRS.s,info:null,lad0:LAD,load:null});TD.on=true;DRS.s=1;
   BENCH.info={lad:LAD,q:qKey,pr:prE,ms:POST.ms,r11:!!(POST.rt&&POST.rt.userData.r11),sm:sun.shadow.mapSize.x,hz:Math.max(SCR.hz.win||0,SCR.hz.fs||0,SCR.cur||0),fps:CFG.fps,w:renderer.getDrawingBufferSize(v2).x,h:v2.y};BENCH_STEPS[0][1]();return true;}
 function benchFrame(dt){const B=BENCH;if(state!=='race'){if(state!=='paused')benchEnd(true);return;}if(dt<=0)return;B.t+=Math.min(dt,.5);if(B.t<2)return;if(B.t<4.6){if(dt<1){B.f.push(dt);B.cpu.push(CPUMS);B.js.push(FRMS);}return;}if(!B.f.length){B.f.push(Math.min(dt,.5));B.cpu.push(CPUMS);B.js.push(FRMS);}/* a very slow device still finishes every step */
   const a=B.f.slice().sort((x,y)=>x-y),avg=a.reduce((x,y)=>x+y,0)/(a.length||1),c=B.cpu.reduce((x,y)=>x+y,0)/(B.cpu.length||1),js=B.js.reduce((x,y)=>x+y,0)/(B.js.length||1);
-  if(BENCH_STEPS[B.i][4]!=='warm')B.res.push([BENCH_STEPS[B.i][0],a.length?1/avg:0,(a[a.length>>1]||0)*1000,(a[Math.floor(a.length*.9)]||0)*1000,c,js,BENCH_STEPS[B.i][3]||null,BENCH_STEPS[B.i][4]||null]);BENCH_STEPS[B.i][2]();B.i++;
+  if(BENCH_STEPS[B.i][4]!=='warm')B.res.push([BENCH_STEPS[B.i][0],a.length?1/avg:0,(a[a.length>>1]||0)*1000,(a[Math.floor(a.length*.9)]||0)*1000,c,js,BENCH_STEPS[B.i][3]||null,BENCH_STEPS[B.i][4]||null,render.calls||renderer.info.render.calls,Math.round((render.tris||renderer.info.render.triangles)/1000)]);/* draw calls and thousands of triangles in the step's last frame: art changes can be checked against these */BENCH_STEPS[B.i][2]();B.i++;
   if(B.i>=BENCH_STEPS.length){benchEnd(false);return;}BENCH_STEPS[B.i][1]();B.t=0;B.f=[];B.cpu=[];B.js=[];}
 function benchEnd(abort){const B=BENCH;if(!B.on)return;if(B.i<BENCH_STEPS.length)BENCH_STEPS[B.i][2]();B.on=false;B.noShUp=B.noMs=B.noPost=false;document.body.classList.remove('bench-nohud');TD.on=B.td;
   if(abort){qKey=B.prevQ;applyQuality();DRS.s=B.ds;return;}
@@ -6780,8 +6907,8 @@ function benchEnd(abort){const B=BENCH;if(!B.on)return;if(B.i<BENCH_STEPS.length
   benchShow();}
 function benchUndo(){const B=BENCH;if(!B.prevQ)return;qKey=B.prevQ;store.set('crust-q',qKey);CFG.fps=B.prevFps;saveCfg();applyQuality();try{refreshMenu();refreshSettings();}catch(e){}$('benchChosen').textContent='Your previous settings are back: '+qName(qKey)+', frame rate '+(CFG.fps==='60'?'60 fps':CFG.fps==='max'?'Max':'Auto')+'.';$('benchUndo').hidden=true;for(const id of ['benchUse120','benchUse60'])$(id).classList.remove('on');}
 function benchText(){const B=BENCH,I=B.info||{},f=(v,d)=>(+v).toFixed(d);let t='Crust Rush graphics test · '+new Date().toISOString().replace('T',' ').slice(0,16)+'\ndevice: '+navigator.userAgent.replace(/Mozilla\/5\.0 \(|\).*/g,'').slice(0,60)+
-    '\npreset '+I.q+' · 3D buffer '+I.w+'×'+I.h+' (pixel ratio '+f(I.pr||1,2)+') · anti-aliasing '+(I.ms||0)+'× · compact colour buffer '+(I.r11?'yes':'no')+' · shadow map '+I.sm+' · screen '+I.hz+' Hz · frame rate setting '+I.fps+' · automatic quality step '+(I.lad||0)+' of '+(LADS.length-1)+'\n'+(B.pickR?'for 120: '+qName(B.pickR.o120.pick)+' ('+B.pickR.o120.got+' fps) · for 60: '+qName(B.pickR.o60.pick)+' ('+B.pickR.o60.got+' fps)\n':'')+(()=>{const d=benchDrift();return d.pct>=5?'heat check: the same settings ran '+d.pct+'% slower at the end of the test than at the start (the phone warmed up); later rows are pessimistic and the recommendations are corrected for it\n':d.pct<=-5?'heat check: the same settings ran '+(-d.pct)+'% faster at the end than at the start\n':'heat check: steady\n';})()+'\nfps   heat-corr   median ms   slow 10% ms   3D CPU ms   all JS ms   test\n';
-  for(const r of B.res)t+=(f(r[1],0)).padStart(3)+'   '+f(benchFpsAdj(r),0).padStart(9)+'   '+f(r[2],1).padStart(9)+'   '+f(r[3],1).padStart(11)+'   '+f(r[4],1).padStart(9)+'   '+f(r[5]||0,1).padStart(10)+'   '+r[0]+'\n';return t;}
+    '\npreset '+I.q+' · 3D buffer '+I.w+'×'+I.h+' (pixel ratio '+f(I.pr||1,2)+') · anti-aliasing '+(I.ms||0)+'× · compact colour buffer '+(I.r11?'yes':'no')+' · shadow map '+I.sm+' · screen '+I.hz+' Hz · frame rate setting '+I.fps+' · automatic quality step '+(I.lad||0)+' of '+(LADS.length-1)+'\n'+(B.pickR?'for 120: '+qName(B.pickR.o120.pick)+' ('+B.pickR.o120.got+' fps) · for 60: '+qName(B.pickR.o60.pick)+' ('+B.pickR.o60.got+' fps)\n':'')+(()=>{const d=benchDrift();return d.pct>=5?'heat check: the same settings ran '+d.pct+'% slower at the end of the test than at the start (the phone warmed up); later rows are pessimistic and the recommendations are corrected for it\n':d.pct<=-5?'heat check: the same settings ran '+(-d.pct)+'% faster at the end than at the start\n':'heat check: steady\n';})()+'\nfps   heat-corr   median ms   slow 10% ms   3D CPU ms   all JS ms   draws   k-tris   test\n';
+  for(const r of B.res)t+=(f(r[1],0)).padStart(3)+'   '+f(benchFpsAdj(r),0).padStart(9)+'   '+f(r[2],1).padStart(9)+'   '+f(r[3],1).padStart(11)+'   '+f(r[4],1).padStart(9)+'   '+f(r[5]||0,1).padStart(10)+'   '+String(r[8]||0).padStart(5)+'   '+String(r[9]||0).padStart(6)+'   '+r[0]+'\n';return t;}
 function benchShow(){const ov=$('benchOv'),pk=BENCH.pickR;$('benchText').textContent=benchText();if(pk){const a=pk.o120,b=pk.o60;
     $('bench120').innerHTML='<b>'+qName(a.pick)+'</b>, frame rate Auto<br>about '+a.got+' fps'+(a.hit?' (120 reached)':' (the closest this device gets to 120)');
     $('bench60').innerHTML='<b>'+qName(b.pick)+'</b>, frame rate 60 fps<br>'+(b.hit?'holds a steady 60 with room to spare':'about '+b.got+' fps, the closest this device gets to 60');
