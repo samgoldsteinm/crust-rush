@@ -307,6 +307,22 @@ function grainTex(){if(_grainT)return _grainT;const S=256,c=cnv(S,S),g=c.getCont
 function grainify(mat,amt,rep){mat.onBeforeCompile=sh=>{sh.uniforms.grainMap={value:grainTex()};
   sh.fragmentShader=sh.fragmentShader.replace('void main() {','uniform sampler2D grainMap;\nvoid main() {').replace('#include <map_fragment>','#include <map_fragment>\n{float gq=texture2D(grainMap,vUv*'+rep.toFixed(1)+').r*.6+texture2D(grainMap,vUv*'+(rep*3.7).toFixed(1)+').r*.4;diffuseColor.rgb*=1.0+'+amt.toFixed(3)+'*(gq-.5)*2.4;}');};
   mat.customProgramCacheKey=()=>'grain'+amt+'_'+rep;}
+/* SURFACE DETAIL for every merged or instanced prop: a world-space, triplanar fractal noise modulates the colour (soft mottling like plaster,
+   weathered paint and stone, plus a fine grain on Ultra/Sharp) and the roughness, so flat-coloured shapes read as materials. No UVs needed,
+   one shared 256x256 texture, 3 reads per pixel (6 with the fine grain); off on Fast and Lite. R = mottle (4 octaves), G = fine grain. */
+let _surfT=null;function surfTex(){if(_surfT)return _surfT;const S=256,c=cnv(S,S),g=c.getContext('2d'),id=g.createImageData(S,S),r=prng(4242);
+  const lat=n=>{const v=new Float32Array(n*n);for(let i=0;i<n*n;i++)v[i]=r();return v;},smp=(v,n,x,y)=>{const fx=x*n,fy=y*n,x0=Math.floor(fx),y0=Math.floor(fy),tx=fx-x0,ty=fy-y0,sx=tx*tx*(3-2*tx),sy=ty*ty*(3-2*ty);const a=v[(y0%n)*n+(x0%n)],b=v[(y0%n)*n+((x0+1)%n)],c2=v[((y0+1)%n)*n+(x0%n)],d=v[((y0+1)%n)*n+((x0+1)%n)];return (a+(b-a)*sx)+((c2+(d-c2)*sx)-(a+(b-a)*sx))*sy;};
+  const L=[4,8,16,32].map(lat),Lf=[32,64].map(lat);
+  for(let y=0;y<S;y++)for(let x=0;x<S;x++){const u=x/S,v=y/S;let m=0,w=0;[.5,.25,.125,.0625].forEach((wt,i)=>{m+=smp(L[i],[4,8,16,32][i],u,v)*wt;w+=wt;});m/=w;
+    let f=0;[.6,.4].forEach((wt,i)=>{f+=smp(Lf[i],[32,64][i],u,v)*wt;});const i=(y*S+x)*4;id.data[i]=Math.round(Math.min(1,Math.max(0,(m-.5)*1.6+.5))*255);id.data[i+1]=Math.round(f*255);id.data[i+2]=128;id.data[i+3]=255;}
+  g.putImageData(id,0,0);_surfT=new THREE.CanvasTexture(c);_surfT.wrapS=_surfT.wrapT=THREE.RepeatWrapping;_surfT.anisotropy=maxAniso;_surfT.userData.shared=true;return _surfT;}
+function surfify(m,amt){amt=amt==null?.13:amt;const prev=m.onBeforeCompile;m.onBeforeCompile=sh=>{if(prev&&prev!==THREE.Material.prototype.onBeforeCompile)prev(sh);if(LOWQF()||CFG.surf===false)return;sh.uniforms.surfMap={value:surfTex()};
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vSP;varying vec3 vSN;').replace('#include <project_vertex>','#include <project_vertex>\n{vec4 wp=vec4(transformed,1.0);vec3 wn=objectNormal;\n#ifdef USE_INSTANCING\nwp=instanceMatrix*wp;wn=mat3(instanceMatrix)*wn;\n#endif\nwp=modelMatrix*wp;vSP=wp.xyz;vSN=normalize(mat3(modelMatrix)*wn);}');
+    const hq=!!QUAL[qKey].hqAll||qKey==='sharp';
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D surfMap;varying vec3 vSP;varying vec3 vSN;float sMot=.5;')
+      .replace('#include <map_fragment>','#include <map_fragment>\n{vec3 bw=abs(vSN);bw/=max(.001,bw.x+bw.y+bw.z);vec3 q=vSP*.021;float m=texture2D(surfMap,q.yz).r*bw.x+texture2D(surfMap,q.xz).r*bw.y+texture2D(surfMap,q.xy).r*bw.z;'+(hq?'q=vSP*.16;float f=texture2D(surfMap,q.yz).g*bw.x+texture2D(surfMap,q.xz).g*bw.y+texture2D(surfMap,q.xy).g*bw.z;m=m*.72+f*.28;':'')+'sMot=m;diffuseColor.rgb*=1.0+'+amt.toFixed(3)+'*(m-.5)*2.0;}')
+      .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor+(sMot-.5)*.3,.04,1.);');};
+  const pk=m.customProgramCacheKey;m.customProgramCacheKey=function(){return (pk?pk.call(this):'')+'|surf'+(LOWQF()||CFG.surf===false?0:(QUAL[qKey].hqAll||qKey==='sharp')?2:1);};return m;}
 /* every generator paints: C colour (1024²), Hh height (512², grey), R roughness (256², grey) */
 function paintSurf(id,dark){const r=prng(hashStr(id)+(dark?7:0)),S=1024,C=cnv(S,S),g=C.getContext('2d'),Hc=cnv(512,512),h=Hc.getContext('2d'),Rc=cnv(256,256),q=Rc.getContext('2d');
   const R=()=>r(),both=(fn)=>{for(const o of [-S,0,S])fn(o);};
@@ -484,7 +500,7 @@ function ultraDetail0(def){const R=mrand(90210+(MAPS.indexOf(def)+1)*131),th=def
     for(const g of parts){P.set(g.attributes.position.array,o*3);Nn.set(g.attributes.normal.array,o*3);o+=g.attributes.position.count;}const out=new THREE.BufferGeometry();out.setAttribute('position',new THREE.BufferAttribute(P,3));out.setAttribute('normal',new THREE.BufferAttribute(Nn,3));return out;};
   const tuft=()=>{/* a clump of five leaning blades */const g=[];for(let i=0;i<5;i++){const b=new THREE.ConeGeometry(.16,1,3);b.translate(0,.5,0);b.rotateZ((i-2)*.22);b.rotateY(i*1.26);b.translate(Math.cos(i*1.26)*.18,0,Math.sin(i*1.26)*.18);g.push(b);}
     return mergeGeos(g);};
-  const lit=(c,o)=>farFade(new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.85},o||{})));
+  const lit=(c,o)=>surfify(farFade(new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.85},o||{}))),.1);
   /* full-detail tree models near the track, low-poly ones further out (they cast shadows on Ultra) */
   const trees=(names,n,snow,tint)=>{const near=[],far=[];for(const [x,z] of spots(n,26,700,16)){const t=[names[Math.floor(R()*names.length)],x,z,1.6+R()*1.6];(nearTrack(x,z,CURB+170)?near:far).push(t);}
     if(near.length)forest(near,(x,z)=>groundAt(x,z),snow,R,true,tint);if(far.length)forest(far,(x,z)=>groundAt(x,z),snow,R,false,tint);};
@@ -577,7 +593,7 @@ const _m4=new THREE.Matrix4(),_inv=new THREE.Matrix4();
 const canVC=m=>m.isMeshStandardMaterial&&!m.map&&!m.transparent&&!m.vertexColors&&!(m.emissiveIntensity>0&&m.emissive&&m.emissive.r+m.emissive.g+m.emissive.b>0);
 const VCM=new Map();const vcKey=m=>'VC|'+(Math.round(m.roughness*5)/5)+'|'+(Math.round(m.metalness*4)/4)+'|'+((m.clearcoat||0)>.3?1:0)+'|'+((m.sheen||0)>.3?1:0);
 function vcMat(m){const k=vcKey(m);let v=VCM.get(k);if(!v){const o={vertexColors:true,roughness:Math.round(m.roughness*5)/5,metalness:Math.round(m.metalness*4)/4};
-  v=((m.clearcoat||0)>.3||(m.sheen||0)>.3)?new THREE.MeshPhysicalMaterial(Object.assign(o,{clearcoat:(m.clearcoat||0)>.3?1:0,clearcoatRoughness:.12,sheen:(m.sheen||0)>.3?.6:0,sheenRoughness:.6,sheenColor:new THREE.Color('#ffffff')})):new THREE.MeshStandardMaterial(o);VCM.set(k,v);v.userData.shared=true;}return v;}
+  v=((m.clearcoat||0)>.3||(m.sheen||0)>.3)?new THREE.MeshPhysicalMaterial(Object.assign(o,{clearcoat:(m.clearcoat||0)>.3?1:0,clearcoatRoughness:.12,sheen:(m.sheen||0)>.3?.6:0,sheenRoughness:.6,sheenColor:new THREE.Color('#ffffff')})):new THREE.MeshStandardMaterial(o);surfify(v,.2);VCM.set(k,v);v.userData.shared=true;}return v;}
 function bake(S,shadow,vc){S.updateMatrixWorld(true);_inv.copy(S.matrixWorld).invert();const buckets=new Map();
   S.traverse(o=>{if(!o.isMesh)return;_m4.multiplyMatrices(_inv,o.matrixWorld);let g=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();g.applyMatrix4(_m4);
     if(!g.attributes.uv)g.setAttribute('uv',new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count*2),2));
@@ -3512,7 +3528,7 @@ function dbAdd(t,x,z,ry,s,tint,yOff,blob){const y=groundAt(x,z)+(yOff||0),key=Ma
 function dbAddM(t,m,tint,lift){const e=m.elements,x=e[12],z=e[14],y=e[13]+(lift?groundAt(x,z):0),key=Math.floor(x/DCELL)+','+Math.floor(z/DCELL);let c=DBK.get(key);if(!c){c={L:[],nv:0,ng:0,nb:0};DBK.set(key,c);}
   c.L.push([t,x,y,z,0,1,tint||null,false,m]);c.nv+=t.P.length/3;c.ng+=t.GP.length/3;}
 const _nm3=new THREE.Matrix3();
-function dbFlush(){const mat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.62,metalness:.04}),gmat=new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false}),
+function dbFlush(){const mat=surfify(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.62,metalness:.04}),.2),gmat=new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false}),
     bmat=new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
   const BS=12;detailChunks=[];
   for(const [key,c] of DBK){const P=new Float32Array(c.nv*3),N=new Float32Array(c.nv*3),C=new Float32Array(c.nv*3),GP=new Float32Array(c.ng*3),GC=new Float32Array(c.ng*3),BP=new Float32Array(c.nb*BS*9),BC=new Float32Array(c.nb*BS*12);
@@ -4041,13 +4057,14 @@ function kbName(c){if(!c)return '';const M={ArrowLeft:'\u2190',ArrowRight:'\u219
 function kbList(a){const l=KEYB[a].map(kbName);return l.length?(l.length>1?l.slice(0,-1).join(', ')+' or '+l[l.length-1]:l[0]):'not set';}
 const KB_HELD={left:1,right:1,brake:1,look:1};
 addEventListener('keydown',e=>{if(e.target.closest&&e.target.closest('.overlay'))return;const a=KEYC[e.code];
-  if(a&&KB_HELD[a]){keys[a]=true;e.preventDefault();}
+  if(a==='look'){keys.lookKey=true;keys.look=true;e.preventDefault();}
+  else if(a&&KB_HELD[a]){keys[a]=true;e.preventDefault();}
   else if(a==='item1'){if(!e.repeat)itemQueued='fwd';e.preventDefault();}
   else if(a==='item2'){if(!e.repeat)itemQueued='fwd2';e.preventDefault();}
   else if(a==='hold'){if(!e.repeat)itemQueued='hold';e.preventDefault();}
   else if(a==='ability'){if(!e.repeat)abilQueued=true;e.preventDefault();}
   else if(a==='pause'||(!a&&e.code==='Escape')){if(!e.repeat)togglePause();}});
-addEventListener('keyup',e=>{const a=KEYC[e.code];if(a&&KB_HELD[a])keys[a]=false;});
+addEventListener('keyup',e=>{const a=KEYC[e.code];if(a==='look'){keys.lookKey=false;if(!document.getElementById('lookBtn')||!document.getElementById('lookBtn').classList.contains('on'))keys.look=false;}else if(a&&KB_HELD[a])keys[a]=false;});
 /* the remap list in Settings: tap a key box, then press the new key (Esc cancels, Backspace or Delete clears the box) */
 let kbWait=null;
 function kbRender(){const el=$('kbList');if(!el)return;el.innerHTML='';
@@ -4067,7 +4084,7 @@ function kbReset(){KEYB={};for(const [a] of KB_ACTS)KEYB[a]=KB_DEF[a].slice();kb
 /* the controls table and the how-to-play keyboard line always show your current keys */
 function kbHelp(){const set=(k,v)=>{for(const el of document.querySelectorAll('[data-kb="'+k+'"]'))el.textContent=v;};
   set('steer',kbList('left')+' / '+kbList('right'));set('brake','Hold '+kbList('brake')+' when slow');set('drift',kbList('brake'));set('item1',kbList('item1'));set('item2',kbList('item2'));
-  set('hold',kbList('hold'));set('throw',kbList('item1'));set('drop',kbList('hold')+' again');set('ability',kbList('ability'));set('look','Hold '+kbList('look'));set('pause',kbList('pause')+(KEYC.Escape?'':' or Esc'));
+  set('hold',kbList('hold'));set('throw',kbList('item1'));set('drop',kbList('hold')+' again');set('ability',kbList('ability'));set('look','Hold '+kbList('look'));set('lookthrow','Hold '+kbList('look')+', then '+kbList('item1'));set('pause',kbList('pause')+(KEYC.Escape?'':' or Esc'));
   const h=document.querySelector('[data-kb="howto"]');if(h)h.textContent=' '+kbList('left')+' and '+kbList('right')+' steer. '+kbList('brake')+' taps drift on and off (and brakes when slow). '+kbList('item1')+' uses your first item, '+kbList('item2')+' the second, '+kbList('hold')+' keeps a holdable item behind you (press '+kbList('item1')+' to fire it, '+kbList('hold')+' again to drop it). '+kbList('ability')+' fires your special ability, hold '+kbList('look')+' to look back, '+kbList('pause')+(KEYC.Escape?'':' or Esc')+' pauses. You can change any key in Settings.';}
 kbLoad();
 addEventListener('blur',()=>{keys.left=keys.right=keys.brake=false;if(window.__clearInput)window.__clearInput();});
@@ -4087,21 +4104,25 @@ addEventListener('blur',()=>{keys.left=keys.right=keys.brake=false;if(window.__c
   ib.addEventListener('pointerup',e=>{if(!down)return;down=false;itemQueued=(e.clientY-sy>26&&canHold()?'hold':'fwd')+sl;ib.classList.remove('fwd','back');});
   ib.addEventListener('pointercancel',()=>{down=false;ib.classList.remove('fwd','back');});}
   /* touch: every touch event rebuilds steering and braking from e.touches, the browser's list of fingers actually on the screen */
-  const steerT=new Set(),brakeT=new Map(),itemT=new Set();
+  const steerT=new Set(),brakeT=new Map(),itemT=new Set(),lookT=new Set(),lookP=new Set(),lookEl=document.getElementById('lookBtn');
+  /* rear-view mirror: look behind while held (a finger via the touch list below, or a mouse pointer here) */
+  const lookSync=()=>{keys.look=lookT.size>0||lookP.size>0||!!keys.lookKey;if(lookEl)lookEl.classList.toggle('on',lookT.size>0||lookP.size>0);};
+  if(lookEl){lookEl.addEventListener('pointerdown',e=>{if(e.pointerType==='touch'){e.preventDefault();return;}e.preventDefault();e.stopPropagation();try{lookEl.setPointerCapture(e.pointerId);}catch(_){}lookP.add(e.pointerId);lookSync();});
+    const lu=e=>{if(e.pointerType==='touch')return;lookP.delete(e.pointerId);lookSync();};lookEl.addEventListener('pointerup',lu);lookEl.addEventListener('pointercancel',lu);lookEl.addEventListener('lostpointercapture',lu);}
   function fromTouches(list){const live=new Set();for(const t of list)live.add(t.identifier);
-    for(const id of [...steerT])if(!live.has(id))steerT.delete(id);for(const id of [...brakeT.keys()])if(!live.has(id))brakeT.delete(id);for(const id of [...itemT])if(!live.has(id))itemT.delete(id);
+    for(const id of [...steerT])if(!live.has(id))steerT.delete(id);for(const id of [...brakeT.keys()])if(!live.has(id))brakeT.delete(id);for(const id of [...itemT])if(!live.has(id))itemT.delete(id);for(const id of [...lookT])if(!live.has(id))lookT.delete(id);lookSync();
     let l=0,r=0;for(const t of list)if(steerT.has(t.identifier)){if(t.clientX<window.innerWidth/2)l++;else r++;}
     tl=l;tr=r;keys.left=l>0||ml;keys.right=r>0||mr;zl.classList.toggle('on',keys.left);zr.classList.toggle('on',keys.right);
     const bOn=new Set(brakeT.values());bEls.forEach(b=>b.classList.toggle('on',bOn.has(b)));keys.brake=brakeT.size>0||brakes.size>0;}
   let tl=0,tr=0,ml=false,mr=false;
   const onTouch=e=>{if(e.type==='touchstart'){for(const t of e.changedTouches){const el=t.target&&t.target.closest?t.target:null;if(!el||el.closest('.overlay'))continue;
-      const bb=el.closest('#brakeL,#brakeR');if(bb){brakeT.set(t.identifier,bb);continue;}if(el.closest('#itemBtn,#itemBtn2')){itemT.add(t.identifier);continue;}if(el.closest('#pauseBtn')||el.closest('#abilBtn'))continue;if(el.closest('#tzone'))steerT.add(t.identifier);}}
-    const had=steerT.size||brakeT.size||itemT.size;fromTouches(e.touches);if((had||steerT.size||brakeT.size||itemT.size)&&e.cancelable&&state!=='menu')e.preventDefault();};
+      const bb=el.closest('#brakeL,#brakeR');if(bb){brakeT.set(t.identifier,bb);continue;}if(el.closest('#lookBtn')){lookT.add(t.identifier);continue;}if(el.closest('#itemBtn,#itemBtn2')){itemT.add(t.identifier);continue;}if(el.closest('#pauseBtn')||el.closest('#abilBtn'))continue;if(el.closest('#tzone'))steerT.add(t.identifier);}}
+    const had=steerT.size||brakeT.size||itemT.size||lookT.size;fromTouches(e.touches);if((had||steerT.size||brakeT.size||itemT.size||lookT.size)&&e.cancelable&&state!=='menu')e.preventDefault();};
   /* no iOS magnifier, text selection, callout or pinch-zoom during play */
   const inGame=e=>e.target&&e.target.closest&&e.target.closest('#stage');
   for(const ev of ['selectstart','contextmenu','gesturestart','gesturechange','dblclick'])document.addEventListener(ev,e=>{if(inGame(e)||ev.startsWith('gesture'))e.preventDefault();},{passive:false});
   for(const ev of ['touchstart','touchmove','touchend','touchcancel'])document.addEventListener(ev,onTouch,{passive:false,capture:true});
-  window.__clearInput=()=>{steerT.clear();brakeT.clear();act.clear();brakes.clear();fromTouches([]);upd();keys.left=keys.right=keys.brake=false;bEls.forEach(b=>b.classList.remove('on'));zl.classList.remove('on');zr.classList.remove('on');};
+  window.__clearInput=()=>{steerT.clear();brakeT.clear();lookT.clear();lookP.clear();act.clear();brakes.clear();fromTouches([]);upd();keys.left=keys.right=keys.brake=false;keys.lookKey=false;lookSync();bEls.forEach(b=>b.classList.remove('on'));zl.classList.remove('on');zr.classList.remove('on');};
   document.addEventListener('visibilitychange',()=>{if(document.hidden)window.__clearInput();});
   document.querySelectorAll('#stage button,.tz').forEach(b=>b.addEventListener('contextmenu',e=>e.preventDefault()));})();
 /* TESTING cheat: the kart drives itself on the racing line (your steering is ignored, items still fire when you tap them).
@@ -4162,6 +4183,8 @@ function playerInput(){const it=itemQueued;itemQueued=null;const o={steer:clamp(
   if(TD.on&&player&&state==='race'&&!player.finished){tdDrive(player,o);if(BENCH.on&&!NET.cfg)benchLoad(player,o);}
   if(NET.role==='guest'&&NET.cfg){o.ev=it||0;return o;}
   if(it&&player)itemIntent(player,it,o);
+  /* looking in the mirror: anything you fire goes the way you are looking (traps already drop behind; self-use items are unaffected) */
+  if(o.use&&player&&player.item&&(keys.look||PAD.look||(PAD.act&&PAD.back))&&!NOBACK.includes(player.item))o.back=true;
   return o;}
 
 /* ---------- audio ---------- */
@@ -4340,9 +4363,16 @@ const hitAnims=[];
 /* Mega Shroom rolls karts over: the victim is pressed flat (no spin, no launch), loses half its speed for a moment and pops back up
    after FLAT_T. The big kart drives straight over a flattened kart instead of bouncing off it. flatT is in the network snapshot,
    so everyone in an online race sees the squash. Returns true while the big kart should pass through b. */
+/* "you got them": a small strip at the bottom of the screen with the item you used, an arrow and the portrait of whoever it hit */
+let CURP=null;const TOAST_ICON={pep:'pepperoni',meat:'meatball',meat2:'meatball',lob:'bomb',olive:'oil'};
+function hitToast(type,victim){if(!player||victim===player||(NET&&NET.replay)||state!=='race')return;const el=document.getElementById('hitToast');if(!el)return;const key=TOAST_ICON[type]||type,icon=SVG[key]||SVG[type]||'';
+  const now=performance.now(),same=el._t&&now-el._t<1500&&el._key===key;el._t=now;el._key=key;
+  el.querySelector('.ht-item').innerHTML=icon;const who=el.querySelector('.ht-who');if(!same)who.innerHTML='';
+  if(![...who.children].some(i=>i._k===victim)){const n=document.createElement('i');n._k=victim;n.style.setProperty('--c',victim.r.color);if(PORTRAITS[victim.ri])n.style.backgroundImage='url('+PORTRAITS[victim.ri]+')';who.appendChild(n);}
+  el.hidden=false;if(!same){el.style.animation='none';void el.offsetWidth;el.style.animation='';}clearTimeout(el._to);el._to=setTimeout(()=>{el.hidden=true;},1900);}
 const FLAT_T=3;function megaCrush(a,b){if(b.flatT>0)return true;if(b.flatImm>0||b.glide||b.loop)return false;
   if(b.inv>0||abInv(b)||b.ghostT>0||b.absT>0)return false;if(b.shield>0){spinOut(b,'mega',true);return false;}
-  b.flatT=FLAT_T;b.flatImm=FLAT_T+.6;b.inv=Math.max(b.inv||0,FLAT_T+3);/* protected while squashed and for 3 s after popping back up */b.air=false;b.wvy=0;b.big=false;b.speed*=.5;b.drift=0;b.charge=0;b.boost=0;b.dWant=0;b.dLatch=false;b.sT=0;
+  b.flatT=FLAT_T;b.flatImm=FLAT_T+.6;b.inv=Math.max(b.inv||0,FLAT_T+3);/* protected while squashed and for 3 s after popping back up */if(a===player&&b!==player)hitToast('shroom',b);b.air=false;b.wvy=0;b.big=false;b.speed*=.5;b.drift=0;b.charge=0;b.boost=0;b.dWant=0;b.dLatch=false;b.sT=0;
   const gy=(b.wy||0)+.6;spawnRing(b.x,gy,b.y,'#c8a06a',46,.5);burst(b.x,gy+2,b.y,26,['#efe3cb','#c8a06a','#ffffff'],70,3);if(b===camT)shake(.55);else if(a===camT)shake(.3);SFX.bump(Math.max(near(b),.4));return true;}
 const BUMPT=new Map();
 /* a projectile that hits someone does not just vanish: it smashes (a quick swell, then shrinks away) under the hit burst */
@@ -4358,7 +4388,7 @@ function blockedCallout(p){const it=PROJ_ITEM[p.type];if(!it)return;if(!_hitEl){
 const abInv=k=>k.pestoT>0||k.chiliT>0||k.megaT>0;/* Mega Shroom is unstoppable too *//* Pesto Rush and Chili's Fire Trail: nothing can touch you */
 function spinOut(k,kind,world){if(k.inv>0||k.rush>0||abInv(k)||k.ghostT>0||k.absT>0)return false;
   if(!world&&(k.air||k.glide||k.loop))return false;/* items never hit a kart in the air */
-  if(k.shield>0){if(k.mzH>0){k.mzH--;k.absT=.6;const gy=(k.wy||0)+7;burst(k.x,gy,k.y,30,['#fbf5e6','#fff2cf','#ffffff'],90,2.8);spawnRing(k.x,gy,k.y,'#fff2cf',50,.45);if(k===player){SFX.garlic(1);SFX.clash(.7);shake(.2);}if(k.mzH<=0)k.shield=0;}return false;}if(!world&&absorbHeld(k))return false;if(!world&&absorb(k))return false;if(k===camT&&!NET.replay)shake(1.1);k.spin=1.1*(1.25-.25*k.sm.wgt);k.inv=k.spin+3;/* three seconds of protection after the spin, shown by blinking */k.speed*=.3;k.drift=0;k.charge=0;k.boost=0;if(!k.air&&!k.loop){k.air=true;k.big=false;k.airT=0;k.wvy=(k.gRate||0)+40;}
+  if(k.shield>0){if(k.mzH>0){k.mzH--;k.absT=.6;const gy=(k.wy||0)+7;burst(k.x,gy,k.y,30,['#fbf5e6','#fff2cf','#ffffff'],90,2.8);spawnRing(k.x,gy,k.y,'#fff2cf',50,.45);if(k===player){SFX.garlic(1);SFX.clash(.7);shake(.2);}if(k.mzH<=0)k.shield=0;}return false;}if(!world&&absorbHeld(k))return false;if(!world&&absorb(k))return false;if(k===camT&&!NET.replay)shake(1.1);k.spin=1.1*(1.25-.25*k.sm.wgt);k.inv=k.spin+3;if(CURP&&CURP.owner===player&&k!==player)hitToast(CURP.type||(CURP.olive?'oil':CURP.kind)||kind,k);/* three seconds of protection after the spin, shown by blinking */k.speed*=.3;k.drift=0;k.charge=0;k.boost=0;if(!k.air&&!k.loop){k.air=true;k.big=false;k.airT=0;k.wvy=(k.gRate||0)+40;}
   const cols=HITC[kind]||['#fff4dc','#ffe066','#ff3b1a'],y=6*KS;burst(k.x,y,k.y,34,cols,70,3.4);
   for(let i=0;i<12;i++){const a=i/12*Math.PI*2;FXA.spawn(k.x,y,k.y,Math.cos(a)*90,8,Math.sin(a)*90,'#ffffff',2.4,.3,.35,0,4);}
   for(let i=0;i<8;i++){const a=Math.random()*Math.PI*2;FXN.spawn(k.x+Math.cos(a)*3,2,k.y+Math.sin(a)*3,Math.cos(a)*14,6+Math.random()*8,Math.sin(a)*14,kind==='dough'?'#fff4dc':'#d8d0c4',4,14,.9,-2,1.5);}
@@ -4667,7 +4697,7 @@ function itemsProj(p,dt){p.t-=dt;p.safe-=dt;
 function itemsTick(dt){for(const k of karts){
     if(k.magT>0){k.magT-=dt;const tg=k.magTg;if(tg&&!tg.finished){const dx=tg.x-k.x,dy=tg.y-k.y,dd=Math.hypot(dx,dy)||1;if(dd<26)k.magT=0;else{k.boost=Math.max(k.boost,.12);const des=Math.atan2(dy,dx);k.ma+=clamp(angDiff(des,k.ma),-1.4*dt,1.4*dt);k.speed=Math.max(k.speed,Math.min(BASE_MAX*1.75,Math.abs(tg.speed||0)+130));}}else k.magT=0;}
     if(k.cutT>0){k.cutT-=dt;k.cutA=(k.cutA||0)+dt*5.5;for(let b=0;b<3;b++){const a=k.cutA+b*2.094,bx=k.x+Math.cos(a)*15,by=k.y+Math.sin(a)*15;
-        for(const o of karts){if(o===k||o.loop)continue;if((o.x-bx)**2+(o.y-by)**2<12*12&&o.inv<=0)spinOut(o,'wheel');}
+        for(const o of karts){if(o===k||o.loop)continue;if((o.x-bx)**2+(o.y-by)**2<12*12&&o.inv<=0){const cp=CURP;CURP={owner:k,type:'cutter'};spinOut(o,'wheel');CURP=cp;}}
         for(const p of projectiles){if(p.owner!==k&&!p.sure&&(p.x-bx)**2+(p.y-by)**2<11*11){p.t=0;p.dead=1;burst(bx,8,by,14,['#ffffff','#d8dde3'],60,2);}}}
       if(k.cutT<=0&&k.cutM)k.cutM.forEach(m=>m.visible=false);}
     if(k.ghostT>0)k.ghostT-=dt;if(k.sauceT>0){k.sauceT-=dt;if(k===player&&k.sauceT<=0)sauceFx(false);}if(k.shrinkT>0)k.shrinkT-=dt;if(k.cannonT>0)k.cannonT-=dt;if(k.burnT>0)k.burnT-=dt;}}
@@ -4850,7 +4880,7 @@ function releaseHeld(k,back){const it=dropHeld(k);if(it)fireItem(k,it,back);}
 function absorbHeld(k){if(!k.held)return false;const p=k.held.mesh?k.held.mesh.position:null;dropHeld(k);k.inv=Math.max(k.inv||0,.5);if(p)burst(p.x,p.y+2,p.z,14,['#ffe066','#fff4dc','#e0452c'],50,2);if(k===player){shake(.4);SFX.clash(.6);edgeFx('#ffe066',true);}return true;}
 function useItem(k,back){
   if(k.item&&achMe(k))achAdd('items');
-  back=DROPS.includes(k.item);const it=k.item;if(it==='garlic'||it==='garlic2'){k.item=k.item2;k.item2=null;addShield(k,it==='garlic2'?2:1);return;}k.item=k.item2;k.item2=null;{const col=ITEM_COL[it]||'#ffe066',gy=(k.wy||0)+7;if(k===player)shake(.18);
+  back=DROPS.includes(k.item)||(!!back&&!NOBACK.includes(k.item));/* traps always drop behind; thrown items go backwards only when asked (the rear-view mirror, or a CPU's choice) */const it=k.item;if(it==='garlic'||it==='garlic2'){k.item=k.item2;k.item2=null;addShield(k,it==='garlic2'?2:1);return;}k.item=k.item2;k.item2=null;{const col=ITEM_COL[it]||'#ffe066',gy=(k.wy||0)+7;if(k===player)shake(.18);
     FXA.spawn(k.x,gy,k.y,0,0,0,col,30,8,.18,0,0);spawnRing(k.x,(k.wy||0)+.6,k.y,col,26,.35);for(let n=0;n<10;n++){const a=Math.random()*6.28;FXA.spawn(k.x,gy,k.y,Math.cos(a)*40,15+Math.random()*25,Math.sin(a)*40,col,2.2,.4,.3,40,1);}}if(k.item)k.ai.itemDelay=.6+Math.random()*1.6;if(NEWITEMS[it]){useItem2(k,it,back);return;}const ca=Math.cos(k.a),sa=Math.sin(k.a),st=standCache,i=st.indexOf(k);
   if(it==='chili'){k.boost=Math.max(k.boost,1.4);}
   else if(it==='pepperoni'){if(back)projectiles.push({type:'pep',x:k.x-ca*10,y:k.y-sa*10,vx:-ca*240,vy:-sa*240,t:4,owner:k,safe:.3,b:0,mesh:itemMesh('pep')});
@@ -4990,7 +5020,7 @@ function update0(dt){
   /* two items from different racers that meet cancel out, so a slice dropped behind you can stop whatever is chasing you */
   for(let i=projectiles.length-1;i>=0;i--){const a=projectiles[i];if(a.type==='flour'||a.type==='lob'||a.ph||a.sure)continue;for(let j=i-1;j>=0;j--){const b=projectiles[j];if(b.owner===a.owner||b.type==='flour'||b.type==='lob'||b.ph||b.sure)continue;
       const r=(a.type==='wheel'||b.type==='wheel')?20:15;if((a.x-b.x)**2+(a.y-b.y)**2<r*r){const gy=groundAt(a.x,a.y)+6;burst((a.x+b.x)/2,gy,(a.y+b.y)/2,26,['#ffe066','#ff8a1f','#ffffff'],90,3);spawnRing((a.x+b.x)/2,gy-5,(a.y+b.y)/2,'#ffcf6a',30,.4);SFX.clash(near({x:a.x,y:a.y}));if(a.storm||b.storm){if(a.lastHit===b)continue;a.lastHit=b;b.lastHit=a;for(const q of [a,b]){if(q.storm){if(--q.hp<=0){q.t=0;q.dead=1;}}else{q.t=0;q.dead=1;}}if(a.dead)break;continue;}a.t=0;b.t=0;a.dead=b.dead=1;break;}}}
-  for(let i=projectiles.length-1;i>=0;i--){const p=projectiles[i];p.px=p.x;p.py=p.y;/* previous step, for smooth drawing between physics steps */if(p.dead){scene.remove(p.mesh);projectiles.splice(i,1);continue;}if(p.custom){if(itemsProj(p,dt)){projGone(p);projectiles.splice(i,1);}continue;}p.t-=dt;p.safe-=dt;
+  for(let i=projectiles.length-1;i>=0;i--){const p=projectiles[i];CURP=p;p.px=p.x;p.py=p.y;/* previous step, for smooth drawing between physics steps */if(p.dead){scene.remove(p.mesh);projectiles.splice(i,1);continue;}if(p.custom){if(itemsProj(p,dt)){projGone(p);projectiles.splice(i,1);}continue;}p.t-=dt;p.safe-=dt;
     /* a homing dough ball always closes the gap: it runs comfortably faster than whoever it is chasing, and rides the road to get there */
     if(p.type==='dough'&&p.target&&!p.target.finished){const tg=p.target;homeStep(p,tg,dt,Math.max(300,Math.abs(tg.speed||0)*1.22+70),Math.hypot(tg.x-p.x,tg.y-p.y)<70?9:5.5);}
     else if(p.type!=='wheel'){p.x+=p.vx*dt;p.y+=p.vy*dt;if(p.storm)pepWall(p);}
@@ -5024,11 +5054,11 @@ function update0(dt){
     else{for(const k of karts){if(k.loop||(k===p.owner&&(p.safe>0||p.type==='pep'))||(k.netId&&!k.finished&&CLAIMP.has(p.type)))continue;/* pepperoni never hits its thrower; friends report their own hits */if(heldBlock(k,p)){hit=true;break;}if((k.x-p.x)**2+(k.y-p.y)**2<200&&k.inv<=0&&sameLvl(k,p)){if(k===player)hitBy(p);spinOut(k,p.type);hit=true;p.pop=1;break;}}
     for(const h of hazards){if((h.x-p.x)**2+(h.y-p.y)**2<100){h.t=0;hit=true;}}}
     if(hit||p.t<=0){projGone(p);projectiles.splice(i,1);}}
-  for(let i=hazards.length-1;i>=0;i--){const h=hazards[i];if(h.born===0&&overPit(h.x,h.y))h.t=0;h.t-=dt;h.born+=dt;
+  CURP=null;for(let i=hazards.length-1;i>=0;i--){const h=hazards[i];CURP=h;if(h.born===0&&overPit(h.x,h.y))h.t=0;h.t-=dt;h.born+=dt;
     if(!h.armed&&(!h.owner||(h.owner.x-h.x)**2+(h.owner.y-h.y)**2>34*34))h.armed=true;
     for(const k of karts){if(k.loop||(k===h.owner&&!h.armed)||(k.netId&&!k.finished))continue;/* a friend's own screen reports their trap hits */if((k.x-h.x)**2+(k.y-h.y)**2<200&&k.inv<=0){if(h.olive){if(k.air||k.glide||k.shield>0||k.rush>0||abInv(k)||k.ghostT>0||k.oilT>4.5)continue;oilUp(k);}else if(h.kind==='fire'){if(spinOut(k,'fire')){k.burnT=BURN_T;if(k===player)edgeFx('#ff3a12',1);}}else spinOut(k,'oil');h.t=0;break;}}
     if(h.t<=0){scene.remove(h.mesh);hazards.splice(i,1);}}
-  for(const k of karts){if(state==='race'&&!k.finished&&k.prog>=LAPS*N){k.finished=true;k.finishTime=raceTime;k.place=++finishCount;if(raceDone&&NET.cfg)netRerank();if(k===player)onPlayerFinish();}}
+  CURP=null;for(const k of karts){if(state==='race'&&!k.finished&&k.prog>=LAPS*N){k.finished=true;k.finishTime=raceTime;k.place=++finishCount;if(raceDone&&NET.cfg)netRerank();if(k===player)onPlayerFinish();}}
   if(state==='race')raceTime+=dt;
 }
 
@@ -5043,7 +5073,7 @@ const matKey=m=>{if(m.onBeforeCompile!==THREE.Material.prototype.onBeforeCompile
 const emis=m=>!!(m.emissive&&(m.emissive.r+m.emissive.g+m.emissive.b)>0);
 const canBakeVC=m=>m.isMeshStandardMaterial&&!emis(m)&&!m.isMeshPhysicalMaterial&&!m.map&&!m.emissiveMap&&!m.normalMap&&!m.roughnessMap&&!m.metalnessMap&&!m.alphaMap&&!m.envMap&&!m.userData.keyed&&m.onBeforeCompile===THREE.Material.prototype.onBeforeCompile&&m.customProgramCacheKey===THREE.Material.prototype.customProgramCacheKey;
 const vcKeyOf=m=>['VC',m.type,m.roughness,m.metalness,m.side,m.transparent,m.opacity,!!m.flatShading,m.envMapIntensity,m.emissive?m.emissive.getHexString():'',m.emissiveIntensity,m.depthWrite,m.depthTest,m.blending,m.toneMapped,m.fog,m.alphaTest,m.polygonOffset,m.polygonOffsetFactor,m.polygonOffsetUnits,m.dithering].join('|');
-function vcMatFor(key,m){const C=world.userData.vcMats||(world.userData.vcMats={});let v=C[key];if(!v){v=m.clone();v.color.set('#ffffff');v.vertexColors=true;v.userData.shared=true;v.userData.noMerge=true;C[key]=v;}return v;}
+function vcMatFor(key,m){const C=world.userData.vcMats||(world.userData.vcMats={});let v=C[key];if(!v){v=m.clone();v.color.set('#ffffff');v.vertexColors=true;v.userData.shared=true;v.userData.noMerge=true;if(v.isMeshStandardMaterial&&!v.map)surfify(v,.2);C[key]=v;}return v;}
 function snapWorld(){if(!world)return null;world.updateMatrixWorld(true);const S=new Map();world.traverse(o=>{if(o.isMesh&&!o.isInstancedMesh)S.set(o,[o.matrixWorld.toArray(),o.visible,matSig(o.material)]);});return S;}
 function dynWorld(S){const D=new Set();if(!S||!world)return D;world.updateMatrixWorld(true);world.traverse(o=>{if(!o.isMesh||o.isInstancedMesh)return;const a=S.get(o);if(!a){D.add(o);return;}const e=o.matrixWorld.elements;for(let i=0;i<16;i++)if(Math.abs(e[i]-a[0][i])>1e-4){D.add(o);return;}if(o.visible!==a[1]||matSig(o.material)!==a[2])D.add(o);});return D;}
 function mergeStatic(D){if(!world||world.userData.merged)return null;world.userData.merged=true;world.updateMatrixWorld(true);const groups=new Map(),BIN=1000;let tot=0;
@@ -6785,20 +6815,22 @@ function netBadge(){document.body.classList.toggle('netguest',NET.role==='guest'
    and fly forward when you let go (push the stick down to drop them instead). In menus the stick moves between buttons. */
 const PAD={act:false,steer:0,gas:true,brake:false,look:false,prev:[],idx:-1,lastUse:0,navT:0,hold:[0,0,0],held:[false,false,false],id:''};
 function padMap(gp){const gc=gp.mapping!=='standard'&&/gamecube|mayflash|0079-1846|057e-0337|wii u/i.test(gp.id);
-  return gc?{A:1,B:2,X:0,Y:3,I1:[4],I2:[7],D:[5],START:9,UP:12,DOWN:14,LEFT:15,RIGHT:13,gc:true}
-           :{A:0,B:1,X:2,Y:3,I1:[4],I2:[6],D:[5,7],START:9,BACK:8,UP:12,DOWN:13,LEFT:14,RIGHT:15,gc:false};}
+  return gc?{A:1,B:2,X:0,Y:3,I1:[1,4],I2:[2,7],D:[5],GAS:[6],START:9,UP:12,DOWN:14,LEFT:15,RIGHT:13,gc:true}
+           /* racing: RT gas, LT drift/brake, A and B (or the bumpers) the two items, Y special, X rear view; A/B still select/back in menus */
+           :{A:0,B:1,X:2,Y:3,I1:[0,4],I2:[1,5],D:[6],GAS:[7],START:9,BACK:8,UP:12,DOWN:13,LEFT:14,RIGHT:15,gc:false};}
 function padBtn(gp,i){const b=gp.buttons[i];return !!b&&(b.pressed||b.value>.5);}
 function padPoll(){let gps;try{gps=navigator.getGamepads?navigator.getGamepads():[];}catch(e){return;}let gp=null;
   for(const g of gps||[])if(g&&g.connected&&(!gp||g.timestamp>gp.timestamp))gp=g;
-  if(!gp){if(PAD.act){PAD.act=false;PAD.steer=0;PAD.brake=false;PAD.look=false;document.body.classList.remove('padnav');}return;}
+  if(!gp){if(PAD.act){PAD.act=false;PAD.steer=0;PAD.brake=false;PAD.look=false;PAD.back=false;document.body.classList.remove('padnav','pad');}return;}
   const M=padMap(gp),P=PAD.prev,now=performance.now(),pr=i=>i!=null&&i>=0&&padBtn(gp,i),edge=i=>pr(i)&&!P[i];
   const ax=gp.axes[0]||0,ay=gp.axes[1]||0,dz=.2,sx=Math.abs(ax)<dz?0:Math.sign(ax)*(Math.abs(ax)-dz)/(1-dz);
-  let any=gp.buttons.some(b=>b&&b.pressed)||Math.abs(ax)>.5||Math.abs(ay)>.5;if(any){PAD.lastUse=now;if(!PAD.act){PAD.act=true;}}
+  let any=gp.buttons.some(b=>b&&b.pressed)||Math.abs(ax)>.5||Math.abs(ay)>.5;if(any){PAD.lastUse=now;if(!PAD.act){PAD.act=true;}}if(document.body.classList.contains('pad')!==PAD.act)document.body.classList.toggle('pad',PAD.act);
   const racing=(state==='race'||state==='countdown')&&!document.querySelector('.overlay:not([hidden])')&&pauseOv.hidden;
   const dl=pr(M.LEFT),dr=pr(M.RIGHT);
   if(racing){document.body.classList.remove('padnav');
     if(SPEC&&SPEC.on){/* watching: left/right or the bumpers pick the racer, Y or X the camera, B goes back to the results */if(edge(M.LEFT)||M.I1.some(edge))specNext(-1);if(edge(M.RIGHT)||M.I2.some(edge))specNext(1);if(edge(M.Y)||edge(M.X))specCam();if(edge(M.B))specExit(true);}
-    PAD.steer=clamp(sx+(dr?1:0)-(dl?1:0),-1,1);PAD.gas=pr(M.A);PAD.brake=pr(M.B)||M.D.some(pr);PAD.nb=PAD.gas&&!pr(M.B)&&M.D.some(pr);/* drift button with the throttle held: drift only, never brake */PAD.look=pr(M.X)||pr(M.BACK);
+    PAD.steer=clamp(sx+(dr?1:0)-(dl?1:0),-1,1);PAD.gas=M.GAS.some(pr);PAD.brake=M.D.some(pr);PAD.nb=PAD.gas&&M.D.some(pr);/* drift trigger with the throttle held: drift only, never brake */PAD.look=pr(M.X)||pr(M.BACK);
+    PAD.back=ay>.55;/* left stick pulled back: the next item goes behind you, no mirror needed; it never brakes or steers */
     if(edge(M.Y)&&!(SPEC&&SPEC.on))abilQueued=true;
     /* items: slot 1 and slot 2 */
     [[M.I1,1],[M.I2,2]].forEach(([btns,sl])=>{const down=btns.some(pr),was=PAD.held[sl];if(down===was)return;PAD.held[sl]=down;const k=player;if(!k||(SPEC&&SPEC.on))return;
