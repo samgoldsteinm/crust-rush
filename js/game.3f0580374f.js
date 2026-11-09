@@ -69,7 +69,7 @@ const lerpA=(a,b,t)=>a+angDiff(b,a)*t;
 function cnv(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
 function shade(hex,amt){const n=parseInt(hex.slice(1),16);let r=n>>16,g=(n>>8)&255,b=n&255;const tg=amt<0?0:255,a=Math.abs(amt);r=Math.round(r+(tg-r)*a);g=Math.round(g+(tg-g)*a);b=Math.round(b+(tg-b)*a);return '#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1);}
 const store={get(k){try{return localStorage.getItem(k);}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,v);}catch(e){}}};
-const CFG_DEF={shadows:true,sharpen:true,detail:'normal',fps:'auto',fullscr:true,showfps:false,vol:80,units:'mph',shake:true,mini:true,ghost:true,cam:'close',camd:100,music:true,mvol:45};
+const CFG_DEF={shadows:true,sharpen:true,look:'vivid',detail:'normal',fps:'auto',fullscr:true,showfps:false,vol:80,units:'mph',shake:true,mini:true,ghost:true,cam:'close',camd:100,music:true,mvol:45};
 const CFG=Object.assign({},CFG_DEF,(()=>{try{return JSON.parse(store.get('crust-cfg')||'{}')||{};}catch(e){return {};}})());
 if(!CFG.v33){CFG.v33=1;CFG.fps='60';}/* everyone moves to the steady 60 fps default once */
 if(!CFG.v68){CFG.v68=1;if(!matchMedia('(pointer:coarse)').matches)CFG.fps='auto';}/* computers chase their screen's rate (120 Hz and up) */
@@ -217,7 +217,7 @@ const QUAL={/* Lite: for older phones (iPhone 14 and earlier): screen-resolution
   lite:{mp:.75,cap:1,start:1,floor:.7,sm:512,sx:95,soft:false,detail:750,lite:true,shEvery:3,note:'Built to hold 60 fps on older phones (iPhone 14 and earlier): lower resolution, no glow, light shadows, shorter scenery distance and fewer particles.'},
   fast:{mp:1.1,cap:1.25,start:1,floor:.85,sm:1024,soft:false,detail:1100,note:'Lower resolution and no glow pass, for the smoothest frame rate on older phones.'},
   balanced:{mp:2.1,cap:1.75,start:1.5,floor:1.0,sm:2048,soft:true,detail:1500,note:'Crisp detail with glow and colour grading at a steady 60 fps. Best for most phones.'},
-  ultra:{mp:6.2,cap:2.5,start:2,floor:1.25,sm:6144,sx:150,bloomHalf:true,soft:true,detail:3600,ms:4,hqAll:true,ss:[1,1.25,1.5],lodf:170,streaks:true,note:'For computers: every racer and building in high detail, ambient occlusion, 4× anti-aliasing and the longest view. When your graphics card has room to spare it also renders above screen resolution for extra clarity.'},
+  ultra:{mp:6.2,cap:2.5,start:2,floor:1.25,sm:4096/* was 6144: 2.25x the shadow texels of 4096 for no visible gain at 1440p, and it cost an RTX 3060 half its frame rate */,sx:150,bloomHalf:true,soft:true,detail:3600,ms:4,hqAll:true,ss:[1,1.25,1.5],lodf:170,streaks:true,note:'For computers: every racer and building in high detail, ambient occlusion, 4× anti-aliasing and the longest view. When your graphics card has room to spare it also renders above screen resolution for extra clarity.'},
   /* Phones render at most 2x their CSS size on every preset: on a 460 ppi screen that is already past what the eye resolves at arm's
      length (a 3x phone drawing at 2x shows ~300 ppi of detail), and the 2x anti-aliasing smooths what is left. Drawing the full 3x
      would cost 2.25x the pixels for no visible gain, which is where the frame rate went on the newest iPhones. */
@@ -320,7 +320,7 @@ function surfify(m,amt){amt=amt==null?.13:amt;const prev=m.onBeforeCompile;m.onB
     sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vSP;varying vec3 vSN;').replace('#include <project_vertex>','#include <project_vertex>\n{vec4 wp=vec4(transformed,1.0);vec3 wn=objectNormal;\n#ifdef USE_INSTANCING\nwp=instanceMatrix*wp;wn=mat3(instanceMatrix)*wn;\n#endif\nwp=modelMatrix*wp;vSP=wp.xyz;vSN=normalize(mat3(modelMatrix)*wn);}');
     const hq=!!QUAL[qKey].hqAll||qKey==='sharp';
     sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D surfMap;varying vec3 vSP;varying vec3 vSN;float sMot=.5;')
-      .replace('#include <map_fragment>','#include <map_fragment>\n{vec3 bw=abs(vSN);bw/=max(.001,bw.x+bw.y+bw.z);vec3 q=vSP*.021;float m=texture2D(surfMap,q.yz).r*bw.x+texture2D(surfMap,q.xz).r*bw.y+texture2D(surfMap,q.xy).r*bw.z;'+(hq?'q=vSP*.16;float f=texture2D(surfMap,q.yz).g*bw.x+texture2D(surfMap,q.xz).g*bw.y+texture2D(surfMap,q.xy).g*bw.z;m=m*.72+f*.28;':'')+'sMot=m;diffuseColor.rgb*=1.0+'+amt.toFixed(3)+'*(m-.5)*2.0;}')
+      .replace('#include <map_fragment>','#include <map_fragment>\n{vec3 bw=abs(vSN);bw/=max(.001,bw.x+bw.y+bw.z);vec3 q=vSP*.021;float m=texture2D(surfMap,q.yz).r*bw.x+texture2D(surfMap,q.xz).r*bw.y+texture2D(surfMap,q.xy).r*bw.z;'+(hq?'q=vSP*.16;float f=texture2D(surfMap,q.yz).g*bw.x+texture2D(surfMap,q.xz).g*bw.y+texture2D(surfMap,q.xy).g*bw.z;m=m*.72+f*.28;':'')+'float pw=texture2D(surfMap,vSP.xz*.0045+vSP.y*.002).r;/* broad weathering patches: some stretches of a wall darker than others */m=m*.65+pw*.35;sMot=m;diffuseColor.rgb*=(1.0+'+amt.toFixed(3)+'*(m-.5)*2.0)*(1.0-.22*max(0.,-vSN.y));/* undersides sit in their own shadow */}')
       .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor+(sMot-.5)*.3,.04,1.);');};
   const pk=m.customProgramCacheKey;m.customProgramCacheKey=function(){return (pk?pk.call(this):'')+'|surf'+(LOWQF()||CFG.surf===false?0:(QUAL[qKey].hqAll||qKey==='sharp')?2:1);};return m;}
 /* every generator paints: C colour (1024²), Hh height (512², grey), R roughness (256², grey) */
@@ -593,7 +593,7 @@ const _m4=new THREE.Matrix4(),_inv=new THREE.Matrix4();
 const canVC=m=>m.isMeshStandardMaterial&&!m.map&&!m.transparent&&!m.vertexColors&&!(m.emissiveIntensity>0&&m.emissive&&m.emissive.r+m.emissive.g+m.emissive.b>0);
 const VCM=new Map();const vcKey=m=>'VC|'+(Math.round(m.roughness*5)/5)+'|'+(Math.round(m.metalness*4)/4)+'|'+((m.clearcoat||0)>.3?1:0)+'|'+((m.sheen||0)>.3?1:0);
 function vcMat(m){const k=vcKey(m);let v=VCM.get(k);if(!v){const o={vertexColors:true,roughness:Math.round(m.roughness*5)/5,metalness:Math.round(m.metalness*4)/4};
-  v=((m.clearcoat||0)>.3||(m.sheen||0)>.3)?new THREE.MeshPhysicalMaterial(Object.assign(o,{clearcoat:(m.clearcoat||0)>.3?1:0,clearcoatRoughness:.12,sheen:(m.sheen||0)>.3?.6:0,sheenRoughness:.6,sheenColor:new THREE.Color('#ffffff')})):new THREE.MeshStandardMaterial(o);surfify(v,.2);VCM.set(k,v);v.userData.shared=true;}return v;}
+  v=((m.clearcoat||0)>.3||(m.sheen||0)>.3)?new THREE.MeshPhysicalMaterial(Object.assign(o,{clearcoat:(m.clearcoat||0)>.3?1:0,clearcoatRoughness:.12,sheen:(m.sheen||0)>.3?.6:0,sheenRoughness:.6,sheenColor:new THREE.Color('#ffffff')})):new THREE.MeshStandardMaterial(o);surfify(v,.26);VCM.set(k,v);v.userData.shared=true;}return v;}
 function bake(S,shadow,vc){S.updateMatrixWorld(true);_inv.copy(S.matrixWorld).invert();const buckets=new Map();
   S.traverse(o=>{if(!o.isMesh)return;_m4.multiplyMatrices(_inv,o.matrixWorld);let g=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();g.applyMatrix4(_m4);
     if(!g.attributes.uv)g.setAttribute('uv',new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count*2),2));
@@ -2825,7 +2825,10 @@ let GROUND_DIM=1;
 const LOOKBAL={kitchen:{fill:.8,exp:.95,con:.03,sat:.05},bay:{fill:.82,exp:.96,con:.03,sat:.06},freezer:{fill:.76,exp:.92,con:.04,sat:.08},night:{fill:1,exp:1,con:.02,sat:.03,ground:.8},
   lagoon:{fill:.82,exp:.95},calzone:{fill:.84,exp:.96},tour:{fill:.84,exp:.96},burn:{fill:.8,exp:.96},peak:{fill:.86,exp:.97},oven:{fill:.9,exp:1,ground:.85},moon:{ground:.6},mozz:{ground:.68},napoli:{ground:.7},glacier:{ground:.72},basil:{fill:.86,exp:.98},spiral:{fill:.86,exp:.97}};
 function balanceLook(def){const T0=LOOKBAL[def.theme]||{},M0=LOOKBAL[def.id]||{};const fill=M0.fill??T0.fill??1,exp=M0.exp??T0.exp??1;
-  hemi.intensity*=fill;renderer.toneMappingExposure*=exp;GROUND_DIM=M0.ground??T0.ground??1;const G=POST.grade;G.con=(G.con||1)+(T0.con||0);G.sat=(G.sat||1)+(T0.sat||0);}
+  hemi.intensity*=fill;renderer.toneMappingExposure*=exp;GROUND_DIM=M0.ground??T0.ground??1;const G=POST.grade;G.con=(G.con||1)+(T0.con||0);G.sat=(G.sat||1)+(T0.sat||0);
+  /* punch: a darker base tone with the sun doing more of the work, so lit faces, shadows and light sources read against each other
+     instead of everything sitting in the same bright sky fill (night keeps most of its fill: its lights are the picture) */
+  if(CFG.look!=='classic'){const night=def.theme==='night';hemi.intensity*=night?.88:.7;sun.intensity*=night?1.12:1.25;renderer.toneMappingExposure*=night?1:.96;G.con+=night?.03:.06;G.sat+=night?.04:.07;}}
 function varSky(def){const L=VARLOOK[def.id];if(!L||!(L.pano||L.sky))return;if(sky)world.remove(sky);sky=L.pano?panoSky(L.pano,L.tint,L.rot):skyDome(L.sky,sunDir,L.sun?L.sun[0]:'#ffffff');world.add(sky);}
 
 /* ================= MOVING HAZARDS: slow traffic, a level-crossing train, wandering critters, pools and drive-through city blocks ================= */
@@ -3126,41 +3129,54 @@ function buildWater(def){if(WATER_Y==null)return;const R=def.R,th=def.theme;
     instBatch(new THREE.BoxGeometry(3.4,9,3.4),postM,PO,true);instBatch(new THREE.CylinderGeometry(.35,.35,16,8),postM,PL,false);instBatch(new THREE.SphereGeometry(1.4,12,8),lampM,LA,false);}}
 
 /* ================= DRIVE-THROUGH BUILDINGS: the road runs straight through a hall ================= */
+/* a tangent-space normal map from a grey height canvas (Sobel), so painted grooves, mortar lines and frames catch the light as relief */
+function normalFromHeight(hc,strength){const W=hc.width,H=hc.height,g=hc.getContext('2d'),src=g.getImageData(0,0,W,H).data,out=cnv(W,H),og=out.getContext('2d'),id=og.createImageData(W,H),d=id.data;
+  const h=(x,y)=>src[(((y+H)%H)*W+((x+W)%W))*4]/255;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const dx=(h(x+1,y-1)+2*h(x+1,y)+h(x+1,y+1))-(h(x-1,y-1)+2*h(x-1,y)+h(x-1,y+1)),dy=(h(x-1,y+1)+2*h(x,y+1)+h(x+1,y+1))-(h(x-1,y-1)+2*h(x,y-1)+h(x+1,y-1));
+    let nx=-dx*strength,ny=dy*strength,nz=1;const l=Math.hypot(nx,ny,nz);nx/=l;ny/=l;nz/=l;const i=(y*W+x)*4;d[i]=(nx*.5+.5)*255;d[i+1]=(ny*.5+.5)*255;d[i+2]=(nz*.5+.5)*255;d[i+3]=255;}
+  og.putImageData(id,0,0);const t=new THREE.CanvasTexture(out);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;}
 function hallTex(th){/* one repeat = 64 units of road and the wall's full height. Boards, bricks, panels or ice blocks drawn piece by piece with
   their own shading, a stone plinth, windows with frames, sills, shutters and striped awnings; the window glass doubles as the emissive map */
-  const W=1024,Hh=768,c=cnv(W,Hh),g=c.getContext('2d');
+  const W=1024,Hh=768,c=cnv(W,Hh),g=c.getContext('2d'),hc=cnv(W,Hh),hg=hc.getContext('2d');hg.fillStyle='#808080';hg.fillRect(0,0,W,Hh);/* height: grey = flat, dark = groove, light = raised */
   const L={kitchen:{base:'#b5532f',dark:'#7a2e16',glass:'#ffd27a',trim:'#f3e3c3',shutter:'#3b6e3a',awn:['#e0452c','#fff4dc'],stone:'#6e5a4a'},
     bay:{base:'#f4ead8',dark:'#c9a272',glass:'#8fe0ff',trim:'#ffffff',shutter:'#1f8fa8',awn:['#1f8fa8','#fff4dc'],stone:'#b8a88c'},
     night:{base:'#1c1830',dark:'#0c0a18',glass:'#ff4fd8',trim:'#3a2f5c',shutter:'#2a2050',awn:['#ff4fd8','#1c1830'],stone:'#141020'},
     freezer:{base:'#dff1ff',dark:'#9cc7ea',glass:'#7fe8ff',trim:'#ffffff',shutter:'#6fb6e8',awn:['#7fc8ee','#ffffff'],stone:'#a9c6dd'}}[th]||{base:'#b5532f',dark:'#7a2e16',glass:'#ffd27a',trim:'#f3e3c3',shutter:'#3b6e3a',awn:['#e0452c','#fff4dc'],stone:'#6e5a4a'};
   const r=(()=>{let s0=7;return ()=>{s0=(s0*16807)%2147483647;return s0/2147483647;};})();const shade=(hex,k)=>{const n=parseInt(hex.slice(1),16),f=v=>Math.max(0,Math.min(255,Math.round(v*k)));return 'rgb('+f(n>>16)+','+f((n>>8)&255)+','+f(n&255)+')';};
   g.fillStyle=L.base;g.fillRect(0,0,W,Hh);
-  if(th==='kitchen'){/* brick courses, every brick its own tint, with pale mortar */for(let y=0;y<Hh;y+=24){const off=((y/24)%2)*36;for(let x=-36;x<W;x+=72){g.fillStyle=shade(L.base,.82+r()*.36);g.fillRect(x+off+2,y+2,68,20);g.fillStyle='rgba(0,0,0,.18)';g.fillRect(x+off+2,y+19,68,3);}}g.fillStyle='rgba(255,230,200,.18)';for(let y=0;y<Hh;y+=24)g.fillRect(0,y,W,2);}
+  if(th==='kitchen'){/* brick courses, every brick its own tint, with pale mortar */for(let y=0;y<Hh;y+=24){const off=((y/24)%2)*36;for(let x=-36;x<W;x+=72){g.fillStyle=shade(L.base,.82+r()*.36);g.fillRect(x+off+2,y+2,68,20);g.fillStyle='rgba(0,0,0,.18)';g.fillRect(x+off+2,y+19,68,3);hg.fillStyle='#9a9a9a';hg.fillRect(x+off+2,y+2,68,20);hg.fillStyle='#3a3a3a';hg.fillRect(x+off,y,2,24);}hg.fillStyle='#3a3a3a';hg.fillRect(0,y,W,2);}g.fillStyle='rgba(255,230,200,.18)';for(let y=0;y<Hh;y+=24)g.fillRect(0,y,W,2);}
   else if(th==='bay'){/* painted clapboard: each board lit at its top edge and shadowed under its lip, with the odd knot and a few sun-faded boards */
-    for(let y=0;y<Hh;y+=26){g.fillStyle=shade(L.base,.94+r()*.1);g.fillRect(0,y,W,26);g.fillStyle='rgba(255,255,255,.35)';g.fillRect(0,y,W,3);g.fillStyle='rgba(60,40,20,.28)';g.fillRect(0,y+22,W,4);
+    for(let y=0;y<Hh;y+=26){g.fillStyle=shade(L.base,.94+r()*.1);g.fillRect(0,y,W,26);g.fillStyle='rgba(255,255,255,.35)';g.fillRect(0,y,W,3);g.fillStyle='rgba(60,40,20,.28)';g.fillRect(0,y+22,W,4);hg.fillStyle='#303030';hg.fillRect(0,y+22,W,4);hg.fillStyle='#a0a0a0';hg.fillRect(0,y,W,3);
       for(let k=0;k<3;k++){if(r()<.5){const x=r()*W,rr=3+r()*4;g.fillStyle='rgba(120,80,40,.35)';g.beginPath();g.ellipse(x,y+13,rr*1.4,rr,0,0,7);g.fill();}}}
     g.strokeStyle='rgba(90,60,30,.22)';g.lineWidth=2;for(let x=0;x<W;x+=256){g.beginPath();g.moveTo(x+(r()*40|0),0);g.lineTo(x+(r()*40|0),Hh);g.stroke();}}
-  else if(th==='night'){/* dark panels with bevelled edges and thin neon seams */for(let y=0;y<Hh;y+=128)for(let x=0;x<W;x+=128){g.fillStyle=shade(L.base,.9+r()*.2);g.fillRect(x+4,y+4,120,120);g.fillStyle='rgba(255,255,255,.07)';g.fillRect(x+4,y+4,120,6);g.fillRect(x+4,y+4,6,120);g.fillStyle='rgba(0,0,0,.35)';g.fillRect(x+4,y+118,120,6);}
+  else if(th==='night'){/* dark panels with bevelled edges and thin neon seams */for(let y=0;y<Hh;y+=128)for(let x=0;x<W;x+=128){g.fillStyle=shade(L.base,.9+r()*.2);g.fillRect(x+4,y+4,120,120);hg.fillStyle='#404040';hg.fillRect(x,y,128,4);hg.fillRect(x,y,4,128);g.fillStyle='rgba(255,255,255,.07)';g.fillRect(x+4,y+4,120,6);g.fillRect(x+4,y+4,6,120);g.fillStyle='rgba(0,0,0,.35)';g.fillRect(x+4,y+118,120,6);}
     g.fillStyle='rgba(255,79,216,.5)';for(let y=128;y<Hh;y+=256)g.fillRect(0,y-2,W,3);}
-  else if(th==='freezer'){/* ice blocks with a bright lip, frost and cracks */for(let y=0;y<Hh;y+=96){const off=((y/96)%2)*80;for(let x=-80;x<W;x+=160){g.fillStyle=shade(L.base,.92+r()*.14);g.fillRect(x+off+3,y+3,154,90);g.fillStyle='rgba(255,255,255,.55)';g.fillRect(x+off+3,y+3,154,6);g.fillStyle='rgba(60,120,180,.25)';g.fillRect(x+off+3,y+87,154,6);}}
+  else if(th==='freezer'){/* ice blocks with a bright lip, frost and cracks */for(let y=0;y<Hh;y+=96){const off=((y/96)%2)*80;for(let x=-80;x<W;x+=160){g.fillStyle=shade(L.base,.92+r()*.14);g.fillRect(x+off+3,y+3,154,90);hg.fillStyle='#383838';hg.fillRect(x+off,y,160,3);hg.fillRect(x+off,y,3,96);g.fillStyle='rgba(255,255,255,.55)';g.fillRect(x+off+3,y+3,154,6);g.fillStyle='rgba(60,120,180,.25)';g.fillRect(x+off+3,y+87,154,6);}}
     g.strokeStyle='rgba(255,255,255,.4)';g.lineWidth=1.5;for(let i=0;i<40;i++){g.beginPath();const x=r()*W,y=r()*Hh;g.moveTo(x,y);g.lineTo(x+r()*80-40,y+r()*80-40);g.stroke();}}
   /* stone plinth along the bottom: two courses of blocks */
-  for(let y=Hh-96;y<Hh;y+=48){const off=((y/48)%2)*60;for(let x=-60;x<W;x+=120){g.fillStyle=shade(L.stone,.85+r()*.3);g.fillRect(x+off+3,y+3,114,42);g.fillStyle='rgba(255,255,255,.14)';g.fillRect(x+off+3,y+3,114,5);g.fillStyle='rgba(0,0,0,.22)';g.fillRect(x+off+3,y+40,114,5);}}
+  for(let y=Hh-96;y<Hh;y+=48){const off=((y/48)%2)*60;for(let x=-60;x<W;x+=120){g.fillStyle=shade(L.stone,.85+r()*.3);g.fillRect(x+off+3,y+3,114,42);hg.fillStyle='#2e2e2e';hg.fillRect(x+off,y,120,3);hg.fillRect(x+off,y,3,48);hg.fillStyle='#8a8a8a';hg.fillRect(x+off+3,y+3,114,42);g.fillStyle='rgba(255,255,255,.14)';g.fillRect(x+off+3,y+3,114,5);g.fillStyle='rgba(0,0,0,.22)';g.fillRect(x+off+3,y+40,114,5);}}
   g.fillStyle='rgba(0,0,0,.25)';g.fillRect(0,Hh-100,W,6);
   /* windows: frame, sill, two panes with a mullion, a diagonal reflection, shutters and a striped awning */
   for(let wx=64;wx<W;wx+=256){const wy=200,ww=120,wh=190;
     if(th!=='night'){g.fillStyle=L.shutter;for(const sx of [wx-34,wx+ww+6]){g.fillRect(sx,wy-4,28,wh+8);g.fillStyle='rgba(0,0,0,.25)';for(let y=wy+8;y<wy+wh;y+=14)g.fillRect(sx+3,y,22,4);g.fillStyle=L.shutter;}}
-    g.fillStyle=L.trim;g.fillRect(wx-10,wy-12,ww+20,wh+24);g.fillStyle='rgba(0,0,0,.3)';g.fillRect(wx-10,wy+wh+6,ww+20,6);
+    g.fillStyle=L.trim;g.fillRect(wx-10,wy-12,ww+20,wh+24);g.fillStyle='rgba(0,0,0,.3)';g.fillRect(wx-10,wy+wh+6,ww+20,6);hg.fillStyle='#c8c8c8';hg.fillRect(wx-10,wy-12,ww+20,wh+24);hg.fillStyle='#505050';hg.fillRect(wx-2,wy-4,ww+4,wh+8);hg.fillStyle='#d8d8d8';hg.fillRect(wx-16,wy+wh+8,ww+32,12);
     g.fillStyle=L.dark;g.fillRect(wx-2,wy-4,ww+4,wh+8);g.fillStyle=L.glass;g.fillRect(wx+3,wy+2,ww-6,wh-4);
     const gr=g.createLinearGradient(wx,wy,wx+ww,wy+wh);gr.addColorStop(0,'rgba(255,255,255,.45)');gr.addColorStop(.45,'rgba(255,255,255,0)');gr.addColorStop(.5,'rgba(255,255,255,.22)');gr.addColorStop(.6,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(wx+3,wy+2,ww-6,wh-4);
     g.fillStyle=L.trim;g.fillRect(wx+ww/2-3,wy,6,wh);g.fillRect(wx,wy+wh/2-3,ww,6);
     g.fillStyle=L.trim;g.fillRect(wx-16,wy+wh+8,ww+32,12);/* sill */
     /* awning: a striped canopy over the window */
     const ay=wy-70;g.beginPath();g.moveTo(wx-40,ay+56);g.lineTo(wx-22,ay);g.lineTo(wx+ww+22,ay);g.lineTo(wx+ww+40,ay+56);g.closePath();g.save();g.clip();for(let x=wx-40;x<wx+ww+40;x+=24){g.fillStyle=((x-wx+40)/24)%2<1?L.awn[0]:L.awn[1];g.fillRect(x,ay,24,60);}g.fillStyle='rgba(0,0,0,.25)';g.fillRect(wx-40,ay+44,ww+80,12);g.restore();
-    g.fillStyle=L.awn[0];for(let x=wx-40;x<wx+ww+40;x+=12){g.beginPath();g.arc(x+6,ay+56,6,0,Math.PI);g.fill();}}
+    g.fillStyle=L.awn[0];for(let x=wx-40;x<wx+ww+40;x+=12){g.beginPath();g.arc(x+6,ay+56,6,0,Math.PI);g.fill();}
+    /* baked shading: the awning's shadow on the wall below it, the sill's shadow, and a soft dark reveal around the glass */
+    const sg=g.createLinearGradient(0,ay+56,0,ay+56+34);sg.addColorStop(0,'rgba(0,0,0,.38)');sg.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=sg;g.fillRect(wx-40,ay+56,ww+80,34);
+    const sl=g.createLinearGradient(0,wy+wh+20,0,wy+wh+44);sl.addColorStop(0,'rgba(0,0,0,.3)');sl.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=sl;g.fillRect(wx-16,wy+wh+20,ww+32,24);
+    hg.fillStyle='#e0e0e0';hg.beginPath();hg.moveTo(wx-40,ay+56);hg.lineTo(wx-22,ay);hg.lineTo(wx+ww+22,ay);hg.lineTo(wx+ww+40,ay+56);hg.closePath();hg.fill();}
   /* fascia along the top and a shadow line under the eaves */
   g.fillStyle=L.dark;g.fillRect(0,0,W,22);g.fillStyle='rgba(0,0,0,.3)';g.fillRect(0,22,W,10);
-  const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.wrapS=THREE.RepeatWrapping;t.anisotropy=8;return t;}
+  /* depth the eye reads at a glance: the wall darkens under the eaves and gathers dirt and shadow towards the ground */
+  {const e=g.createLinearGradient(0,22,0,150);e.addColorStop(0,'rgba(0,0,0,.34)');e.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=e;g.fillRect(0,22,W,128);
+    const d=g.createLinearGradient(0,Hh-260,0,Hh);d.addColorStop(0,'rgba(40,25,10,0)');d.addColorStop(1,'rgba(40,25,10,.42)');g.fillStyle=d;g.fillRect(0,Hh-260,W,260);}
+  const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.wrapS=THREE.RepeatWrapping;t.anisotropy=8;t.userData.normal=normalFromHeight(hc,2.2);return t;}
 /* roof covering per theme: palm thatch (bay), terracotta barrel tiles (kitchen), dark shingles with a neon edge (night) and blue slate (freezer) */
 function hallRoofTex(th){const W=512,Hh=512,c=cnv(W,Hh),g=c.getContext('2d');const r=(()=>{let s0=11;return ()=>{s0=(s0*16807)%2147483647;return s0/2147483647;};})();
   const C={kitchen:['#c8623a','#8a3a1c'],bay:['#d9b36a','#8a6a32'],night:['#241e3c','#0c0a18'],freezer:['#a9cbe6','#5e8fb8']}[th]||['#c8623a','#8a3a1c'];
@@ -3168,7 +3184,7 @@ function hallRoofTex(th){const W=512,Hh=512,c=cnv(W,Hh),g=c.getContext('2d');con
   if(th==='bay'){for(let y=0;y<Hh;y+=64){for(let i=0;i<260;i++){const x=r()*W,l=38+r()*26;g.strokeStyle='rgba('+(190+r()*50|0)+','+(140+r()*50|0)+','+(70+r()*40|0)+','+(.55+r()*.4)+')';g.lineWidth=1.5+r()*1.5;g.beginPath();g.moveTo(x,y-6);g.lineTo(x+(r()-.5)*8,y+l);g.stroke();}g.fillStyle='rgba(60,40,10,.35)';g.fillRect(0,y+56,W,8);}}
   else if(th==='kitchen'){for(let y=0;y<Hh;y+=48){const off=((y/48)%2)*24;for(let x=-24;x<W;x+=48){const gr=g.createLinearGradient(x+off,0,x+off+48,0);gr.addColorStop(0,'rgba(0,0,0,.35)');gr.addColorStop(.5,'rgba(255,255,255,.18)');gr.addColorStop(1,'rgba(0,0,0,.3)');g.fillStyle=C[0];g.fillRect(x+off,y,46,46);g.fillStyle=gr;g.fillRect(x+off,y,46,46);g.fillStyle='rgba(0,0,0,.3)';g.fillRect(x+off,y+40,46,6);}}}
   else{for(let y=0;y<Hh;y+=40){const off=((y/40)%2)*32;for(let x=-32;x<W;x+=64){g.fillStyle=th==='freezer'?'rgba(255,255,255,'+(.15+r()*.25)+')':'rgba(255,255,255,'+(.03+r()*.05)+')';g.fillRect(x+off+2,y+2,60,34);g.fillStyle='rgba(0,0,0,.35)';g.fillRect(x+off+2,y+32,60,6);}if(th==='night'){g.fillStyle='rgba(255,79,216,.35)';g.fillRect(0,y+36,W,2);}}}
-  const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;}
+  const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;{const hc=cnv(W,Hh),hg=hc.getContext('2d');hg.drawImage(c,0,0);t.userData.normal=normalFromHeight(hc,1.6);}return t;}
 /* stone blocks for the portal piers and a timber beam for the lintel, so the entrance reads as masonry and wood rather than painted boxes */
 function hallStoneTex(th){const c=cnv(256,256),g=c.getContext('2d');const r=(()=>{let s0=5;return ()=>{s0=(s0*16807)%2147483647;return s0/2147483647;};})();const base={kitchen:'#8a7560',bay:'#c9b690',night:'#2a2440',freezer:'#b9d3e8'}[th]||'#8a7560';
   const n=parseInt(base.slice(1),16),sh=k=>'rgb('+Math.min(255,Math.round((n>>16)*k))+','+Math.min(255,Math.round(((n>>8)&255)*k))+','+Math.min(255,Math.round((n&255)*k))+')';g.fillStyle=sh(.7);g.fillRect(0,0,256,256);
@@ -3185,9 +3201,9 @@ function hallSignTex(word,th){const c=cnv(512,128),g=c.getContext('2d');const L=
   g.fillStyle=L[0];g.fillRect(0,0,512,128);g.strokeStyle=L[1];g.lineWidth=6;g.strokeRect(8,8,496,112);g.fillStyle=L[1];g.font='900 64px system-ui,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(word,256,68);
   const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;return t;}
 function buildHall(def,j,K){(window.__hallJ=window.__hallJ||[]).push(j);const th=def.theme,H=46,wI=WALLD+1,wO=WALLD+13,tex=hallTex(th);
-  const wallM=new THREE.MeshStandardMaterial({map:tex,emissive:'#ffffff',emissiveMap:tex,emissiveIntensity:th==='night'?.55:.12,roughness:.7,side:THREE.DoubleSide});
+  const wallM=new THREE.MeshStandardMaterial({map:tex,emissive:'#ffffff',emissiveMap:tex,emissiveIntensity:th==='night'?.55:.12,roughness:.7,side:THREE.DoubleSide,normalMap:LOWQF()?null:tex.userData.normal,normalScale:new THREE.Vector2(.7,.7)});
   const roofM=wm(th==='night'?'#141024':th==='freezer'?'#cfe6fa':th==='bay'?'#8a5a32':'#5a2a16',{roughness:.6,side:THREE.DoubleSide});
-  const rtex=hallRoofTex(th),tileM=new THREE.MeshStandardMaterial({map:rtex,roughness:th==='freezer'?.35:.85,side:THREE.DoubleSide}),RH=15,OV=7;/* ridge rise over the eaves, eave overhang beyond the outer wall */
+  const rtex=hallRoofTex(th),tileM=new THREE.MeshStandardMaterial({map:rtex,roughness:th==='freezer'?.35:.85,side:THREE.DoubleSide,normalMap:LOWQF()?null:rtex.userData.normal,normalScale:new THREE.Vector2(.6,.6)}),RH=15,OV=7;/* ridge rise over the eaves, eave overhang beyond the outer wall */
   const gableM=wm({kitchen:'#e9cfa6',bay:'#f2e6cc',night:'#2c2148',freezer:'#ffffff'}[th]||'#e9cfa6',{roughness:.6,side:THREE.DoubleSide});const sp=[],su=[];
   const stT=hallStoneTex(th);stT.repeat.set(1,4);const stoneM=new THREE.MeshStandardMaterial({map:stT,roughness:.9});const bmT=hallBeamTex(th);bmT.repeat.set(5,1);const beamM=new THREE.MeshStandardMaterial({map:bmT,roughness:.8});
   const lightM=new THREE.MeshBasicMaterial({color:th==='night'?'#ff8af0':th==='freezer'?'#bff6ff':'#fff0c0',toneMapped:false});
@@ -3528,7 +3544,7 @@ function dbAdd(t,x,z,ry,s,tint,yOff,blob){const y=groundAt(x,z)+(yOff||0),key=Ma
 function dbAddM(t,m,tint,lift){const e=m.elements,x=e[12],z=e[14],y=e[13]+(lift?groundAt(x,z):0),key=Math.floor(x/DCELL)+','+Math.floor(z/DCELL);let c=DBK.get(key);if(!c){c={L:[],nv:0,ng:0,nb:0};DBK.set(key,c);}
   c.L.push([t,x,y,z,0,1,tint||null,false,m]);c.nv+=t.P.length/3;c.ng+=t.GP.length/3;}
 const _nm3=new THREE.Matrix3();
-function dbFlush(){const mat=surfify(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.62,metalness:.04}),.2),gmat=new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false}),
+function dbFlush(){const mat=surfify(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.62,metalness:.04}),.26),gmat=new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false}),
     bmat=new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
   const BS=12;detailChunks=[];
   for(const [key,c] of DBK){const P=new Float32Array(c.nv*3),N=new Float32Array(c.nv*3),C=new Float32Array(c.nv*3),GP=new Float32Array(c.ng*3),GC=new Float32Array(c.ng*3),BP=new Float32Array(c.nb*BS*9),BC=new Float32Array(c.nb*BS*12);
@@ -5076,7 +5092,7 @@ const matKey=m=>{if(m.onBeforeCompile!==THREE.Material.prototype.onBeforeCompile
 const emis=m=>!!(m.emissive&&(m.emissive.r+m.emissive.g+m.emissive.b)>0);
 const canBakeVC=m=>m.isMeshStandardMaterial&&!emis(m)&&!m.isMeshPhysicalMaterial&&!m.map&&!m.emissiveMap&&!m.normalMap&&!m.roughnessMap&&!m.metalnessMap&&!m.alphaMap&&!m.envMap&&!m.userData.keyed&&m.onBeforeCompile===THREE.Material.prototype.onBeforeCompile&&m.customProgramCacheKey===THREE.Material.prototype.customProgramCacheKey;
 const vcKeyOf=m=>['VC',m.type,m.roughness,m.metalness,m.side,m.transparent,m.opacity,!!m.flatShading,m.envMapIntensity,m.emissive?m.emissive.getHexString():'',m.emissiveIntensity,m.depthWrite,m.depthTest,m.blending,m.toneMapped,m.fog,m.alphaTest,m.polygonOffset,m.polygonOffsetFactor,m.polygonOffsetUnits,m.dithering].join('|');
-function vcMatFor(key,m){const C=world.userData.vcMats||(world.userData.vcMats={});let v=C[key];if(!v){v=m.clone();v.color.set('#ffffff');v.vertexColors=true;v.userData.shared=true;v.userData.noMerge=true;if(v.isMeshStandardMaterial&&!v.map)surfify(v,.2);C[key]=v;}return v;}
+function vcMatFor(key,m){const C=world.userData.vcMats||(world.userData.vcMats={});let v=C[key];if(!v){v=m.clone();v.color.set('#ffffff');v.vertexColors=true;v.userData.shared=true;v.userData.noMerge=true;if(v.isMeshStandardMaterial&&!v.map)surfify(v,.26);C[key]=v;}return v;}
 function snapWorld(){if(!world)return null;world.updateMatrixWorld(true);const S=new Map();world.traverse(o=>{if(o.isMesh&&!o.isInstancedMesh)S.set(o,[o.matrixWorld.toArray(),o.visible,matSig(o.material)]);});return S;}
 function dynWorld(S){const D=new Set();if(!S||!world)return D;world.updateMatrixWorld(true);world.traverse(o=>{if(!o.isMesh||o.isInstancedMesh)return;const a=S.get(o);if(!a){D.add(o);return;}const e=o.matrixWorld.elements;for(let i=0;i<16;i++)if(Math.abs(e[i]-a[0][i])>1e-4){D.add(o);return;}if(o.visible!==a[1]||matSig(o.material)!==a[2])D.add(o);});return D;}
 function mergeStatic(D){if(!world||world.userData.merged)return null;world.userData.merged=true;world.updateMatrixWorld(true);const groups=new Map(),BIN=1000;let tot=0;
@@ -5605,7 +5621,10 @@ document.querySelectorAll('#clsSeg button').forEach(b=>b.onclick=()=>{clsKey=b.d
 document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{mode=b.dataset.m;store.set('crust-mode',mode);if(mode==='gp'){const t=CUP_TRACKS[cupIdx][0];if(t!==mapIdx){mapIdx=t;loadMap(t,false);resetRace(true);}}refreshMenu();});
 document.querySelectorAll('#qual button').forEach(b=>b.onclick=()=>{qKey=b.dataset.q;store.set('crust-q',qKey);applyQuality();refreshMenu();});
 function applyQuality(){const q=QUAL[qKey];LIVQ.value=q.hqAll?2:qKey==='sharp'?1:0;{const X=q.sx||115;Object.assign(sun.shadow.camera,{left:-X,right:X,top:X,bottom:-X});sun.shadow.camera.updateProjectionMatrix();rimL.intensity=q.hqAll?.28:0;}renderer.shadowMap.type=q.soft?THREE.PCFSoftShadowMap:THREE.PCFShadowMap;sun.shadow.mapSize.set(q.sm,q.sm);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
-  scene.traverse(o=>{if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.needsUpdate=true);});pr=Math.min(DPR,q.start);capPR=Math.min(DPR,q.cap);raisedAt=-1;ladBest=0;{const v=+store.get(ladKey());applyLad(v>0?v:0,false);}fit();}
+  /* shaders only need rebuilding when something baked into them changes (the shadow filter, the surface-detail level); every other
+     preset switch keeps its programs, which spares a multi-second compile stall on PC drivers (the graphics test switches four times) */
+  {const sig=renderer.shadowMap.type+'|'+(LOWQF()?0:(q.hqAll||qKey==='sharp')?2:1);if(applyQuality.sig!==sig){applyQuality.sig=sig;scene.traverse(o=>{if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.needsUpdate=true);});}}
+  pr=Math.min(DPR,q.start);capPR=Math.min(DPR,q.cap);raisedAt=-1;ladBest=0;{const v=+store.get(ladKey());applyLad(v>0?v:0,false);}fit();}
 let menuStep='home';
 function goStep(st){menuStep=st;if(st==='home')requestAnimationFrame(fitLogo);if(st==='kart'){document.querySelectorAll('#menu .step').forEach(e=>e.hidden=e.dataset.step!=='driver');openGarage();return;}document.querySelectorAll('#menu .step').forEach(e=>e.hidden=e.dataset.step!==st);menu.hidden=false;refreshMenu();}
 function refreshMenu(){requestAnimationFrame(fitLogo);document.querySelectorAll('#qual button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.q===qKey));$('qualNote').textContent=QUAL[qKey].note;document.querySelectorAll('#clsSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.c===clsKey));$('clsNote').textContent=CLASSES[clsKey].note;document.querySelectorAll('#modeSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===mode));
@@ -6905,7 +6924,8 @@ function scrTrack(now){const ri=now-(SCR.l||now);SCR.l=now;if(ri>3&&ri<60)SCR.a.
    frame rate (the on-screen HUD, and everything at its lowest). At the end the best preset for this device is picked and applied. */
 let BENCH_STEPS=[];
 function benchPresets(){return [COARSE?'ultraM':'ultra','sharp','balanced','fast'];}
-function benchSetQ(k){qKey=k;applyQuality();applyLad(0,false);DRS.s=1;benchWarm();}
+function benchSetQ(k){/* say what is coming first, then switch on the next frame: the shader build that follows can freeze the picture for a moment on PC, and the banner tells the player why */
+  showBanner(qName(k)+' \u00b7 loading',1.4,'sm');setTimeout(()=>{if(!BENCH.on)return;qKey=k;applyQuality();applyLad(0,false);DRS.s=1;benchWarm();},60);}
 /* a preset switch changes shaders (livery quality), target formats (anti-aliasing, size) and the shadow map: on iPhones Metal then builds a new
    pipeline for every material the first time it is drawn, which made the first seconds of each step run at half speed and the test blame the
    preset. Draw everything once into the real targets before the step's measuring window opens, exactly as a race does on its loading screen. */
@@ -6941,7 +6961,7 @@ function benchEnd(abort){const B=BENCH;if(!B.on)return;if(B.i<BENCH_STEPS.length
   B.pickR=benchPick();qKey=B.prevQ;CFG.fps=B.prevFps;applyQuality();DRS.s=B.ds;try{refreshMenu();refreshSettings();}catch(e){}
   benchShow();}
 function benchUndo(){const B=BENCH;if(!B.prevQ)return;qKey=B.prevQ;store.set('crust-q',qKey);CFG.fps=B.prevFps;saveCfg();applyQuality();try{refreshMenu();refreshSettings();}catch(e){}$('benchChosen').textContent='Your previous settings are back: '+qName(qKey)+', frame rate '+(CFG.fps==='60'?'60 fps':CFG.fps==='max'?'Max':'Auto')+'.';$('benchUndo').hidden=true;for(const id of ['benchUse120','benchUse60'])$(id).classList.remove('on');}
-function benchText(){const B=BENCH,I=B.info||{},f=(v,d)=>(+v).toFixed(d);let t='Crust Rush graphics test · '+new Date().toISOString().replace('T',' ').slice(0,16)+'\ndevice: '+navigator.userAgent.replace(/Mozilla\/5\.0 \(|\).*/g,'').slice(0,60)+
+function benchText(){const B=BENCH,I=B.info||{},f=(v,d)=>(+v).toFixed(d);let t='Crust Rush graphics test · '+new Date().toISOString().replace('T',' ').slice(0,16)+'\ndevice: '+navigator.userAgent.replace(/Mozilla\/5\.0 \(|\).*/g,'').slice(0,60)+(typeof GLR==='string'&&GLR?' · GPU: '+GLR.replace(/ANGLE \(|\)$|Direct3D11 vs_5_0 ps_5_0, |, OpenGL 4\.\d.*$/g,'').slice(0,70):'')+
     '\npreset '+I.q+' · 3D buffer '+I.w+'×'+I.h+' (pixel ratio '+f(I.pr||1,2)+') · anti-aliasing '+(I.ms||0)+'× · compact colour buffer '+(I.r11?'yes':'no')+' · shadow map '+I.sm+' · screen '+I.hz+' Hz · frame rate setting '+I.fps+' · automatic quality step '+(I.lad||0)+' of '+(LADS.length-1)+'\n'+(B.pickR?'for 120: '+qName(B.pickR.o120.pick)+' ('+B.pickR.o120.got+' fps) · for 60: '+qName(B.pickR.o60.pick)+' ('+B.pickR.o60.got+' fps)\n':'')+(()=>{const d=benchDrift();return d.pct>=5?'heat check: the same settings ran '+d.pct+'% slower at the end of the test than at the start (the phone warmed up); later rows are pessimistic and the recommendations are corrected for it\n':d.pct<=-5?'heat check: the same settings ran '+(-d.pct)+'% faster at the end than at the start\n':'heat check: steady\n';})()+'\nfps   heat-corr   median ms   slow 10% ms   3D CPU ms   all JS ms   draws   k-tris   test\n';
   for(const r of B.res)t+=(f(r[1],0)).padStart(3)+'   '+f(benchFpsAdj(r),0).padStart(9)+'   '+f(r[2],1).padStart(9)+'   '+f(r[3],1).padStart(11)+'   '+f(r[4],1).padStart(9)+'   '+f(r[5]||0,1).padStart(10)+'   '+String(r[8]||0).padStart(5)+'   '+String(r[9]||0).padStart(6)+'   '+r[0]+'\n';return t;}
 function benchShow(){const ov=$('benchOv'),pk=BENCH.pickR;$('benchText').textContent=benchText();if(pk){const a=pk.o120,b=pk.o60;
