@@ -4169,6 +4169,9 @@ function tdTick(){const bar=$('tdBar'),tag=$('tdTag');if(!bar)return;const live=
   if(live)for(const sc of [...TD.ch.keys()]){let dj=player.idx-sc.b;if(dj<0)dj+=N;if(dj>20&&dj<140&&!player.sc){TD.ch.delete(sc);if(TD.sc===sc)TD.sc=null;}}
   if(bar.hidden===show)bar.hidden=!show;}
 function tdPick(take){if(TD.sc)TD.ch.set(TD.sc,!!take);tdTick();}
+/* Delivery Rush drives your kart for you: it uses the auto-drive line (racing line, trap and traffic dodging, straight into shortcut mouths)
+   instead of the plain CPU driver, and never fires your items */
+function rushInput(k,dt){const o=aiInput(k,dt);try{tdDrive(k,o);}catch(e){}o.use=false;o.hold=false;o.release=null;return o;}
 /* graphics test under load: a quiet lap would flatter every preset. While the test runs the kart fires a heavy item every 1.6 s (explosions,
    flour clouds, trails, thrown slices and traps), two rivals are handed items every 2.5 s and use them in their own time, and every 5 s the
    kart drifts for 2.6 s and lets go for a boost (sparks, speed lines, the glow pass working hardest). Single player only; items are given
@@ -4926,7 +4929,7 @@ function stepKart(k,inp,dt){
     else k.speed+=(max-k.speed)*Math.min(1,dt*1.5);
     if(!k.air){const ca=Math.cos(k.ma),sa=Math.sin(k.ma),sl=(groundAt(k.x+ca*5,k.y+sa*5)-groundAt(k.x-ca*5,k.y-sa*5))/10;k.speed-=sl*165*dt;}
     const sp=Math.abs(k.speed),dir=(k.speed<0?-1:1)*(k.air&&k.big?.35:1);
-    const hs=clamp((sp-40)/(BASE_MAX-40),0,1),lo=sp<1?0:Math.min(1,sp/35),tfN=lo*(1-.66*hs)*(isHuman(k)?1:1.4)*sm.hnd,tfD=lo*(1-.38*hs)*1.02*sm.hnd*(1+.55*clamp((sp-BASE_MAX)/(BASE_MAX*.58),0,1));/* drifting: a touch tighter than before, and much tighter above top speed so a boost doesn't carry you wide */
+    const hs=clamp((sp-40)/(BASE_MAX-40),0,1),lo=sp<1?0:Math.min(1,sp/35),tfN=lo*(1-.52*hs)*(isHuman(k)?1:1.4)*sm.hnd*(1+.4*clamp((sp-BASE_MAX)/(BASE_MAX*.58),0,1))/* steering keeps more authority at speed, and gains some above top speed, so a boost (an item's or an ability's) can still be steered through a bend */,tfD=lo*(1-.38*hs)*1.02*sm.hnd*(1+.55*clamp((sp-BASE_MAX)/(BASE_MAX*.58),0,1));/* drifting: a touch tighter than before, and much tighter above top speed so a boost doesn't carry you wide */
     let dRel=false;if(k.spin>0||k.sink!=null)k.dLatch=false;if(dPress&&k.air&&!k.drift){if(!trickNow&&!(k.glide&&(k.gH||0)>16)){k.dLatch=!k.dLatch;k.dWant=0;}}/* tapped mid-air (jump or glide): stay armed and drift the moment you land */else if(dPress&&k.drift&&!k.air)dRel=true;else{if(dPress&&!k.drift)k.dWant=.6;if(k.dWant>0&&inp.brake)k.dWant=Math.max(k.dWant,.12);
       if(k.dLatch&&!k.drift&&!k.air){if(sp>40){k.dLatch=false;k.dWant=0;k.drift=1;k.charge=0;k.dAmt=.35;k.tier=0;k.dTime=0;k.sT=0;k.dHold=0;if(k===player)SFX.hop();}else if(sp<30)k.dLatch=false;}
       if(k.dWant>0&&!k.drift&&!k.air&&sp>55&&!(!isHuman(k)&&k.boost>0&&k.bAge<.8)){k.dWant=0;k.drift=1;k.charge=0;k.dAmt=0;k.tier=0;k.dTime=0;k.sT=0;k.dHold=0;k.air=true;k.big=false;k.airT=0;k.wvy=(k.gRate||0)+18;if(k===player)SFX.hop();}}
@@ -5003,7 +5006,7 @@ function update0(dt){
   for(const r of rollers){const p=track[r.j];r.lat=Math.sin(simTime*1.05+r.ph)*(RW+6);r.x=p.x+p.nx*r.lat;r.y=p.y+p.ny*r.lat;
     for(const k of karts){if(!k.loop&&k.z<14&&(k.x-r.x)**2+(k.y-r.y)**2<306)spinOut(k,'meat',1);}}
   updateHazards(dt);itemsTick(dt);abilityTick(dt);if(abilQueued){abilQueued=false;if(player&&state==='race')useAbility(player);}
-  for(const k of karts){k.px=k.x;k.py=k.y;k.pa=k.a;k.pma=k.ma;k.pz=k.z;k.pwy=k.wy;k.pth=k.loopTh||0;if(k.netId&&!k.finished){const n=netSteps(k);k.stall=n===0?Math.min(30,(k.stall||0)+(k.speed>1?1:0)):Math.max(0,(k.stall||0)-(n-1));k.nst=n;for(let s2=0;s2<n;s2++){const inp=netInput(k);if(k.rush>0)inp.use=false;stepKart(k,inp,dt);netApplyClaims(k);}continue;}const inp=(k.isPlayer&&!k.auto&&!(k.rush>0&&!(k.megaT>0)&&!(k.pestoT>0)))?playerInput():aiInput(k,dt);/* abilities keep your own steering and drifting; only the rush items drive for you */if(k.rush>0)inp.use=false;stepKart(k,inp,dt);}
+  for(const k of karts){k.px=k.x;k.py=k.y;k.pa=k.a;k.pma=k.ma;k.pz=k.z;k.pwy=k.wy;k.pth=k.loopTh||0;if(k.netId&&!k.finished){const n=netSteps(k);k.stall=n===0?Math.min(30,(k.stall||0)+(k.speed>1?1:0)):Math.max(0,(k.stall||0)-(n-1));k.nst=n;for(let s2=0;s2<n;s2++){const inp=netInput(k);if(k.rush>0)inp.use=false;stepKart(k,inp,dt);netApplyClaims(k);}continue;}const inp=(k.isPlayer&&!k.auto&&!(k.rush>0&&!(k.megaT>0)&&!(k.pestoT>0)))?playerInput():(k.isPlayer&&k.rush>0?rushInput(k,dt):aiInput(k,dt));/* abilities keep your own steering and drifting; only the rush items drive for you */if(k.rush>0)inp.use=false;stepKart(k,inp,dt);}
   for(let i=0;i<karts.length;i++)for(let j=i+1;j<karts.length;j++){const a=karts[i],b=karts[j];if(MULTI&&Math.abs((a.wy||0)-(b.wy||0))>18)continue;const dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy,mg=(a.megaT>0)!==(b.megaT>0);
     if(d2<(mg?784:361)&&d2>0&&!a.loop&&!b.loop){const sa2=a.shield>0||(a.rush>0&&!(a.pestoT>0)),sb2=b.shield>0||(b.rush>0&&!(b.pestoT>0)),am=a.megaT>0,bm=b.megaT>0;if(am!==bm){if(megaCrush(am?a:b,am?b:a))continue;/* rolled over: no shove */if(d2>=361)continue;}else if(sa2&&!sb2)spinOut(b,'garlic');else if(sb2&&!sa2)spinOut(a,'garlic');const d=Math.sqrt(d2),p=(19-d)/2,nx=dx/d,ny=dy/d,wa=a.sm.wgt,wb=b.sm.wgt;let ra=1.6*wb/(wa+wb),rb=1.6*wa/(wa+wb);
       /* online: a friend's kart (predicted on their own screen) is never shoved by the host; the other kart takes the whole push, so there is nothing to correct afterwards */
