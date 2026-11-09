@@ -5561,7 +5561,7 @@ $('netLogBtn').onclick=netLogOpen;$('netLogDone').onclick=()=>{$('netLogOv').hid
 addEventListener('keydown',e=>{if(!SPEC.on||e.repeat)return;const c=e.code;let h=true;
   if(c==='ArrowLeft'||c==='KeyA')specNext(-1);else if(c==='ArrowRight'||c==='KeyD')specNext(1);else if(c==='KeyC'||c==='KeyV'||c==='Tab')specCam();else if(c==='Escape'||c==='Backspace')specExit(true);else h=false;
   if(h){e.preventDefault();e.stopImmediatePropagation();}},true);
-function renderResults(){if(NET.cfg){finalizeRace();renderResultsNet();const pl=pbLine();if(pl)resSub.innerHTML=resSub.textContent.replace(/[<>&]/g,'')+'<br>'+pl;return;}renderResults0();const pl=pbLine();if(pl)resSub.innerHTML=resSub.textContent.replace(/[<>&]/g,'')+'<br>'+pl;}
+function renderResults(){try{$('trackBtn').hidden=!!(gp||NET.cfg||NET.role);}catch(e){}if(NET.cfg){finalizeRace();renderResultsNet();const pl=pbLine();if(pl)resSub.innerHTML=resSub.textContent.replace(/[<>&]/g,'')+'<br>'+pl;return;}renderResults0();const pl=pbLine();if(pl)resSub.innerHTML=resSub.textContent.replace(/[<>&]/g,'')+'<br>'+pl;}
 function renderResults0(){finalizeRace();$('specBtn').hidden=true;$('resNetLog').hidden=true;const st=standings();const me=player.place||st.indexOf(player)+1,cl=CLASSES[clsKey].label;
   const row=(k,i,right,extra)=>'<li class="'+(k===player?'me':'')+'"><span class="pl">'+(i+1)+'</span><span class="sw" style="background:'+k.r.color+'"></span><span>'+k.r.name+(k===player?' (you)':'')+'</span><span class="tm">'+(extra||'')+right+'</span></li>';
   resList.innerHTML=st.map((k,i)=>row(k,i,(k.est?'~':'')+fmt(k.finishTime))).join('');
@@ -5575,7 +5575,7 @@ function renderResults0(){finalizeRace();$('specBtn').hidden=true;$('resNetLog')
 function togglePause(){if(!results.hidden)return;/* nothing to pause once the results are up */if(window.__clearInput)window.__clearInput();if(NET.cfg&&(state==='race'||state==='countdown'||state==='netwait')){pauseOv.hidden=!pauseOv.hidden;return;}if(state==='race'||state==='countdown'){pauseOv._prev=state;state='paused';pauseOv.hidden=false;if(engGain)engGain.gain.value=0;}
   else if(state==='paused'){state=pauseOv._prev;pauseOv.hidden=true;last=performance.now();}}
 $('startBtn').onclick=startFromMenu;$('againBtn').onclick=()=>{if(gp){if(gp.race>=3)startGP();else{gp.race++;goRace(CUP_TRACKS[gp.cup][gp.race]);}}else goRace(mapIdx);};$('restartBtn').onclick=()=>{if(gp)gp.pts.forEach((v,i)=>gp.pts[i]=v);startRace();};
-$('toMenuBtn').onclick=toMenu;$('mpBtn').onclick=()=>netShowLobby();$('mpBadge').onclick=()=>netShowLobby();$('mpClose').onclick=()=>netHideLobby();$('quitBtn').onclick=toMenu;$('resumeBtn').onclick=togglePause;$('pauseBtn').addEventListener('pointerup',e=>{e.preventDefault();togglePause();});
+$('toMenuBtn').onclick=toMenu;$('trackBtn').onclick=()=>{toMenu();goStep('track');};/* straight to the track list, keeping driver, kart, class and mode */$('mpBtn').onclick=()=>netShowLobby();$('mpBadge').onclick=()=>netShowLobby();$('mpClose').onclick=()=>netHideLobby();$('quitBtn').onclick=toMenu;$('resumeBtn').onclick=togglePause;$('pauseBtn').addEventListener('pointerup',e=>{e.preventDefault();togglePause();});
 const setOv=$('setOv'),howOv=$('howOv'),fpsEl=$('fpsEl');let setFrom=null;
 const BOOLK=['shadows','sharpen','showfps','shake','mini','ghost','music','fullscr'];
 const cfgVal=k=>k==='sound'?!muted:k==='stats'?statsOn:CFG[k];
