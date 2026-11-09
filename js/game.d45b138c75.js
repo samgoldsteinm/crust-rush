@@ -2828,7 +2828,7 @@ function balanceLook(def){const T0=LOOKBAL[def.theme]||{},M0=LOOKBAL[def.id]||{}
   hemi.intensity*=fill;renderer.toneMappingExposure*=exp;GROUND_DIM=M0.ground??T0.ground??1;const G=POST.grade;G.con=(G.con||1)+(T0.con||0);G.sat=(G.sat||1)+(T0.sat||0);
   /* punch: a darker base tone with the sun doing more of the work, so lit faces, shadows and light sources read against each other
      instead of everything sitting in the same bright sky fill (night keeps most of its fill: its lights are the picture) */
-  if(CFG.look!=='classic'){const night=def.theme==='night';hemi.intensity*=night?.88:.7;sun.intensity*=night?1.12:1.25;renderer.toneMappingExposure*=night?1:.96;G.con+=night?.03:.06;G.sat+=night?.04:.07;}}
+  if(CFG.look!=='classic'){const night=def.theme==='night';hemi.intensity*=night?.88:.7;sun.intensity*=night?1.12:1.25;renderer.toneMappingExposure*=night?1:.96;G.con+=night?.03:.06;G.sat+=night?.02:.035;/* saturation eased back a little: the darker base already makes the colour read richer */}}
 function varSky(def){const L=VARLOOK[def.id];if(!L||!(L.pano||L.sky))return;if(sky)world.remove(sky);sky=L.pano?panoSky(L.pano,L.tint,L.rot):skyDome(L.sky,sunDir,L.sun?L.sun[0]:'#ffffff');world.add(sky);}
 
 /* ================= MOVING HAZARDS: slow traffic, a level-crossing train, wandering critters, pools and drive-through city blocks ================= */
