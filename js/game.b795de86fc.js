@@ -59,7 +59,7 @@ Object.assign(SVG,{
   rush:'<svg viewBox="0 0 24 24"><path d="M1.5 15l5.5-2.5 3 1-4 3.5z" fill="#ff9a1f"/><path d="M1 11.5h4.5M2.5 19h3" stroke="#ffd36b" stroke-width="1.6" stroke-linecap="round"/><rect x="8" y="8" width="14" height="9" rx="1.6" fill="#f5ead2" stroke="#d6402a" stroke-width="1.4"/><path d="M15 9.6l-3 6h6z" fill="#d6402a"/></svg>',
   freezer:'<svg viewBox="0 0 24 24"><g stroke="#8fd8ff" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M3.3 7l17.4 10M3.3 17l17.4-10"/><path d="M9.5 3.5L12 6l2.5-2.5M9.5 20.5L12 18l2.5 2.5"/></g><circle cx="12" cy="12" r="2.6" fill="#dff4ff"/></svg>'});
 const ITEM_KEYS=['chili','pepperoni','oil','dough','trio','garlic','flour','wheel','rush','freezer'];
-const HELP={chili:['Chili Boost','A burst of speed that works even on the cheese.'],pepperoni:['Pepperoni','Fires straight ahead and bounces off the crust walls.'],oil:['Olive Oil','Drops a slick on the road behind you. Karts that drive through it spin out.'],dough:['Dough Ball','Rolls forward and chases down the racer ahead of you.'],trio:['Pepperoni Trio','Fires three pepperoni ahead at once in a spread.'],garlic:['Garlic Shield','A garlic bubble that stays on until something hits you. It blocks one item or special ability.'],flour:['Flour Bomb','Lobbed ahead, it bursts into a cloud that spins out everyone nearby.'],wheel:['Pizza Wheel','A rolling cutter that chases down whoever is in first. Only shows up for racers near the back.'],rush:['Delivery Rush','Autopilot at full speed for a few seconds, plowing through anyone in the way.'],freezer:['Freezer Blast','Slows down every racer ahead of you for a few seconds.']};
+const HELP={chili:['Chili Boost','A burst of speed that works even on the cheese.'],pepperoni:['Pepperoni','Fires straight ahead and bounces off the crust walls. Fires behind you while you look back.'],oil:['Olive Oil','Drops a slick on the road behind you. Karts that drive through it spin out.'],dough:['Dough Ball','Rolls forward and chases down the racer ahead of you, or the one behind you while you look back.'],trio:['Pepperoni Trio','Fires three pepperoni at once in a spread, ahead or, while you look back, behind you.'],garlic:['Garlic Shield','A garlic bubble that stays on until something hits you. It blocks one item or special ability.'],flour:['Flour Bomb','Lobbed ahead (or behind you while you look back), it bursts into a cloud that spins out everyone nearby.'],wheel:['Pizza Wheel','A rolling cutter that chases down whoever is in first. Only shows up for racers near the back.'],rush:['Delivery Rush','Autopilot at full speed for a few seconds, plowing through anyone in the way.'],freezer:['Freezer Blast','Slows down every racer ahead of you for a few seconds.']};
 for(const k of ITEM_KEYS){document.getElementById('h-'+k).innerHTML=SVG[k]+'<span><b>'+HELP[k][0]+'.</b> '+HELP[k][1]+'</span>';}
 
 let seed=20261101;const rnd=()=>{seed=(seed*16807)%2147483647;return (seed-1)/2147483646;};
@@ -4197,13 +4197,15 @@ function benchLoad(k,o){const B=BENCH,L=B.load||(B.load={t:0,ni:1,nr:2,ii:0});L.
   if(L.t>=L.ni){if(!k.item&&!k.held&&!(k.roll>0))k.item=BLOAD_ITEMS[L.ii++%BLOAD_ITEMS.length];if(k.item&&k.spin<=0){o.use=true;o.back=DROPS.includes(k.item);L.ni=L.t+1.6;}}
   if(L.t>=L.nr){L.nr=L.t+2.5;let n=0;for(const r of karts){if(r===k||r.item||r.finished||!r.ai)continue;r.item=BLOAD_ITEMS[(L.ii+n*3)%BLOAD_ITEMS.length];r.ai.itemDelay=.3;if(++n>=2)break;}}
   const ph=L.t%5;if(ph<2.6&&(k.drift||(k.speed>70&&!k.air)))o.brake=true;}
+/* looking back: the rear-view button or key held, or a controller's left stick pulled back */
+const lookingBack=()=>!!(keys.look||PAD.look||(PAD.act&&PAD.back));
 function playerInput(){const it=itemQueued;itemQueued=null;const o={steer:clamp((keys.right?1:0)-(keys.left?1:0)+(PAD.act?PAD.steer:0),-1,1),brake:keys.brake||(PAD.act&&PAD.brake),nb:!keys.brake&&PAD.act&&!!PAD.nb,mul:PAD.act&&!PAD.gas&&performance.now()-PAD.lastUse<20000?0:1,use:false,back:false,hold:false,holdSl:1,release:null};
   /* tap the dimmed slot to fire the item you are holding; swipe it down to leave it on the track. In a friends' race the host does this for you. */
   if(TD.on&&player&&state==='race'&&!player.finished){tdDrive(player,o);if(BENCH.on&&!NET.cfg)benchLoad(player,o);}
-  if(NET.role==='guest'&&NET.cfg){o.ev=it||0;return o;}
+  if(NET.role==='guest'&&NET.cfg){o.ev=it?(it.startsWith('fwd')&&lookingBack()?it+'B':it):0;/* 'fwdB' / 'fwd2B': fire that slot behind */return o;}
   if(it&&player)itemIntent(player,it,o);
   /* looking in the mirror: anything you fire goes the way you are looking (traps already drop behind; self-use items are unaffected) */
-  if(o.use&&player&&player.item&&(keys.look||PAD.look||(PAD.act&&PAD.back))&&!NOBACK.includes(player.item))o.back=true;
+  if(o.use&&player&&player.item&&lookingBack()&&!NOBACK.includes(player.item))o.back=true;
   return o;}
 
 /* ---------- audio ---------- */
@@ -4551,14 +4553,14 @@ function itemMesh(type){const o=itemProto(type).clone();o.userData.mk=type;if(IT
 /* ================= EXTRA ITEMS (15 more, 25 in total) ================= */
 const NEWITEMS={
   jalapeno:['Jalapeño Triple','Three quick green boosts. Tap once for each.','#4fd02a'],
-  meatball:['Bowling Meatball','A heavy meatball that rolls straight and bowls over everyone in its path. Bounces off the crust.','#9a5a32'],
+  meatball:['Bowling Meatball','A heavy meatball that rolls straight and bowls over everyone in its path. Bounces off the crust. Rolls backwards while you look back.','#9a5a32'],
   torpedo:['Anchovy Torpedo','A fast homing fish that hunts the racer directly ahead.','#8fc8e8'],
   shroom:['Spring Shroom','A huge springy jump with a burst of speed. Hop clean over traps and hazards.','#e05a3a'],
   magnet:['Pizza Magnet','Locks onto the racer ahead and reels you in fast.','#ff3b3b'],
   cutter:['Cutter Orbit','Three pizza cutters spin around your kart. Anyone who touches them spins out.','#d8dde3'],
   sauce:['Sauce Splat','Splatters sauce over every racer ahead, smearing their view and their steering.','#d8301c'],
   heat:['Heat Wave','A blast of oven heat that knocks back and shrinks every rival for a few seconds.','#ff7a1a'],
-  bomb:['Calzone Bomb','Lobbed ahead, it blows up in a big blast a moment later.','#e2b06a'],
+  bomb:['Calzone Bomb','Lobbed ahead (or behind you while you look back), it blows up in a big blast a moment later.','#e2b06a'],
   forks:['Fork Spikes','Scatters forks across the road behind you. Drive over them and you spin.','#c9ced6'],
   ghost:['Ghost Pepper','Fade out for a few seconds: nothing can hit you, and you steal the leader’s item.','#e8f6ff'],
   cannon:['Pizza Cannon','Fires you down the track at huge speed, steering itself dead straight and ploughing through anyone in the way.','#ffd23a'],
@@ -4762,26 +4764,26 @@ function sauceFx(on){if(!_sauceEl){_sauceEl=document.createElement('div');_sauce
 function heatFlash(){const e=document.createElement('div');e.className='heatfx';stage.appendChild(e);setTimeout(()=>e.remove(),900);if(player)shake(.8);}
 
 /* ================= CHARACTER ABILITIES: a special move that recharges every 30 seconds ================= */
-const ABIL={pep:['Pepperoni Storm','Fires a fan of six spinning pepperoni slices low along the track. Each slice ricochets between the track walls and off anything it hits (spinning out racers, smashing items) and vanishes on its third hit.','#ff5a2a'],
+const ABIL={pep:['Pepperoni Storm','Fires a fan of six spinning pepperoni slices low along the track, ahead or, while you look back, behind you. Each slice ricochets between the track walls and off anything it hits (spinning out racers, smashing items) and vanishes on its third hit.','#ff5a2a'],
   basil:['Pesto Rush','The longest ability boost: nothing can hit you while it lasts, and it ignores the slow cheese.','#3fd06a'],
   olive:['Slick Trail','Leaves a trail of olive-oil slicks behind. Drops five slicks; drive through one and your wheels get coated: no spin, but you are slowed a lot for 5 seconds.','#c8b23a'],
   mozz:['Melt Shield','Wraps the kart in stretchy cheese that blocks every hit for a while, with a quick burst of speed.','#fff4c0'],
   chili:['Fire Trail','A fiery boost that leaves burning flames on the road: anyone who drives into them spins out and catches fire. Nothing can hit you while it burns.','#ff3a12'],
   shroom:['Mega Shroom','Grows huge and unstoppable and flattens anyone it touches, front, side or back, even if they drive into you. They stay squashed and slow for 3 seconds. You can still steer and drift.','#c8a06a'],
   pineapple:['Spiky Shockwave','A big spiky blast that spins out every racer close around you.','#ffd23a'],
-  anchovy:['School of Fish','Launches three anchovies that hunt down the next three racers ahead. They always reach their target, but a well-timed hop dodges one.','#8fc8e8']};
+  anchovy:['School of Fish','Launches three anchovies that hunt down the next three racers ahead, or the three behind you if you launch them looking back. They always reach their target, but a well-timed hop dodges one.','#8fc8e8']};
 const ABIL_TIME=30,MEGA_T=5.5,PESTO_T=5.9;
 const abilKey=k=>k.r.name.toLowerCase();
-function useAbility(k){const id=abilKey(k),A=ABIL[id];if(!A||!(k.abC>=1)||k.loop||k.finished)return;k.abC=0;const st=standCache,i=st.indexOf(k),v=near(k);
+function useAbility(k,back){const id=abilKey(k),A=ABIL[id];if(!A||!(k.abC>=1)||k.loop||k.finished)return;k.abC=0;const st=standCache,i=st.indexOf(k),v=near(k);back=!!back;
   itemFx(k,A[2],50);spawnRing(k.x,(k.wy||0)+.6,k.y,A[2],70,.8);if(k===player){SFX.ability();showBanner(A[0],1.1,'sm');shake(.6);abilFlash(A[2]);}else if(v>0)SFX.ability();
-  if(id==='pep'){const vol=()=>{const n0=projectiles.length;fireItem(k,'trio',false);for(let q=n0;q<projectiles.length;q++){const P=projectiles[q];P.storm=1;P.hp=3;P.wb=0;P.t=8;}};vol();k.abQ=[[.25,vol]];}/* storm slices ricochet: walls, racers and items each count as a hit; the third hit ends the slice */
+  if(id==='pep'){const vol=()=>{const n0=projectiles.length;fireItem(k,'trio',back);for(let q=n0;q<projectiles.length;q++){const P=projectiles[q];P.storm=1;P.hp=3;P.wb=0;P.t=8;}};vol();k.abQ=[[.25,vol]];}/* storm slices ricochet: walls, racers and items each count as a hit; the third hit ends the slice */
   else if(id==='basil'){/* the longest ability boost (normal boost speed), untouchable while it lasts but it doesn't spin anyone out */k.boost=Math.max(k.boost,PESTO_T);k.rush=Math.max(k.rush||0,PESTO_T);k.pestoT=PESTO_T;k.abFx=PESTO_T;k.abCol=A[2];if(k===player)SFX.boost(3);}
   else if(id==='olive'){k.abQ=[0,.25,.5,.75,1].map(t=>[t,()=>hazards.push({x:k.x-Math.cos(k.ma)*22,y:k.y-Math.sin(k.ma)*22,t:25,born:0,owner:k,armed:false,olive:1,mesh:itemMesh('oil')})]);}
   else if(id==='mozz'){k.shield=7;k.mzH=3;k.boost=Math.max(k.boost,.7);k.pBoost=0;if(v>0)SFX.garlic(v||.3);}
   else if(id==='chili'){k.boost=Math.max(k.boost,2.2);k.fireT=2.2;k.chiliT=2.2;/* untouchable while it burns */k.abFx=2.2;k.abCol=A[2];if(k===player)SFX.chili();}
   else if(id==='shroom'){k.megaT=MEGA_T;}/* no speed boost: the size is the power */
   else if(id==='pineapple'){blast(k.x,k.y,130,k,'pep','#ffd23a');/* wide enough to catch the 3 or 4 karts packed around you */k.inv=Math.max(k.inv,.6);}
-  else if(id==='anchovy'){for(let j=1;j<=3;j++){const tg=st[i-j];const sp=360+Math.max(0,k.speed),an=k.a+(j-2)*.25;projectiles.push({type:'torp',custom:1,x:k.x+Math.cos(an)*12,y:k.y+Math.sin(an)*12,vx:Math.cos(an)*sp,vy:Math.sin(an)*sp,t:tg?600:8,sure:tg?1:0,owner:k,safe:.3,b:0,target:tg||null,mesh:itemMesh('torpedo')});}SFX.torpedo(v||.4);}}
+  else if(id==='anchovy'){for(let j=1;j<=3;j++){const tg=st[back?i+j:i-j];/* looking back: the three behind you */const sp=360+Math.max(0,k.speed),an=k.a+(back?Math.PI:0)+(j-2)*.25;projectiles.push({type:'torp',custom:1,x:k.x+Math.cos(an)*12,y:k.y+Math.sin(an)*12,vx:Math.cos(an)*sp,vy:Math.sin(an)*sp,t:tg?600:8,sure:tg?1:0,owner:k,safe:.3,b:0,target:tg||null,mesh:itemMesh('torpedo')});}SFX.torpedo(v||.4);}}
 function abilityTick(dt){for(const k of karts){if(state==='race'&&!k.finished&&!(k.abC>=1)){k.abC=Math.min(1,(k.abC||0)+dt/ABIL_TIME);if(k===player&&k.abC>=1){SFX.ready();abilBtn&&abilBtn.classList.add('ready');}}
     if(k.abQ&&k.abQ.length){for(const q of k.abQ)q[0]-=dt;while(k.abQ.length&&k.abQ[0][0]<=0)k.abQ.shift()[1]();}
     if(k.fireT>0){k.fireT-=dt;k.fireAcc=(k.fireAcc||0)+dt;if(k.fireAcc>.12){k.fireAcc=0;hazards.push({x:k.x-Math.cos(k.ma)*16,y:k.y-Math.sin(k.ma)*16,t:2.2,born:0,owner:k,armed:false,kind:'fire',mesh:fireMesh()});}}
@@ -5021,7 +5023,7 @@ function update0(dt){
   standCache=standings();simTime+=dt;achTick(dt);
   for(const r of rollers){const p=track[r.j];r.lat=Math.sin(simTime*1.05+r.ph)*(RW+6);r.x=p.x+p.nx*r.lat;r.y=p.y+p.ny*r.lat;
     for(const k of karts){if(!k.loop&&k.z<14&&(k.x-r.x)**2+(k.y-r.y)**2<306)spinOut(k,'meat',1);}}
-  updateHazards(dt);itemsTick(dt);abilityTick(dt);if(abilQueued){abilQueued=false;if(player&&state==='race')useAbility(player);}
+  updateHazards(dt);itemsTick(dt);abilityTick(dt);if(abilQueued){abilQueued=false;if(player&&state==='race')useAbility(player,lookingBack());}
   for(const k of karts){k.px=k.x;k.py=k.y;k.pa=k.a;k.pma=k.ma;k.pz=k.z;k.pwy=k.wy;k.pth=k.loopTh||0;if(k.netId&&!k.finished){const n=netSteps(k);k.stall=n===0?Math.min(30,(k.stall||0)+(k.speed>1?1:0)):Math.max(0,(k.stall||0)-(n-1));k.nst=n;for(let s2=0;s2<n;s2++){const inp=netInput(k);if(k.rush>0)inp.use=false;stepKart(k,inp,dt);netApplyClaims(k);}continue;}const inp=(k.isPlayer&&!k.auto&&!(k.rush>0&&!(k.megaT>0)&&!(k.pestoT>0)))?playerInput():(k.isPlayer&&k.rush>0?rushInput(k,dt):aiInput(k,dt));/* abilities keep your own steering and drifting; only the rush items drive for you */if(k.rush>0)inp.use=false;stepKart(k,inp,dt);}
   for(let i=0;i<karts.length;i++)for(let j=i+1;j<karts.length;j++){const a=karts[i],b=karts[j];if(MULTI&&Math.abs((a.wy||0)-(b.wy||0))>18)continue;const dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy,mg=(a.megaT>0)!==(b.megaT>0);
     if(d2<(mg?784:361)&&d2>0&&!a.loop&&!b.loop){const sa2=a.shield>0||(a.rush>0&&!(a.pestoT>0)),sb2=b.shield>0||(b.rush>0&&!(b.pestoT>0)),am=a.megaT>0,bm=b.megaT>0;if(am!==bm){if(megaCrush(am?a:b,am?b:a))continue;/* rolled over: no shove */if(d2>=361)continue;}else if(sa2&&!sb2)spinOut(b,'garlic');else if(sb2&&!sa2)spinOut(a,'garlic');const d=Math.sqrt(d2),p=(19-d)/2,nx=dx/d,ny=dy/d,wa=a.sm.wgt,wb=b.sm.wgt;let ra=1.6*wb/(wa+wb),rb=1.6*wa/(wa+wb);
@@ -6576,11 +6578,11 @@ function netLoaded(){state='netwait';showBanner('Waiting for racers…',30,'sm')
   if(NET.role==='guest'){netSend(NET.conns[0],{t:'loaded'});const L=NET.snaps[NET.snaps.length-1];if(L&&(L.gs==='race'||L.gs==='countdown'))netGo();}else{NET.loaded.add(0);netMaybeGo();}}
 function netGo(){if(state!=='netwait'&&state!=='intro')return;banner.textContent='';endIntro();NET.goT=performance.now();NETLOG.start();}
 /* ---------- host: inputs from friends, snapshots out ---------- */
-function itemIntent(k,it,o){const sl=it.endsWith('2')?2:1,isHold=it.startsWith('hold');
+function itemIntent(k,it,o){let bk=false;if(it.endsWith('B')){bk=true;it=it.slice(0,-1);}const sl=it.endsWith('2')?2:1,isHold=it.startsWith('hold');
   if(k.held&&k.held.sl===sl)o.release=isHold?'back':'fwd';
   else if(k.held){o.use=true;o.back=isHold;}
   else{if(sl===2&&k.item2&&!(k.roll>0)){const t=k.item;k.item=k.item2;k.item2=t;}
-    if(isHold&&k.item&&HOLDABLE[k.item]){o.hold=true;o.holdSl=sl;}else{o.use=true;o.back=isHold;}}}
+    if(isHold&&k.item&&HOLDABLE[k.item]){o.hold=true;o.holdSl=sl;}else{o.use=true;o.back=isHold||bk;}}}
 /* The host plays each friend's inputs exactly once and in order, so its copy of their kart drives the same path they
    drove on their own screen (otherwise every correction from the host would pull their kart back: the "teleporting").
    A small buffer, sized to the connection's jitter, absorbs packets that arrive in bursts. */
@@ -6595,7 +6597,7 @@ function netSteps(k){const id=k.netId,q=NET.inQ[id]||(NET.inQ[id]=[]),cn=NET.con
   /* a host that falls behind (a slow frame, a busy phone) catches up by playing several inputs per step instead of skipping any */
   return q.length>120?4:q.length>40?3:q.length>st.T*2+4?2:1;}
 function netInput(k){const q=NET.inQ[k.netId];while(q.length>1&&q[0][0]<=(NET.ack[k.netId]||0))q.shift();const e=q.shift();NET.ack[k.netId]=e[0];
-  const o={steer:+e[1]||0,brake:!!e[2],nb:!!e[6],mul:e[5]===0?0:1,use:false,back:false,hold:false,holdSl:1,release:null};if(e[3]&&k.spin<=0)itemIntent(k,e[3],o);if(e[4]&&state==='race')try{useAbility(k);}catch(_){}return o;}
+  const o={steer:+e[1]||0,brake:!!e[2],nb:!!e[6],mul:e[5]===0?0:1,use:false,back:false,hold:false,holdSl:1,release:null};if(e[3]&&k.spin<=0)itemIntent(k,e[3],o);if(e[4]&&state==='race')try{useAbility(k,e[4]===2);}catch(_){}return o;}
 const r3=v=>typeof v==='number'?Math.round(v*100)/100:v;
 const r5=v=>Math.round(v*1e5)/1e5;
 function netKScal(k){const o={};for(const key in k){if(NET_SKIP.has(key))continue;const v=k[key];const t=typeof v;if(t==='number')o[key]=r5(v);else if(t==='boolean'||t==='string'||v===null)o[key]=v;}
@@ -6658,7 +6660,7 @@ function netGuestStep(dt){simTime+=dt;standCache=standings();const k=player;
   /* the host runs the race: when they leave the app (or go silent) everyone waits together instead of driving on while the computer racers freeze */
   if((NET.hostAway||quiet)&&state==='race'&&!k.finished){if(!NET.awayShown){NET.awayShown=true;NETLOG.ev('host-quiet',0);showBanner('Waiting for the host…',600,'sm');}}else if(NET.awayShown){NET.awayShown=false;banner.textContent='';bannerT=0;}
   const hostRacing=LS&&LS.gs==='race'&&!NET.hostAway&&!quiet;
-  if(state==='race'&&!k.finished&&hostRacing){const raw=playerInput();const ev=raw.ev||0,ab=abilQueued?1:0;abilQueued=false;
+  if(state==='race'&&!k.finished&&hostRacing){const raw=playerInput();const ev=raw.ev||0,ab=abilQueued?(lookingBack()?2:1):0;abilQueued=false;
     const stq=Math.round(raw.steer*100)/100,mq=raw.mul===0?0:1;const inp={steer:stq,brake:raw.brake,nb:!!raw.nb,mul:mq,use:false,back:false,hold:false,holdSl:1,release:null};NET.seq++;NET.hist.push({seq:NET.seq,inp});if(NET.hist.length>480)NET.hist.shift();
     NET.outQ.push([NET.seq,stq,raw.brake?1:0,ev,ab,mq,raw.nb?1:0]);stepKart(k,inp,dt);netGuestClaims(k,NET.hist[NET.hist.length-1]);}
   netInterp(k.finished?null:k);if(state==='race'&&(hostRacing||k.finished))raceTime+=dt;}
