@@ -6864,7 +6864,9 @@ function rtcRoute(c){const pc=c&&c.pc;if(!pc||!pc.getStats||c.routeBusy)return;c
 const NETLOG={rows:[],evs:[],t0:0,on:false,last:0,b0:[0,0],fx0:0,gap0:0,sn0:0,
   start(){this.rows=[];this.evs=[];this.t0=performance.now();this.on=true;this.last=0;this.b0=[NET.bOut||0,NET.bIn||0];this.fixT=0;this.gapT=0;this.snT=0;this.skipT=0;this.fpsN=0;this.fpsT=performance.now();},
   ev(kind,x){if(!this.on||this.evs.length>400)return;const t=((performance.now()-this.t0)/1000).toFixed(1);const L=this.evs[this.evs.length-1];if(L&&L[1]===kind&&L[2]===x&&t-L[0]<1){L[3]=(L[3]||1)+1;return;}this.evs.push([+t,kind,x]);},
-  frame(){if(this.on)this.fpsN++;},
+  /* a frame gap over 250 ms is logged as a 'stall' event with the game state and how many shader programs appeared during it, so a
+     one-second freeze in a log can be told apart: shader compile (programs went up), a load, or something else */
+  frame(){if(!this.on)return;this.fpsN++;const now=performance.now();const np=renderer&&renderer.info.programs?renderer.info.programs.length:0;if(this.fT&&now-this.fT>250)this.ev('stall',(typeof state==='string'?state:'?')+' '+Math.round(now-this.fT)+'ms shaders+'+(np-(this.np||0)));this.fT=now;this.np=np;},
   tick(){if(!this.on)return;const now=performance.now();if(now-this.last<1000)return;this.last=now;const t=Math.round((now-this.t0)/1000);
     const fps=Math.round(this.fpsN*1000/Math.max(1,now-this.fpsT));this.fpsN=0;this.fpsT=now;const out=(NET.bOut||0)-this.b0[0],inn=(NET.bIn||0)-this.b0[1];this.b0=[NET.bOut||0,NET.bIn||0];
     let row;if(NET.role==='guest'){const c=NET.conns[0];const lag=Math.round(Math.max(0,NET.seq-(NET.ackRx||0))*STEP*1000);
