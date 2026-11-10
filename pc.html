@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crust Rush for PC</title>
+<meta name="description" content="Crust Rush, the 3D kart racer on giant pizzas, now as a native Windows game. Free download.">
+<meta property="og:title" content="Crust Rush for PC">
+<meta property="og:description" content="The kart racer on giant pizzas, now as a native Windows game. Free download.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://samgoldsteinm.github.io/crust-rush/pc.html">
+<meta property="og:image" content="https://samgoldsteinm.github.io/crust-rush/pc/poster.jpg">
+<meta property="og:image:width" content="1280"><meta property="og:image:height" content="720">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#160c09">
+<link rel="icon" type="image/png" href="pc/img/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --oven:#160c09;--oven-2:#25150f;--oven-3:#3a2218;--sauce:#e0452c;--sauce-dark:#7d1d0e;
+  --cheese:#f7c948;--cream:#fff4dc;--muted:#c2a58c;--basil:#45e07a;
+  --display:'Bungee',system-ui,sans-serif;--body:'Chakra Petch',system-ui,sans-serif;
+  --w:1120px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--oven);color:var(--cream);font-family:var(--body);font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:var(--cheese)}
+img,video{display:block;max-width:100%}
+.wrap{max-width:var(--w);margin:0 auto;padding:0 22px}
+
+/* top bar */
+.bar{position:sticky;top:0;z-index:20;background:rgba(22,12,9,.86);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid rgba(247,201,72,.12)}
+.bar .wrap{display:flex;align-items:center;gap:14px;height:62px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--cream);font-family:var(--display);font-size:19px;letter-spacing:.5px}
+.brand img{width:34px;height:34px;border-radius:9px}
+.brand small{font-family:var(--body);font-weight:700;font-size:11px;letter-spacing:2px;color:var(--oven);background:var(--cheese);padding:2px 7px;border-radius:5px}
+.bar nav{margin-left:auto;display:flex;gap:22px;align-items:center}
+.bar nav a{color:var(--muted);text-decoration:none;font-weight:600;font-size:15px}
+.bar nav a:hover{color:var(--cream)}
+.bar .mini{background:var(--cheese);color:var(--oven)!important;padding:7px 14px;border-radius:9px}
+@media (max-width:760px){.bar nav a:not(.mini){display:none}}
+
+/* hero */
+.hero{position:relative;padding:54px 0 40px;overflow:hidden}
+.hero:before{content:"";position:absolute;inset:-30% -10% auto;height:620px;background:radial-gradient(closest-side,rgba(224,69,44,.34),transparent 70%);pointer-events:none}
+.hero .wrap{position:relative;display:grid;grid-template-columns:1fr;gap:30px}
+.kicker{display:inline-flex;align-items:center;gap:8px;font-weight:700;letter-spacing:2.5px;font-size:13px;color:var(--cheese);text-transform:uppercase}
+.kicker i{width:8px;height:8px;border-radius:50%;background:var(--basil);box-shadow:0 0 12px var(--basil)}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(46px,9vw,104px);line-height:.92;margin:12px 0 0;letter-spacing:1px;color:var(--cheese);text-shadow:0 5px 0 var(--sauce-dark),0 12px 30px rgba(0,0,0,.5)}
+h1 span{display:block;color:var(--cream);font-size:.42em;letter-spacing:4px;margin-top:.35em;text-shadow:0 3px 0 var(--sauce-dark)}
+.lede{font-size:clamp(17px,2vw,20px);color:var(--muted);max-width:640px;margin:18px 0 0}
+.lede b{color:var(--cream)}
+
+.player{position:relative;border-radius:18px;overflow:hidden;background:#000;aspect-ratio:16/9;box-shadow:0 0 0 1px rgba(247,201,72,.18),0 30px 70px rgba(0,0,0,.55),0 0 90px rgba(224,69,44,.18)}
+.player video{width:100%;height:100%;object-fit:cover}
+@media (max-width:560px){.tag{font-size:12px}.sound{padding:7px 10px;font-size:13px}}
+.pbar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:-16px}
+.tag{font-size:13px;font-weight:600;color:var(--muted)}
+.tag b{color:var(--basil)}
+.sound{flex:none;display:flex;align-items:center;gap:8px;border:0;cursor:pointer;font:600 14px var(--body);color:var(--cream);background:var(--oven-3);padding:9px 14px;border-radius:10px}
+.sound:hover{background:#4a2c20}
+.sound svg{width:18px;height:18px}
+
+.cta{display:flex;flex-wrap:wrap;align-items:center;gap:16px 22px}
+.dl{display:inline-flex;align-items:center;gap:14px;text-decoration:none;background:linear-gradient(180deg,#ffd964,var(--cheese) 55%,#e9b22c);color:var(--oven);padding:16px 28px 16px 22px;border-radius:14px;font-family:var(--display);font-size:22px;letter-spacing:.5px;box-shadow:0 6px 0 #a0711a,0 14px 30px rgba(247,201,72,.25);transition:transform .12s,box-shadow .12s}
+.dl:hover{transform:translateY(-2px);box-shadow:0 8px 0 #a0711a,0 18px 36px rgba(247,201,72,.32)}
+.dl:active{transform:translateY(4px);box-shadow:0 2px 0 #a0711a,0 8px 18px rgba(247,201,72,.2)}
+.dl svg{width:30px;height:30px;flex:none}
+.dl small{display:block;font-family:var(--body);font-weight:600;font-size:13px;letter-spacing:.3px;opacity:.75;margin-top:2px}
+.meta{color:var(--muted);font-size:14.5px;line-height:1.6}
+.meta b{color:var(--cream)}
+.alt{color:var(--cream);font-weight:600;text-decoration:none;border-bottom:2px solid rgba(247,201,72,.4)}
+.alt:hover{border-color:var(--cheese)}
+
+/* sections */
+section{padding:64px 0}
+h2{font-family:var(--display);font-weight:400;font-size:clamp(28px,4vw,40px);line-height:1.05;margin:0 0 10px;color:var(--cream)}
+h2 em{font-style:normal;color:var(--sauce)}
+.sub{color:var(--muted);margin:0 0 30px;max-width:640px}
+
+.feats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media (max-width:900px){.feats{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:560px){.feats{grid-template-columns:1fr}}
+.card{background:linear-gradient(180deg,var(--oven-2),rgba(37,21,15,.55));border:1px solid rgba(247,201,72,.1);border-radius:16px;padding:22px}
+.card .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:rgba(224,69,44,.16);margin-bottom:14px}
+.card .ic svg{width:24px;height:24px;stroke:var(--cheese);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.card h3{margin:0 0 6px;font-size:19px;font-weight:700}
+.card p{margin:0;color:var(--muted);font-size:15.5px}
+
+.shots{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.shots figure{margin:0;border-radius:14px;overflow:hidden;background:var(--oven-2);border:1px solid rgba(247,201,72,.1)}
+.shots img{width:100%;aspect-ratio:16/9;object-fit:cover}
+.shots figcaption{padding:10px 14px;font-weight:600;font-size:14.5px;color:var(--muted)}
+.shots figcaption b{color:var(--cream)}
+@media (max-width:760px){.shots{grid-template-columns:1fr}}
+
+.tracks{display:grid;grid-auto-flow:column;grid-auto-columns:220px;gap:12px;overflow-x:auto;padding:4px 2px 16px;scroll-snap-type:x mandatory;scrollbar-color:var(--oven-3) transparent}
+.tracks figure{margin:0;scroll-snap-align:start;border-radius:12px;overflow:hidden;background:var(--oven-2);position:relative}
+.tracks img{width:220px;aspect-ratio:16/9;object-fit:cover}
+.tracks figcaption{position:absolute;inset:auto 0 0;padding:22px 10px 8px;font-weight:700;font-size:13.5px;background:linear-gradient(transparent,rgba(22,12,9,.92))}
+.tracks figcaption span{display:block;font-weight:500;font-size:11.5px;color:var(--cheese);letter-spacing:1px;text-transform:uppercase}
+
+.gfx{display:grid;grid-template-columns:1.1fr 1fr;gap:28px;align-items:center}
+@media (max-width:860px){.gfx{grid-template-columns:1fr}}
+.gfx ul{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.gfx li{display:flex;gap:12px;align-items:flex-start;color:var(--muted)}
+.gfx li b{color:var(--cream)}
+.gfx li:before{content:"";flex:none;width:10px;height:10px;margin-top:8px;border-radius:3px;background:var(--sauce);transform:rotate(45deg)}
+.gfx .pic{border-radius:16px;overflow:hidden;border:1px solid rgba(247,201,72,.12)}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:860px){.two{grid-template-columns:1fr}}
+.steps{counter-reset:s;list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.steps li{counter-increment:s;display:grid;grid-template-columns:38px 1fr;gap:12px;color:var(--muted)}
+.steps li:before{content:counter(s);width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);color:var(--oven);background:var(--cheese)}
+.steps b{color:var(--cream)}
+table{width:100%;border-collapse:collapse;font-size:15.5px}
+td{padding:10px 0;border-bottom:1px solid rgba(247,201,72,.1);vertical-align:top}
+td:first-child{color:var(--muted);width:42%;padding-right:12px}
+kbd{font:600 13px var(--body);background:var(--oven-3);border:1px solid rgba(255,244,220,.15);border-bottom-width:2px;border-radius:6px;padding:1px 7px;color:var(--cream);white-space:nowrap}
+
+.end{text-align:center;padding:70px 0 80px;background:radial-gradient(closest-side at 50% 60%,rgba(224,69,44,.22),transparent)}
+.end h2{font-size:clamp(32px,5vw,52px);color:var(--cheese)}
+.end .cta{justify-content:center;margin-top:22px}
+footer{border-top:1px solid rgba(247,201,72,.1);padding:26px 0 40px;color:var(--muted);font-size:14px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:10px 26px;justify-content:space-between}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="pc/img/icon.png" alt="">Crust Rush <small>PC</small></a>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#tracks">Tracks</a>
+      <a href="#install">Install</a>
+      <a class="mini" href="https://github.com/samgoldsteinm/crust-rush/releases/download/pc/CrustRush-Windows.zip">Download</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <div class="hero">
+    <div class="wrap">
+      <div>
+        <div class="kicker"><i></i>Now on Windows</div>
+        <h1>Crust Rush<span>PC Edition</span></h1>
+        <p class="lede">The kart racer on giant pizzas, rebuilt as a <b>native Windows game</b>. Every track, kart and item from the browser version, with longer shadows, sharper textures and finished scenery on Ultra. Free.</p>
+      </div>
+
+      <div class="player">
+        <video id="trailer" src="pc/trailer.mp4" poster="pc/poster.jpg" autoplay muted loop playsinline preload="auto"></video>
+      </div>
+      <div class="pbar">
+        <div class="tag"><b>●</b> Recorded in the PC version · Ultra · Hawaiian Bay, Frosty Freezer, Pineapple Lagoon</div>
+        <button class="sound" id="sound" type="button" aria-pressed="false">
+          <svg id="snd-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg>
+          <svg id="snd-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+          <span id="snd-label">Sound on</span>
+        </button>
+      </div>
+
+      <div class="cta">
+        <a class="dl" href="https://github.com/samgoldsteinm/crust-rush/releases/download/pc/CrustRush-Windows.zip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>
+          <span>Download for Windows<small>About 900 MB · free</small></span>
+        </a>
+        <div class="meta">Windows 10 or 11, 64-bit<br>No installer: unzip and play · <a class="alt" href="./">or play in your browser</a></div>
+      </div>
+    </div>
+  </div>
+
+  <section id="features">
+    <div class="wrap">
+      <h2>Everything from the <em>browser game</em></h2>
+      <p class="sub">The PC version is a line-for-line port: the same physics, items and tracks, running natively.</p>
+      <div class="feats">
+        <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 17c3-6 6-9 9-9s5 2 5 5-2 4-4 4H3"/><circle cx="18" cy="6" r="2"/></svg></div><h3>17 tracks</h3><p>Single races, four Grand Prix cups, Reverse, and Last Slice Standing, where the last kart drops out every lap.</p></div>
+        <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3c3 4 3 7 0 9s-3 5 0 9"/><path d="M5 12h14"/></svg></div><h3>Drift, boost, loop</h3><p>Three tiers of drift sparks, shortcuts and side routes, full loops, ramps with tricks and glide canyons.</p></div>
+        <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1.3"/><circle cx="15" cy="9" r="1.3"/><circle cx="13" cy="15" r="1.3"/></svg></div><h3>Every item and special</h3><p>The classics, the newer items and the four award items, plus each driver's own special ability.</p></div>
+        <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="6" rx="2"/><circle cx="7" cy="17" r="2.5"/><circle cx="17" cy="17" r="2.5"/><path d="M7 11l2-4h6l2 4"/></svg></div><h3>The full garage</h3><p>Every body, car, bike, wheel set, glider and livery, with reward liveries unlocked by achievements.</p></div>
+        <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="m8.6 10.6 6.8-3.2M8.6 13.4l6.8 3.2"/></svg></div><h3>Race your friends</h3><p>Online races between PCs: one player hosts, the others join with the host's address.</p></div>
+        <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M6 9h12a4 4 0 0 1 4 4v1a3 3 0 0 1-5.4 1.8L15 14H9l-1.6 1.8A3 3 0 0 1 2 14v-1a4 4 0 0 1 4-4z"/><path d="M7 11v3M5.5 12.5h3"/></svg></div><h3>Pad or keyboard</h3><p>Xbox and other controllers work out of the box. Keyboard keys can be changed in Settings.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top:0">
+    <div class="wrap">
+      <div class="shots">
+        <figure><img src="pc/shot-1.jpg" alt="Racing on Hawaiian Bay in the PC version" loading="lazy"><figcaption><b>Hawaiian Bay</b> · PC, Ultra</figcaption></figure>
+        <figure><img src="pc/shot-2.jpg" alt="Racing on Frosty Freezer in the PC version" loading="lazy"><figcaption><b>Frosty Freezer</b> · PC, Ultra</figcaption></figure>
+        <figure><img src="pc/shot-3.jpg" alt="Racing on Pineapple Lagoon in the PC version" loading="lazy"><figcaption><b>Pineapple Lagoon</b> · PC, Ultra</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="tracks" style="padding-top:20px">
+    <div class="wrap">
+      <h2>Seventeen <em>tracks</em></h2>
+      <p class="sub">From a margherita ring to a pepper moon. Scroll for the lot.</p>
+      <div class="tracks" id="trackList"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap gfx">
+      <div>
+        <h2>Built for your <em>graphics card</em></h2>
+        <p class="sub" style="margin-bottom:22px">On Ultra the PC version matches the browser game's best look, then goes further with <b style="color:var(--cream)">PC extras</b>, on by default:</p>
+        <ul>
+          <li><span><b>Shadows twice as far</b>, in four cascades that soften with distance.</span></li>
+          <li><span><b>Bounced light</b> between nearby surfaces, and ambient occlusion in the corners.</span></li>
+          <li><span><b>Finished scenery</b>: spruces, palms, leafy bushes, real stone and a cheese ground with depth. Leaves sway in the wind.</span></li>
+          <li><span><b>Sharper textures</b> at an angle, and glossy paint that reflects a finer sky.</span></li>
+          <li><span>Struggling? Turn PC extras off in Settings &gt; Graphics, or pick Balanced.</span></li>
+        </ul>
+      </div>
+      <div class="pic"><img src="pc/shot-2.jpg" alt="" loading="lazy"></div>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="wrap two">
+      <div class="card">
+        <h2 style="font-size:28px">Install</h2>
+        <ol class="steps" style="margin-top:18px">
+          <li><span><b>Download</b> CrustRush-Windows.zip (about 900 MB).</span></li>
+          <li><span><b>Unzip it</b> anywhere: right-click &gt; Extract All. Keep the <b>maps</b> folder next to the game.</span></li>
+          <li><span><b>Run CrustRush.exe.</b> If Windows shows "Windows protected your PC", click <b>More info</b> then <b>Run anyway</b>. The game isn't signed, so Windows doesn't recognise it yet.</span></li>
+          <li><span><b>Updating:</b> download again and replace the folder. Your records and settings are kept.</span></li>
+        </ol>
+      </div>
+      <div class="card">
+        <h2 style="font-size:28px">What you need</h2>
+        <table style="margin-top:10px">
+          <tr><td>System</td><td>Windows 10 or 11, 64-bit</td></tr>
+          <tr><td>Graphics</td><td>Any card with Vulkan support (GeForce GTX 900, Radeon RX 400 or newer). Ultra is tuned on an RTX 3060 at 1440p.</td></tr>
+          <tr><td>Disk space</td><td>About 2.3 GB once unzipped</td></tr>
+          <tr><td>Online play</td><td>The host opens UDP port <b>24680</b> (the game tries to do this for you)</td></tr>
+          <tr><td>Keys</td><td><kbd>←</kbd> <kbd>→</kbd> steer · <kbd>Space</kbd> drift · <kbd>X</kbd> item · <kbd>C</kbd> special · <kbd>F11</kbd> full screen</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <div class="end">
+    <div class="wrap">
+      <h2>Grab a slice.</h2>
+      <p class="sub" style="margin:0 auto">Free, no account, no installer.</p>
+      <div class="cta">
+        <a class="dl" href="https://github.com/samgoldsteinm/crust-rush/releases/download/pc/CrustRush-Windows.zip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>
+          <span>Download for Windows<small>About 900 MB · Windows 10 and 11</small></span>
+        </a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Crust Rush · PC Edition</span>
+    <span><a class="alt" href="./">Play in the browser</a> · <a class="alt" href="https://github.com/samgoldsteinm/crust-rush/releases/tag/pc">All downloads</a></span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var T=[['margherita','Margherita Ring'],['bay','Hawaiian Bay'],['peaks','Pepperoni Peaks'],['frosty','Frosty Freezer'],['basil','Basil Boulevard'],['lagoon','Pineapple Lagoon'],['mozz','Midnight Mozzarella'],['burn','Freezer Burn Pass'],['oven','Oven Rush Raceway'],['calzone','Calzone Coast'],['napoli','Neon Napoli'],['glacier','Glacier Crust'],['spiral','Sauce Spiral'],['tour','Topping Tour'],['moon','Pepper Moon Circuit'],['peak','Frozen Pie Peak'],['grid','Neon Grid Arena']];
+  var box=document.getElementById('trackList'),h='';
+  T.forEach(function(t,i){h+='<figure><img src="pc/img/t-'+t[0]+'.jpg" alt="'+t[1]+'" decoding="async"><figcaption><span>Track '+(i+1)+'</span>'+t[1]+'</figcaption></figure>';});
+  box.innerHTML=h;
+
+  var v=document.getElementById('trailer'),b=document.getElementById('sound');
+  b.addEventListener('click',function(){
+    v.muted=!v.muted;
+    if(!v.muted){try{var p=v.play();if(p&&p.catch)p.catch(function(){});}catch(e){}}
+    b.setAttribute('aria-pressed',String(!v.muted));
+    document.getElementById('snd-off').hidden=!v.muted;
+    document.getElementById('snd-on').hidden=v.muted;
+    document.getElementById('snd-label').textContent=v.muted?'Sound on':'Sound off';
+  });
+})();
+</script>
+</body>
+</html>

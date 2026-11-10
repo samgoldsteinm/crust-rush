@@ -36,6 +36,8 @@ Files with a hash in the name get a new name whenever their contents change, so 
 
 ## Updating
 
+`pc.html` and the `pc/` folder are the download page for the Windows version. They are not made by the build script: keep them when replacing the game files. (The page is named `pc.html`, not `pc/index.html`, because `sw.js` saves any page ending in `/` or `/index.html` as the game's offline copy.)
+
 All files are generated from one source file by a build script, so replace them as a set and commit everything together. The `crust-rush-vNN` version in `sw.js` goes up with every release, which tells installed copies to fetch the new files.
 
 ## Credits
