@@ -690,6 +690,7 @@ func _build_hud() -> void:
 			_menu_preview_map(String(v)))
 	menu.modal_builders["mp"] = _mp_panel
 	menu.modal_builders["set"] = _settings_panel
+	menu.modal_builders["netlog"] = _netlog_panel
 	loading = _loading_screen()
 	loading.visible = false
 	ml.add_child(loading)
@@ -830,6 +831,10 @@ func _start_race(cfg: Dictionary) -> void:
 	if auto_drive and net_role != "client":
 		kart.ai["auto"] = true
 	race.items_off = items_off()
+	# the network log: a row a second of every online race (Settings > More > Network log)
+	NetLog.stop(_net_names())
+	if net_role != "" and not cfg.is_empty():
+		NetLog.start(net_role, map_id, ["fast", "balanced", "ultra"][clampi(quality, 0, 2)], _net_names())
 	var lss := String(cfg.get("mode", "")) == "lss" if not cfg.is_empty() else (String(sel.get("mode", "")) == "lss" and gp.is_empty())
 	race.mode = "lss" if lss else ""
 	T.LAPS = maxi(2, race.karts.size() - 1) if race.mode == "lss" else 3
@@ -1269,7 +1274,18 @@ func _near(k: Kart) -> float:
 	return clampf(1.0 - _kpos(k).distance_to(cam.global_position) / 420.0, 0.0, 1.0)
 
 
+## the online racers' names, for the network log
+func _net_names() -> Array:
+	var out: Array = []
+	if race != null:
+		for k in race.karts:
+			if k.peer != 0:
+				out.append(k.racer_name + (" (me)" if k == kart else ""))
+	return out
+
+
 func _show_results() -> void:
+	NetLog.stop(_net_names())
 	var st := race.standings()
 	var me_place := st.find(kart) + 1
 	var gp_done := false
@@ -1349,6 +1365,13 @@ func _show_results() -> void:
 	mb.pressed.connect(_to_menu.bind(""))
 	row.add_child(mb)
 	v.add_child(row)
+	if net_role != "":
+		var nb := menu.button("Network log", "ghost", 14.0, Vector4(12, 8, 12, 8))
+		nb.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		nb.pressed.connect(func():
+			menu.netlog_back = ""
+			menu.show_modal("netlog"))
+		v.add_child(nb)
 	panel_results.visible = true
 	if not auto_drive and net_role != "client":
 		again.grab_focus.call_deferred()
@@ -1614,6 +1637,9 @@ func _process(dt: float) -> void:
 		return
 	if not paused:
 		time += dt
+	if NetLog.on:
+		NetLog.frame(state)
+		NetLog.tick(multiplayer.multiplayer_peer, net_peers)
 	var al := 1.0 if (paused or state == "menu") else Engine.get_physics_interpolation_fraction()
 	if net_role == "client":
 		al = clampf((Time.get_ticks_msec() / 1000.0 - net_snap_at) / net_snap_dt, 0.0, 1.0)
@@ -1828,6 +1854,7 @@ func _fmt(t: float) -> String:
 # ---------------------------------------------------------------- menu and online
 
 func _to_menu(note: String) -> void:
+	NetLog.stop(_net_names())
 	_net_close()
 	gp = {}
 	_start_race({})
@@ -1967,6 +1994,64 @@ func _loading_screen() -> Control:
 
 
 ## Play with friends (PC to PC): host or join, the address, who has joined, start
+## Settings > More > Network log (web #netLogOv): the last online races, one shown in full, Copy and Delete
+func _netlog_panel() -> Control:
+	var v := menu.vbox(12)
+	var logs := NetLog.load_all()
+	if logs.is_empty():
+		v.add_child(menu.para("No online races logged yet. A log is written every second during a race with friends.", 15.0, Color("#c2a58c"), 700.0))
+		return v
+	var list := menu.vbox(6)
+	v.add_child(list)
+	var mono := SystemFont.new()
+	mono.font_names = PackedStringArray(["Consolas", "Menlo", "DejaVu Sans Mono", "Liberation Mono", "monospace"])
+	var txt := TextEdit.new()
+	txt.editable = false
+	txt.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	txt.custom_minimum_size.y = menu.z(300)
+	txt.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	txt.add_theme_font_override("font", mono)
+	txt.add_theme_font_size_override("font_size", menu.zi(12))
+	txt.add_theme_color_override("font_readonly_color", Color("#fff4dc"))
+	txt.add_theme_stylebox_override("read_only", menu.glass(12.0, Vector4(12, 10, 12, 10)))
+	txt.add_theme_stylebox_override("normal", menu.glass(12.0, Vector4(12, 10, 12, 10)))
+	txt.add_theme_stylebox_override("focus", menu.glass(12.0, Vector4(12, 10, 12, 10)))
+	var btns: Array = []
+	var show := func(i: int) -> void:
+		txt.text = NetLog.text(logs[i])
+		txt.scroll_vertical = 0
+		for j in btns.size():
+			(btns[j] as Button).modulate = Color(1, 1, 1, 1.0 if j == i else 0.6)
+	for i in logs.size():
+		var e: Dictionary = logs[i]
+		var pl: Array = e.get("players", [])
+		var b := menu.button("%s · %s     %s · %s · %d s" % [String(e.get("map", "?")), String(e.get("role", "?")), String(e.get("when", "")).replace("T", " ").substr(0, 16),
+			", ".join(PackedStringArray(pl)), int(e.get("secs", 0))], "ghost", 13.0, Vector4(12, 7, 12, 7))
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.clip_text = true
+		b.pressed.connect(show.bind(i))
+		list.add_child(b)
+		btns.append(b)
+	v.add_child(txt)
+	var row := menu.hbox(10)
+	var cp := menu.button("Copy this log", "cta", 15.0, Vector4(16, 9, 16, 9))
+	cp.pressed.connect(func():
+		DisplayServer.clipboard_set(txt.text)
+		cp.text = "Copied"
+		get_tree().create_timer(1.5).timeout.connect(func():
+			if is_instance_valid(cp):
+				cp.text = "Copy this log"))
+	row.add_child(cp)
+	var dl := menu.button("Delete logs", "ghost", 15.0, Vector4(16, 9, 16, 9))
+	dl.pressed.connect(func():
+		NetLog.clear()
+		menu.show_modal("netlog"))
+	row.add_child(dl)
+	v.add_child(row)
+	show.call(0)
+	return v
+
+
 func _mp_panel() -> Control:
 	var v := menu.vbox(12)
 	var card := menu.panel(menu.glass(18.0, Vector4(18, 16, 18, 16)))
@@ -2098,6 +2183,20 @@ func _settings_panel() -> Control:
 				g.add_child(pc)
 			c.add_child(g)
 		"more":
+			c.add_child(menu.section_label("Online"))
+			var nr := menu.hbox(20)
+			var nv := menu.vbox(2)
+			nv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			nv.add_child(menu.label("Network log", menu.f_bold, 16.0, Color("#fff4dc")))
+			nv.add_child(menu.para("A second-by-second record of your last online races: round trip, lost packets, snapshot flow. Copy it to share when a race was laggy.", 13.0, Color("#c2a58c"), 420.0))
+			nr.add_child(nv)
+			var nlb := menu.button("Open", "ghost", 14.0, Vector4(14, 8, 14, 8))
+			nlb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			nlb.pressed.connect(func():
+				menu.netlog_back = "set"
+				menu.show_modal("netlog"))
+			nr.add_child(nlb)
+			c.add_child(nr)
 			c.add_child(menu.section_label("Reset"))
 			var rr := menu.hbox(20)
 			var rv := menu.vbox(2)
@@ -2651,6 +2750,7 @@ func _net_close() -> void:
 
 
 func _on_peer_in(id: int) -> void:
+	NetLog.ev("join", id)
 	if net_role == "host":
 		net_peers.append(id)
 		if state == "menu":
@@ -2658,6 +2758,7 @@ func _on_peer_in(id: int) -> void:
 
 
 func _on_peer_out(id: int) -> void:
+	NetLog.ev("leave", id)
 	if net_role != "host":
 		return
 	net_peers.erase(id)
@@ -2686,6 +2787,7 @@ func _on_failed() -> void:
 
 
 func _on_server_gone() -> void:
+	NetLog.ev("host-left", 0)
 	_to_menu("The host left the race.")
 
 
@@ -2714,6 +2816,7 @@ func _net_input(steer: float, bits: int) -> void:
 	if net_role != "host" or race == null:
 		return
 	var id := multiplayer.get_remote_sender_id()
+	NetLog.got_input(id)
 	for k in race.karts:
 		if k.peer == id:
 			k.net_inp = {"steer": clampf(steer, -1.0, 1.0), "brake": (bits & 1) != 0, "nb": (bits & 2) != 0, "mul": 1.0 if (bits & 4) != 0 else 0.0, "look": (bits & 8) != 0}
@@ -2772,6 +2875,7 @@ func _net_host_tick() -> void:
 	for h in race.hazards:
 		hz.append([h["id"], h["x"], h["y"], h["t"], h["born"], "olive" if h.get("olive", false) else String(h.get("kind", ""))])
 	_net_snap.rpc([state, cd, race.race_time, ks, bx, pr, hz, race.haz_snap()])
+	NetLog.sent_snap(net_peers)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -2801,6 +2905,7 @@ func _net_fx(list: Array) -> void:
 func _net_snap(s: Array) -> void:
 	if net_role != "client" or race == null or state == "menu":
 		return
+	NetLog.got_snap()
 	net_snaps += 1
 	var now := Time.get_ticks_msec() / 1000.0
 	net_snap_dt = lerpf(net_snap_dt, clampf(now - net_snap_at, 1.0 / 60.0, 0.2), 0.2)

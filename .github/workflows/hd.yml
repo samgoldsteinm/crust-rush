@@ -5,7 +5,7 @@ name: HD scenery
 on:
   push:
     branches: [godot]
-    paths: [tools/hdlist.py, tools/hdbuild.py, tools/hd_*.py, .github/workflows/hd.yml]
+    paths: [tools/hdlist.py, tools/hd_fetch.py, .github/workflows/hd.yml]
   workflow_dispatch:
     inputs:
       step:

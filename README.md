@@ -18,7 +18,8 @@ to the `maps` release; the PC build downloads them from there.
 - The soundtrack: a song for every track and four menu songs, rendered from the web game's music.
 - Your best-run ghost, lap splits against your best, your best time under the clock.
 - Keyboard keys you can change in Settings > Controls; cheat codes in Settings > More (UNLOCK, TESTING), as on the web.
-- Online races between PCs: one hosts, the others join with the host's address.
+- Online races between PCs: one hosts, the others join with the host's address. Settings > More > Network log keeps a
+  second-by-second record of your last 6 online races (round trip, lost packets, snapshot flow), with Copy.
 
 ## Graphics
 The picture is matched to the web game's Ultra (lighting, tone mapping, colour grade, bloom, ambient occlusion,
@@ -47,6 +48,7 @@ drawn, so nothing changes in the distance. Off draws the web game's shapes every
 - `scripts/hud.gd`, `scripts/menu.gd` — the race HUD and the menus, drawn to match the web game's CSS.
 - `scripts/kart_builder.gd` — builds a kart from garage parts and paints its livery.
 - `scripts/ach.gd`, `scripts/ghost.gd` — achievements, records, the best-run ghost.
+- `scripts/netlog.gd` — the network log of online races.
 - `scripts/music.gd`, `scripts/sfx.gd` — the soundtrack and the sound effects.
 - `scripts/track.gd` — track data exported from the web game.
 - `scripts/props.gd`, `scripts/hd_ground.gd`, `shaders/foliage.gdshader` — the finished trees, bushes, rocks and ground.
@@ -64,7 +66,7 @@ drawn, so nothing changes in the distance. Off draws the web game's shapes every
 - `.github/workflows/ios.yml` — iPhone build, manual only (paused).
 
 ## Not ported yet
-Cross-play with the browser version, and the online network log.
+Cross-play with the browser version.
 
 ## Credits
 The web game's credits all carry over. The finished models' bark and stone surfaces are CC0 textures from

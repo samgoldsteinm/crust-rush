@@ -1397,7 +1397,7 @@ func show_modal(kind: String) -> void:
 	var root := _screen_root()
 	m.add_child(root)
 	# centred column: the web's sheets are 760 CSS px wide (Records and Awards use the whole width)
-	var widths := {"how": 760.0, "set": 760.0, "tips": 760.0, "mp": 560.0}
+	var widths := {"how": 760.0, "set": 760.0, "tips": 760.0, "mp": 560.0, "netlog": 760.0}
 	var row := HBoxContainer.new()
 	root.add_child(row)
 	var v := vbox(14)
@@ -1419,14 +1419,19 @@ func show_modal(kind: String) -> void:
 		sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		sp.size_flags_stretch_ratio = 0.5
 		v.add_child(sp)
-	var titles := {"how": "How to play", "rec": "Records", "ach": "Achievements", "set": "Settings", "tips": "Best setup", "mp": "Play with friends"}
+	var titles := {"how": "How to play", "rec": "Records", "ach": "Achievements", "set": "Settings", "tips": "Best setup", "mp": "Play with friends", "netlog": "Network log"}
 	var head := hbox(14)
 	var tl := label(String(titles.get(kind, "")).to_upper(), f_disp, 44.0, CHEESE, SAUCE_DARK, Vector2(0, 4))
 	tl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(tl)
 	var done := button("DONE" if kind != "mp" else "✕", "cta" if kind != "mp" else "ghost", 19.0, Vector4(28, 10, 28, 10) if kind != "mp" else Vector4(14, 8, 14, 8))
 	done.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	done.pressed.connect(close_modal)
+	if kind == "netlog" and netlog_back != "":
+		# opened from Settings: Done goes back there
+		var back := netlog_back
+		done.pressed.connect(func(): show_modal(back))
+	else:
+		done.pressed.connect(close_modal)
 	head.add_child(done)
 	v.add_child(head)
 	var content: Control = _modal_body(kind)
@@ -1443,6 +1448,7 @@ func show_modal(kind: String) -> void:
 	default_focus = done
 
 
+var netlog_back := ""      # the sheet the network log was opened from ("set"), so Done returns there
 var modal_builders := {}   # kind -> Callable returning a Control (set by main for settings and online)
 var rec_cls := ""
 const CLS_LABEL := {"small": "50cc", "medium": "100cc", "large": "200cc", "reverse": "Reverse"}

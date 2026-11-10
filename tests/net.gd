@@ -54,6 +54,7 @@ func _process(dt: float) -> void:
 			if main.race.race_time > 22.0:
 				done = true
 				var ok: bool = k != null and k.prog > 150 and steer_seen > 0.05
+				_log()
 				print("NET HOST %s their kart: prog %d, speed %.0f, steering received %.2f, item '%s'; my kart prog %d; race time %.1f" % ["PASS" if ok else "FAIL", k.prog if k else -1, k.speed if k else 0.0, steer_seen, k.item if k else "", main.kart.prog, main.race.race_time])
 				await get_tree().create_timer(2.0).timeout
 				get_tree().quit(0 if ok else 1)
@@ -63,9 +64,24 @@ func _process(dt: float) -> void:
 			var me: Kart = main.kart
 			var mine: bool = me.peer == multiplayer.get_unique_id()
 			var ok2: bool = mine and me.prog > 120 and main.net_snaps > 300
+			_log()
 			print("NET CLIENT %s my kart: prog %d, speed %.0f, place %d of %d, snapshots %d, state %s, thrown items seen %d" % ["PASS" if ok2 else "FAIL", me.prog, me.speed, main.race.position_of(me), main.race.karts.size(), main.net_snaps, main.state, main.race.projectiles.size()])
 			get_tree().quit(0 if ok2 else 1)
 	if t > 150.0:
 		done = true
 		print("NET %s FAIL timed out: role '%s', peers %d, snapshots %d, state %s" % [role.to_upper(), main.net_role, main.net_peers.size(), main.net_snaps, main.state])
 		get_tree().quit(1)
+
+
+## the network log of this race: its summary lines and how many rows it wrote
+func _log() -> void:
+	var n := NetLog.rows.size()
+	NetLog.stop(main._net_names())
+	var l := NetLog.load_all()
+	if l.is_empty():
+		print("NET LOG missing")
+		return
+	var lines := NetLog.text(l[0]).split("\n")
+	print("NET LOG %d rows" % n)
+	for i in mini(5, lines.size()):
+		print("NET LOG | " + lines[i])
