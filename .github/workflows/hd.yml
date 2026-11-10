@@ -1,0 +1,25 @@
+# The PC build's finished scenery: free (CC0) Poly Haven models and textures, prepared in Blender and attached to
+# the "hd" release for the PC build. Visual only: the tracks' shape, collisions and online rules don't change.
+name: HD scenery
+
+on:
+  workflow_dispatch:
+    inputs:
+      step:
+        description: "list (show the available assets) or build"
+        default: "list"
+
+permissions:
+  contents: write
+
+jobs:
+  list:
+    if: github.event.inputs.step == 'list'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: List the CC0 scenery assets
+        run: python3 tools/hdlist.py
