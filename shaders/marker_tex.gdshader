@@ -28,7 +28,6 @@ void fragment() {
 	c = swap(c, mk_dark, c_dark);
 	ALBEDO = c * tint.rgb * (COLOR.rgb);
 	ROUGHNESS = rough;
-	if (!FRONT_FACING && double) {
-		NORMAL = -NORMAL;
-	}
+	// the inside of the canopy is lit as the inside: Godot already turns the normal round on back faces when
+	// culling is off (turning it again lit the inside as if it faced the sun and washed the stripes out)
 }
