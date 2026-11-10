@@ -110,6 +110,17 @@ var olive_t := 0.0
 var ab_fx := 0.0          # sparkle trail while an ability runs
 var ab_col := Color.WHITE
 var burn_t := 0.0         # caught fire (drawing only)
+# the web's newer items (useItem2): what each one leaves running on a kart
+var jal_n := 0            # Jalapeño Triple: boosts left
+var mag_t := 0.0          # Pizza Magnet: reeling in
+var mag_tg: Kart = null
+var cut_t := 0.0          # Cutter Orbit
+var cut_a := 0.0
+var ghost_t := 0.0        # Ghost Pepper: untouchable, see-through
+var sauce_t := 0.0        # Sauce Splat: slower, smeared view
+var shrink_t := 0.0       # Heat Wave: shrunk and slower
+var cannon_t := 0.0       # Pizza Cannon: fired down the track
+var auto_t := 0.0         # ...steering itself
 var wall_hit := false
 var wall_n := Vector2.ZERO  # last wall's outward normal (for the sparks)
 var f_tier := 0           # which drift tier the current boost came from (flame colour)
@@ -269,12 +280,37 @@ func step(inp: Dictionary, dt: float) -> void:
 	if oil_t > 0.0:
 		oil_t -= dt
 		mx *= 0.72
+	if cannon_t > 0.0:
+		mx *= 1.22
+	if shrink_t > 0.0:
+		mx *= 0.78
+	if sauce_t > 0.0:
+		mx *= 0.93
 	if frozen > 0.0:
 		frozen -= dt
 		mx *= 0.55
 	if flat_t > 0.0:
 		mx = minf(mx * 0.6, base_max * mul * pen * sm_spd * 0.6)
 
+	# Pizza Cannon: the kart steers itself down the road (web autoT)
+	if auto_t > 0.0:
+		auto_t -= dt
+		if spin <= 0.0:
+			var latc := T.lateral(idx, x, y)
+			var q := (idx + 14) % T.N
+			var tx := T.px[q] + T.nx[q] * latc * 0.6
+			var ty := T.py[q] + T.ny[q] * latc * 0.6
+			var dd := ang_diff(atan2(ty - y, tx - x), a)
+			a += dd * minf(1.0, dt * 7.0)
+			ma = a
+			drift = 0
+			charge = 0.0
+			d_latch = false
+			d_want = 0.0
+			steer = 0.0
+			inp = inp.duplicate()
+			inp["steer"] = 0.0
+			inp["brake"] = false
 	var v0 := speed
 	if spin > 0.0:
 		spin -= dt

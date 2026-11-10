@@ -21,6 +21,9 @@ var haz_lib: Node3D          # the track's moving hazards (traffic, walkers...),
 var race: Race
 var roster := {}
 var net_prefs := {}       # host: each joined player's chosen driver and kart
+var item_set := {}        # Settings > Items: {name: false} for items switched off
+var last_run := {}        # the player's last finished run against their best: {t, old, pb}
+var was_last := false     # dropped to last place this race (for Comeback Kid)
 var kart: Kart               # the player's kart (kept for the tests)
 var kart_scenes := {}        # file -> PackedScene
 var view: View
@@ -799,6 +802,7 @@ func _start_race(cfg: Dictionary) -> void:
 	kart = race.player
 	if auto_drive and net_role != "client":
 		kart.ai["auto"] = true
+	race.items_off = items_off()
 	view.setup(T, race, fx, cam, items_lib)
 	for k in race.karts:
 		view.add_kart(k, _kart_scene)
@@ -818,6 +822,8 @@ func _start_race(cfg: Dictionary) -> void:
 	fin_t = 0.0
 	last_lap = 1
 	shown_finish = false
+	was_last = false
+	last_run = {}
 	net_fresh = true
 	net_out.clear()
 	cam_a = kart.ma
@@ -901,6 +907,11 @@ func _sim_tick(dt: float) -> void:
 	race.update(dt, _input_state())
 	_drain_events()
 	if state == "race":
+		if not auto_drive and kart != null and not kart.finished:
+			if kart.glide:
+				Ach.add("glide", dt)
+			if race.race_time > 8.0 and race.stand.size() > 1 and race.stand[race.stand.size() - 1] == kart:
+				was_last = true
 		_finish_check()
 		# the race is over once every person has finished (the computer drivers get estimated times)
 		var all_done := true
@@ -925,11 +936,39 @@ func _sim_tick(dt: float) -> void:
 func _finish_check() -> void:
 	if kart.finished and not shown_finish:
 		shown_finish = true
+		_progress_finish()
 		kart.ai["auto"] = true
 		_show_center("Finish!", 2.4)
 		fin_punch = 0.0001
 		_shake(0.5)
 		sfx.play("finish")
+
+
+## the player's run is in: personal best, recent races, achievements (not in the automatic test drives)
+func _progress_finish() -> void:
+	last_run = {}
+	if auto_drive or kart == null or kart.est:
+		return
+	var cls := String(sel["cls"])
+	last_run = Ach.record(map_id, cls, kart.finish_time, kart.place, kart.ri, _my_build())
+	Ach.n_tracks = maxi(1, maps.size())
+	Ach.race_done(kart.place, was_last, cls, kart.ri, map_id, gp)
+	_ach_toasts()
+
+
+## a toast for each achievement just won, one after another (web achToast)
+func _ach_toasts() -> void:
+	var i := 0
+	while not Ach.fresh.is_empty():
+		var a: Array = Ach.fresh.pop_front()
+		var lv := KartBuilder.livery(String(a[5])) if KartBuilder.ready() else {}
+		var txt := "Achievement: %s" % String(a[1]) + (" · %s livery unlocked" % String(lv.get("name", "")) if not lv.is_empty() else "")
+		if String(a[6]) != "":
+			txt += " · %s item unlocked" % String(Ach.ITEM_NAMES.get(String(a[6]), a[6]))
+		get_tree().create_timer(0.4 + i * 4.2).timeout.connect(func():
+			hud.toast(txt, 3.8)
+			sfx.play("lap", 0.8, 1.2))
+		i += 1
 
 
 func _lap_check() -> void:
@@ -957,6 +996,8 @@ func _drain_events() -> void:
 			var mine := k == kart
 			if e.begins_with("boost") and e.length() == 6:
 				var tier := int(e.right(1))
+				if mine and tier == 3 and not auto_drive and state == "race":
+					Ach.add("drift3")
 				if mine:
 					_shake(0.15 + tier * 0.05)
 					sfx.play("boost", 0.8, 1.0 + 0.12 * tier)
@@ -965,6 +1006,8 @@ func _drain_events() -> void:
 					_shake(0.25)
 					sfx.play("boost", 0.7)
 			elif e == "loopout":
+				if mine and not auto_drive and state == "race":
+					Ach.add("loops")
 				if mine:
 					_shake(0.5)
 					sfx.play("boost", 0.8, 1.3)
@@ -1021,9 +1064,15 @@ func _drain_events() -> void:
 			sfx.play("pickup", 0.8 if ed["k"] == kart else _near(ed["k"]) * 0.3)
 		elif t == "use":
 			var it: String = ed["it"]
+			if ed["k"] == kart and not auto_drive and state == "race":
+				Ach.add("items")
 			stats["used"][it] = int(stats["used"].get(it, 0)) + 1
 			var k2: Kart = ed["k"]
-			sfx.play("boost" if (it == "chili" or it == "rush") else "throw", 0.9 if k2 == kart else _near(k2) * 0.5)
+			sfx.play("boost" if it in ["chili", "rush", "jalapeno", "shroom", "cannon", "magnet"] else ("shield" if it in ["ghost", "garlic2"] else "throw"), 0.9 if k2 == kart else _near(k2) * 0.5)
+			if k2 == kart and it == "cannon":
+				_shake(1.2)
+			elif k2 == kart and it == "shroom":
+				_shake(0.4)
 			if k2 == kart:
 				_shake(0.18)
 		elif t == "shield":
@@ -1033,6 +1082,8 @@ func _drain_events() -> void:
 				_edge(Color("#fff3c4"), true)
 		elif t == "unshield" or t == "absorb":
 			var k3: Kart = ed["k"]
+			if k3 == kart and t == "absorb" and not auto_drive:
+				Ach.add("blocks")
 			sfx.play("block", 0.9 if k3 == kart else _near(k3) * 0.5)
 			if k3 == kart:
 				_shake(0.35)
@@ -1102,6 +1153,29 @@ func _drain_events() -> void:
 		elif t == "dodge":
 			if ed["k"] == kart:
 				_show_center("Dodged!", 0.6, "sm")
+		elif t == "frozen":
+			if ed["k"] == kart:
+				_edge(Color("#bfe6ff"))
+				sfx.play("block", 0.7, 1.4)
+		elif t == "sauced":
+			if ed["k"] == kart:
+				hud.sauce_on()
+				sfx.play("hit", 0.6, 0.8)
+		elif t == "heat":
+			hud.heat_flash()
+			sfx.play("boom", 0.6, 1.3)
+			if kart != null and kart.shrink_t > 0.0:
+				_shake(0.8)
+		elif t == "robbed":
+			if ed["k"] == kart:
+				_edge(Color("#b26bff"))
+				sfx.play("block", 0.7)
+		elif t == "swap":
+			if ed["k"] == kart or ed["by"] == kart:
+				cam_snap = true
+				sfx.play("tier", 0.8, 0.7)
+			if ed["by"] == kart:
+				_edge(Color("#b26bff"))
 		elif t == "ricochet":
 			var rp := Vector3(float(ed["x"]), T.ground(float(ed["x"]), float(ed["y"])), float(ed["y"]))
 			sfx.play("bump", clampf(1.0 - rp.distance_to(cam.global_position) / 420.0, 0.0, 1.0) * 0.45)
@@ -1141,11 +1215,22 @@ func _show_results() -> void:
 			if gp_rows[i][0] == kart:
 				cp = i + 1
 		title = ("You win the %s!" % Menu.CUPS[int(gp["cup"])][0]) if cp == 1 else ("%s in the cup" % _ordinal(cp))
+		if not auto_drive:
+			Ach.cup_done(gp, cp, String(sel["cls"]))
+			_ach_toasts()
 	v.add_child(menu.label(title, menu.f_disp, 48.0, Color("#f7c948"), Color("#7d1d0e"), Vector2(0, 4)))
 	var sub := "%s · %s" % [String(_map_info(map_id).get("name", map_id)), String({"small": "50cc", "medium": "100cc", "large": "200cc", "reverse": "Reverse"}.get(String(sel["cls"]), "100cc"))]
 	if not gp.is_empty():
 		sub += " · race %d of %d" % [int(gp["race"]) + 1, (gp["tracks"] as Array).size()]
 	v.add_child(menu.label(sub, menu.f_semi, 15.0, Color("#c2a58c")))
+	if not last_run.is_empty():
+		var lr := last_run
+		var pbt := ""
+		if bool(lr["pb"]):
+			pbt = ("First time logged · " + _fmt(float(lr["t"]))) if float(lr["old"]) < 0.0 else ("New personal best! %s (−%.2fs)" % [_fmt(float(lr["t"])), float(lr["old"]) - float(lr["t"])])
+		else:
+			pbt = "Personal best %s · +%.2fs" % [_fmt(float(lr["old"])), float(lr["t"]) - float(lr["old"])]
+		v.add_child(menu.label(pbt, menu.f_bold, 15.0, Color("#7fe07a") if bool(lr["pb"]) else Color("#c2a58c")))
 	var cols := menu.hbox(14)
 	v.add_child(cols)
 	var c1 := menu.vbox(6)
@@ -1665,6 +1750,18 @@ func _menu_preview_map(id: String) -> void:
 	loading.visible = false
 
 
+## items left out of races: the award items until their achievement is won, and any switched off in Settings
+func items_off() -> Dictionary:
+	var off := {}
+	for it in Race.ITEM_AWARD:
+		if not Ach.unlocked(String(Race.ITEM_AWARD[it])):
+			off[it] = true
+	for it in item_set:
+		if item_set[it] == false:
+			off[it] = true
+	return off
+
+
 ## the rivals get new karts each time a race or Grand Prix starts from the menu (web cpuBuilds)
 func _new_cpu_builds() -> void:
 	if not KartBuilder.ready():
@@ -2105,13 +2202,14 @@ func _net_host_tick() -> void:
 			(1 if k.air else 0) | (2 if k.glide else 0) | (4 if k.big else 0) | (8 if k.finished else 0) | (16 if k.est else 0),
 			k.item, k.item2, String(k.held.get("it", "")), int(k.held.get("sl", 1)), k.sh_l, k.prog, k.idx, k.place, k.finish_time,
 			k.loop_th if not k.loop.is_empty() else -1.0, k.roll, k.trick_t, k.trick_k, k.acc,
-			k.shield, k.mz_h, k.ab_c, k.mega_t, k.flat_t, k.pesto_t, k.chili_t, k.olive_t, k.burn_t, k.ab_fx, k.ab_col.to_html(false)])
+			k.shield, k.mz_h, k.ab_c, k.mega_t, k.flat_t, k.pesto_t, k.chili_t, k.olive_t, k.burn_t, k.ab_fx, k.ab_col.to_html(false),
+			k.frozen, k.ghost_t, k.sauce_t, k.shrink_t, k.cannon_t, k.cut_t, k.cut_a, k.mag_t, race.karts.find(k.mag_tg) if k.mag_tg != null else -1, k.jal_n])
 	var bx := PackedFloat32Array()
 	for b in race.boxes:
 		bx.append(float(b["r"]))
 	var pr: Array = []
 	for p in race.projectiles:
-		pr.append([p["id"], p["type"], p["x"], p["y"], p["vx"], p["vy"], p["t"], p["t0"], p.get("ph", ""), p.get("pt", 0.0), p.get("dir", 0.0), p.get("spin", 0.0), p.get("age", 0.0), 1 if p.get("storm", false) else 0])
+		pr.append([p["id"], p["type"], p["x"], p["y"], p["vx"], p["vy"], p["t"], p["t0"], p.get("ph", ""), p.get("pt", 0.0), p.get("dir", 0.0), p.get("spin", 0.0), p.get("age", 0.0), 1 if p.get("storm", false) else 0, 1 if p.get("landed", true) else 0, p.get("fuse", 0.0)])
 	var hz: Array = []
 	for h in race.hazards:
 		hz.append([h["id"], h["x"], h["y"], h["t"], h["born"], "olive" if h.get("olive", false) else String(h.get("kind", ""))])
@@ -2219,6 +2317,18 @@ func _net_snap(s: Array) -> void:
 			k.burn_t = q[38]
 			k.ab_fx = q[39]
 			k.ab_col = Color(String(q[40]))
+		if q.size() > 50:
+			k.frozen = q[41]
+			k.ghost_t = q[42]
+			k.sauce_t = q[43]
+			k.shrink_t = q[44]
+			k.cannon_t = q[45]
+			k.cut_t = q[46]
+			k.cut_a = q[47]
+			k.mag_t = q[48]
+			var mi2 := int(q[49])
+			k.mag_tg = race.karts[mi2] if mi2 >= 0 and mi2 < race.karts.size() else null
+			k.jal_n = q[50]
 		if net_fresh or Vector2(k.x - k.ox, k.y - k.oy).length() > 120.0:
 			k._save_prev()      # first picture, or a jump (a respawn): don't slide there
 	net_fresh = false
@@ -2232,7 +2342,7 @@ func _net_snap(s: Array) -> void:
 	for q2 in s[5]:
 		var prev = old.get(q2[0])
 		race.projectiles.append({"id": q2[0], "type": q2[1], "x": q2[2], "y": q2[3], "px": prev["x"] if prev != null else q2[2], "py": prev["y"] if prev != null else q2[3],
-			"vx": q2[4], "vy": q2[5], "t": q2[6], "t0": q2[7], "ph": q2[8], "pt": q2[9], "dir": q2[10], "spin": q2[11], "age": q2[12], "storm": q2.size() > 13 and int(q2[13]) == 1, "owner": null, "target": null})
+			"vx": q2[4], "vy": q2[5], "t": q2[6], "t0": q2[7], "ph": q2[8], "pt": q2[9], "dir": q2[10], "spin": q2[11], "age": q2[12], "storm": q2.size() > 13 and int(q2[13]) == 1, "landed": q2.size() <= 14 or int(q2[14]) == 1, "fuse": float(q2[15]) if q2.size() > 15 else 0.0, "owner": null, "target": null})
 	race.hazards.clear()
 	for q3 in s[6]:
 		var hk := String(q3[5]) if q3.size() > 5 else ""

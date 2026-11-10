@@ -7,12 +7,14 @@ extends Node3D
 const SPARKC := [Color("#fff1c8"), Color("#ffc62e"), Color("#ff1f12"), Color("#8fe0ff")]
 const FLAMEC := [[Color("#ff7a1a"), Color("#fff0a0")], [Color("#ffb51a"), Color("#fff6b8")], [Color("#ff0c06"), Color("#ff5a3c")], [Color("#2f8cff"), Color("#d2f4ff")]]
 const ITEM_GLOW := {"pep": Color("#ff5a2a"), "dough": Color("#ffe2a0"), "lob": Color("#c9e86a"), "oil": Color("#e8b23a"), "flour": Color("#ffffff"), "wheel": Color("#ff3b1a")}
-const TRAIL := {"pep": Color("#ff7a3a"), "dough": Color("#ffe2a0"), "lob": Color("#c9e86a"), "flour": Color("#ffffff"), "torp": Color("#9fd8ff")}
+const TRAIL := {"pep": Color("#ff7a3a"), "dough": Color("#ffe2a0"), "lob": Color("#c9e86a"), "flour": Color("#ffffff"), "torp": Color("#9fd8ff"), "meat2": Color("#c8784a"), "bomb": Color("#ffcc33"), "twist": Color("#f3dfb4")}
 const ITEM_COL := {"chili": Color("#ff5a1a"), "pepperoni": Color("#ff6a3a"), "oil": Color("#e8c040"), "dough": Color("#ffe2a0"), "trio": Color("#ff6a3a"), "garlic": Color("#e8fff0"), "flour": Color("#ffffff"), "wheel": Color("#ff3b1a"), "rush": Color("#7fe8ff"), "freezer": Color("#bfe6ff")}
-const FLY_SC := {"pep": 1.4, "dough": 1.25, "lob": 1.1}
+const FLY_SC := {"pep": 1.4, "dough": 1.25, "torp": 1.2, "lob": 1.1, "meat2": 1.0}
 const HITC := {"flour": ["#ffffff", "#f6f1e6", "#e9dfc8"], "wheel": ["#ff3b1a", "#ffe066", "#ffffff"], "garlic": ["#7fe07a", "#f4ecdc", "#ffffff"], "pep": ["#ff3b1a", "#b8311c", "#ffe066", "#fff4dc"], "dough": ["#fff4dc", "#f3dfb4", "#ffe066"], "oil": ["#ffd24a", "#e0b22a", "#fff2b0"], "lob": ["#ffd24a", "#e0b22a", "#fff2b0"]}
 const TRICKS := [[Vector3(0, 0, 1), 1.0], [Vector3(0, 1, 0), 1.0], [Vector3(0, 0, 1), -1.0], [Vector3(1, 0, 0), -1.0], [Vector3(1, 0, 0), 1.0]]
-const PROJ_NODE := {"pep": "pep", "dough": "dough", "flour": "flour", "lob": "lob", "wheel": "wheel", "torp": "torpedo"}
+const PROJ_NODE := {"pep": "pep", "dough": "dough", "flour": "flour", "lob": "lob", "wheel": "wheel", "torp": "torpedo", "meat2": "meatball", "bomb": "bomb", "twist": "twister"}
+## traps on the road: which model, how much bigger it is drawn, and its glow (web hazDecorate)
+const TRAP := {"oil": ["oil", 1.2, "#ffd23a", 16.0, 4.5], "olive": ["oil", 1.2, "#ffd23a", 16.0, 4.5], "forks": ["forks", 1.9, "#d8ecff", 13.0, 4.5], "boxes": ["boxes", 1.3, "#ffb040", 16.0, 6.0]}
 const HELD_NODE := {"pepperoni": "pep", "dough": "dough", "flour": "flour"}
 
 var T: TrackData
@@ -316,6 +318,11 @@ func add_kart(k: Kart, sc_file_loader: Callable) -> void:
 		mz.add_child(mb)
 	mz.visible = false
 	bub.add_child(mz)
+	# Freezer Blast: a block of ice (web m.ice)
+	var ice := item_node("icebox")
+	ice.position = bub.position
+	ice.visible = false
+	g.add_child(ice)
 	# drift spark fans at the back wheels
 	var fan := MultiMeshInstance3D.new()
 	var mm := MultiMesh.new()
@@ -345,7 +352,7 @@ func add_kart(k: Kart, sc_file_loader: Callable) -> void:
 	if meta.get("smoke") != null:
 		var sv: Array = meta["smoke"]
 		smoke = Vector3(sv[0], sv[1], sv[2])
-	views[k] = {"g": g, "tilt": tilt, "model": model, "wheels": wheels, "flames": flames, "bub": bub, "cloves": cloves, "mz": mz, "sc": sc, "pop": false, "bf": 0.0, "fan": fan, "fan_mat": fm,
+	views[k] = {"g": g, "tilt": tilt, "model": model, "wheels": wheels, "flames": flames, "bub": bub, "cloves": cloves, "mz": mz, "sc": sc, "pop": false, "bf": 0.0, "cut_m": [], "ice": ice, "fan": fan, "fan_mat": fm,
 		"fxL": fxl, "fxP": fxp, "smoke": smoke, "top": float(meta.get("top", 7.0)), "axF": float(meta.get("axF", 6.0)), "axR": float(meta.get("axR", -6.0)),
 		"axW": float(meta.get("axW", 5.0)), "hover": float(meta.get("hover", 0.0)), "tp": 0.0, "tr": 0.0, "fxc": 0.0, "trick_on": false, "f_ti": -1,
 		"held": null, "held_it": "", "rx": k.x, "ry": k.y, "rz": k.wy, "rma": k.ma, "glider": glider, "ga": 0.0}
@@ -355,6 +362,8 @@ func clear() -> void:
 	for k in views:
 		var v: Dictionary = views[k]
 		(v["g"] as Node).queue_free()
+		for cn in v.get("cut_m", []):
+			(cn as Node).queue_free()
 		if v["held"] != null:
 			(v["held"] as Node).queue_free()
 	views.clear()
@@ -394,7 +403,7 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 	v["rz"] = z
 	v["rma"] = lerp_angle(k.oma, k.ma, al)
 	var pos := Vector3(x, z, y)
-	var B: float = v["sc"]
+	var B: float = v["sc"] * (0.62 if k.shrink_t > 0.0 else 1.0)
 	var scv := Vector3.ONE * B
 	if k.mega_t > 0.0:
 		scv *= 1.0 + 0.45 * minf(1.0, minf((Race.MEGA_T - k.mega_t) * 4.0, k.mega_t * 4.0))
@@ -481,6 +490,14 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 			n.rotation.z -= k.speed * dt / (float(w["r"]) * KS)
 			if w["front"]:
 				n.rotation.y = -k.steer * 0.42
+	# frozen in a block of ice: it grows in, wobbles, and shrinks away at the end
+	var ice: Node3D = v["ice"]
+	var fz := k.frozen > 0.0
+	if ice.visible != fz:
+		ice.visible = fz
+	if fz:
+		ice.scale = Vector3.ONE * float((v["bub"] as Node3D).scale.x) * minf(1.0, 0.25 + (2.8 - k.frozen) * 6.0) * (k.frozen * 4.0 if k.frozen < 0.25 else 1.0)
+		ice.rotation.y = sin(time * 1.5) * 0.05
 	# shield or rush bubble
 	# the glider unfolds while gliding (web: ga eases to 1 at 5/s, folds away at 8/s)
 	var gl = v.get("glider")
@@ -544,6 +561,42 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 			fx.spawn_a(x + (randf() - 0.5) * 10.0, z + 3.0 + randf() * 5.0, y + (randf() - 0.5) * 10.0, (randf() - 0.5) * 8.0, 22.0 + randf() * 20.0, (randf() - 0.5) * 8.0, bc, 5.5, 1.2, 0.38 + randf() * 0.15, -25.0, 1.2)
 			if randf() < 0.3:
 				fx.spawn_n(x + (randf() - 0.5) * 6.0, z + 9.0 + randf() * 3.0, y + (randf() - 0.5) * 6.0, -cos(rma) * 12.0, 14.0 + randf() * 8.0, -sin(rma) * 12.0, Color("#3a2e28") if randf() < 0.5 else Color("#5a4a40"), 5.0, 13.0, 0.9, -8.0, 0.8)
+	# the newer items' states (web itemsRender)
+	var cm: Array = v["cut_m"]
+	if k.cut_t > 0.0:
+		if cm.is_empty():
+			for b in 3:
+				var cn := item_node("cutter")
+				cn.scale = Vector3.ONE * 1.1
+				add_child(cn)
+				cm.append(cn)
+		for b in 3:
+			var ca2 := k.cut_a + b * 2.094
+			var cn2: Node3D = cm[b]
+			cn2.visible = true
+			cn2.position = Vector3(x + cos(ca2) * 15.0, z + 5.0, y + sin(ca2) * 15.0)
+			cn2.rotation = Vector3(0.0, -ca2, time * 25.0)
+			if randf() < 0.4:
+				fx.spawn_a(cn2.position.x, cn2.position.y, cn2.position.z, 0, 0, 0, Color("#e8f4ff"), 2.0, 0.2, 0.25)
+	elif not cm.is_empty() and (cm[0] as Node3D).visible:
+		for cn3 in cm:
+			(cn3 as Node3D).visible = false
+	if k.ghost_t > 0.0:
+		tilt.visible = int(floor(time * 24.0)) % 3 != 0
+		if randf() < 0.5:
+			fx.spawn_a(x + (randf() - 0.5) * 10.0, z + 6.0, y + (randf() - 0.5) * 10.0, 0, 8, 0, Color("#cfe8ff"), 3.0, 0.3, 0.4)
+	if k.mag_t > 0.0 and k.mag_tg != null and views.has(k.mag_tg) and randf() < 0.8:
+		var tv: Dictionary = views[k.mag_tg]
+		var mt := randf()
+		fx.spawn_a(x + (float(tv["rx"]) - x) * mt, z + 6.0, y + (float(tv["ry"]) - y) * mt, 0, 0, 0, Color("#ff5a5a"), 2.6, 0.3, 0.2)
+	if k.cannon_t > 0.0 and randf() < 0.9:
+		var cna := randf() * TAU
+		fx.spawn_a(x - cos(rma) * 10.0, z + 5.0, y - sin(rma) * 10.0, cos(cna) * 20.0, 10.0, sin(cna) * 20.0, Color("#ffcc33"), 5.0, 0.4, 0.4, 0.0, 1.0)
+		fx.spawn_n(x - cos(rma) * 12.0, z + 4.0, y - sin(rma) * 12.0, 0, 6, 0, Color("#8a7a6a"), 5.0, 16.0, 0.8, -2.0, 1.0)
+	if k.sauce_t > 0.0 and randf() < 0.3:
+		fx.spawn_n(x, z + 3.0, y, (randf() - 0.5) * 10.0, 2.0, (randf() - 0.5) * 10.0, Color("#b8200e"), 2.5, 1.0, 0.6, 30.0, 1.0)
+	if k.frozen > 0.0 and randf() < 0.5:
+		fx.spawn_a(x + (randf() - 0.5) * 10.0, z + 8.0 * KS, y + (randf() - 0.5) * 10.0, 0, -6, 0, Color("#bfe6ff"), 2.4, 0.6, 0.5)
 	if k.ab_fx > 0.0 and randf() < 0.9:
 		fx.spawn_a(x - cos(rma) * 9.0 + (randf() - 0.5) * 6.0, z + 3.0 + randf() * 4.0, y - sin(rma) * 9.0 + (randf() - 0.5) * 6.0, (randf() - 0.5) * 14.0, 8.0, (randf() - 0.5) * 14.0, k.ab_col, 3.4, 0.3, 0.45, 0.0, 1.0)
 	if k.spin > 0.0:
@@ -764,6 +817,33 @@ func _draw_projectiles(al: float, dt: float) -> void:
 			var fl := 1.0 - float(pd["t"]) / maxf(0.01, float(pd["t0"]))
 			ms.position = Vector3(x, pg + 2.0 + sin(PI * fl) * 16.0, y)
 			ms.rotation.z -= dt * 8.0
+		elif type == "meat2":
+			pn["roll"] = float(pn["roll"]) + Vector2(float(pd["vx"]), float(pd["vy"])).length() * dt / 3.0
+			ms.position = Vector3(x, pg + 4.5, y)
+			ms.basis = Basis.from_euler(Vector3(0.0, -atan2(float(pd["vy"]), float(pd["vx"])), -float(pn["roll"])), EULER_ORDER_XYZ)
+			if dt > 0.0 and randf() < 0.5:
+				fx.spawn_n(x, pg + 1.0, y, (randf() - 0.5) * 16.0, 6.0, (randf() - 0.5) * 16.0, Color("#c8a878"), 4.0, 10.0, 0.6, -2.0, 1.5)
+			continue
+		elif type == "bomb":
+			var landed := bool(pd.get("landed", true))
+			var t0b := maxf(0.01, float(pd.get("t0", 0.75)))
+			var fb := 1.0 if landed else 1.0 - (float(pd["t"]) - float(pd.get("fuse", 1.1))) / t0b
+			ms.position = Vector3(x, pg + 3.0 + (0.0 if landed else sin(PI * minf(1.0, fb)) * 18.0), y)
+			ms.rotation.y += dt * 3.0
+			var pul := 1.0 + sin(time * (8.0 + (1.6 - float(pd["t"])) * 16.0)) * 0.12 if landed else 1.0
+			ms.scale = Vector3.ONE * pul
+			if dt > 0.0:
+				fx.spawn_a(x, ms.position.y + 5.0, y, (randf() - 0.5) * 20.0, 30.0, (randf() - 0.5) * 20.0, Color("#ffcc33"), 1.8, 0.2, 0.3, 60.0, 1.0)
+			continue
+		elif type == "twist":
+			ms.position = Vector3(x, pg + 6.0, y)
+			ms.rotation.y += dt * 14.0
+			ms.scale = Vector3.ONE * (2.2 + sin(time * 7.0) * 0.15)
+			if dt > 0.0:
+				for n in 2:
+					var ta := randf() * TAU
+					fx.spawn_n(x + cos(ta) * 8.0, pg + 2.0 + randf() * 12.0, y + sin(ta) * 8.0, -sin(ta) * 40.0, 10.0, cos(ta) * 40.0, Color("#f3e6c8"), 5.0, 12.0, 0.7, 0.0, 1.0)
+			continue
 		elif type == "torp":
 			ms.position = Vector3(x, pg + 4.0, y)
 			ms.basis = Basis.from_euler(Vector3(sin(time * 20.0) * 0.15, -atan2(float(pd["vy"]), float(pd["vx"])), 0.0), EULER_ORDER_XYZ)
@@ -921,10 +1001,12 @@ func _draw_hazards() -> void:
 			if randf() < 0.3:
 				fx.spawn_a(fxx, fg + 4.0, fyy, 0, 26, 0, Color("#ff7a1a"), 3.0, 0.3, 0.4, 0.0, 0.0)
 			continue
+		var tk := "olive" if hd.get("olive", false) else String(hd.get("kind", "oil"))
+		var tr: Array = TRAP.get(tk, TRAP["oil"])
 		if not haz_nodes.has(id):
 			var root := Node3D.new()
-			var slick := item_node("oil")
-			slick.scale = Vector3.ONE * 1.2
+			var slick := item_node(String(tr[0]))
+			slick.scale = Vector3.ONE * float(tr[1])
 			root.add_child(slick)
 			# a pulsing ring the size of the hit area, a soft glow, and a warning sign above
 			var edge := MeshInstance3D.new()
@@ -939,8 +1021,8 @@ func _draw_hazards() -> void:
 			ring.position.y = 0.26
 			ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			root.add_child(ring)
-			var glow := _halo(Color("#ffd23a"), 16.0)
-			glow.position.y = 4.5
+			var glow := _halo(Color(String(tr[2])), float(tr[3]))
+			glow.position.y = float(tr[4])
 			root.add_child(glow)
 			var warn := MeshInstance3D.new()
 			var q := QuadMesh.new()
@@ -1242,7 +1324,7 @@ func race_event(ed: Dictionary) -> void:
 		fx.ring(bx, Y, by, Color("#ffffff"), 14.0, 0.3, false)
 	elif t == "use":
 		var k2: Kart = ed["k"]
-		var col: Color = ITEM_COL.get(String(ed["it"]), Color("#ffe066"))
+		var col: Color = ITEM_COL.get(String(ed["it"]), Color(String(Race.ITEM_COL2.get(String(ed["it"]), "#ffe066"))))
 		var gy := k2.wy + 7.0
 		fx.spawn_a(k2.x, gy, k2.y, 0, 0, 0, col, 30.0, 8.0, 0.18)
 		fx.ring(k2.x, k2.wy + 0.6, k2.y, col, 26.0, 0.35)
@@ -1340,6 +1422,21 @@ func race_event(ed: Dictionary) -> void:
 		if sc > 1.5:
 			fx.ring(bx2, bgy + 16.0, by2, bcol, br * 0.8, 0.9, false)
 		fx.spawn_a(bx2, bgy + 8.0, by2, 0, 0, 0, Color("#fff2c8"), 70.0 * sc, 12.0 * sc, 0.25, 0.0, 0.0)
+	elif t == "frozen":
+		var kz: Kart = ed["k"]
+		fx.burst(kz.x, kz.wy + 6.0, kz.y, 18, _cols(["#bfe6ff", "#ffffff", "#7fd0ff"]), 50.0, 2.6)
+		fx.ring(kz.x, kz.wy + 0.6, kz.y, Color("#8fd8ff"), 26.0, 0.5)
+	elif t == "sauced":
+		var ks: Kart = ed["k"]
+		fx.burst(ks.x, ks.wy + 8.0, ks.y, 26, _cols(["#d8301c", "#a8180a", "#ff6a3a"]), 70.0, 3.2)
+		fx.ring(ks.x, ks.wy + 0.6, ks.y, Color("#d8301c"), 24.0, 0.5)
+	elif t == "swap":
+		for q in [ed["k"], ed["by"]]:
+			var kq: Kart = q
+			fx.ring(kq.x, kq.wy + 0.6, kq.y, Color("#b26bff"), 40.0, 0.6)
+			fx.burst(kq.x, kq.wy + 8.0, kq.y, 30, _cols(["#b26bff", "#ffe066", "#ffffff"]), 80.0, 3.0)
+	elif t == "cutblock":
+		fx.burst(float(ed["x"]), 8.0 + T.ground(float(ed["x"]), float(ed["y"])), float(ed["y"]), 14, _cols(["#ffffff", "#d8dde3"]), 60.0, 2.0)
 	elif t == "ricochet":
 		var rx2 := float(ed["x"])
 		var ry2 := float(ed["y"])

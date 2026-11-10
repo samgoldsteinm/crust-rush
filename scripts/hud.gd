@@ -42,6 +42,9 @@ var toast_t := 0.0
 var hitfx_t := 0.0
 var abfx_t := 0.0
 var abfx_col := Color.WHITE
+var heat_t := 0.0
+var sauce_a := 0.0        # the sauce smears on the screen (web .saucefx): on at once, fading over 1.6 s
+var sauce_blobs: Array = []
 var show_touch := true
 
 var _ibtn_tex: ImageTexture
@@ -140,8 +143,40 @@ func toast(text: String, dur := 1.2) -> void:
 	toast_t = dur
 
 
+## sauce on the screen: soft-edged red splats, darker at the rim
+func _draw_sauce() -> void:
+	var vs := get_viewport_rect().size
+	var vmin := minf(vs.x, vs.y)
+	for b in sauce_blobs:
+		var c := Vector2(float(b[0]) * vs.x, float(b[1]) * vs.y)
+		var r := float(b[2]) * vmin * 0.5
+		var rot := float(b[3])
+		for ring in 5:
+			var f := 1.0 - float(ring) / 5.0
+			var col := Color(0.94, 0.31, 0.2).lerp(Color(0.47, 0.04, 0.02), f)
+			var pts := PackedVector2Array()
+			for i in 28:
+				var an := TAU * i / 28.0
+				var wob := 1.0 + 0.08 * sin(an * 3.0 + rot) + 0.05 * sin(an * 5.0 - rot)
+				pts.append(c + Vector2(cos(an), sin(an) * 0.8).rotated(rot) * r * f * wob)
+			draw_colored_polygon(pts, Color(col.r, col.g, col.b, 0.92 * sauce_a))
+
+
 func hit_flash() -> void:
 	hitfx_t = 0.6
+
+
+## web heatFlash: the edges glow oven-orange and fade over 0.9 s
+func heat_flash() -> void:
+	heat_t = 0.9
+
+
+## web sauceFx(true): nine splats of sauce, placed at random each race
+func sauce_on() -> void:
+	if sauce_blobs.is_empty():
+		for i in 9:
+			sauce_blobs.append([0.10 + randf() * 0.80, 0.10 + randf() * 0.70, 0.10 + randf() * 0.16, randf() * TAU])
+	sauce_a = 1.0
 
 
 ## web abilFlash: the screen's edges glow in the ability's colour (an inset 30px + 120px blur shadow) and fade over 0.9 s
@@ -164,6 +199,12 @@ func tick(dt: float) -> void:
 		hitfx_t -= dt
 	if abfx_t > 0.0:
 		abfx_t -= dt
+	if heat_t > 0.0:
+		heat_t -= dt
+	if me != null and me.sauce_t > 0.0 and sauce_a > 0.0:
+		sauce_a = 1.0
+	elif sauce_a > 0.0:
+		sauce_a = maxf(0.0, sauce_a - dt / 1.6)
 	var vs := get_viewport_rect().size
 	# like the browser's device-pixel ratio: the screen's scale setting (96 dpi = 1)
 	s = clampf(float(DisplayServer.screen_get_dpi()) / 96.0, 1.0, 3.0) if DisplayServer.get_name() != "headless" else 1.0
@@ -385,6 +426,14 @@ func _draw() -> void:
 		for i in 10:
 			var f := float(i) / 10.0
 			draw_rect(Rect2(Vector2(0, 0), vs).grow(-f * vs.y * 0.25), Color(0.88, 0.16, 0.08, a * 0.12 * (1.0 - f)), false, vs.y * 0.025)
+	if sauce_a > 0.0:
+		_draw_sauce()
+	if heat_t > 0.0:
+		var hv := get_viewport_rect().size
+		var ha := clampf(heat_t / 0.9, 0.0, 1.0)
+		for i in 18:
+			var f := float(i) / 18.0
+			draw_rect(Rect2(Vector2.ZERO, hv).grow(-f * hv.y * 0.42), Color(1.0, 0.43, 0.08, 0.55 * ha * (1.0 - f) * 0.16), false, hv.y * 0.025)
 	if abfx_t > 0.0:
 		var u := 1.0 - clampf(abfx_t / 0.9, 0.0, 1.0)
 		var op := (1.0 - u) * (1.0 - u)

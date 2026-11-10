@@ -17,6 +17,8 @@ func _ready() -> void:
 		[6, func(): main.menu.show_modal("set"), "p_set"],
 		[6, func(): main.menu.show_modal("mp"), "p_mp"],
 		[6, func(): main.menu.show_modal("how"), "p_how"],
+		[6, func(): main.menu.show_modal("rec"), "p_rec"],
+		[6, func(): main.menu.show_modal("ach"), "p_ach"],
 		[6, func():
 			main.menu.close_modal()
 			main.menu.open("driver"), "p_driver"],

@@ -7,11 +7,20 @@ extends RefCounted
 
 ## the web game's ten classic items minus the freezer (an award item there); power 1 (traps, single
 ## shots) to 5 (comeback items). Odds centre on a higher power the further back you are.
-const ITEM_POWER := {"oil": 1.0, "garlic": 1.0, "pepperoni": 1.0, "flour": 1.5, "trio": 2.0, "dough": 2.0, "chili": 2.4, "rush": 4.4, "wheel": 5.0}
-const NEEDS_TARGET := ["dough", "wheel", "freezer"]
-const DROPS := ["oil"]
+const ITEM_POWER := {"oil": 1.0, "forks": 1.0, "boxes": 1.0, "garlic": 1.0, "pepperoni": 1.0, "flour": 1.5,
+	"trio": 2.0, "garlic2": 2.0, "dough": 2.0, "meatball": 2.0, "bomb": 2.0, "cutter": 2.2, "chili": 2.4,
+	"torpedo": 3.0, "jalapeno": 3.0, "shroom": 3.0, "sauce": 3.0, "twister": 3.0, "swap": 3.2, "magnet": 3.4,
+	"freezer": 4.0, "heat": 4.0, "ghost": 4.0, "rush": 4.4, "cannon": 5.0, "wheel": 5.0}
+const NEEDS_TARGET := ["dough", "torpedo", "magnet", "swap", "ghost", "wheel", "freezer", "sauce"]
+const DROPS := ["oil", "forks", "boxes"]
 const HOLDABLE := ["pepperoni", "dough", "flour"]
-const NOBACK := ["chili", "garlic", "wheel", "rush", "freezer"]
+const NOBACK := ["chili", "garlic", "wheel", "rush", "freezer", "jalapeno", "torpedo", "shroom", "magnet", "cutter", "sauce", "heat", "forks", "ghost", "cannon", "twister", "swap", "boxes"]
+## the award items: each comes into the game once its achievement is won (web ITEM_RETIRED)
+const ITEM_AWARD := {"meatball": "podium10", "bomb": "items100", "twister": "drift50", "freezer": "loops25"}
+## the newer items' colours (web NEWITEMS)
+const ITEM_COL2 := {"jalapeno": "#4fd02a", "meatball": "#9a5a32", "torpedo": "#8fc8e8", "shroom": "#e05a3a", "magnet": "#ff3b3b", "cutter": "#d8dde3",
+	"sauce": "#d8301c", "heat": "#ff7a1a", "bomb": "#e2b06a", "forks": "#c9ced6", "ghost": "#e8f6ff", "cannon": "#ffd23a", "twister": "#f3dfb4",
+	"swap": "#b26bff", "boxes": "#c98b4e", "garlic2": "#b8ffb0"}
 const PTS := [15, 12, 10, 8, 6, 4, 2, 1]
 ## every racer's special (web ABIL): name, what it does, its colour
 const ABIL := {
@@ -54,6 +63,7 @@ var rollers: Array = []       # {j, ph, lat, x, y}
 var walkers: Array = []       # {j, lat, latT, v, ph, pause, H, along, x, y, face, hit_t}
 var train := {}               # {px, py, ux, uy, span, len, v, cars: [{off, L, t}], state, wait, pos, dir}
 var _bump_t := {}
+var items_off := {}         # items switched off (settings) or not yet won (award items): {name: true}
 
 
 ## One-player race: the player in the middle of the grid, seven computer drivers.
@@ -450,6 +460,7 @@ func update(dt: float, player_inp: Dictionary) -> void:
 		race_time += dt
 	_hazards_tick(dt)
 	_ability_tick(dt)
+	_items_tick(dt)
 	for k in karts:
 		var inp: Dictionary
 		if k.remote and not bool(k.ai.get("auto", false)) and not (k.rush > 0.0):
@@ -731,6 +742,10 @@ func roll_item(pos: int) -> String:
 	var sum := 0.0
 	for k in ITEM_POWER:
 		var w: float = ITEM_POWER[k]
+		if k == "garlic2" and items_off.has("garlic"):
+			continue
+		if items_off.has(k):
+			continue
 		if pos == 0 and k in NEEDS_TARGET:
 			continue
 		if f < 0.35 and w >= 4.0:
@@ -784,10 +799,10 @@ func use_item(k: Kart, back_in: bool) -> void:
 	if it == "":
 		return
 	var back := it in DROPS or (back_in and not it in NOBACK)
-	if it == "garlic":
+	if it == "garlic" or it == "garlic2":
 		k.item = k.item2
 		k.item2 = ""
-		add_shield(k, 1)
+		add_shield(k, 2 if it == "garlic2" else 1)
 		return
 	k.item = k.item2
 	k.item2 = ""
@@ -841,6 +856,194 @@ func use_item(k: Kart, back_in: bool) -> void:
 		k.rush = 3.2
 		k.boost = maxf(k.boost, 3.2)
 		k.drift = 0
+	elif it == "freezer":
+		# every racer ahead is frozen in a block of ice for a moment
+		var sf2 := standings()
+		var fi := sf2.find(k)
+		for j in fi:
+			var o2: Kart = sf2[j]
+			if o2 == k or o2.finished or o2.inv > 0.0 or o2.shield > 0.0 or o2.rush > 0.0 or not o2.loop.is_empty() or o2.abs_t > 0.0 or ab_inv(o2) or o2.ghost_t > 0.0:
+				continue
+			if _absorb(o2):
+				continue
+			o2.frozen = 2.8
+			o2.inv = maxf(o2.inv, 2.8 + 3.0)
+			fx.append({"t": "frozen", "k": o2})
+	else:
+		_use_item2(k, it, back)
+
+
+## the web's newer items (useItem2)
+func _use_item2(k: Kart, it: String, back: bool) -> void:
+	var ca := cos(k.a)
+	var sa := sin(k.a)
+	var i := stand.find(k)
+	if it == "jalapeno":
+		# three quick boosts, one per tap
+		k.boost = maxf(k.boost, 1.05)
+		k.jal_n = (k.jal_n if k.jal_n > 0 else 3) - 1
+		if k.jal_n > 0:
+			k.item2 = k.item
+			k.item = "jalapeno"
+		else:
+			k.jal_n = 0
+	elif it == "meatball":
+		var dr := -1.0 if back else 1.0
+		var sp := 160.0 if back else 230.0 + maxf(0.0, k.speed) * 0.55
+		var p := _proj(k, "meat2", k.x + ca * 12.0 * dr, k.y + sa * 12.0 * dr, ca * sp * dr, sa * sp * dr, 7.0, 0.4)
+		p["hits"] = 0
+	elif it == "torpedo":
+		var sp2 := 360.0 + maxf(0.0, k.speed)
+		var p2 := _proj(k, "torp", k.x + ca * 12.0, k.y + sa * 12.0, ca * sp2, sa * sp2, 8.0, 0.3)
+		p2["target"] = stand[i - 1] if i > 0 else null
+	elif it == "shroom":
+		# a huge springy jump with a burst of speed
+		k.air = true
+		k.big = true
+		k.air_t = 0.0
+		k.wvy = 78.0
+		k.boost = maxf(k.boost, 0.9)
+		k.drift = 0
+	elif it == "magnet":
+		k.mag_t = 2.6
+		k.mag_tg = stand[i - 1] if i > 0 else null
+	elif it == "cutter":
+		k.cut_t = 8.0
+		k.cut_a = 0.0
+	elif it == "sauce":
+		for j in i:
+			var o: Kart = stand[j]
+			if o.inv > 0.0 or o.shield > 0.0 or o.ghost_t > 0.0 or not o.loop.is_empty() or o.abs_t > 0.0 or ab_inv(o):
+				continue
+			if _absorb(o):
+				continue
+			o.sauce_t = 4.0
+			o.inv = maxf(o.inv, 3.0)
+			fx.append({"t": "sauced", "k": o})
+	elif it == "heat":
+		for o in karts:
+			if o == k or not o.loop.is_empty() or o.inv > 0.0 or o.shield > 0.0 or o.ghost_t > 0.0 or o.abs_t > 0.0 or ab_inv(o):
+				continue
+			if _absorb(o):
+				continue
+			o.shrink_t = 3.2
+			o.speed *= 0.6
+			spin_out(o, "pep")
+			o.inv = maxf(o.inv, 3.0)
+		fx.append({"t": "heat", "k": k})
+	elif it == "bomb":
+		if back:
+			var pb := _proj(k, "bomb", k.x - cos(k.ma) * 16.0, k.y - sin(k.ma) * 16.0, 0.0, 0.0, 1.6, 9.0)
+			pb["fuse"] = 1.6
+			pb["landed"] = true
+		else:
+			var sp3 := maxf(0.0, k.speed) + 160.0
+			var pb2 := _proj(k, "bomb", k.x + ca * 8.0, k.y + sa * 8.0, ca * sp3, sa * sp3, 0.75 + 1.1, 9.0)
+			pb2["t0"] = 0.75
+			pb2["fuse"] = 1.1
+			pb2["landed"] = false
+	elif it == "forks" or it == "boxes":
+		var j0 := ((k.idx % T.N) + T.N) % T.N
+		var back_d := 22.0 if it == "forks" else 26.0
+		for o3 in ([-22.0, 0.0, 22.0] if it == "forks" else [-30.0, 0.0, 30.0]):
+			var hx := k.x - cos(k.ma) * back_d + T.nx[j0] * float(o3)
+			var hy := k.y - sin(k.ma) * back_d + T.ny[j0] * float(o3)
+			hazards.append({"id": _nid(), "x": hx, "y": hy, "t": 25.0 if it == "forks" else 22.0, "born": 0.0, "owner": k, "armed": false, "kind": it})
+	elif it == "ghost":
+		# fade out, and take the leader's item
+		k.ghost_t = 4.5
+		var ld: Kart = stand[0] if stand.size() > 0 else null
+		if ld != null and ld != k and ld.item != "" and not _absorb(ld):
+			var got := ld.item
+			ld.item = ld.item2
+			ld.item2 = ""
+			if k.item == "":
+				k.item = got
+			elif k.item2 == "" and k.held.is_empty():
+				k.item2 = got
+			fx.append({"t": "robbed", "k": ld, "by": k})
+	elif it == "cannon":
+		k.cannon_t = 4.2
+		k.rush = 4.2
+		k.auto_t = 4.2
+		k.boost = maxf(k.boost, 4.2)
+		k.drift = 0
+	elif it == "twister":
+		var pt := _proj(k, "twist", k.x + ca * 16.0, k.y + sa * 16.0, 0.0, 0.0, 9.0, 0.6)
+		pt["prog"] = float(k.prog + 3)
+		pt["lat"] = T.lateral(k.idx, k.x, k.y)
+		pt["ph"] = rng.randf() * 6.0
+	elif it == "swap":
+		var o4: Kart = stand[i - 1] if i > 0 else null
+		if o4 != null and o4.loop.is_empty() and k.loop.is_empty() and not o4.finished and o4.prog - k.prog < int(T.N * 0.35) and not _absorb(o4):
+			# only the places swap: each keeps its own speed and its heading along the road
+			var ta := func(q: Kart) -> float: return T.ang[((q.idx % T.N) + T.N) % T.N]
+			var rk := [Kart.ang_diff(k.a, ta.call(k)), Kart.ang_diff(k.ma, ta.call(k))]
+			var ro := [Kart.ang_diff(o4.a, ta.call(o4)), Kart.ang_diff(o4.ma, ta.call(o4))]
+			for f in ["x", "y", "idx", "prog", "wy", "last_g"]:
+				var tmp = k.get(f)
+				k.set(f, o4.get(f))
+				o4.set(f, tmp)
+			var a0 := float(ta.call(k))
+			k.a = a0 + float(rk[0])
+			k.ma = a0 + float(rk[1])
+			var a1 := float(ta.call(o4))
+			o4.a = a1 + float(ro[0])
+			o4.ma = a1 + float(ro[1])
+			k._save_prev()
+			o4._save_prev()
+			k.inv = maxf(k.inv, 1.0)
+			fx.append({"t": "swap", "k": k, "by": o4})
+
+
+## the class's top speed (web BASE_MAX)
+func k_base_max() -> float:
+	return 170.5 * T.class_mul
+
+
+## the newer items that keep running on a kart: the magnet's pull, the orbiting cutters, the timers (web itemsTick)
+func _items_tick(dt: float) -> void:
+	for k in karts:
+		if k.mag_t > 0.0:
+			k.mag_t -= dt
+			var tg := k.mag_tg
+			if tg != null and not tg.finished:
+				var dx := tg.x - k.x
+				var dy := tg.y - k.y
+				var dd := maxf(0.001, sqrt(dx * dx + dy * dy))
+				if dd < 26.0:
+					k.mag_t = 0.0
+				else:
+					k.boost = maxf(k.boost, 0.12)
+					k.ma += clampf(Kart.ang_diff(atan2(dy, dx), k.ma), -1.4 * dt, 1.4 * dt)
+					k.speed = maxf(k.speed, minf(k.base_max * 1.75, absf(tg.speed) + 130.0))
+			else:
+				k.mag_t = 0.0
+		if k.cut_t > 0.0:
+			k.cut_t -= dt
+			k.cut_a += dt * 5.5
+			for b in 3:
+				var an := k.cut_a + b * 2.094
+				var bx := k.x + cos(an) * 15.0
+				var by := k.y + sin(an) * 15.0
+				for o in karts:
+					if o == k or not o.loop.is_empty():
+						continue
+					if (o.x - bx) ** 2 + (o.y - by) ** 2 < 144.0 and o.inv <= 0.0:
+						spin_out(o, "wheel")
+				for p in projectiles:
+					if p["owner"] != k and not bool(p.get("sure", false)) and (float(p["x"]) - bx) ** 2 + (float(p["y"]) - by) ** 2 < 121.0:
+						p["t"] = 0.0
+						p["dead"] = true
+						fx.append({"t": "cutblock", "x": bx, "y": by})
+		if k.ghost_t > 0.0:
+			k.ghost_t -= dt
+		if k.sauce_t > 0.0:
+			k.sauce_t -= dt
+		if k.shrink_t > 0.0:
+			k.shrink_t -= dt
+		if k.cannon_t > 0.0:
+			k.cannon_t -= dt
 
 
 func hold_item(k: Kart, sl: int) -> bool:
@@ -930,7 +1133,7 @@ func spin_out(k: Kart, kind: String, world := false, force := false) -> bool:
 		k.abs_t = 0.0
 		k.mz_h = 0
 	else:
-		if k.inv > 0.0 or k.rush > 0.0 or ab_inv(k) or k.abs_t > 0.0:
+		if k.inv > 0.0 or k.rush > 0.0 or ab_inv(k) or k.abs_t > 0.0 or k.ghost_t > 0.0:
 			return false
 		if not world and (k.air or k.glide or not k.loop.is_empty()):
 			return false
@@ -1260,8 +1463,42 @@ func _projectiles(dt: float) -> void:
 		p["safe"] = float(p["safe"]) - dt
 		var type: String = p["type"]
 		var tg: Kart = p["target"]
+		if type == "twist":
+			# a dough tornado that rolls down the track, weaving across it
+			p["prog"] = float(p["prog"]) + dt * maxf(14.0, k_base_max() * 0.72 / (T.L / T.N))
+			p["lat"] = sin(sim_time * 1.6 + float(p["ph"])) * (T.RW * 0.75)
+			var tp := T.track_at(float(p["prog"]), float(p["lat"]))
+			p["x"] = tp.x
+			p["y"] = tp.y
+			for k in karts:
+				if not k.loop.is_empty() or (k == p["owner"] and float(p["safe"]) > 0.0):
+					continue
+				if (k.x - tp.x) ** 2 + (k.y - tp.y) ** 2 < 400.0 and k.inv <= 0.0:
+					if spin_out(k, "flour") and k.air and k.loop.is_empty():
+						k.big = true
+						k.wvy = maxf(k.wvy, 65.0)
+			if float(p["t"]) <= 0.0:
+				projectiles.remove_at(i)
+			i -= 1
+			continue
+		if type == "bomb":
+			if not bool(p["landed"]):
+				if float(p["t"]) <= float(p["fuse"]):
+					p["landed"] = true
+					p["vx"] = 0.0
+					p["vy"] = 0.0
+			else:
+				p["vx"] = float(p["vx"]) * 0.9
+				p["vy"] = float(p["vy"]) * 0.9
+			if float(p["t"]) <= 0.0:
+				blast(float(p["x"]), float(p["y"]), 48.0, null, "pep")
+				projectiles.remove_at(i)
+				i -= 1
+				continue
 		if type == "dough" and tg != null and not tg.finished:
 			_home_step(p, tg, dt, maxf(300.0, absf(tg.speed) * 1.22 + 70.0), 9.0 if Vector2(tg.x - float(p["x"]), tg.y - float(p["y"])).length() < 70.0 else 5.5)
+		elif type == "torp" and tg != null and not tg.finished and not bool(p.get("sure", false)):
+			_home_step(p, tg, dt, maxf(380.0, absf(tg.speed) * 1.35 + 90.0), 7.0)
 		elif type == "torp" and tg != null and not tg.finished:
 			_home_step(p, tg, dt, maxf(380.0, absf(tg.speed) * 1.35 + 90.0), 7.0)
 		elif type != "wheel":
@@ -1279,8 +1516,40 @@ func _projectiles(dt: float) -> void:
 			p["x"] = nx * (T.RIM - 1.0)
 			p["y"] = ny * (T.RIM - 1.0)
 			p["b"] = int(p["b"]) + 1
-			if int(p["b"]) > 3:
+			if int(p["b"]) > (4 if type in ["meat2", "torp", "bomb"] else 3):
 				p["t"] = 0.0
+		if type == "bomb":
+			i -= 1
+			continue
+		if type == "meat2":
+			# the bowling meatball rolls on through up to three racers, slowing a little each time
+			var gone := false
+			for k in karts:
+				if not k.loop.is_empty() or (k == p["owner"] and float(p["safe"]) > 0.0) or k.ghost_t > 0.0:
+					continue
+				if _held_block(k, p):
+					gone = true
+					break
+				if (k.x - float(p["x"])) ** 2 + (k.y - float(p["y"])) ** 2 < 484.0 and k.inv <= 0.0:
+					if spin_out(k, "meat"):
+						fx.append({"t": "hit", "k": k, "type": "meat2", "x": float(p["x"]), "y": float(p["y"])})
+					p["hits"] = int(p["hits"]) + 1
+					if int(p["hits"]) >= 3:
+						gone = true
+						break
+					var spm := Vector2(float(p["vx"]), float(p["vy"])).length()
+					p["vx"] = float(p["vx"]) * 0.85
+					p["vy"] = float(p["vy"]) * 0.85
+					if spm < 60.0:
+						gone = true
+						break
+			for h in hazards:
+				if (float(h["x"]) - float(p["x"])) ** 2 + (float(h["y"]) - float(p["y"])) ** 2 < 484.0 * 0.6:
+					h["t"] = 0.0
+			if gone or float(p["t"]) <= 0.0:
+				projectiles.remove_at(i)
+			i -= 1
+			continue
 		if type == "wheel":
 			if _wheel(p, dt):
 				projectiles.remove_at(i)
@@ -1357,13 +1626,13 @@ func _projectiles(dt: float) -> void:
 			i -= 1
 			continue
 		for k in karts:
-			if not k.loop.is_empty() or (k == p["owner"] and (float(p["safe"]) > 0.0 or type == "pep")):
+			if not k.loop.is_empty() or (k == p["owner"] and (float(p["safe"]) > 0.0 or type == "pep")) or k.ghost_t > 0.0:
 				continue
 			if _held_block(k, p):
 				hit = true
 				break
-			if (k.x - float(p["x"])) ** 2 + (k.y - float(p["y"])) ** 2 < 200.0 and k.inv <= 0.0:
-				spin_out(k, type)
+			if (k.x - float(p["x"])) ** 2 + (k.y - float(p["y"])) ** 2 < (256.0 if type == "torp" else 200.0) and k.inv <= 0.0:
+				spin_out(k, "pep" if type == "torp" else type)
 				hit = true
 				p["pop"] = true
 				fx.append({"t": "hit", "k": k, "type": type, "x": float(p["x"]), "y": float(p["y"])})

@@ -38,6 +38,7 @@ var cls := "medium"
 var ri := 1
 var build := {"b": 0, "w": 0, "g": 0, "p": 0, "t": ""}   # the kart build (web playerBuild)
 var g_tab := "kart"
+var g_hint := ""
 var stats_on := true
 var _gview: SubViewport
 var _gkart: Node3D
@@ -156,6 +157,16 @@ class _Backdrop extends Control:
 			cols.append(Color(col.r, col.g, col.b, 0.0))
 		for i in n:
 			draw_polygon(PackedVector2Array([pts[0], pts[i + 1], pts[i + 2]]), PackedColorArray([cols[0], cols[i + 1], cols[i + 2]]))
+
+
+class _Lock extends Control:
+	## the padlock on a reward livery not won yet
+	func _draw() -> void:
+		var w := size.x
+		var h := size.y
+		var c := Color("#fff4dc")
+		draw_rect(Rect2(w * 0.2, h * 0.44, w * 0.6, h * 0.46), c)
+		draw_arc(Vector2(w * 0.5, h * 0.42), w * 0.2, PI, TAU, 16, c, maxf(1.5, w * 0.1), true)
 
 
 class _Line extends Control:
@@ -1094,15 +1105,38 @@ func _garage() -> Control:
 				_build_changed())
 			grid.add_child(none)
 			for l in KartBuilder.liveries_for(String(I["bodies"][int(build["b"])]["id"])):
-				if l.get("lock") != null:
-					continue
+				var locked := Ach.liv_locked(l)
 				var lc := _livery_card(l, String(l["id"]) == String(build.get("t", "")))
 				var lid := String(l["id"])
-				lc.pressed.connect(func():
-					build["t"] = lid
-					_build_changed())
+				if locked:
+					# a reward livery not won yet: shown with a lock; a tap says how to win it
+					lc.modulate = Color(1, 1, 1, 0.55)
+					var lk := _Lock.new()
+					lk.custom_minimum_size = Vector2(z(16), z(16))
+					lk.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+					lk.offset_left = -z(22)
+					lk.offset_top = z(5)
+					lk.offset_right = -z(6)
+					lk.offset_bottom = z(21)
+					lk.mouse_filter = Control.MOUSE_FILTER_IGNORE
+					lc.add_child(lk)
+					var an := ""
+					for a in Ach.LIST:
+						if String(a[0]) == String(l["lock"]):
+							an = "[b][color=#fff4dc]%s[/color][/b]: %s" % [String(a[1]), String(a[2])]
+					var hint := "[b][color=#fff4dc]%s[/color][/b] unlocks with %s" % [String(l["name"]), an if an != "" else "an achievement"]
+					lc.pressed.connect(func():
+						g_hint = hint
+						open("garage"))
+				else:
+					lc.pressed.connect(func():
+						build["t"] = lid
+						_build_changed())
 				grid.add_child(lc)
 			desc = "Multi-colour liveries. Some are made for one body only."
+			if g_hint != "":
+				desc = g_hint
+				g_hint = ""
 	var rt := RichTextLabel.new()
 	rt.bbcode_enabled = true
 	rt.fit_content = true
@@ -1408,11 +1442,240 @@ func show_modal(kind: String) -> void:
 
 
 var modal_builders := {}   # kind -> Callable returning a Control (set by main for settings and online)
+var rec_cls := ""
+const CLS_LABEL := {"small": "50cc", "medium": "100cc", "large": "200cc", "reverse": "Reverse"}
+
+
+static func fmt_time(t: float) -> String:
+	if t < 0.0:
+		return "--:--.--"
+	return "%d:%05.2f" % [int(t) / 60, fmod(t, 60.0)]
+
+
+static func fmt_date(unix: int) -> String:
+	var dt := Time.get_datetime_dict_from_unix_time(unix)
+	var mon: String = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][clampi(int(dt["month"]) - 1, 0, 11)]
+	return "%s %d" % [mon, int(dt["day"])]
+
+
+func _racer_name(i: int) -> String:
+	return String(racers_info[i]["name"]) if i >= 0 and i < racers_info.size() else "?"
+
+
+## web #records: personal bests for every track at one speed class, and the latest races
+func _records() -> Control:
+	if rec_cls == "":
+		rec_cls = cls
+	var row := hbox(22)
+	var left := vbox(10)
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left.size_flags_stretch_ratio = 1.9
+	row.add_child(left)
+	var lh := hbox(12)
+	var sl := section_label("Personal bests")
+	sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lh.add_child(sl)
+	var opts: Array = []
+	for k in ["small", "medium", "large", "reverse"]:
+		opts.append([k, CLS_LABEL[k]])
+	lh.add_child(seg("reccls", opts, rec_cls, func(k):
+		rec_cls = k
+		show_modal("rec"), 14.0, 6.0))
+	left.add_child(lh)
+	var sc := ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left.add_child(sc)
+	var g := GridContainer.new()
+	g.columns = 3
+	g.add_theme_constant_override("h_separation", zi(8))
+	g.add_theme_constant_override("v_separation", zi(8))
+	g.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(g)
+	var ms := maps.duplicate()
+	ms.sort_custom(func(a, b): return int(a.get("mi", 0)) < int(b.get("mi", 0)))
+	for m in ms:
+		var id := String(m["id"])
+		var r := Ach.best(id, rec_cls)
+		var card := panel(glass(10.0, Vector4(6, 6, 10, 6)))
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var h := hbox(10)
+		card.add_child(h)
+		var pic := _Portrait.new()
+		pic.tex = _shot(id, "h")
+		pic.radius = 6.0
+		pic.custom_minimum_size = Vector2(z(60), z(40))
+		h.add_child(pic)
+		var tv := vbox(0)
+		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var nm := label(String(m.get("name", id)), f_bold, 14.0, Color("#fff4dc"))
+		nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		nm.clip_text = true
+		tv.add_child(nm)
+		tv.add_child(label((_racer_name(int(r["dr"])) + " · " + fmt_date(int(r["d"]))) if not r.is_empty() else "No time yet", f_med, 12.0, MUTED))
+		h.add_child(tv)
+		var tm := label(fmt_time(float(r["t"])) if not r.is_empty() else "–", f_bold, 14.0, CHEESE if not r.is_empty() else MUTED)
+		tm.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		h.add_child(tm)
+		g.add_child(card)
+	var right := vbox(10)
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(right)
+	right.add_child(section_label("Recent races"))
+	var hs := ScrollContainer.new()
+	hs.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	hs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right.add_child(hs)
+	var hl := vbox(6)
+	hl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hs.add_child(hl)
+	var hist := Ach.history()
+	if hist.is_empty():
+		var e := panel(glass(10.0, Vector4(12, 10, 12, 10)))
+		e.add_child(label("Finish a race and it will show up here.", f_med, 15.0, MUTED))
+		hl.add_child(e)
+	var names := {}
+	for m2 in maps:
+		names[String(m2["id"])] = String(m2.get("name", m2["id"]))
+	for hq in hist:
+		var hd: Dictionary = hq
+		var hc := panel(glass(10.0, Vector4(12, 7, 12, 7)))
+		var hh := hbox(10)
+		hc.add_child(hh)
+		var pl := int(hd.get("p", 0))
+		hh.add_child(label("%d%s" % [pl, ["th", "st", "nd", "rd"][pl if pl < 4 and pl > 0 else 0] if not (pl >= 11 and pl <= 13) else "th"], f_disp, 16.0, CHEESE))
+		var hv := vbox(0)
+		hv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hv.add_child(label(String(names.get(String(hd.get("m", "")), hd.get("m", ""))), f_bold, 14.0, Color("#fff4dc")))
+		hv.add_child(label("%s · %s · %s" % [String(CLS_LABEL.get(String(hd.get("c", "")), hd.get("c", ""))), _racer_name(int(hd.get("dr", 0))), fmt_date(int(hd.get("d", 0)))], f_med, 11.0, MUTED))
+		hh.add_child(hv)
+		hh.add_child(label(fmt_time(float(hd.get("t", 0.0))) + ("  PB" if bool(hd.get("pb", false)) else ""), f_bold, 14.0, Color("#7fe07a") if bool(hd.get("pb", false)) else Color("#fff4dc")))
+		hl.add_child(hc)
+	return row
+
+
+## web #achievements: twenty lifetime goals, each with its reward livery and progress
+func _achievements() -> Control:
+	var v := vbox(12)
+	var top := hbox(10)
+	top.add_child(label(str(Ach.n_unlocked()), f_disp, 22.0, CHEESE))
+	top.add_child(label("of %d unlocked" % Ach.LIST.size(), f_semi, 17.0, Color("#fff4dc")))
+	var note := label("Every achievement unlocks a reward livery. The full pattern paints onto car bodies; karts take its colours.", f_med, 13.0, MUTED)
+	note.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	top.add_child(note)
+	v.add_child(top)
+	var sc := ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(sc)
+	var g := GridContainer.new()
+	g.columns = 4
+	g.add_theme_constant_override("h_separation", zi(14))
+	g.add_theme_constant_override("v_separation", zi(14))
+	g.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(g)
+	for a in Ach.LIST:
+		var won := Ach.unlocked(String(a[0]))
+		var lv := KartBuilder.livery(String(a[5])) if KartBuilder.ready() else {}
+		var card := panel(box([Color(1, 0.957, 0.863, 0.06), Color(1, 0.957, 0.863, 0.015)], 160.0, 16.0, Color(0.97, 0.79, 0.28, 0.6) if won else Color(1, 0.957, 0.863, 0.12), 1.0, Vector4(0, 0, 0, 0)))
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var cv := vbox(0)
+		card.add_child(cv)
+		# the reward: its colours as a swatch, its name on a tag, a padlock until won
+		var sw := _LivSwatch.new()
+		sw.cols = [Color(String(lv.get("A", "#5a4a40"))), Color(String(lv.get("B", "#5a4a40"))), Color(String(lv.get("C", "#5a4a40")))]
+		sw.radius = z(16.0)
+		sw.custom_minimum_size = Vector2(0, z(150))
+		cv.add_child(sw)
+		var tag := panel(box([Color(0.07, 0.035, 0.02, 0.82), Color(0.07, 0.035, 0.02, 0.82)], 180.0, 6.0, Color(0, 0, 0, 0), 0.0, Vector4(8, 3, 8, 3)))
+		tag.add_child(label(String(lv.get("name", a[5])).to_upper(), f_bold, 11.0, CHEESE))
+		tag.position = Vector2(z(12), z(150) - z(32))
+		sw.add_child(tag)
+		if not won:
+			var lk := _Lock.new()
+			lk.position = Vector2(0, z(14))
+			lk.size = Vector2(z(16), z(16))
+			lk.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			sw.lock = lk
+			sw.add_child(lk)
+		var body := vbox(4)
+		var mg := MarginContainer.new()
+		for k2 in ["margin_left", "margin_right"]:
+			mg.add_theme_constant_override(k2, zi(14))
+		mg.add_theme_constant_override("margin_top", zi(10))
+		mg.add_theme_constant_override("margin_bottom", zi(14))
+		mg.add_child(body)
+		cv.add_child(mg)
+		body.add_child(label(String(a[1]), f_bold, 18.0, Color("#fff4dc")))
+		var dl := label(String(a[2]), f_med, 13.0, MUTED)
+		dl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		body.add_child(dl)
+		if String(a[6]) != "":
+			var rt := RichTextLabel.new()
+			rt.bbcode_enabled = true
+			rt.fit_content = true
+			rt.scroll_active = false
+			rt.add_theme_font_override("normal_font", f_med)
+			rt.add_theme_font_override("bold_font", f_bold)
+			rt.add_theme_font_size_override("normal_font_size", zi(13))
+			rt.add_theme_font_size_override("bold_font_size", zi(13))
+			rt.add_theme_color_override("default_color", MUTED)
+			rt.text = "Also unlocks the [b][color=#fff4dc]%s[/color][/b] item" % String(Ach.ITEM_NAMES.get(String(a[6]), a[6]))
+			body.add_child(rt)
+		var nd := Ach.need(a)
+		var val := minf(Ach.value(a), float(nd))
+		var bar := _Bar.new()
+		bar.f = val / maxf(1.0, float(nd))
+		bar.custom_minimum_size = Vector2(0, z(7))
+		body.add_child(bar)
+		var shown := ("%d:%02d" % [int(val) / 60, int(val) % 60]) if String(a[3]) == "glide" else str(int(val))
+		var need_s := ("%d:%02d" % [nd / 60, nd % 60]) if String(a[3]) == "glide" else str(nd)
+		body.add_child(label(("Unlocked" if won else "%s / %s" % [shown, need_s]), f_med, 12.0, Color("#7fe07a") if won else MUTED))
+		g.add_child(card)
+	return v
+
+
+class _LivSwatch extends Control:
+	## a reward livery's colours, diagonal, rounded at the top (the web shows the livery painted on a car)
+	var cols: Array = []
+	var radius := 16.0
+	var lock: Control = null
+	func _draw() -> void:
+		var r := Rect2(Vector2.ZERO, size)
+		var pts := CssBox.outline(r, Vector4(radius, radius, 0, 0))
+		var pc := PackedColorArray()
+		for p in pts:
+			var t := clampf((p.x / maxf(1.0, size.x) + p.y / maxf(1.0, size.y)) * 0.5, 0.0, 1.0)
+			var c: Color = cols[0].lerp(cols[1], clampf(t / 0.6, 0.0, 1.0)) if t < 0.6 else cols[1].lerp(cols[2], (t - 0.6) / 0.4)
+			pc.append(c)
+		draw_polygon(pts, pc)
+		if lock != null:
+			lock.position = Vector2(size.x - lock.size.x - 14.0 * size.y / 150.0, 14.0 * size.y / 150.0)
+			draw_circle(lock.position + lock.size / 2.0, lock.size.x * 0.95, Color(0.07, 0.035, 0.02, 0.8))
+
+
+class _Bar extends Control:
+	## a progress bar: dark track, cheese-yellow fill
+	var f := 0.0
+	func _draw() -> void:
+		var r := size.y / 2.0
+		draw_rect(Rect2(r, 0, size.x - 2.0 * r, size.y), Color(1, 0.957, 0.863, 0.1))
+		draw_circle(Vector2(r, r), r, Color(1, 0.957, 0.863, 0.1))
+		draw_circle(Vector2(size.x - r, r), r, Color(1, 0.957, 0.863, 0.1))
+		if f > 0.001:
+			var w := maxf(2.0 * r, size.x * clampf(f, 0.0, 1.0))
+			draw_rect(Rect2(r, 0, w - 2.0 * r, size.y), Color("#f7c948"))
+			draw_circle(Vector2(r, r), r, Color("#f7c948"))
+			draw_circle(Vector2(w - r, r), r, Color("#f7c948"))
 
 
 func _modal_body(kind: String) -> Control:
 	if modal_builders.has(kind):
 		return (modal_builders[kind] as Callable).call()
+	if kind == "rec":
+		return _records()
+	if kind == "ach":
+		return _achievements()
 	var sc := ScrollContainer.new()
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	var g := GridContainer.new()
