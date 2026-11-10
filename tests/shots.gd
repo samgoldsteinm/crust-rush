@@ -37,7 +37,8 @@ func _frames(n: int) -> void:
 func _wait_t(sec: float) -> void:
 	for i in int(round(sec * 120.0)):
 		main._sim_tick(1.0 / 120.0)
-	main.hud.banner_t -= sec     # the banners time out with the race, as the web's do
+	if main.hud.banner_t > 0.0:   # the banners time out with the race, as the web's do
+		main.hud.banner_t = maxf(0.0001, main.hud.banner_t - sec)
 	main.cam_snap = true      # the web's camera follows every step; here it would still be where the race was before the jump
 	await _frames(2)
 
@@ -188,10 +189,12 @@ func _run() -> void:
 
 
 func _both(name: String) -> void:
+	main.cam_snap = true
 	await _frames(3)
 	await _shot("g_" + name)
 	main.pc_plus = true
 	main._apply_quality()
+	main.cam_snap = true      # the same camera for both
 	await _frames(4)
 	await _shot("x_" + name)
 	main.pc_plus = false

@@ -2379,7 +2379,7 @@ func _apply_quality() -> void:
 		sun.directional_shadow_split_3 = 0.38
 		sun.directional_shadow_blend_splits = true
 		sun.directional_shadow_fade_start = 0.8
-		sun.light_angular_distance = 0.35
+		sun.light_angular_distance = 0.25
 		sun.shadow_blur = 1.0
 	else:
 		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
