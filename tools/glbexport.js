@@ -109,7 +109,9 @@ function collect(G,root,space,opts){opts=opts||{};const buckets=new Map(),inv=ne
 window.__exportTrack=function(name){const G=new GLB();G.extDir=name+'_tex';
   /* show every scenery cell the distance culling hid */for(const ch of (typeof detailChunks!=='undefined'?detailChunks:[]))for(const m of ch.ms)m.visible=true;
   const kartSet=new Set(karts.map(k=>k.m&&k.m.g).filter(Boolean));
-  const skip=o=>{for(let p=o;p;p=p.parent){if(kartSet.has(p))return true;if(p.userData&&(p.userData.isBox||p.userData.box||p.userData.fx))return true;}return false;};
+  /* things that move are drawn by the game, not baked into the track: traffic, walkers, the train's wagons, rolling meatballs, item boxes */
+  const hz=__hazSet();
+  const skip=o=>{for(let p=o;p;p=p.parent){if(kartSet.has(p)||hz.has(p))return true;if(p.userData&&(p.userData.isBox||p.userData.box||p.userData.fx||p.userData.dyn))return true;}return false;};
   const CELL=700,DSET=new Set();for(const ch of (typeof detailChunks!=='undefined'?detailChunks:[]))for(const m of ch.ms)DSET.add(m);
   const cellOf=(o,x,z)=>Math.floor(x/CELL)+'_'+Math.floor(z/CELL)+(DSET.has(o)?'_d':'');
   const buckets=collect(G,world,new THREE.Matrix4(),{skip,cell:cellOf,visStop:null});
@@ -200,6 +202,28 @@ window.__exportRace=function(){return {
   L:T.L,racers:RACERS.map(r=>({name:r.name,color:r.color,stripe:r.stripe})),
   diffs:DIFFS,itemPower:ITEM_POWER,
   bend:track.map(p=>p.bend==null?null:+p.bend.toFixed(4))};};
+
+function __hazSet(){const hz=new Set();try{HAZ.traffic.forEach(c=>hz.add(c.m.g));HAZ.walk.forEach(w=>hz.add(w.g));if(HAZ.train)HAZ.train.cars.forEach(c=>hz.add(c.g));}catch(e){}try{rollers.forEach(r=>hz.add(r.m));}catch(e){}return hz;}
+/* moving hazards: models (glb) + where they start and how they move */
+window.__exportHaz=function(){const G=new GLB();const top=[];const data={traffic:[],rollers:[],walk:[],train:null};
+  const prims=b=>{const out=[];for(const [k,bk] of b){const p=G.primitive(bk.parts,bk.mi,bk.useUV,bk.useC);if(p)out.push(p);}return out;};
+  const under=(o,root)=>{for(let p=o;p;p=p.parent)if(p===root)return true;return false;};
+  const reset=g=>{const sv=[g.position.clone(),g.rotation.clone(),g.scale.clone(),g.visible];g.position.set(0,0,0);g.rotation.set(0,0,0);g.scale.set(1,1,1);g.visible=true;g.updateMatrixWorld(true);return ()=>{g.position.copy(sv[0]);g.rotation.copy(sv[1]);g.scale.copy(sv[2]);g.visible=sv[3];g.updateMatrixWorld(true);};};
+  HAZ.traffic.forEach((c,i)=>{const g=c.m.g,undo=reset(g);const kids=[];
+    kids.push(G.node('body',prims(collect(G,g,g.matrixWorld,{skip:o=>c.m.wh.some(w=>under(o,w.sp)),visStop:null}))));
+    c.m.wh.forEach((w,j)=>{const sp=new THREE.Matrix4().makeTranslation(w.sp.position.x,w.sp.position.y,w.sp.position.z);kids.push(G.node('w'+j,prims(collect(G,w.sp,sp,{visStop:null})),{translation:w.sp.position.toArray()}));});
+    top.push(G.node('traffic'+i,null,{children:kids}));undo();
+    data.traffic.push({s0:c.s0,lat:c.latT,laneT:c.laneT,v:c.v,len:c.m.len,scale:g.scale.x,wheels:c.m.wh.map(w=>({x:w.sp.position.x,y:w.sp.position.y,z:w.sp.position.z,r:w.r}))});});
+  (typeof rollers!=='undefined'?rollers:[]).forEach((r,i)=>{if(i>0)return;const m=r.m,undo=reset(m);top.push(G.node('roller',prims(collect(G,m,new THREE.Matrix4(),{visStop:null}))));undo();});
+  data.rollers=(typeof rollers!=='undefined'?rollers:[]).map(r=>({j:r.j,ph:r.ph}));
+  HAZ.walk.forEach((w,i)=>{const g=w.g,undo=reset(g);const kids=[];
+    kids.push(G.node('body',prims(collect(G,g,g.matrixWorld,{skip:o=>w.legs.some(l=>under(o,l)),visStop:null}))));
+    w.legs.forEach((l,j)=>{const sp=new THREE.Matrix4().makeTranslation(l.position.x,l.position.y,l.position.z);kids.push(G.node('leg'+j,prims(collect(G,l,sp,{visStop:null})),{translation:l.position.toArray()}));});
+    top.push(G.node('walk'+i,null,{children:kids}));undo();
+    data.walk.push({j:w.j,lat:w.lat,v:w.v,ph:w.ph,pause:w.pause,H:w.H,legs:w.legs.length});});
+  if(HAZ.train){const tr=HAZ.train;tr.cars.forEach((c,i)=>{const g=c.g,undo=reset(g);top.push(G.node('wagon'+i,prims(collect(G,g,g.matrixWorld,{visStop:null}))));undo();});
+    data.train={p:{x:tr.p.x,y:tr.p.y},ux:tr.ux,uy:tr.uy,span:tr.span,len:tr.len,v:tr.v,j:tr.j,cars:tr.cars.map(c=>({off:c.off,L:c.L,scale:c.g.scale.x})),lamps:tr.lamps.length};}
+  const root=G.node('haz',null,{children:top});G.j.scenes[0].nodes.push(root);const bytes=G.glb();return {b64:u8ToB64(bytes),data,stats:Object.assign(G.stats,{bytes:bytes.length})};};
 window.__sceneSurvey=function(){const out={top:[],types:{}};world.children.forEach(c=>{let n=0,t=0;c.traverse(o=>{if(o.isMesh){n++;const g=o.geometry;t+=((g.index?g.index.count:g.attributes.position.count)/3)*(o.isInstancedMesh?o.count:1);}});out.top.push([c.type,c.name||'',Object.keys(c.userData).slice(0,3).join(','),n,Math.round(t/1000),c.visible]);});
   scene.children.forEach(c=>{out.types[c.type]=(out.types[c.type]||0)+1;});
   const mats={};world.traverse(o=>{if(o.isMesh){const ms=Array.isArray(o.material)?o.material:[o.material];for(const m of ms)mats[m.type]=(mats[m.type]||0)+1;}});out.mats=mats;out.sceneTop=scene.children.filter(c=>c!==world).map(c=>[c.type,c.name||'',Object.keys(c.userData).slice(0,3).join(',')]).slice(0,30);return out;};

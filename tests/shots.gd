@@ -219,6 +219,7 @@ func _go(sec: float) -> void:
 func _sim(sec: float) -> void:
 	for i in int(sec * 120.0):
 		main._sim_tick(1.0 / 120.0)
+	main.cam_snap = true
 
 
 func _drift(tier: int) -> void:

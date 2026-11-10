@@ -32,6 +32,10 @@ var wheel_n := 0
 var wheel_at := -99.0
 var next_id := 1
 var fx: Array = []            # what just happened, for the scene: {t: "spin" | "box" | "boom" | ..., ...}
+var traffic: Array = []       # {s, s0, lat, latT, laneT, v, len, x, y, ang, i, hide}
+var rollers: Array = []       # {j, ph, lat, x, y}
+var walkers: Array = []       # {j, lat, latT, v, ph, pause, H, along, x, y, face, hit_t}
+var train := {}               # {px, py, ux, uy, span, len, v, cars: [{off, L, t}], state, wait, pos, dir}
 var _bump_t := {}
 
 
@@ -110,6 +114,7 @@ func setup_cfg(track: TrackData, roster: Dictionary, cfg: Dictionary, my_peer: i
 		boxes.append({"x": float(bd["x"]), "y": float(bd["y"]), "gy": float(bd["gy"]), "dbl": bool(bd["dbl"]), "air": bool(bd["air"]), "r": 0.0})
 	projectiles.clear()
 	hazards.clear()
+	_setup_haz()
 	finish_count = 0
 	wheel_n = 0
 	wheel_at = -99.0
@@ -117,6 +122,214 @@ func setup_cfg(track: TrackData, roster: Dictionary, cfg: Dictionary, my_peer: i
 	sim_time = 0.0
 	state = "countdown"
 	stand = standings()
+
+
+func _setup_haz() -> void:
+	traffic.clear()
+	for c in T.haz.get("traffic", []):
+		var cd: Dictionary = c
+		traffic.append({"s": float(cd["s0"]), "s0": float(cd["s0"]), "lat": float(cd["lat"]), "latT": float(cd["lat"]), "laneT": float(cd["laneT"]), "v": float(cd["v"]), "len": float(cd["len"]), "x": 0.0, "y": 0.0, "ang": 0.0, "i": 0, "hide": false})
+	rollers.clear()
+	for r in T.haz.get("rollers", []):
+		var rd: Dictionary = r
+		var j := int(rd["j"])
+		rollers.append({"j": j, "ph": float(rd["ph"]), "lat": 0.0, "x": T.px[j], "y": T.py[j]})
+	walkers.clear()
+	for w in T.haz.get("walk", []):
+		var wd: Dictionary = w
+		walkers.append({"j": float(wd["j"]), "lat": float(wd["lat"]), "latT": 0.0, "v": float(wd["v"]), "ph": float(wd["ph"]), "pause": float(wd["pause"]), "H": float(wd["H"]), "along": 0.0, "x": 0.0, "y": 0.0, "face": 0.0, "hit_t": 0.0})
+	train = {}
+	var tr = T.haz.get("train")
+	if typeof(tr) == TYPE_DICTIONARY:
+		var td: Dictionary = tr
+		var cars: Array = []
+		for c in td["cars"]:
+			cars.append({"off": float(c["off"]), "L": float(c["L"]), "t": 9e9})
+		train = {"px": float(td["p"]["x"]), "py": float(td["p"]["y"]), "ux": float(td["ux"]), "uy": float(td["uy"]), "span": float(td["span"]), "len": float(td["len"]), "v": float(td["v"]),
+			"cars": cars, "state": "wait", "wait": 2.0 + rng.randf() * 2.0, "pos": -float(td["span"]) - float(td["len"]), "dir": 1.0}
+	haz_pose()
+
+
+## web updateHazards + the rollers in update0: traffic cruising the road, rolling meatballs, walkers, the train
+func _hazards_tick(dt: float) -> void:
+	var racing := state == "race" or state == "menu"
+	var seg_l := T.L / T.N
+	for c in traffic:
+		if racing:
+			c["s"] = float(c["s"]) + float(c["v"]) * dt / seg_l
+		c["laneT"] = float(c["laneT"]) - dt
+		if float(c["laneT"]) <= 0.0:
+			c["laneT"] = 4.0 + rng.randf() * 5.0
+			c["latT"] = [-34.0, -12.0, 12.0, 34.0][rng.randi_range(0, 3)]
+		c["lat"] = float(c["lat"]) + (float(c["latT"]) - float(c["lat"])) * minf(1.0, dt * 0.6)
+	for w in walkers:
+		if float(w["pause"]) > 0.0:
+			w["pause"] = float(w["pause"]) - dt
+		else:
+			if absf(float(w["lat"]) - float(w["latT"])) < 2.0:
+				w["latT"] = (rng.randf() * 2.0 - 1.0) * (T.RW + 8.0)
+				w["pause"] = 0.4 + rng.randf() * 1.8
+			else:
+				w["lat"] = float(w["lat"]) + signf(float(w["latT"]) - float(w["lat"])) * float(w["v"]) * dt
+		if float(w["hit_t"]) > 0.0:
+			w["hit_t"] = float(w["hit_t"]) - dt
+	if not train.is_empty():
+		if train["state"] == "wait":
+			train["wait"] = float(train["wait"]) - dt
+			if float(train["wait"]) <= 0.0:
+				train["state"] = "run"
+				train["dir"] = 1.0 if rng.randf() < 0.5 else -1.0
+				train["pos"] = -float(train["span"]) - float(train["len"])
+		else:
+			train["pos"] = float(train["pos"]) + float(train["v"]) * dt
+			if float(train["pos"]) > float(train["span"]) + 10.0:
+				train["state"] = "wait"
+				train["wait"] = 4.0 + rng.randf() * 5.0
+	haz_pose()
+	_haz_hits()
+
+
+## where every hazard is now (also run by online guests between the host's pictures)
+func haz_pose() -> void:
+	for r in rollers:
+		var j: int = r["j"]
+		var lat := sin(sim_time * 1.05 + float(r["ph"])) * (T.RW + 6.0)
+		r["lat"] = lat
+		r["x"] = T.px[j] + T.nx[j] * lat
+		r["y"] = T.py[j] + T.ny[j] * lat
+	for c in traffic:
+		var P := T.track_at(float(c["s"]), float(c["lat"]))
+		c["x"] = P.x
+		c["y"] = P.y
+		c["ang"] = T.ang_at(float(c["s"]))
+		c["i"] = int(P.z)
+		c["hide"] = T.seg_bad(int(P.z))
+	for w in walkers:
+		w["along"] = sin(sim_time * 0.3 + float(w["ph"])) * 3.0
+		var P2 := T.track_at(float(w["j"]) + float(w["along"]), float(w["lat"]))
+		w["x"] = P2.x
+		w["y"] = P2.y
+		var pa := T.ang_at(float(w["j"]) + float(w["along"]))
+		w["face"] = pa + (sin(sim_time + float(w["ph"])) * 0.6 if float(w["pause"]) > 0.0 else signf(float(w["latT"]) - float(w["lat"])) * PI / 2.0)
+	if not train.is_empty():
+		for c in train["cars"]:
+			c["t"] = (float(train["pos"]) + float(train["len"]) - float(c["off"])) * float(train["dir"]) if train["state"] == "run" else 9e9
+
+
+## guests: keep the hazards moving between the host's pictures
+func haz_guest_step(dt: float) -> void:
+	sim_time += dt
+	var seg_l := T.L / T.N
+	for c in traffic:
+		c["s"] = float(c["s"]) + float(c["v"]) * dt / seg_l
+		c["lat"] = float(c["lat"]) + (float(c["latT"]) - float(c["lat"])) * minf(1.0, dt * 0.6)
+	if not train.is_empty() and train["state"] == "run":
+		train["pos"] = float(train["pos"]) + float(train["v"]) * dt
+	haz_pose()
+
+
+func _haz_hits() -> void:
+	for r in rollers:
+		for k in karts:
+			if k.loop.is_empty() and k.z < 14.0 and (k.x - float(r["x"])) ** 2 + (k.y - float(r["y"])) ** 2 < 306.0:
+				spin_out(k, "meat", true)
+	for c in traffic:
+		if c["hide"]:
+			continue
+		var fx_ := cos(float(c["ang"]))
+		var fy := sin(float(c["ang"]))
+		var hl := float(c["len"]) * 0.55
+		for k in karts:
+			if not k.loop.is_empty() or k.z > 12.0:
+				continue
+			for o in [-hl, 0.0, hl]:
+				if _hz_bump(k, float(c["x"]) + fx_ * o, float(c["y"]) + fy * o, 15.0, ""):
+					break
+	if not train.is_empty() and train["state"] == "run":
+		var ux: float = train["ux"]
+		var uy: float = train["uy"]
+		for c in train["cars"]:
+			var t: float = c["t"]
+			var x: float = float(train["px"]) + ux * t
+			var y: float = float(train["py"]) + uy * t
+			for k in karts:
+				if not k.loop.is_empty() or k.z > 18.0:
+					continue
+				var dx := k.x - x
+				var dy := k.y - y
+				var u := dx * ux + dy * uy
+				var v := dy * ux - dx * uy
+				if absf(u) < float(c["L"]) / 2.0 + 6.0 and absf(v) < 12.0:
+					var sg := signf(v) if v != 0.0 else 1.0
+					k.x += -uy * sg * (14.0 - absf(v))
+					k.y += ux * sg * (14.0 - absf(v))
+					spin_out(k, "wheel", true)
+	for w in walkers:
+		for k in karts:
+			if not k.loop.is_empty() or k.z > float(w["H"]) * 0.8:
+				continue
+			if (k.x - float(w["x"])) ** 2 + (k.y - float(w["y"])) ** 2 < 225.0 and k.inv <= 0.0:
+				spin_out(k, "meat", true)
+				w["pause"] = 1.2
+				w["hit_t"] = 0.6
+
+
+## the hazards' state for an online picture, and back
+func haz_snap() -> Array:
+	var tr: Array = []
+	for c in traffic:
+		tr.append_array([c["s"], c["lat"], c["latT"]])
+	var wk: Array = []
+	for w in walkers:
+		wk.append_array([w["lat"], w["latT"], w["pause"], w["hit_t"]])
+	var tn: Array = []
+	if not train.is_empty():
+		tn = [1 if train["state"] == "run" else 0, train["pos"], train["dir"]]
+	return [sim_time, tr, wk, tn]
+
+
+func haz_unsnap(a: Array) -> void:
+	sim_time = a[0]
+	var tr: Array = a[1]
+	for i in mini(traffic.size(), tr.size() / 3):
+		traffic[i]["s"] = tr[i * 3]
+		traffic[i]["lat"] = tr[i * 3 + 1]
+		traffic[i]["latT"] = tr[i * 3 + 2]
+	var wk: Array = a[2]
+	for i in mini(walkers.size(), wk.size() / 4):
+		walkers[i]["lat"] = wk[i * 4]
+		walkers[i]["latT"] = wk[i * 4 + 1]
+		walkers[i]["pause"] = wk[i * 4 + 2]
+		walkers[i]["hit_t"] = wk[i * 4 + 3]
+	var tn: Array = a[3]
+	if not train.is_empty() and tn.size() == 3:
+		train["state"] = "run" if int(tn[0]) == 1 else "wait"
+		train["pos"] = tn[1]
+		train["dir"] = tn[2]
+	haz_pose()
+
+
+## web hzBump: pushed out of a hazard; slowed (or spun out, with a kind)
+func _hz_bump(k: Kart, x: float, y: float, r: float, kind: String) -> bool:
+	var dx := k.x - x
+	var dy := k.y - y
+	var d := sqrt(dx * dx + dy * dy)
+	if d == 0.0:
+		d = 1.0
+	if d >= r:
+		return false
+	var ov := r - d
+	k.x += dx / d * ov
+	k.y += dy / d * ov
+	if kind != "":
+		spin_out(k, kind, true)
+		return true
+	if k.inv > 0.0:
+		return true
+	k.speed *= 0.55
+	k.inv = 0.35
+	fx.append({"t": "hzbump", "k": k})
+	return true
 
 
 func _racer(racers: Array, ri: int) -> Dictionary:
@@ -185,6 +398,7 @@ func update(dt: float, player_inp: Dictionary) -> void:
 	sim_time += dt
 	if state == "race":
 		race_time += dt
+	_hazards_tick(dt)
 	for k in karts:
 		var inp: Dictionary
 		if k.remote and not bool(k.ai.get("auto", false)) and not (k.rush > 0.0):
@@ -319,6 +533,23 @@ func ai_input(k: Kart, dt: float) -> Dictionary:
 		if dj > 1 and dj < 28 and absf(float(ai["lane"]) - ol) < orr + 15.0:
 			ai["lane_target"] = clampf(ol - orr - 22.0 if ol > 0.0 else ol + orr + 22.0, -42.0, 42.0)
 			ai["lane_t"] = maxf(float(ai["lane_t"]), 1.2)
+			avoid = true
+	for c in traffic:
+		if c["hide"]:
+			continue
+		var dj2: int = int(c["i"]) - k.idx
+		if dj2 < 0:
+			dj2 += T.N
+		if dj2 > 1 and dj2 < 24 and absf(float(ai["lane"]) - float(c["lat"])) < 28.0:
+			ai["lane_target"] = clampf(float(c["lat"]) - 32.0 if float(c["lat"]) > 0.0 else float(c["lat"]) + 32.0, -44.0, 44.0)
+			ai["lane_t"] = maxf(float(ai["lane_t"]), 1.0)
+			avoid = true
+	for w in walkers:
+		var dj3: int = int(w["j"]) - k.idx
+		if dj3 < 0:
+			dj3 += T.N
+		if dj3 > 1 and dj3 < 14 and absf(float(ai["lane"]) - float(w["lat"])) < 20.0 and rng.randf() < 0.6:
+			ai["lane_target"] = clampf(float(w["lat"]) - 26.0 if float(w["lat"]) > 0.0 else float(w["lat"]) + 26.0, -44.0, 44.0)
 			avoid = true
 	for L in T.loops:
 		if bool(L["full"]):

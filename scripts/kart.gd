@@ -135,8 +135,8 @@ func setup(track: TrackData, slot: Dictionary, start_prog: int, stats := {}) -> 
 	a = float(slot["a"])
 	ma = a
 	wy = float(slot["wy"])
-	last_g = T.ground(x, y)
 	idx = T.nearest_any(x, y)
+	last_g = T.ground(x, y) + T.k_ey(idx, x, y)
 	prog = start_prog
 	_save_prev()
 
@@ -484,7 +484,7 @@ func _loop_step(dt: float) -> void:
 		boost = maxf(boost, 1.5)
 		wvy = 0.0
 		g_rate = 0.0
-		last_g = T.ground(x, y)
+		last_g = T.ground(x, y) + T.k_ey(idx, x, y)
 		wy = last_g
 		z = 0.0
 		events.append("loopout")
@@ -641,7 +641,7 @@ func _rim() -> void:
 
 ## ground, kerbs, ramps, jumps and the glide. Returns true if the kart was respawned.
 func _vertical(dt: float) -> bool:
-	var g := T.ground(x, y)
+	var g := T.ground(x, y) + T.k_ey(idx, x, y)
 	var on_r := false
 	var g_r := false
 	if not T.in_glide(idx):

@@ -27,6 +27,7 @@ var box_nodes: Array = []
 var proj_nodes := {}     # id -> {n, age, sp, roll, halo, type}
 var pops: Array = []     # {n, t, s}
 var haz_nodes := {}      # id -> {n, ring, warn}
+var whaz := {"traffic": [], "rollers": [], "walk": [], "wagons": []}   # the world's moving hazards
 var time := 0.0
 var KS := 1.76
 
@@ -173,6 +174,21 @@ static func _warn_texture() -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 
+## Godot's glTF import leaves vertex colours off; most paint and scenery colour lives in them
+static func vertex_colours(root: Node) -> int:
+	var n := 0
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var am := (node as MeshInstance3D).mesh as ArrayMesh
+		if am == null:
+			continue
+		for si in am.get_surface_count():
+			var sm := am.surface_get_material(si) as StandardMaterial3D
+			if sm != null and (am.surface_get_format(si) & Mesh.ARRAY_FORMAT_COLOR) != 0 and not sm.vertex_color_use_as_albedo:
+				sm.vertex_color_use_as_albedo = true
+				n += 1
+	return n
+
+
 func item_node(name_: String) -> Node3D:
 	var n3 := Node3D.new()
 	if items_lib != null:
@@ -197,6 +213,7 @@ func add_kart(k: Kart, sc_file_loader: Callable) -> void:
 	g.add_child(tilt)
 	var model: Node3D = ps.instantiate()
 	tilt.add_child(model)
+	vertex_colours(model)
 	var sc := float(meta.get("scale", KS))
 	g.scale = Vector3.ONE * sc
 	var wheels: Array = []
@@ -845,6 +862,7 @@ func draw(al: float, dt: float, racing: bool, paused: bool) -> void:
 	_draw_boxes()
 	_draw_projectiles(al, 0.0 if paused else dt)
 	_draw_hazards()
+	_draw_world_haz(0.0 if paused else dt)
 	if not paused:
 		fx.step(dt)
 
@@ -875,9 +893,121 @@ func kart_event(k: Kart, e: String) -> void:
 		fx.burst(k.x, k.wy + 6.0, k.y, 8, _cols(["#fff4dc", "#ffe066"]), 30.0, 2.0)
 
 
+# ---------------------------------------------------------------- traffic, walkers, rolling meatballs, the train (web renderHazards)
+
+## copies the hazard models (from <map>_haz.glb) once per race
+func build_world_haz(lib: Node3D) -> void:
+	for key in whaz:
+		for h in whaz[key]:
+			(h["n"] as Node).queue_free()
+		whaz[key] = []
+	if lib == null:
+		return
+	var hd: Dictionary = T.haz
+	var tl: Array = hd.get("traffic", [])
+	for i in race.traffic.size():
+		var src := lib.find_child("traffic%d" % i, true, false) as Node3D
+		if src == null:
+			break
+		var n := src.duplicate() as Node3D
+		add_child(n)
+		var sc := float((tl[i] as Dictionary).get("scale", 1.0)) if i < tl.size() else 1.0
+		n.scale = Vector3.ONE * sc
+		var wl: Array = []
+		var wd: Array = (tl[i] as Dictionary).get("wheels", []) if i < tl.size() else []
+		for j in wd.size():
+			var wn := n.find_child("w%d" % j, false, false) as Node3D
+			if wn != null:
+				wl.append({"n": wn, "r": float((wd[j] as Dictionary)["r"])})
+		whaz["traffic"].append({"n": n, "wheels": wl})
+	var rsrc := lib.find_child("roller", true, false) as Node3D
+	if rsrc != null:
+		for r in race.rollers:
+			var n2 := rsrc.duplicate() as Node3D
+			add_child(n2)
+			whaz["rollers"].append({"n": n2})
+	for i in race.walkers.size():
+		var src2 := lib.find_child("walk%d" % i, true, false) as Node3D
+		if src2 == null:
+			break
+		var n3 := src2.duplicate() as Node3D
+		add_child(n3)
+		var legs: Array = []
+		for j in 4:
+			var ln := n3.find_child("leg%d" % j, false, false) as Node3D
+			if ln != null:
+				legs.append(ln)
+		whaz["walk"].append({"n": n3, "legs": legs})
+	if not race.train.is_empty():
+		var cars: Array = (hd.get("train", {}) as Dictionary).get("cars", [])
+		for i in cars.size():
+			var src3 := lib.find_child("wagon%d" % i, true, false) as Node3D
+			if src3 == null:
+				break
+			var n4 := src3.duplicate() as Node3D
+			add_child(n4)
+			n4.scale = Vector3.ONE * float((cars[i] as Dictionary).get("scale", 1.0))
+			n4.visible = false
+			whaz["wagons"].append({"n": n4})
+
+
+func _draw_world_haz(dt: float) -> void:
+	var tl: Array = whaz["traffic"]
+	for i in mini(tl.size(), race.traffic.size()):
+		var c: Dictionary = race.traffic[i]
+		var n: Node3D = tl[i]["n"]
+		n.visible = not bool(c["hide"])
+		if not n.visible:
+			continue
+		n.position = Vector3(float(c["x"]), T.ground(float(c["x"]), float(c["y"])), float(c["y"]))
+		n.rotation = Vector3(0.0, -float(c["ang"]), 0.0)
+		for w in tl[i]["wheels"]:
+			var wn: Node3D = w["n"]
+			wn.rotation.z -= float(c["v"]) * dt / (float(w["r"]) * KS * 1.05)
+	var rl: Array = whaz["rollers"]
+	for i in mini(rl.size(), race.rollers.size()):
+		var r: Dictionary = race.rollers[i]
+		var j: int = r["j"]
+		var n2: Node3D = rl[i]["n"]
+		n2.position = Vector3(float(r["x"]), T.ground(float(r["x"]), float(r["y"])) + 8.0, float(r["y"]))
+		n2.quaternion = Quaternion(Vector3(T.tx[j], 0.0, T.ty[j]).normalized(), -float(r["lat"]) / 8.0)
+	var wl: Array = whaz["walk"]
+	for i in mini(wl.size(), race.walkers.size()):
+		var w2: Dictionary = race.walkers[i]
+		var n3: Node3D = wl[i]["n"]
+		var paused_w := float(w2["pause"]) > 0.0
+		var ph: float = w2["ph"]
+		n3.position = Vector3(float(w2["x"]), T.ground(float(w2["x"]), float(w2["y"])) + absf(sin(time * 9.0 + ph)) * (0.3 if paused_w else 1.6), float(w2["y"]))
+		var rz := sin(time * 40.0) * 0.3 if float(w2["hit_t"]) > 0.0 else 0.0
+		n3.rotation = Vector3(0.0, -float(w2["face"]), rz)
+		var li := 0
+		for l in wl[i]["legs"]:
+			var ln: Node3D = l
+			ln.rotation.z = sin(time * 10.0 + li * PI) * (0.15 if paused_w else 0.7)
+			li += 1
+	var gl: Array = whaz["wagons"]
+	if not race.train.is_empty():
+		var tr: Dictionary = race.train
+		var cars: Array = tr["cars"]
+		for i in mini(gl.size(), cars.size()):
+			var c2: Dictionary = cars[i]
+			var n4: Node3D = gl[i]["n"]
+			var t: float = c2["t"]
+			n4.visible = tr["state"] == "run" and absf(t) < float(tr["span"]) - 6.0
+			if not n4.visible:
+				continue
+			var x := float(tr["px"]) + float(tr["ux"]) * t
+			var y := float(tr["py"]) + float(tr["uy"]) * t
+			n4.position = Vector3(x, T.ground(x, y) + 1.6, y)
+			n4.rotation = Vector3(0.0, -atan2(float(tr["uy"]), float(tr["ux"])) + (PI if float(tr["dir"]) > 0.0 else 0.0), 0.0)
+
+
 func race_event(ed: Dictionary) -> void:
 	var t: String = ed["t"]
-	if t == "spin":
+	if t == "hzbump":
+		var kb: Kart = ed["k"]
+		fx.burst(kb.x, kb.wy + 6.0, kb.y, 10, _cols(["#fff4dc", "#ffe066"]), 40.0, 2.2)
+	elif t == "spin":
 		var k: Kart = ed["k"]
 		var cols := _cols(HITC.get(String(ed["kind"]), ["#fff4dc", "#ffe066", "#ff3b1a"]))
 		var y := k.wy + 6.0 * KS

@@ -21,6 +21,7 @@ var LAPS := 3
 var KERB_H := 0.45
 var class_mul := 1.0
 var pond_lim := 0.0
+var multi := false        # roads stacked on several levels (decks): height comes from the road, not the ground
 
 # centre line, one entry per track point
 var px := PackedFloat32Array()
@@ -57,6 +58,10 @@ var LOOP_DH := 14.0
 var LOOP_TAP := 150.0
 var racers: Array = []       # {name, color, stripe}
 var diffs := {}
+var haz := {}                # moving hazards: traffic, rollers, walk, train (web HAZ, rollers)
+var theme := "bay"
+var grade := {}              # the web's colour grade for this theme: sat, con, tint, vig, bloom, thr
+var rim := {}                # rim light colour and strength
 
 # height maps on a square grid
 var hx0 := 0.0
@@ -95,6 +100,7 @@ func _read(d: Dictionary) -> void:
 	LAPS = int(d["LAPS"])
 	KERB_H = d["KERB_H"]
 	class_mul = d["classMul"]
+	multi = bool(d.get("multi", false))
 	pond_lim = d["pondLim"] if d.get("pondLim") != null else WALLD - 3.5
 	for p in d["track"]:
 		px.append(p[0]); py.append(p[1]); nx.append(p[2]); ny.append(p[3])
@@ -132,6 +138,13 @@ func _read(d: Dictionary) -> void:
 		for i in N:
 			var k := (i + 1) % N
 			L += Vector2(px[k] - px[i], py[k] - py[i]).length()
+	if d.get("haz") != null:
+		haz = d["haz"]
+	theme = String(d.get("theme", "bay"))
+	if d.get("grade") != null:
+		grade = d["grade"]
+	if d.get("rim") != null:
+		rim = d["rim"]
 	var h: Dictionary = d["height"]
 	hx0 = h["x0"]
 	hz0 = h["z0"]
@@ -190,6 +203,37 @@ func pit(x: float, y: float) -> float:
 	return _sample(pits, x, y)
 
 
+## web kEy/eyAt: on a multi-level map, the road deck's height under (x, y) near point j (smooth between points)
+func k_ey(j0: int, x: float, y: float) -> float:
+	if not multi:
+		return 0.0
+	var j := j0
+	for it in 3:
+		var q := (j + 1) % N
+		var ux := px[q] - px[j]
+		var uy := py[q] - py[j]
+		var l2 := ux * ux + uy * uy
+		var t := ((x - px[j]) * ux + (y - py[j]) * uy) / (l2 if l2 > 0.0 else 1.0)
+		if t > 1.0 and it < 2:
+			j = (j + 1) % N
+			continue
+		if t < 0.0 and it < 2:
+			j = (j - 1 + N) % N
+			continue
+		return ey_at(j, clampf(t, 0.0, 1.0))
+	return ey[j0]
+
+
+func ey_at(j: int, t: float) -> float:
+	var e0 := ey[(j - 1 + N) % N]
+	var e1 := ey[j]
+	var e2 := ey[(j + 1) % N]
+	var e3 := ey[(j + 2) % N]
+	var t2 := t * t
+	var t3 := t2 * t
+	return 0.5 * (2.0 * e1 + (-e0 + e2) * t + (2.0 * e0 - 5.0 * e1 + 4.0 * e2 - e3) * t2 + (-e0 + 3.0 * e1 - 3.0 * e2 + e3) * t3)
+
+
 func lateral(j: int, x: float, y: float) -> float:
 	return (x - px[j]) * nx[j] + (y - py[j]) * ny[j]
 
@@ -239,6 +283,33 @@ func track_at(s: float, lat: float) -> Vector3:
 	var nxx: float = nx[i] + (nx[q] - nx[i]) * f
 	var nyy: float = ny[i] + (ny[q] - ny[i]) * f
 	return Vector3(xx + nxx * lat, yy + nyy * lat, float(i))
+
+
+## the heading of the centre line at s (web lerpA between points)
+func ang_at(s: float) -> float:
+	var i := int(floorf(fposmod(s, float(N))))
+	var f: float = s - floorf(s)
+	return lerp_angle(ang[i], ang[(i + 1) % N], f)
+
+
+## web loopNear / segBad: stretches where traffic hides (open sides, near loops, the glide)
+func loop_near(j: int, g: int) -> bool:
+	for L in loops:
+		var d := absi(j - int(L["j"])) % N
+		if mini(d, N - d) < g + (100 if bool(L["full"]) else 0):
+			return true
+	return false
+
+
+func seg_bad(j0: int) -> bool:
+	var j := posmod(j0, N)
+	if open[j] != 0:
+		return true
+	if loop_near(j, 26):
+		return true
+	if not glide.is_empty() and j > int(glide["rj"]) - 8 and j < int(glide["j1"]) + 8:
+		return true
+	return false
 
 
 func in_glide(j: int) -> bool:

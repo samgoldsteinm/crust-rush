@@ -30,6 +30,17 @@ jobs:
           mkdir -p "$dest"
           mv templates/* "$dest/"
 
+      - name: Fetch the tracks (the "maps" release, made by the Export tracks workflow)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p maps && touch maps/.gdignore
+          if gh release view maps -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release download maps -R "$GITHUB_REPOSITORY" -p 'map-*.zip' -D "$RUNNER_TEMP/maps_zip" || true
+            for z in "$RUNNER_TEMP"/maps_zip/*.zip; do [ -f "$z" ] && unzip -q -o "$z" -d maps; done
+          fi
+          ls maps; du -sh maps
+
       - name: Import the project
         run: |
           ./godot --headless --path . --import 2>&1 | tee import.log | tail -60
@@ -40,6 +51,13 @@ jobs:
           timeout 1200 ./godot --headless --path . --fixed-fps 120 res://tests/smoke.tscn 2>&1 | tee smoke.log | grep -v "^SHOT_PART" | tail -80 || true
           if grep -E "SCRIPT ERROR|Parse Error" smoke.log; then echo "::error::runtime script errors"; exit 1; fi
           grep -q "SMOKE PASS" smoke.log
+
+      - name: Drive every track (headless)
+        if: ${{ !contains(github.event.head_commit.message, '[quick]') }}
+        continue-on-error: true
+        run: |
+          timeout 1500 ./godot --headless --path . res://tests/allmaps.tscn 2>&1 | tee maps.log | grep -E "^MAP|SCRIPT ERROR|Parse Error|   at: |ERROR" | head -80 || true
+          grep -q "MAPS PASS" maps.log
 
       - name: Online race between two copies of the game
         continue-on-error: true
@@ -75,13 +93,15 @@ jobs:
           set -euo pipefail
           mkdir -p build/windows
           ./godot --headless --path . --export-release "Windows Desktop" build/windows/CrustRush.exe 2>&1 | tail -30
-          ls -la build/windows
+          # the tracks go in a "maps" folder next to the game
+          if ls maps/*/ > /dev/null 2>&1; then cp -r maps build/windows/maps; rm -f build/windows/maps/.gdignore; fi
+          ls -la build/windows; du -sh build/windows
 
       - uses: actions/upload-artifact@v4
         if: ${{ !contains(github.event.head_commit.message, '[quick]') }}
         with:
           name: CrustRush-Windows
-          path: build/windows/CrustRush.exe
+          path: build/windows/
           retention-days: 30
 
       - uses: actions/upload-artifact@v4

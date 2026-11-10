@@ -6,8 +6,7 @@ extends Node3D
 ## Z/Q/V second item, Shift/B keep an item behind, F look back, P or Esc pause, F11 full screen.
 ## Controller: left stick or d-pad, RT gas, LT drift, A/LB first item, B/RB second item, X look back, Start pause.
 
-const TRACK_JSON := "res://assets/track/bay.json"
-const TRACK_SCENE := "res://assets/track/bay.gltf"
+const BUILTIN_DIR := "res://assets/track"   # Hawaiian Bay ships inside the game; the other tracks sit in a "maps" folder
 const ROSTER_JSON := "res://assets/kart/roster.json"
 const ITEMS_SCENE := "res://assets/items/items.glb"
 const CULL_DIST := 2600.0   # far clutter cells hide beyond this (the web uses 1500-2250 by preset)
@@ -15,6 +14,10 @@ const ITEM_NAMES := {"chili": "Chili Boost", "pepperoni": "Pepperoni", "oil": "O
 const TRICK_NAMES := ["Backflip", "360 Spin", "Frontflip", "Barrel roll", "Barrel roll"]
 
 var T: TrackData
+var map_id := ""              # which track; "" = the CR_MAP setting, else Hawaiian Bay
+var maps: Array = []         # {id, name, mi, theme, dir, builtin}
+var world: Node3D            # everything that belongs to the loaded track (sky, lights, scenery)
+var haz_lib: Node3D          # the track's moving hazards (traffic, walkers...), copied into each race
 var race: Race
 var roster := {}
 var kart: Kart               # the player's kart (kept for the tests)
@@ -119,13 +122,17 @@ func _ready() -> void:
 	is_phone = OS.has_feature("mobile") or DisplayServer.is_touchscreen_available() and OS.get_name() in ["iOS", "Android"]
 	quality = 0 if is_phone else 2
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	T = TrackData.load_from(TRACK_JSON)
-	if T == null:
-		return
+	scan_maps()
+	if map_id == "":
+		map_id = OS.get_environment("CR_MAP")
+	if map_id == "" or _map_info(map_id).is_empty():
+		map_id = "bay"
 	var f := FileAccess.open(ROSTER_JSON, FileAccess.READ)
 	if f:
 		roster = JSON.parse_string(f.get_as_text())
-	_build_world()
+	_build_post()
+	if not load_map(map_id):
+		return
 	_load_items()
 	fx = Fx.new()
 	add_child(fx)
@@ -153,6 +160,120 @@ func _hex(s, fallback: Color) -> Color:
 	if typeof(s) == TYPE_STRING and String(s).begins_with("#"):
 		return Color.html(s)
 	return fallback
+
+
+## where the exported tracks live: CR_MAPS, a "maps" folder next to the game, or res://maps while developing
+static func maps_dirs() -> Array:
+	var out: Array = []
+	var e := OS.get_environment("CR_MAPS")
+	if e != "":
+		out.append(e)
+	out.append(OS.get_executable_path().get_base_dir().path_join("maps"))
+	out.append(ProjectSettings.globalize_path("res://maps"))
+	return out
+
+
+func scan_maps() -> void:
+	maps.clear()
+	var seen := {}
+	for d in maps_dirs():
+		var da := DirAccess.open(d)
+		if da == null:
+			continue
+		for sub in da.get_directories():
+			var dir: String = String(d).path_join(sub)
+			if seen.has(sub) or not FileAccess.file_exists(dir.path_join(sub + ".json")) or not FileAccess.file_exists(dir.path_join(sub + ".gltf")):
+				continue
+			var info := {"id": sub, "name": sub.capitalize(), "mi": 99, "theme": "bay", "dir": dir, "builtin": false}
+			var ip := dir.path_join(sub + ".info.json")
+			if FileAccess.file_exists(ip):
+				var j = JSON.parse_string(FileAccess.get_file_as_string(ip))
+				if typeof(j) == TYPE_DICTIONARY:
+					for key in ["name", "mi", "theme", "cup"]:
+						if (j as Dictionary).has(key):
+							info[key] = j[key]
+			seen[sub] = true
+			maps.append(info)
+	if not seen.has("bay") and FileAccess.file_exists(BUILTIN_DIR + "/bay.json"):
+		maps.append({"id": "bay", "name": "Hawaiian Bay", "mi": 1, "theme": "bay", "dir": BUILTIN_DIR, "builtin": true})
+	maps.sort_custom(func(a, b): return int(a["mi"]) < int(b["mi"]))
+
+
+func _map_info(id: String) -> Dictionary:
+	for m in maps:
+		if m["id"] == id:
+			return m
+	return {}
+
+
+## a glTF file from disk (the tracks exported from the web game), or the built-in copy
+func _load_gltf(path: String) -> Node3D:
+	if path.begins_with("res://"):
+		var ps: PackedScene = load(path) if ResourceLoader.exists(path) else null
+		return ps.instantiate() as Node3D if ps != null else null
+	if not FileAccess.file_exists(path):
+		return null
+	var doc := GLTFDocument.new()
+	var st := GLTFState.new()
+	if doc.append_from_file(path, st) != OK:
+		push_error("Could not read %s" % path)
+		return null
+	var n := doc.generate_scene(st) as Node3D
+	# textures read at run time come without mipmaps: make them, or distant ground shimmers
+	var done := {}
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var am := (mi as MeshInstance3D).mesh
+		if am == null:
+			continue
+		for si in am.get_surface_count():
+			var sm := am.surface_get_material(si) as BaseMaterial3D
+			if sm == null:
+				continue
+			for slot in [BaseMaterial3D.TEXTURE_ALBEDO, BaseMaterial3D.TEXTURE_NORMAL, BaseMaterial3D.TEXTURE_ORM, BaseMaterial3D.TEXTURE_ROUGHNESS, BaseMaterial3D.TEXTURE_EMISSION]:
+				var tx := sm.get_texture(slot) as ImageTexture
+				if tx == null or done.has(tx):
+					continue
+				done[tx] = true
+				var img := tx.get_image()
+				if img != null and not img.has_mipmaps():
+					if img.is_compressed():
+						continue
+					img.generate_mipmaps()
+					tx.set_image(img)
+	return n
+
+
+## loads a track: its data, sky, lights and scenery. Returns false if it can't be read.
+func load_map(id: String) -> bool:
+	var info := _map_info(id)
+	if info.is_empty():
+		return false
+	var dir: String = info["dir"]
+	var nt := TrackData.load_from(dir.path_join(id + ".json"))
+	if nt == null:
+		return false
+	if race != null:
+		_clear_race_nodes()
+		race = null
+	if world != null:
+		world.free()
+	if haz_lib != null:
+		haz_lib.free()
+		haz_lib = null
+	water_mats.clear()
+	cull_list.clear()
+	T = nt
+	map_id = id
+	world = Node3D.new()
+	world.name = "World"
+	add_child(world)
+	_build_world()
+	var hp := dir.path_join(id + "_haz.glb")
+	haz_lib = _load_gltf(hp)
+	if haz_lib != null:
+		_use_vertex_colours(haz_lib)
+	print("track %s: %s, hazards %s" % [id, info["name"], "yes" if haz_lib != null else "none"])
+	return true
 
 
 func _build_world() -> void:
@@ -186,11 +307,8 @@ func _build_world() -> void:
 	env.tonemap_exposure = float(L.get("exposure", 0.92)) * 0.96 * (1.0 / 0.6) / 1.8
 	# Ultra's screen-space ambient occlusion (radius 7, strong) and its bloom (threshold .94, strength .3)
 	env.ssao_enabled = not is_phone
-	env.ssao_radius = 7.0
-	env.ssao_intensity = 2.3
-	env.ssao_power = 1.5
-	env.ssao_detail = 0.5
-	env.ssao_horizon = 0.06
+	env.ssao_radius = 2.5
+	env.ssao_intensity = 1.6
 	env.glow_enabled = not is_phone
 	env.glow_intensity = 0.3
 	env.glow_strength = 1.0
@@ -212,13 +330,13 @@ func _build_world() -> void:
 		env.fog_density = 1.0
 		env.fog_sky_affect = 0.0
 	we.environment = env
-	add_child(we)
+	world.add_child(we)
 
 	# the sun: one 4096 shadow map covering ±150 around a point 80 ahead of your kart (web snapSun, Ultra)
 	sun = DirectionalLight3D.new()
 	var sd: Array = L.get("sunDir", [0.84, 0.47, 0.26])
 	var to_sun := Vector3(sd[0], sd[1], sd[2]).normalized()
-	add_child(sun)
+	world.add_child(sun)
 	sun.look_at_from_position(to_sun * 100.0, Vector3.ZERO, Vector3.UP)
 	sun.light_color = _hex(L.get("sunColor"), Color(1, 0.84, 0.66))
 	sun.light_energy = float(L.get("sunI", 3.25)) * 1.25
@@ -231,19 +349,31 @@ func _build_world() -> void:
 	sun.shadow_blur = 1.2
 	# the web's rim light: a cool light from behind the camera, opposite the sun
 	rim = DirectionalLight3D.new()
-	rim.light_color = Color("#a8ccff")
-	rim.light_energy = 0.55 * 1.25
+	rim.light_color = _hex(T.rim.get("c"), Color("#a8ccff"))
+	rim.light_energy = float(T.rim.get("i", 0.55)) * 1.25
 	rim.shadow_enabled = false
-	add_child(rim)
+	world.add_child(rim)
 	var rd := Vector3(to_sun.x * 400.0, -300.0, to_sun.z * 400.0).normalized()
 	rim.look_at_from_position(Vector3.ZERO - rd, Vector3.ZERO, Vector3.UP)
 
 	# the track: exported cells; clutter cells ("_d") get distance culling like the web game
-	var ps: PackedScene = load(TRACK_SCENE)
-	var track := ps.instantiate()
-	add_child(track)
-	_prepare_track(track)
+	var track := _load_gltf(String(_map_info(map_id)["dir"]).path_join(map_id + ".gltf"))
+	if track != null:
+		world.add_child(track)
+		_prepare_track(track)
+	# the web's colour grade for this theme (bloom strength and threshold too)
+	var G: Dictionary = T.grade
+	if post_mat != null:
+		var tn: Array = G.get("tint", [1.0, 1.0, 1.0])
+		post_mat.set_shader_parameter("sat", float(G.get("sat", 1.07)))
+		post_mat.set_shader_parameter("con", float(G.get("con", 1.04)))
+		post_mat.set_shader_parameter("tint", Vector3(float(tn[0]), float(tn[1]), float(tn[2])))
+		post_mat.set_shader_parameter("vig", float(G.get("vig", 0.16)))
+	env.glow_intensity = float(G.get("bloom", 0.3))
+	env.glow_hdr_threshold = 1.6 * float(G.get("thr", 0.94)) / 0.94
 
+
+func _build_post() -> void:
 	# the web's final grade, drawn over the 3D view (under the HUD)
 	var pl := CanvasLayer.new()
 	pl.layer = -1
@@ -553,6 +683,10 @@ func _start_race(cfg: Dictionary) -> void:
 	panel_menu.visible = false
 	hud_race.visible = true
 	_clear_race_nodes()
+	if cfg.has("map") and String(cfg["map"]) != map_id:
+		if not load_map(String(cfg["map"])):
+			_to_menu("This race is on %s, which isn't in your maps folder." % String(cfg["map"]))
+			return
 	race = Race.new()
 	var pri := int((roster.get("player", {}) as Dictionary).get("ri", 1))
 	if cfg.is_empty():
@@ -566,6 +700,7 @@ func _start_race(cfg: Dictionary) -> void:
 	for k in race.karts:
 		view.add_kart(k, _kart_scene)
 	view.build_boxes()
+	view.build_world_haz(haz_lib)
 	hud.race = race
 	hud.me = kart
 	hud.T = T
@@ -630,6 +765,8 @@ func _physics_process(dt: float) -> void:
 	if state == "menu":
 		return
 	if net_role == "client":
+		if state != "results":
+			race.haz_guest_step(dt)
 		_net_client_tick()
 		return
 	if paused:
@@ -803,6 +940,11 @@ func _drain_events() -> void:
 				_shake(0.5)
 		elif t == "clash":
 			sfx.play("bump", 0.5)
+		elif t == "hzbump":
+			var k5: Kart = ed["k"]
+			if k5 == kart:
+				_shake(0.6)
+			sfx.play("bump", _near(k5))
 		elif t == "bump":
 			if ed["a"] == kart or ed["b"] == kart:
 				_shake(0.22)
@@ -1400,6 +1542,7 @@ func _net_start() -> void:
 	peers.append_array(net_peers)
 	var pri := int((roster.get("player", {}) as Dictionary).get("ri", 1))
 	var cfg := Race.new().make_cfg(roster, pri, peers, int(randi() & 0x7fffffff) + 1)
+	cfg["map"] = map_id
 	_net_begin.rpc(cfg)
 	_start_race(cfg)
 
@@ -1456,7 +1599,7 @@ func _net_host_tick() -> void:
 	var hz: Array = []
 	for h in race.hazards:
 		hz.append([h["id"], h["x"], h["y"], h["t"], h["born"]])
-	_net_snap.rpc([state, cd, race.race_time, ks, bx, pr, hz])
+	_net_snap.rpc([state, cd, race.race_time, ks, bx, pr, hz, race.haz_snap()])
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -1565,6 +1708,8 @@ func _net_snap(s: Array) -> void:
 	race.hazards.clear()
 	for q3 in s[6]:
 		race.hazards.append({"id": q3[0], "x": q3[1], "y": q3[2], "t": q3[3], "born": q3[4]})
+	if s.size() > 7:
+		race.haz_unsnap(s[7])
 	race.stand = race.standings()
 	if st == "results" and state != "results":
 		state = "results"
