@@ -130,6 +130,10 @@ function groundAt(x,y){let h=0,r=0;for(const b of HILLS){const dx=x-b.x,dy=y-b.y
   return (PITS.length?r-pitAt(x,y):r)+(RELIEF?reliefAt(x,y):0);}
 function glideY(x,y){const G=GLIDE;if(!G||!G.long||!G.p)return G?G.y:0;const u=clamp(((x-G.p.x)*G.ux+(y-G.p.y)*G.uy)/G.L,0,1);return G.y0+(G.y1-G.y0)*u;}
 const overPit=(x,y)=>GLIDE&&groundAt(x,y)<glideY(x,y)-20;
+/* ground for the road, its crust edges and the kerbs: the glide canyon's ends are cut square while the track meets them at an angle, so the
+   last row of a strip reaches a few units into the canyon on one side. Points there take the height at the end wall instead of hanging
+   down into the canyon as jagged slivers (drawing only: karts still fall into the canyon exactly as before) */
+function edgeGround(x,y){const G=GLIDE;if(G&&G.p){const dx=x-G.p.x,dy=y-G.p.y,u=dx*G.ux+dy*G.uy;if(u>-.8&&u<G.L+.8&&Math.abs(dy*G.ux-dx*G.uy)<G.W+70){const e=u<G.L/2?-.8:G.L+.8,d=e-u;if(Math.abs(d)<45)return groundAt(x+G.ux*d,y+G.uy*d);}}return groundAt(x,y);}
 const loopNear=(j,g)=>LOOPS.some(L=>{const d=Math.abs(j-L.j)%N;return Math.min(d,N-d)<g+(L.full?100:0);});
 const INLOOP=['margherita','peaks','lagoon','burn','spiral','moon','calzone'];
 const LONGGLIDE=['bay','peaks','lagoon','calzone','tour','peak','glacier','frosty'];
@@ -2139,7 +2143,7 @@ function holoPadMat(v){const m=new THREE.ShaderMaterial({uniforms:{uT:{value:0},
   m.userData.noMerge=true;animators.push(t=>{m.uniforms.uT.value=t;});return m;}
 function strip(j0,j1,o0,o1,y,mat,vLen,cast,tone){const pos=[],uv=[],idx=[],col=tone?[]:null;const cnt=j1-j0,M=Math.max(1,Math.round(Math.abs(o1-o0)/9)),W=M+1;
   for(let k=0;k<=cnt;k++){const j=((j0+k)%N+N)%N,p=track[j],v=(k*T.L/N)/vLen;
-    const pe=p.ey||0;for(let m=0;m<=M;m++){const o=o0+(o1-o0)*m/M,x=p.x+p.nx*o,z=p.y+p.ny*o;pos.push(x,y+groundAt(x,z)+pe,z);uv.push(m/M,v);if(col){const t=tone(x,z,o);col.push(t,t,t);}}
+    const pe=p.ey||0;for(let m=0;m<=M;m++){const o=o0+(o1-o0)*m/M,x=p.x+p.nx*o,z=p.y+p.ny*o;pos.push(x,y+edgeGround(x,z)+pe,z);uv.push(m/M,v);if(col){const t=tone(x,z,o);col.push(t,t,t);}}
     if(k<cnt&&!p.cut)for(let m=0;m<M;m++){const a=k*W+m;idx.push(a,a+1,a+W,a+1,a+W+1,a+W);}}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);if(col)g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.computeVertexNormals();
   const m=new THREE.Mesh(g,mat);m.receiveShadow=true;m.castShadow=!!cast;m.userData.noLift=true;world.add(m);return m;}
@@ -2281,7 +2285,7 @@ function buildGlide(def){const G=GLIDE,gt=T2(glideTex());
   const st=T2(glideSignTex()),stM=new THREE.MeshStandardMaterial({map:st,emissive:'#ffffff',emissiveMap:st,emissiveIntensity:.35,roughness:.5}),dk=wm('#0b3352');
   const bn=new THREE.Mesh(new THREE.BoxGeometry(2*CURB+22,12,1.6),[dk,dk,dk,dk,stM,stM]);bn.position.set(sgp.x,gy+44,sgp.y);bn.rotation.y=-Math.PI/2-sgp.ang;bn.castShadow=true;sg.add(bn);}
 function buildRamp(r,topM,sideM){const K=4,pos=[],uv=[],spos=[],P=[];
-  for(let k=0;k<=K;k++){const p=track[(r.j+k)%N],h=r.h*k/K;const gp=(x,hh,z)=>[x,hh+groundAt(x,z),z],lx=p.x-p.nx*r.w,lz=p.y-p.ny*r.w,rx=p.x+p.nx*r.w,rz=p.y+p.ny*r.w;P.push({L:gp(lx,h,lz),R:gp(rx,h,rz),L0:gp(lx,-1,lz),R0:gp(rx,-1,rz),v:k/K});}
+  for(let k=0;k<=K;k++){const p=track[(r.j+k)%N],h=r.h*k/K;const gp=(x,hh,z)=>[x,hh+edgeGround(x,z),z],lx=p.x-p.nx*r.w,lz=p.y-p.ny*r.w,rx=p.x+p.nx*r.w,rz=p.y+p.ny*r.w;P.push({L:gp(lx,h,lz),R:gp(rx,h,rz),L0:gp(lx,-1,lz),R0:gp(rx,-1,rz),v:k/K});}
   const push=(arr,...vs)=>vs.forEach(v=>arr.push(v[0],v[1],v[2]));
   for(let k=0;k<K;k++){const a=P[k],b=P[k+1];push(pos,a.L,a.R,b.L,a.R,b.R,b.L);uv.push(0,a.v,1,a.v,0,b.v,1,a.v,1,b.v,0,b.v);
     push(spos,a.L0,a.L,b.L,a.L0,b.L,b.L0,a.R0,b.R,a.R,a.R0,b.R0,b.R);}
@@ -3426,7 +3430,7 @@ function loadMap0(mi,rev){
   if(!def.arena)(function(){const pos=[],col=[],cR=new THREE.Color('#e0452c'),cW=new THREE.Color('#fff4dc'),H=KERB_H;
     const tri=(a,b,c,cl)=>{for(const v of [a,b,c]){pos.push(v[0],v[1],v[2]);col.push(cl.r,cl.g,cl.b);}};const quad=(a,b,c,d,cl)=>{tri(a,b,c,cl);tri(a,c,d,cl);};
     for(const s of [-1,1])for(let j=0;j<N;j++){if(GLIDE&&j>=GLIDE.j0&&j<GLIDE.j1)continue;const p=track[j],q=track[(j+1)%N],cl=((j>>1)%2)?cR:cW;
-      const at=(pt,o,h)=>{const X=pt.x+pt.nx*o*s,Z=pt.y+pt.ny*o*s;return [X,h+groundAt(X,Z)+(pt.ey||0),Z];};
+      const at=(pt,o,h)=>{const X=pt.x+pt.nx*o*s,Z=pt.y+pt.ny*o*s;return [X,h+edgeGround(X,Z)+(pt.ey||0),Z];};
       const pi0=at(p,RW,0),pi1=at(p,RW+.6,H),pm=at(p,RW+6.5,H*.75),po=at(p,CURB,.05),qi0=at(q,RW,0),qi1=at(q,RW+.6,H),qm=at(q,RW+6.5,H*.75),qo=at(q,CURB,.05);
       quad(pi0,qi0,qi1,pi1,cl);quad(pi1,qi1,qm,pm,cl);quad(pm,qm,qo,po,cl);}
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.computeVertexNormals();
