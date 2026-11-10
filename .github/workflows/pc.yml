@@ -5,7 +5,7 @@ name: PC build
 on:
   push:
     branches: [godot]
-    paths-ignore: [tools/hd*.py, .github/workflows/hd.yml, .github/workflows/maps.yml, README.md]
+    paths-ignore: [tools/hd_fetch.py, tools/hdlist.py, tools/hd_textures.py, .github/workflows/hd.yml, .github/workflows/maps.yml, README.md]
   workflow_dispatch:
 
 jobs:
@@ -51,6 +51,14 @@ jobs:
             mkdir -p assets && unzip -q -o "$RUNNER_TEMP/music_zip/music.zip" -d assets
           fi
           ls assets/music | wc -l || true
+          # the CC0 textures for the finished scenery (tools/hd_fetch.py)
+          if gh release download maps -R "$GITHUB_REPOSITORY" -p 'hd.zip' -D "$RUNNER_TEMP/hd_zip"; then
+            mkdir -p assets/hd/cc0 && unzip -q -o -j "$RUNNER_TEMP/hd_zip/hd.zip" -d assets/hd/cc0
+          fi
+          ls assets/hd/cc0 | wc -l || true
+          # the finished ground: relief and gloss maps made from each track's own ground picture (tools/hd_ground.py)
+          python3 -c "import numpy, PIL" 2> /dev/null || pip install -q --break-system-packages numpy pillow || pip install -q numpy pillow || true
+          python3 tools/hd_ground.py maps || echo "::warning::ground maps not made"
 
       - name: Import the project
         run: |

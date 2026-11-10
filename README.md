@@ -25,6 +25,13 @@ shadows). **Settings > Graphics > PC extras** (on by default on Ultra) goes a st
 twice as far in four cascades and soften with distance, a little light bounces between nearby surfaces, textures
 stay sharp at a glance and glossy paint reflects a finer sky. Turn it off for the web game's Ultra exactly.
 
+**Settings > Graphics > Finished models** (on by default, Balanced and Ultra) swaps the web game's simple trackside
+shapes for finished ones up close: spruces with whorls of drooping boughs that follow each web tree's own outline,
+palms with arching fronds folded along the midrib and a ringed trunk, leafy bushes, real stone on the rocks, and
+the ground's cheese with depth (the flecks stand up, the specks sink in, it's glossier where it's fresh, with a fine
+grain close up). Leaves sway in the wind and let a little light through. Far away the web game's own shapes are
+drawn, so nothing changes in the distance. Off draws the web game's shapes everywhere.
+
 ## Controls
 - Keyboard: arrows/A D steer · Space/Down/S drift, brake · X/Enter first item · Z/Q second item · Shift/B keep behind ·
   hold F to look back (and throw backwards) · C/R special · P/Esc pause · F11 full screen.
@@ -41,13 +48,23 @@ stay sharp at a glance and glossy paint reflects a finer sky. Turn it off for th
 - `scripts/ach.gd`, `scripts/ghost.gd` — achievements, records, the best-run ghost.
 - `scripts/music.gd`, `scripts/sfx.gd` — the soundtrack and the sound effects.
 - `scripts/track.gd` — track data exported from the web game.
+- `scripts/props.gd`, `scripts/hd_ground.gd`, `shaders/foliage.gdshader` — the finished trees, bushes, rocks and ground.
 - `shaders/` — sky, post grade, livery, bubbles, particles and menu backgrounds.
-- `tools/` — the exporters (tracks, garage, soundtrack), run in a browser against the web game.
+- `tools/` — the exporters (tracks, garage, soundtrack), run in a browser against the web game; `hd_textures.py`
+  (the leaf, frond, bough and bark pictures), `hd_ground.py` (the ground's relief and gloss maps, made in the build),
+  `hd_fetch.py` (downloads the CC0 textures).
 - `tests/` — headless race (`smoke`), every track (`allmaps`), two-copy online race (`net`), screenshots matched step
   for step with the web game's (`shots`), menu screenshots (`menushots`).
 - `.github/workflows/pc.yml` — checks, tests and builds on every push. `[quick]` in a commit message skips screenshots and export.
 - `.github/workflows/maps.yml` — exports the tracks, garage and soundtrack from the web game (run by hand, or on changes to the tools).
+- `.github/workflows/hd.yml` — downloads the CC0 textures from Poly Haven into the `maps` release (`hd.zip`).
 - `.github/workflows/ios.yml` — iPhone build, manual only (paused).
 
 ## Not ported yet
-Cross-play with the browser version, the online network log, and the TESTING cheat's shortcut prompt.
+Cross-play with the browser version, and the online network log.
+
+## Credits
+The web game's credits all carry over. The finished models' bark and stone surfaces are CC0 textures from
+[Poly Haven](https://polyhaven.com) (bark_brown_02, bark_willow, rock_boulder_dry and others listed in
+`assets/hd/cc0/credits.txt` in the build), used under CC0 with thanks. The leaf, frond, bough and ground maps are
+made by this project's own tools.

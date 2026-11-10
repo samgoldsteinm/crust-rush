@@ -61,6 +61,7 @@ var racers: Array = []       # {name, color, stripe}
 var diffs := {}
 var haz := {}                # moving hazards: traffic, rollers, walk, train (web HAZ, rollers)
 var theme := "bay"
+var props := {}            # trees, palms, bushes, rocks: {kinds: {key: {base, P, N, C, ...}}, items: {key: [...]}}
 var grade := {}              # the web's colour grade for this theme: sat, con, tint, vig, bloom, thr
 var rim := {}                # rim light colour and strength
 
@@ -161,6 +162,7 @@ func _read(d: Dictionary) -> void:
 	if d.get("haz") != null:
 		haz = d["haz"]
 	theme = String(d.get("theme", "bay"))
+	props = d.get("props", {})
 	if d.get("grade") != null:
 		grade = d["grade"]
 	if d.get("rim") != null:

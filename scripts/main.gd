@@ -433,6 +433,17 @@ func _build_world() -> void:
 	if track != null:
 		world.add_child(track)
 		_prepare_track(track)
+	var hd := hd_on and quality >= 1
+	# the ground: the same picture with depth, gloss and a fine grain up close
+	if track != null and hd:
+		HdGround.upgrade(track, String(_map_info(map_id)["dir"]).path_join(map_id + "_hd.json"))
+	# trees, palms, bushes and rocks: finished models on PC (the web game's own shapes far away, and when off)
+	if not T.props.is_empty():
+		var pr := Props.new()
+		pr.name = "Props"
+		world.add_child(pr)
+		var pst := pr.build(T.props, 2 if hd else 0)
+		print("props: %d kinds, %d placed, %d finished" % [pst["kinds"], pst["items"], pst["hd"]])
 	# the web's colour grade for this theme (bloom strength and threshold too)
 	var G: Dictionary = T.grade
 	if post_mat != null:
@@ -2027,6 +2038,7 @@ func _settings_panel() -> Control:
 				["Quality", "Ultra: every racer and building in high detail, ambient occlusion, shadows across the whole view, 4x anti-aliasing and bloom. Balanced: lighter shadows and no ambient occlusion. Fast: the lightest, for older laptops.", "q", [["0", "Fast"], ["1", "Balanced"], ["2", "Ultra"]], str(quality)],
 				["Shadows", "Real-time shadows from karts and scenery.", "shadows", on_off, "1" if shadows_on else "0"],
 				["PC extras", "A step past the web game's Ultra: shadows reach more than twice as far and soften with distance like real sunlight, a little light bounces between nearby surfaces, and textures and reflections are sharper. Off matches the web game's Ultra exactly. Ultra only.", "pcx", on_off, "1" if pc_plus else "0"],
+				["Finished models", "Trees, palms, bushes, rocks and the ground as finished models: leafy crowns that sway in the wind, bark, stone and a cheese surface with real depth. Far away, and when off, the web game's own shapes. Balanced and Ultra; applies from the next race.", "hd", on_off, "1" if hd_on else "0"],
 				["Look", "Vivid: a darker base tone with a stronger sun, deeper shadows and richer colour, so lit faces and light sources stand out. Classic: the softer, brighter balance. Applies from the next race.", "look", [["vivid", "Vivid"], ["classic", "Classic"]], look],
 				["Ambient occlusion", "Soft contact shading in corners and crevices, computed every frame. The single most expensive effect: turn it off to run Ultra's detail at a higher frame rate.", "ao", on_off, "1" if ao_on else "0"],
 				["Sharpening", "When the 3D view is drawn below screen size to hold the frame rate, a sharpening pass brings the detail back. Turn off if you prefer a softer picture.", "sharp", on_off, "1" if sharpen_on else "0"],
@@ -2298,6 +2310,7 @@ func _reset_settings() -> void:
 	quality = 2
 	shadows_on = true
 	pc_plus = true
+	hd_on = true
 	look = "vivid"
 	ao_on = true
 	sharpen_on = true
@@ -2332,6 +2345,7 @@ var music_on := true
 var music_level := 0.45
 var shadows_on := true
 var pc_plus := true       # Settings > PC extras
+var hd_on := true         # Settings > Finished models
 var look := "vivid"
 var ao_on := true
 var sharpen_on := true
@@ -2398,6 +2412,8 @@ func _apply_setting(key: String, val: String) -> void:
 		"pcx":
 			pc_plus = val == "1"
 			_apply_quality()
+		"hd":
+			hd_on = val == "1"
 		"ao":
 			ao_on = val == "1"
 			_apply_quality()
@@ -2490,7 +2506,7 @@ func _save_settings() -> void:
 	cf.set_value("gfx", "res", res_scale)
 	cf.set_value("snd", "vol", sfx_vol)
 	cf.set_value("snd", "level", snd_level)
-	for k2 in ["shadows_on", "pc_plus", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look"]:
 		cf.set_value("opt", k2, get(k2))
 	cf.set_value("opt", "stats_on", KartBuilder.stats_on)
 	Keys.save_to(cf)
@@ -2517,7 +2533,7 @@ func _load_settings() -> void:
 	res_scale = float(cf.get_value("gfx", "res", res_scale))
 	sfx_vol = float(cf.get_value("snd", "vol", 1.0))
 	snd_level = float(cf.get_value("snd", "level", 1.0))
-	for k2 in ["shadows_on", "pc_plus", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look"]:
 		var vv = cf.get_value("opt", k2, get(k2))
 		if typeof(vv) == typeof(get(k2)):
 			set(k2, vv)
