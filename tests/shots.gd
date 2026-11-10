@@ -33,6 +33,15 @@ func _frames(n: int) -> void:
 		await get_tree().process_frame
 
 
+## frames as the web reference script gets them: its software-rendered frames take longer than 0.1 s, so each one
+## moves the camera, fades and particles on by the game's 0.1 s cap. Once the race is held still the test does the same.
+func _web_frames(n: int) -> void:
+	Engine.time_scale = 6.0 if main.test_hold else 1.0
+	for i in n:
+		await get_tree().process_frame
+	Engine.time_scale = 1.0
+
+
 ## the race runs for `sec` without drawing, then two frames are drawn (web wait_t)
 func _wait_t(sec: float) -> void:
 	for i in int(round(sec * 120.0)):
@@ -40,11 +49,11 @@ func _wait_t(sec: float) -> void:
 	if main.hud.banner_t > 0.0:   # the banners time out with the race, as the web's do
 		main.hud.banner_t = maxf(0.0001, main.hud.banner_t - sec)
 	main.cam_snap = true      # the web's camera follows every step; here it would still be where the race was before the jump
-	await _frames(2)
+	await _web_frames(2)
 
 
 func _shot(name: String) -> void:
-	await _frames(1)
+	await _web_frames(1)
 	_capture(name)
 
 
@@ -90,13 +99,13 @@ func _run() -> void:
 		_drift(3, 1.0)
 		main._sim_tick(1.0 / 120.0)
 		_drift(3, 1.0)
-		await _frames(1)
+		await _web_frames(1)
 	await _shot("g_drift3")
 	for i in 3:
 		_drift(1, -1.0)
 		main._sim_tick(1.0 / 120.0)
 		_drift(1, -1.0)
-		await _frames(1)
+		await _web_frames(1)
 	await _shot("g_drift1")
 	_k().drift = 0
 	_k().charge = 0.0
@@ -176,7 +185,7 @@ func _run() -> void:
 	main.paused = true
 	if not T.glide.is_empty():
 		_place(int((int(T.glide["j0"]) + int(T.glide["j1"])) / 2), true)
-		await _frames(3)
+		await _web_frames(3)
 		await _shot("g_canyon_floor")
 		# looking down into the canyon from the ramp, where the water is
 		_place(int(T.glide["rj"]) - 6, true)
@@ -190,12 +199,12 @@ func _run() -> void:
 
 func _both(name: String) -> void:
 	main.cam_snap = true
-	await _frames(3)
+	await _web_frames(3)
 	await _shot("g_" + name)
 	main.pc_plus = true
 	main._apply_quality()
 	main.cam_snap = true      # the same camera for both
-	await _frames(4)
+	await _web_frames(4)
 	await _shot("x_" + name)
 	main.pc_plus = false
 	main._apply_quality()
