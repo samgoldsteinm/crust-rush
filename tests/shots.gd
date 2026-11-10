@@ -183,6 +183,17 @@ func _run() -> void:
 	# the views round the track: held still, each drawn as the web's Ultra (g_) and then with Settings >
 	# PC extras on (x_), so the two can be compared exactly
 	main.paused = true
+	# the views show the kart as it is, not mid-blink or under sauce from a rival's earlier item
+	var kc := _k()
+	kc.inv = 0.0
+	kc.spin = 0.0
+	kc.sauce_t = 0.0
+	kc.frozen = 0.0
+	kc.flat_t = 0.0
+	kc.shrink_t = 0.0
+	kc.oil_t = 0.0
+	kc.burn_t = 0.0
+	main.hud.sauce_a = 0.0
 	if not T.glide.is_empty():
 		_place(int((int(T.glide["j0"]) + int(T.glide["j1"])) / 2), true)
 		await _web_frames(3)
