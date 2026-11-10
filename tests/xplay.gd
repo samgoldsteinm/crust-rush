@@ -40,6 +40,8 @@ func _process(dt: float) -> void:
 				Engine.max_fps = 60
 				web.join(c, "PC tester")
 				print("XPLAY pc: joining room %s" % c)
+	elif not web.chan.is_empty() and not web.ready_ and web.cfg.is_empty():
+		web.set_ready(true)     # in the room: done in the garage straight away (a player would pick first)
 	elif int(t * 2) % 10 == 0 and int((t - dt) * 2) % 10 != 0:
 		print("XPLAY pc t=%.0f role %s link %s state %s go %s snaps-ack %d seq %d host %s race_time %.1f prog %d fixes %d ping %.0f" % [t, web.role, "up" if not web.chan.is_empty() else "-", main.state, web.go, web.ack_rx, web.seq, web.host_gs, main.race.race_time if main.race else 0.0, main.kart.prog if main.kart else -1, web.fixes, web.ping_ms])
 	if joined and web.go and not web.racing() and main.state != "loading":

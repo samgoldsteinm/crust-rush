@@ -701,6 +701,16 @@ func _build_hud() -> void:
 		if k == "map" and String(v) != map_id:
 			_menu_preview_map(String(v)))
 	menu.modal_builders["mp"] = _mp_panel
+	# a friends' room (web rooms): the steps lead back to it, as the web's room screen does
+	menu.net_ready.connect(func():
+		web.set_ready(true)
+		_mp_back())
+	menu.net_track.connect(func(m):
+		web.pend_map = String(m)
+		sel["map"] = String(m)
+		web._lobby_sync()
+		_mp_back())
+	menu.net_room.connect(_mp_back)
 	menu.modal_builders["set"] = _settings_panel
 	menu.modal_builders["netlog"] = _netlog_panel
 	loading = _loading_screen()
@@ -1340,6 +1350,8 @@ func _map_by_mi(mi: int) -> String:
 
 
 func _web_name() -> String:
+	if net_name != "":
+		return net_name
 	for q in roster.get("racers", []):
 		if int((q as Dictionary).get("ri", -1)) == int(sel["ri"]):
 			return String((q as Dictionary).get("name", "PC racer"))
@@ -1347,48 +1359,19 @@ func _web_name() -> String:
 
 
 func _web_join() -> void:
-	if web_code == null:
-		return
 	_net_close()
-	web.join(web_code.text, _web_name())
+	web.join(web_code_text, _web_name())
 
 
 func _web_changed(msg: String) -> void:
-	if web_lbl == null or not is_instance_valid(web_lbl):
+	if menu == null:
 		return
-	var t := "Friends playing in a browser: they tap Play with friends, then Host a room, and you type their 4-letter room code here. You race as your chosen driver and kart; the host picks the track and starts the race."
-	if web.role == "host":
-		var names := PackedStringArray()
-		var waiting := 0
-		for p in web.pl:
-			var pd: Dictionary = p
-			var who := int(pd.get("id", -1))
-			names.append(String(pd.get("name", "?")) + (" (you)" if who == 0 else ("" if bool(pd.get("ready", false)) else " (in the garage)")))
-			if who != 0 and not bool(pd.get("ready", false)):
-				waiting += 1
-		t = "Room code %s. Friends open Crust Rush in a browser, tap Play with friends and enter the code. In the room: %s. %s" % [web.code, ", ".join(names),
-			("Waiting for %d to tap Ready." % waiting) if waiting > 0 else "Pick your driver and track, then Start: the race is on %s." % String(_map_info(map_id).get("name", map_id))]
-	elif web.role == "guest":
-		if web.chan.is_empty():
-			t = "Looking for room %s… This can take a few seconds." % web.code
-		else:
-			var names := PackedStringArray()
-			for p in web.pl:
-				var pd: Dictionary = p
-				var who := int(pd.get("id", -1))
-				names.append(String(pd.get("name", "?")) + (" (host)" if who == 0 else (" (you)" if who == web.me else "")))
-			t = "In room %s: %s. %s" % [web.code, ", ".join(names), ("The host has picked %s. The race starts when everyone is ready and the host taps Start." % web.host_tk) if web.host_tk != "" else "You're ready; the host picks the track."]
+	menu.net = web.role
 	if msg != "":
-		t = msg
-	web_lbl.text = t
-	web_join_b.visible = web.role == ""
-	web_code.visible = web.role != "host"
-	web_code.editable = web.role == ""
-	web_leave_b.visible = web.role != ""
-	if web_host_b != null and is_instance_valid(web_host_b):
-		web_host_b.visible = web.role == ""
-		web_start_b.visible = web.role == "host"
-
+		mp_err = msg
+	# the room sheet shows the room as it is now: rebuild it while it is open
+	if menu.visible and menu.modal_kind == "mp":
+		menu.show_modal("mp")
 
 ## the host started loading a race: load the same track and grid, then wait for everyone (web netBeginLoad)
 func _web_load(c: Dictionary) -> String:
@@ -1418,7 +1401,7 @@ func _web_host_load(pc: Dictionary) -> String:
 	if menu != null:
 		menu.close_modal()
 		menu.visible = false
-	pc["map"] = map_id
+	pc["map"] = web.pend_map if web.pend_map != "" else map_id
 	if String(web.cfg.get("mode", "")) == "lss":
 		pc["mode"] = "lss"
 	_start_race(pc)
@@ -2335,74 +2318,188 @@ func _mp_panel() -> Control:
 	v.add_child(card)
 	var cv := menu.vbox(12)
 	card.add_child(cv)
-	cv.add_child(menu.section_label("Online race, PC to PC"))
-	lbl_menu = menu.para("Everyone plays on the PC version. One player hosts; the others type the host's address and join. The host picks the track and starts the race.", 15.0, Color("#c2a58c"), 640.0)
-	cv.add_child(lbl_menu)
-	var row := menu.hbox(10)
-	var hb := menu.button("Host a race", "cta", 19.0, Vector4(20, 12, 20, 12))
-	hb.pressed.connect(_menu_host)
-	row.add_child(hb)
-	ip_edit = LineEdit.new()
-	ip_edit.placeholder_text = "Host's address, e.g. 192.168.1.20"
-	ip_edit.add_theme_font_override("font", menu.f_semi)
-	ip_edit.add_theme_font_size_override("font_size", menu.zi(16))
-	ip_edit.add_theme_stylebox_override("normal", menu.glass(12.0, Vector4(12, 10, 12, 10)))
-	ip_edit.add_theme_stylebox_override("focus", menu.box([Color(1, 0.957, 0.863, 0.08)], 180.0, 12.0, Color("#f7c948"), 2.0, Vector4(12, 10, 12, 10)))
+	menu.net = web.role
+	web_lbl = null
+	web_code = null
+	var err := mp_err
+	mp_err = ""
+	if err != "":
+		cv.add_child(menu.para(err, 15.0, Color("#ff8a6a"), 640.0))
+	if web.role == "":
+		# the web's room screen: one person hosts and shares the code, on phones or PCs alike
+		cv.add_child(menu.para("Race together on any phones or PCs: the same Wi-Fi works best, but anywhere online works too. One person hosts and shares the room code.", 15.0, Color("#c2a58c"), 640.0))
+		var nr := menu.hbox(10)
+		nr.add_child(menu.label("Your name", menu.f_bold, 15.0, Color("#fff4dc")))
+		var ne := _mp_edit(net_name if net_name != "" else _web_name(), "Your name", 14, menu.f_semi, 16.0)
+		ne.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		ne.text_changed.connect(func(t):
+			net_name = String(t).strip_edges().substr(0, 14)
+			_save_settings())
+		nr.add_child(ne)
+		cv.add_child(nr)
+		var row := menu.hbox(10)
+		var hb := menu.button("Host a room", "cta", 18.0, Vector4(20, 12, 20, 12))
+		hb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hb.pressed.connect(_web_host_room)
+		row.add_child(hb)
+		web_code = _mp_edit(web_code_text, "CODE", 4, menu.f_disp, 20.0)
+		web_code.custom_minimum_size.x = menu.z(130)
+		web_code.text_changed.connect(func(t): web_code_text = String(t))
+		web_code.text_submitted.connect(func(_t): _web_join())
+		row.add_child(web_code)
+		var jb := menu.button("Join", "cta", 18.0, Vector4(22, 12, 22, 12))
+		jb.pressed.connect(_web_join)
+		row.add_child(jb)
+		cv.add_child(row)
+	elif web.role == "guest" and web.chan.is_empty():
+		cv.add_child(menu.para("Looking for room %s… This can take a few seconds." % web.code, 16.0, Color("#fff4dc"), 640.0))
+		var cb := menu.button("Cancel", "ghost", 15.0, Vector4(18, 10, 18, 10))
+		cb.pressed.connect(func():
+			web.leave()
+			_web_changed(""))
+		cv.add_child(cb)
+	else:
+		var host := web.role == "host"
+		var hdr := menu.hbox(10)
+		hdr.add_child(menu.label("Room code" if host else "Joined room", menu.f_bold, 14.0, Color("#c2a58c")))
+		hdr.add_child(menu.label(web.code, menu.f_disp, 30.0, Color("#f7c948"), Color("#7d1d0e"), Vector2(0, 3)))
+		cv.add_child(hdr)
+		var tk := ""
+		if host and web.pend_map != "":
+			tk = String(_map_info(web.pend_map).get("name", web.pend_map))
+		elif not host:
+			tk = web.host_tk
+		for p in web.pl:
+			var pd: Dictionary = p
+			var pid := int(pd.get("id", -1))
+			var rdy: bool = (tk != "") if pid == 0 else bool(pd.get("ready", false))
+			var r := menu.hbox(10)
+			var dot := Menu._Dot.new()
+			dot.col = Color("#3fbf5f") if rdy else Color("#7a6a5c")
+			dot.at = Vector2(menu.z(8), menu.z(10))
+			dot.custom_minimum_size = Vector2(menu.z(18), menu.z(20))
+			r.add_child(dot)
+			r.add_child(menu.label(String(pd.get("name", "?")), menu.f_bold, 16.0, Color("#fff4dc")))
+			var tag := "host" if pid == 0 else ("you" if (not host and pid == web.me) else "")
+			if tag != "":
+				r.add_child(menu.label(tag, menu.f_med, 13.0, Color("#c2a58c")))
+			var sp := Control.new()
+			sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			r.add_child(sp)
+			var st := ("ready · " + tk if tk != "" else "picks the track") if pid == 0 else ("ready" if rdy else "in the garage")
+			r.add_child(menu.label(st, menu.f_med, 14.0, Color("#3fbf5f") if rdy else Color("#c2a58c")))
+			cv.add_child(r)
+		var btns := menu.hbox(10)
+		var lead := ""
+		if host and web.pend_map == "":
+			lead = "Friends open Crust Rush on a phone or PC, tap Play with friends and enter the code. When everyone shows ready, choose your driver, kart and track and start the race. Up to 4 racers; the computer fills the other spots. Keep the game open until everyone has joined."
+			btns.add_child(_mp_btn("Choose driver and track  ›", "cta", func(): _mp_steps()))
+			btns.add_child(_mp_btn("Close room", "ghost", func():
+				web.leave()
+				_web_changed("")))
+		elif host:
+			var waiting := 0
+			for p in web.pl:
+				if int(p["id"]) != 0 and not bool(p.get("ready", false)):
+					waiting += 1
+			lead = "Track: %s. %s" % [tk, "Everyone is ready." if waiting == 0 else "Waiting for %d friend%s to finish in the garage and tap Ready." % [waiting, "" if waiting == 1 else "s"]]
+			var sb := _mp_btn("Start race  ›", "cta", func():
+				if web.all_ready():
+					_web_host_start())
+			sb.disabled = waiting > 0
+			btns.add_child(sb)
+			btns.add_child(_mp_btn("Change driver or track", "ghost", func():
+				web.pend_map = ""
+				web._lobby_sync()
+				_mp_steps()))
+			if waiting > 0:
+				btns.add_child(_mp_btn("Start without waiting", "ghost", func(): _web_host_start()))
+		elif web.ready_:
+			lead = "You are ready. " + (("Track: %s. The race starts when everyone is ready and the host taps Start." % tk) if tk != "" else "Waiting for the host to pick the track…")
+			btns.add_child(_mp_btn("Change driver or kart", "ghost", func():
+				web.set_ready(false)
+				_mp_steps()))
+		else:
+			lead = "Choose your driver and kart, then tap Ready in the garage. " + (("The host has picked %s and is waiting for you." % tk) if tk != "" else "The host picks the track.")
+			btns.add_child(_mp_btn("Choose driver  ›", "cta", func(): _mp_steps()))
+		if not host:
+			btns.add_child(_mp_btn("Leave room", "ghost", func():
+				web.leave()
+				_web_changed("")))
+		web_lbl = menu.para(lead, 15.0, Color("#c2a58c"), 640.0)
+		cv.add_child(web_lbl)
+		cv.add_child(btns)
+	# PC to PC over a local network (the older way; a room code above works for everyone)
+	var card2 := menu.panel(menu.glass(18.0, Vector4(18, 14, 18, 14)))
+	v.add_child(card2)
+	var c2 := menu.vbox(10)
+	card2.add_child(c2)
+	c2.add_child(menu.section_label("Direct connection, PC to PC"))
+	lbl_menu = menu.para("", 13.0, Color("#c2a58c"), 640.0)
+	c2.add_child(lbl_menu)
+	var lr := menu.hbox(10)
+	var lh := menu.button("Host on this network", "ghost", 14.0, Vector4(14, 8, 14, 8))
+	lh.pressed.connect(_menu_host)
+	lr.add_child(lh)
+	ip_edit = _mp_edit(net_addr_last, "Host's address, e.g. 192.168.1.20", 64, menu.f_semi, 14.0)
 	ip_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	ip_edit.text = net_addr_last
-	row.add_child(ip_edit)
-	var jb := menu.button("Join", "ghost", 16.0, Vector4(22, 12, 22, 12))
-	jb.pressed.connect(_menu_join)
-	row.add_child(jb)
-	cv.add_child(row)
+	lr.add_child(ip_edit)
+	var lj := menu.button("Join", "ghost", 14.0, Vector4(16, 8, 16, 8))
+	lj.pressed.connect(_menu_join)
+	lr.add_child(lj)
+	c2.add_child(lr)
 	var row2 := menu.hbox(10)
-	btn_start_net = menu.button("Start the online race", "cta", 19.0, Vector4(20, 12, 20, 12))
+	btn_start_net = menu.button("Start the online race", "cta", 16.0, Vector4(18, 10, 18, 10))
 	btn_start_net.pressed.connect(func():
 		menu.close_modal()
 		menu.visible = false
 		_net_start())
 	row2.add_child(btn_start_net)
-	btn_leave_net = menu.button("Leave", "ghost", 16.0, Vector4(20, 12, 20, 12))
+	btn_leave_net = menu.button("Leave", "ghost", 14.0, Vector4(16, 8, 16, 8))
 	btn_leave_net.pressed.connect(_menu_leave)
 	row2.add_child(btn_leave_net)
-	cv.add_child(row2)
-	# cross-play: join a room made in the browser version
-	var card2 := menu.panel(menu.glass(18.0, Vector4(18, 16, 18, 16)))
-	v.add_child(card2)
-	var cw := menu.vbox(12)
-	card2.add_child(cw)
-	cw.add_child(menu.section_label("Race with browser friends (room code)"))
-	web_lbl = menu.para("", 15.0, Color("#c2a58c"), 640.0)
-	cw.add_child(web_lbl)
-	var wr := menu.hbox(10)
-	web_code = LineEdit.new()
-	web_code.placeholder_text = "CODE"
-	web_code.max_length = 4
-	web_code.custom_minimum_size.x = menu.z(130)
-	web_code.add_theme_font_override("font", menu.f_disp)
-	web_code.add_theme_font_size_override("font_size", menu.zi(20))
-	web_code.add_theme_stylebox_override("normal", menu.glass(12.0, Vector4(12, 8, 12, 8)))
-	web_code.add_theme_stylebox_override("focus", menu.box([Color(1, 0.957, 0.863, 0.08)], 180.0, 12.0, Color("#f7c948"), 2.0, Vector4(12, 8, 12, 8)))
-	web_code.text_submitted.connect(func(_t): _web_join())
-	wr.add_child(web_code)
-	web_join_b = menu.button("Join room", "cta", 17.0, Vector4(20, 10, 20, 10))
-	web_join_b.pressed.connect(_web_join)
-	wr.add_child(web_join_b)
-	web_host_b = menu.button("Host a room", "ghost", 15.0, Vector4(18, 10, 18, 10))
-	web_host_b.pressed.connect(_web_host_room)
-	wr.add_child(web_host_b)
-	web_start_b = menu.button("Start race", "cta", 17.0, Vector4(20, 10, 20, 10))
-	web_start_b.pressed.connect(_web_host_start)
-	wr.add_child(web_start_b)
-	web_leave_b = menu.button("Leave room", "ghost", 15.0, Vector4(18, 10, 18, 10))
-	web_leave_b.pressed.connect(func():
-		web.leave()
-		_web_changed(""))
-	wr.add_child(web_leave_b)
-	cw.add_child(wr)
-	_web_changed("")
+	c2.add_child(row2)
 	_menu_refresh("")
 	return v
+
+
+var mp_err := ""
+var web_code_text := ""
+var net_name := ""
+
+
+func _mp_edit(txt: String, ph: String, maxlen: int, font: Font, size_css: float) -> LineEdit:
+	var e := LineEdit.new()
+	e.text = txt
+	e.placeholder_text = ph
+	e.max_length = maxlen
+	e.add_theme_font_override("font", font)
+	e.add_theme_font_size_override("font_size", menu.zi(size_css))
+	e.add_theme_stylebox_override("normal", menu.glass(12.0, Vector4(12, 8, 12, 8)))
+	e.add_theme_stylebox_override("focus", menu.box([Color(1, 0.957, 0.863, 0.08)], 180.0, 12.0, Color("#f7c948"), 2.0, Vector4(12, 8, 12, 8)))
+	return e
+
+
+func _mp_btn(t: String, kind: String, f: Callable) -> Button:
+	var b := menu.button(t, kind, 16.0 if kind == "cta" else 15.0, Vector4(18, 10, 18, 10))
+	b.pressed.connect(f)
+	return b
+
+
+func _mp_back() -> void:
+	menu.open("home")
+	menu.visible = true
+	menu.show_modal("mp")
+
+
+## from the room to the driver, kart and (host) track screens, as the web's room does
+func _mp_steps() -> void:
+	menu.net = web.role
+	menu.close_modal()
+	menu.visible = true
+	menu.mode = "single"
+	sel["mode"] = "single"
+	menu.open("driver")
 
 
 var net_addr_last := ""
@@ -2934,7 +3031,7 @@ func _save_settings() -> void:
 	cf.set_value("gfx", "res", res_scale)
 	cf.set_value("snd", "vol", sfx_vol)
 	cf.set_value("snd", "level", snd_level)
-	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
 		cf.set_value("opt", k2, get(k2))
 	cf.set_value("opt", "stats_on", KartBuilder.stats_on)
 	Keys.save_to(cf)
@@ -2961,7 +3058,7 @@ func _load_settings() -> void:
 	res_scale = float(cf.get_value("gfx", "res", res_scale))
 	sfx_vol = float(cf.get_value("snd", "vol", 1.0))
 	snd_level = float(cf.get_value("snd", "level", 1.0))
-	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
 		var vv = cf.get_value("opt", k2, get(k2))
 		if typeof(vv) == typeof(get(k2)):
 			set(k2, vv)

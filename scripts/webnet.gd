@@ -44,6 +44,7 @@ var code := ""
 var me := 0
 var pl: Array = []
 var host_tk := ""
+var pend_map := ""        # hosting: the track picked for the next race (web NET.pendMap), "" while choosing
 var name_ := "Player"
 var ready_ := false
 var cfg := {}
@@ -244,9 +245,25 @@ func join(room: String, nm: String) -> void:
 
 func _on_open() -> void:
 	_send({"t": "hello", "name": name_, "v": PROTO})
-	ready_ = true
+	# as on the web: in the room first, then choose a driver and kart and tap Ready
+	ready_ = false
 	_send_pick()
 	changed.emit("")
+
+
+## the guest is done in the garage (or goes back to change): tell the host
+func set_ready(r: bool) -> void:
+	ready_ = r
+	_send_pick()
+	changed.emit("")
+
+
+## hosting: everyone in the room has tapped Ready
+func all_ready() -> bool:
+	for p in pl:
+		if int(p["id"]) != 0 and not bool(p.get("ready", false)):
+			return false
+	return true
 
 
 func _send_pick() -> void:
@@ -272,6 +289,7 @@ func leave(tell := true) -> void:
 	cfg = {}
 	pl = []
 	host_tk = ""
+	pend_map = ""
 	go = false
 	loaded = false
 
@@ -832,7 +850,9 @@ func _lobby_sync() -> void:
 	for p in pl:
 		lst.append({"id": p["id"], "name": p["name"], "ready": p["ready"], "ri": p["ri"]})
 	var tk = null
-	if main != null and not cfg.is_empty():
+	if main != null and pend_map != "":
+		tk = String(main._map_info(pend_map).get("name", ""))
+	elif main != null and not cfg.is_empty():
 		tk = String(main._map_info(main.map_id).get("name", ""))
 	for ch in guests_open():
 		_send_to(ch, {"t": "lobby", "pl": lst, "you": int(ch["pid"]), "code": code, "tk": tk})
@@ -952,7 +972,7 @@ func _build_cfg(mi: int) -> Dictionary:
 func host_start() -> String:
 	if role != "host" or main == null:
 		return "Host a room first."
-	var info: Dictionary = main._map_info(main.map_id)
+	var info: Dictionary = main._map_info(pend_map if pend_map != "" else main.map_id)
 	if info.is_empty() or int(info.get("mi", 99)) >= 99:
 		return "Pick one of the web game's tracks first."
 	cfg = _build_cfg(int(info["mi"]))

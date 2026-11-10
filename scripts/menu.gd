@@ -6,6 +6,9 @@ extends Control
 ## web's demo view. Sizes are the web's CSS pixels times its zoom at 1280x720 (Z).
 
 signal go(opts: Dictionary)          # start a race: {mode, cls, ri, map, cup}
+signal net_ready                     # in a friends' room: the guest is done in the garage (web: Ready)
+signal net_track(map: String)        # in a friends' room: the host has picked the track
+signal net_room                      # back to the room's lobby
 signal host_online
 signal join_online(addr: String)
 signal leave_online
@@ -64,6 +67,8 @@ var bg: Control
 var screens := {}
 var cur := ""
 var modal: Control = null
+var modal_kind := ""
+var net := ""                  # in a friends' room (web rooms): "", "guest" or "host"; the steps then lead back to the room
 var default_focus: Control = null
 
 
@@ -608,7 +613,21 @@ func _driver() -> Control:
 	var v := vbox(8)
 	root.add_child(v)
 	var three := KartBuilder.ready()
-	v.add_child(_step_head("‹ Back", "home", "Step 1 of 3" if three else "Step 1 of 2", "Choose your driver", "BUILD KART  ›" if three else "CHOOSE TRACK  ›", func(): open("garage" if three else "track")))
+	var nx_t := "BUILD KART  ›" if three else ("READY  ›" if net == "guest" else "CHOOSE TRACK  ›")
+	var nx_f := func():
+		if three:
+			open("garage")
+		elif net == "guest":
+			net_ready.emit()
+		else:
+			open("track")
+	v.add_child(_step_head("‹ Room" if net != "" else "‹ Back", "home", "Step 1 of 3" if three else "Step 1 of 2", "Choose your driver", nx_t, nx_f))
+	if net != "":
+		var hb0: Control = v.get_child(v.get_child_count() - 1)
+		var back0 := hb0.get_child(0) as Button
+		for cn in back0.pressed.get_connections():
+			back0.pressed.disconnect(cn["callable"])
+		back0.pressed.connect(func(): net_room.emit())
 	var body := hbox(14)
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	v.add_child(body)
@@ -818,7 +837,13 @@ func _track() -> Control:
 	var small := ("Step 3 of 3 · " + build_summary()) if three else ("Step 2 of 2 · " + cls_label)
 	if mode == "lss":
 		small += " · Last Slice"
-	v.add_child(_step_head("‹ Kart" if three else "‹ Driver", "garage" if three else "driver", small, "Cup" if gp else "Track", "START GRAND PRIX" if gp else "START RACE", func(): _go()))
+	if net == "host":
+		gp = false
+	v.add_child(_step_head("‹ Kart" if three else "‹ Driver", "garage" if three else "driver", small, "Cup" if gp else "Track", "SET TRACK  ›" if net == "host" else ("START GRAND PRIX" if gp else "START RACE"), func():
+		if net == "host":
+			net_track.emit(map_id)
+		else:
+			_go()))
 	var body := hbox(16)
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	v.add_child(body)
@@ -1094,8 +1119,13 @@ func _garage() -> Control:
 	var sp2 := Control.new()
 	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(sp2)
-	var nxt := button("CHOOSE TRACK  ›", "cta", 19.0, Vector4(20, 10, 20, 10))
-	nxt.pressed.connect(func(): open("track"))
+	# in a friends' room the guest is done here (web: the garage's Ready); the host goes on to pick the track
+	var nxt := button("READY  ›" if net == "guest" else "CHOOSE TRACK  ›", "cta", 19.0, Vector4(20, 10, 20, 10))
+	nxt.pressed.connect(func():
+		if net == "guest":
+			net_ready.emit()
+		else:
+			open("track"))
 	h.add_child(nxt)
 	default_focus = nxt
 	v.add_child(h)
@@ -1578,11 +1608,13 @@ func close_modal(keep_keys := false, swap := false) -> void:
 		for k in screens:
 			(screens[k] as Control).visible = true
 		if not swap:
+			modal_kind = ""
 			modal_closed.emit()
 
 
 func show_modal(kind: String) -> void:
 	close_modal(kind == "set", true)
+	modal_kind = kind
 	var m := Control.new()
 	m.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	m.mouse_filter = Control.MOUSE_FILTER_STOP
