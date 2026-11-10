@@ -13,12 +13,16 @@ on:
       maps:
         description: "Track numbers to export (JSON list, 0-16)"
         default: "[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]"
+      parts:
+        description: "What to export (any of tracks, garage, music)"
+        default: "tracks,garage,music"
 
 permissions:
   contents: write
 
 jobs:
   export:
+    if: contains(github.event.inputs.parts || 'tracks,garage,music', 'tracks')
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
@@ -54,6 +58,7 @@ jobs:
           for z in map-*.zip; do gh release upload maps "$z" -R "$GITHUB_REPOSITORY" --clobber; done
 
   music:
+    if: contains(github.event.inputs.parts || 'tracks,garage,music', 'music')
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -71,6 +76,7 @@ jobs:
         run: |
           pip install -q playwright numpy
           python -m playwright install --with-deps chromium > /dev/null
+          sudo apt-get update -qq > /dev/null && sudo apt-get install -y -qq ffmpeg > /dev/null
           ffmpeg -version | head -1
       - name: Render the soundtrack
         run: |
@@ -83,6 +89,7 @@ jobs:
         run: gh release upload maps music.zip -R "$GITHUB_REPOSITORY" --clobber
 
   garage:
+    if: contains(github.event.inputs.parts || 'tracks,garage,music', 'garage')
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
