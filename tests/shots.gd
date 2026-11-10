@@ -11,8 +11,8 @@ var dir := ""
 
 func _ready() -> void:
 	main = load("res://scenes/main.tscn").instantiate()
-	add_child(main)
 	main.auto_drive = true
+	add_child(main)
 	dir = ProjectSettings.globalize_path("res://build/shots")
 	DirAccess.make_dir_recursive_absolute(dir)
 	wait = 20

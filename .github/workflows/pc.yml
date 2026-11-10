@@ -41,6 +41,18 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error" smoke.log; then echo "::error::runtime script errors"; exit 1; fi
           grep -q "SMOKE PASS" smoke.log
 
+      - name: Online race between two copies of the game
+        continue-on-error: true
+        run: |
+          (timeout 240 ./godot --headless --path . res://tests/net.tscn -- host > net_host.log 2>&1 &)
+          sleep 4
+          timeout 240 ./godot --headless --path . res://tests/net.tscn -- join > net_join.log 2>&1 || true
+          for i in $(seq 1 30); do grep -q "NET HOST \(PASS\|FAIL\)" net_host.log && break; sleep 2; done
+          grep -E "^NET|SCRIPT ERROR|Parse Error|   at: " net_host.log | head -30
+          grep -E "^NET|SCRIPT ERROR|Parse Error|   at: " net_join.log | head -30
+          grep -q "NET HOST PASS" net_host.log
+          grep -q "NET CLIENT PASS" net_join.log
+
       - name: Screenshots (software Vulkan)
         if: ${{ always() && !contains(github.event.head_commit.message, '[quick]') }}
         run: |

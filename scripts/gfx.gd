@@ -87,18 +87,18 @@ static func apply_environment(env: Environment, sun: DirectionalLight3D, level: 
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
 	# sun shafts through the palms: a thin participating haze lit by the low sun
 	env.volumetric_fog_enabled = level >= 2 and not phone
-	env.volumetric_fog_density = 0.00022
+	env.volumetric_fog_density = 0.00007
 	env.volumetric_fog_albedo = Color(1.0, 0.93, 0.85)
 	env.volumetric_fog_emission_energy = 0.0
 	env.volumetric_fog_anisotropy = 0.65
 	env.volumetric_fog_length = 1400.0
 	env.volumetric_fog_detail_spread = 2.0
 	env.volumetric_fog_gi_inject = 0.4
-	env.volumetric_fog_ambient_inject = 0.3
+	env.volumetric_fog_ambient_inject = 0.1
 	env.volumetric_fog_sky_affect = 0.0
 	env.volumetric_fog_temporal_reprojection_enabled = true
 	if sun != null:
-		sun.light_volumetric_fog_energy = 1.6
+		sun.light_volumetric_fog_energy = 1.0
 		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if (level >= 1 and not phone) else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 		sun.directional_shadow_max_distance = 1000.0 if level >= 2 else 700.0
 		sun.directional_shadow_blend_splits = level >= 1
@@ -169,7 +169,7 @@ static func upgrade_track(root: Node, level: int, track_r: float, water_look: Ar
 				if nt != null:
 					sm.normal_enabled = true
 					sm.normal_texture = nt
-					sm.normal_scale = 0.8
+					sm.normal_scale = 0.6
 					budget -= 1
 					out[1] += 1
 	return out

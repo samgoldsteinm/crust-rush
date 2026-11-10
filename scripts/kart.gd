@@ -75,6 +75,11 @@ var is_player := false
 var human := false        # read the stick itself (web isHuman); computer drivers get extra steering
 var sm_wgt := 1.0
 var ai := {}              # lane, lane_target, lane_t, skill, item_delay, in_bend
+var info := {}            # roster entry: model file, stats
+var peer := 0             # online: who drives it (0 = computer)
+var remote := false       # online host: driven by a friend's controls
+var net_inp := {"steer": 0.0, "brake": false, "nb": false, "mul": 1.0, "look": false}
+var net_items: Array[String] = []
 
 # items and hits
 var item := ""

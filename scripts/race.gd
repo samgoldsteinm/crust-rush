@@ -35,32 +35,73 @@ var fx: Array = []            # what just happened, for the scene: {t: "spin" | 
 var _bump_t := {}
 
 
+## One-player race: the player in the middle of the grid, seven computer drivers.
 func setup(track: TrackData, roster: Dictionary, player_ri: int, seed_: int = 0) -> void:
 	T = track
-	if seed_ != 0:
-		rng.seed = seed_
-	else:
+	var sd := seed_
+	if sd == 0:
 		rng.randomize()
+		sd = int(rng.randi() & 0x7fffffff) + 1
+	setup_cfg(track, roster, make_cfg(roster, player_ri, [1], sd), 1)
+
+
+## Who sits where: humans (the host first) take the middle of the grid, computer drivers the rest.
+## peers: the people racing, the host's id (1) first.
+func make_cfg(roster: Dictionary, host_ri: int, peers: Array, seed_: int) -> Dictionary:
+	var r := RandomNumberGenerator.new()
+	r.seed = seed_
+	var free: Array[int] = []
+	for q in roster.get("racers", []):
+		var ri := int((q as Dictionary)["ri"])
+		if ri != host_ri:
+			free.append(ri)
+	for i in range(free.size() - 1, 0, -1):
+		var j := r.randi_range(0, i)
+		var t := free[i]
+		free[i] = free[j]
+		free[j] = t
+	var order := [4, 3, 5, 2, 6, 1, 7, 0]
+	var slots: Array = []
+	for s in 8:
+		slots.append({"ri": -1, "peer": 0, "own": false})
+	for n in mini(peers.size(), 8):
+		var s2: int = order[n]
+		if n == 0:
+			slots[s2] = {"ri": host_ri, "peer": int(peers[0]), "own": true}
+		elif not free.is_empty():
+			slots[s2] = {"ri": free.pop_front(), "peer": int(peers[n]), "own": false}
+	for s3 in 8:
+		if int(slots[s3]["ri"]) < 0 and not free.is_empty():
+			slots[s3] = {"ri": free.pop_front(), "peer": 0, "own": false}
+	return {"seed": seed_, "slots": slots}
+
+
+## Builds the grid from a configuration (the same on every machine in an online race).
+func setup_cfg(track: TrackData, roster: Dictionary, cfg: Dictionary, my_peer: int) -> void:
+	T = track
+	rng.seed = int(cfg["seed"])
 	diff = T.diffs.get("normal", DEF_DIFF) if not T.diffs.is_empty() else DEF_DIFF
 	var racers: Array = roster.get("racers", [])
-	var others: Array[int] = []
-	for r in racers:
-		var rd: Dictionary = r
-		if int(rd["ri"]) != player_ri:
-			others.append(int(rd["ri"]))
-	for i in range(others.size() - 1, 0, -1):
-		var j := rng.randi_range(0, i)
-		var t := others[i]
-		others[i] = others[j]
-		others[j] = t
 	karts.clear()
-	for s in 8:
-		if s == 4:
-			player = _make_kart(player_ri, s, true, roster.get("player", {}))
-			karts.append(player)
-		elif not others.is_empty():
-			var ri: int = others.pop_front()
-			karts.append(_make_kart(ri, s, false, _racer(racers, ri)))
+	player = null
+	var slots: Array = cfg["slots"]
+	for s in slots.size():
+		var sl: Dictionary = slots[s]
+		var ri := int(sl["ri"])
+		if ri < 0:
+			continue
+		var pid := int(sl["peer"])
+		var info: Dictionary = roster.get("player", {}) if bool(sl["own"]) else _racer(racers, ri)
+		var k := _make_kart(ri, s, pid != 0 and pid == my_peer, info)
+		k.peer = pid
+		k.human = pid != 0
+		k.remote = pid != 0 and pid != my_peer
+		k.ai["auto"] = pid == 0
+		if pid != 0 and pid == my_peer:
+			player = k
+		karts.append(k)
+	if player == null and not karts.is_empty():
+		player = karts[0]
 	boxes.clear()
 	for b in T.boxes:
 		var bd: Dictionary = b
@@ -98,9 +139,10 @@ func _make_kart(ri: int, slot: int, is_player: bool, info: Dictionary) -> Kart:
 	k.setup(T, {"x": x, "y": y, "a": T.ang[idx], "wy": T.ground(x, y)}, idx - T.N, info)
 	k.idx = idx
 	k.ri = ri
-	k.racer_name = String(info.get("name", T.racers[ri]["name"] if ri < T.racers.size() else "Racer"))
+	k.racer_name = String(T.racers[ri]["name"]) if ri < T.racers.size() else String(info.get("name", "Racer"))
 	k.is_player = is_player
 	k.human = is_player
+	k.info = info
 	k.race = self
 	k.ai = {"lane": lat, "lane_target": lat, "lane_t": 1.0 + rng.randf() * 3.0, "skill": sk, "item_delay": 0.0, "in_bend": false, "auto": not is_player}
 	return k
@@ -144,7 +186,14 @@ func update(dt: float, player_inp: Dictionary) -> void:
 		race_time += dt
 	for k in karts:
 		var inp: Dictionary
-		if k.is_player and not bool(k.ai.get("auto", false)) and not (k.rush > 0.0):
+		if k.remote and not bool(k.ai.get("auto", false)) and not (k.rush > 0.0):
+			# a friend's kart: their latest controls, and any item presses they sent
+			inp = {"steer": float(k.net_inp["steer"]), "brake": bool(k.net_inp["brake"]), "nb": bool(k.net_inp["nb"]), "mul": float(k.net_inp["mul"]), "use": false, "back": false, "hold": false, "hold_sl": 1, "release": null}
+			if not k.net_items.is_empty():
+				item_intent(k, k.net_items.pop_front(), inp)
+				if bool(inp["use"]) and k.item != "" and bool(k.net_inp["look"]) and not k.item in NOBACK:
+					inp["back"] = true
+		elif k.is_player and not bool(k.ai.get("auto", false)) and not (k.rush > 0.0):
 			inp = player_inp
 		else:
 			inp = ai_input(k, dt)
@@ -354,6 +403,28 @@ func ai_input(k: Kart, dt: float) -> Dictionary:
 
 
 # ---------------------------------------------------------------- items
+
+## web itemIntent: what a press on an item button means right now ("fwd", "fwd2", "hold", "hold2")
+func item_intent(k: Kart, it: String, o: Dictionary) -> void:
+	var sl := 2 if it.ends_with("2") else 1
+	var is_hold := it.begins_with("hold")
+	if not k.held.is_empty() and int(k.held["sl"]) == sl:
+		o["release"] = "back" if is_hold else "fwd"
+	elif not k.held.is_empty():
+		o["use"] = true
+		o["back"] = is_hold
+	else:
+		if sl == 2 and k.item2 != "" and not (k.roll > 0.0):
+			var t := k.item
+			k.item = k.item2
+			k.item2 = t
+		if is_hold and k.item != "" and k.item in HOLDABLE:
+			o["hold"] = true
+			o["hold_sl"] = sl
+		else:
+			o["use"] = true
+			o["back"] = is_hold
+
 
 func roll_item(pos: int) -> String:
 	var n := karts.size()

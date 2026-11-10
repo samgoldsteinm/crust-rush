@@ -47,6 +47,8 @@ var box_nodes: Array = []    # one Node3D per race.boxes entry
 var proj_nodes := {}         # id -> Node3D
 var haz_nodes := {}          # id -> Node3D
 var fx_root: Node3D
+var sfx: Sfx
+var roll_tick := 0.0
 
 # input
 var touches := {}            # index -> "l" | "r" | "pedal"
@@ -85,6 +87,29 @@ var fps_cap := 60
 var res_scale := 1.0
 var is_phone := false
 var quality := 2             # 0 Low (the web look), 1 High, 2 Ultra
+var hud_race: Control
+var panel_menu: PanelContainer
+var lbl_menu: Label
+var ip_edit: LineEdit
+var btn_start_net: Button
+var btn_leave_net: Button
+var btn_again: Button
+var skip_menu := false       # tests go straight to the race
+var shown_finish := false
+
+# online, PC to PC: the host runs the race; everyone else sends their controls and draws what the host sends back
+const NET_PORT := 24680
+const SNAP_EVERY := 4        # physics steps between snapshots (30 a second)
+var net_role := ""           # "" | "host" | "client"
+var net_peers: Array[int] = []
+var net_tick := 0
+var net_snaps := 0
+var net_snap_at := 0.0
+var net_snap_dt := 1.0 / 30.0
+var net_fresh := true
+var net_out: Array = []
+var net_addr := ""
+var upnp_thread: Thread
 var btn_quality: Button
 var stats := {"used": {}, "spins": 0, "boxes": 0, "player_spins": 0}
 
@@ -103,9 +128,19 @@ func _ready() -> void:
 	_load_items()
 	fx_root = Node3D.new()
 	add_child(fx_root)
+	sfx = Sfx.new()
+	add_child(sfx)
 	_build_hud()
 	_apply_display()
-	_restart()
+	multiplayer.peer_connected.connect(_on_peer_in)
+	multiplayer.peer_disconnected.connect(_on_peer_out)
+	multiplayer.connected_to_server.connect(_on_connected)
+	multiplayer.connection_failed.connect(_on_failed)
+	multiplayer.server_disconnected.connect(_on_server_gone)
+	if skip_menu or auto_drive:
+		_start_race({})
+	else:
+		_to_menu("")
 
 
 # ---------------------------------------------------------------- world
@@ -246,7 +281,7 @@ func _item_node(name_: String) -> Node3D:
 # ---------------------------------------------------------------- karts
 
 func _kart_view(k: Kart) -> Dictionary:
-	var info: Dictionary = roster.get("player", {}) if k.is_player else race._racer(roster.get("racers", []), k.ri)
+	var info: Dictionary = k.info
 	var file := String(info.get("file", "player.glb"))
 	if not kart_scenes.has(file):
 		kart_scenes[file] = load("res://assets/kart/" + file)
@@ -432,63 +467,67 @@ func _build_hud() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(root)
 	ui_root = root
+	hud_race = Control.new()
+	hud_race.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hud_race.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(hud_race)
 	lbl_pos = _label(92, Vector2(0, 0))
 	_place(lbl_pos, 0, 1, 0, 1, 30, -150, 330, -24)
 	lbl_pos.add_theme_constant_override("outline_size", 14)
-	root.add_child(lbl_pos)
+	hud_race.add_child(lbl_pos)
 	lbl_lap = _label(38, Vector2(28, 16))
-	root.add_child(lbl_lap)
+	hud_race.add_child(lbl_lap)
 	lbl_time = _label(28, Vector2(28, 62))
-	root.add_child(lbl_time)
+	hud_race.add_child(lbl_time)
 	lbl_info = _label(15, Vector2(28, 102))
 	lbl_info.modulate.a = 0.75
-	root.add_child(lbl_info)
+	hud_race.add_child(lbl_info)
 	lbl_speed = _label(40, Vector2(0, 0), HORIZONTAL_ALIGNMENT_RIGHT)
 	_place(lbl_speed, 1, 1, 1, 1, -330, -86, -30, -24)
-	root.add_child(lbl_speed)
+	hud_race.add_child(lbl_speed)
 	lbl_center = _label(110, Vector2(0, 0), HORIZONTAL_ALIGNMENT_CENTER)
 	_place(lbl_center, 0.5, 0.5, 0.5, 0.5, -600, -200, 600, -40)
 	lbl_center.add_theme_constant_override("outline_size", 16)
 	root.add_child(lbl_center)
 	lbl_toast = _label(34, Vector2(0, 0), HORIZONTAL_ALIGNMENT_CENTER)
 	_place(lbl_toast, 0.5, 0, 0.5, 0, -500, 130, 500, 180)
-	root.add_child(lbl_toast)
+	hud_race.add_child(lbl_toast)
 	# two item slots, top centre: the big one fires first
 	var s1 := _slot(-58, 104)
 	slot1_bg = s1[0]
 	slot1 = s1[1]
-	root.add_child(slot1_bg)
+	hud_race.add_child(slot1_bg)
 	var s2 := _slot(58, 70)
 	slot2_bg = s2[0]
 	slot2 = s2[1]
-	root.add_child(slot2_bg)
+	hud_race.add_child(slot2_bg)
 	lbl_item = _label(20, Vector2(0, 0), HORIZONTAL_ALIGNMENT_CENTER)
 	_place(lbl_item, 0.5, 0, 0.5, 0, -200, 124, 200, 150)
-	root.add_child(lbl_item)
+	hud_race.add_child(lbl_item)
 	mini = MiniMap.new()
 	mini.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_place(mini, 1, 0, 1, 0, -250, 70, -20, 300)
-	root.add_child(mini)
+	hud_race.add_child(mini)
 	pedal_l = _pedal(true)
 	pedal_r = _pedal(false)
-	root.add_child(pedal_l)
-	root.add_child(pedal_r)
+	hud_race.add_child(pedal_l)
+	hud_race.add_child(pedal_r)
 	pedal_l.visible = is_phone
 	pedal_r.visible = is_phone
 	btn_fps = _button("60 fps", Vector2(-156, 14))
 	btn_fps.pressed.connect(_toggle_fps)
-	root.add_child(btn_fps)
+	hud_race.add_child(btn_fps)
 	btn_res = _button("Res 100%", Vector2(-306, 14))
 	btn_res.pressed.connect(_toggle_res)
-	root.add_child(btn_res)
+	hud_race.add_child(btn_res)
 	var pb := _button("Pause", Vector2(-456, 14))
 	pb.pressed.connect(_toggle_pause)
-	root.add_child(pb)
+	hud_race.add_child(pb)
 
 	# results
 	panel_results = PanelContainer.new()
 	panel_results.add_theme_stylebox_override("panel", _box_style(Color(0.12, 0.06, 0.04, 0.9), Color(1, 0.82, 0.3), 26, 4))
-	_place(panel_results, 0.5, 0.5, 0.5, 0.5, -330, -300, 330, 300)
+	_place(panel_results, 0.5, 0.5, 0.5, 0.5, -330, -330, 330, 330)
 	var mg := MarginContainer.new()
 	for side in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
 		mg.add_theme_constant_override(side, 26)
@@ -502,7 +541,7 @@ func _build_hud() -> void:
 	# pause
 	panel_pause = PanelContainer.new()
 	panel_pause.add_theme_stylebox_override("panel", _box_style(Color(0.12, 0.06, 0.04, 0.92), Color(1, 0.82, 0.3), 26, 4))
-	_place(panel_pause, 0.5, 0.5, 0.5, 0.5, -230, -250, 230, 250)
+	_place(panel_pause, 0.5, 0.5, 0.5, 0.5, -230, -285, 230, 285)
 	var mg2 := MarginContainer.new()
 	for side in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
 		mg2.add_theme_constant_override(side, 26)
@@ -513,7 +552,7 @@ func _build_hud() -> void:
 	var pt := _label(44, Vector2.ZERO, HORIZONTAL_ALIGNMENT_CENTER)
 	pt.text = "Paused"
 	vb.add_child(pt)
-	for spec in [["Resume", _toggle_pause], ["Restart race", _restart], ["Graphics: Ultra", _cycle_quality], ["Full screen", _toggle_fullscreen], ["Quit", _quit]]:
+	for spec in [["Resume", _toggle_pause], ["Restart race", _restart], ["Graphics: Ultra", _cycle_quality], ["Full screen", _toggle_fullscreen], ["Main menu", _to_menu.bind("")], ["Quit", _quit]]:
 		var b := Button.new()
 		b.text = spec[0]
 		b.add_theme_font_size_override("font_size", 26)
@@ -524,6 +563,61 @@ func _build_hud() -> void:
 			btn_quality = b
 	panel_pause.visible = false
 	root.add_child(panel_pause)
+
+	# main menu
+	panel_menu = PanelContainer.new()
+	panel_menu.add_theme_stylebox_override("panel", _box_style(Color(0.12, 0.06, 0.04, 0.88), Color(1, 0.82, 0.3), 30, 4))
+	_place(panel_menu, 0.5, 0.5, 0.5, 0.5, -300, -330, 300, 330)
+	var mg3 := MarginContainer.new()
+	for side in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
+		mg3.add_theme_constant_override(side, 30)
+	panel_menu.add_child(mg3)
+	var mv := VBoxContainer.new()
+	mv.add_theme_constant_override("separation", 14)
+	mg3.add_child(mv)
+	var title := _label(72, Vector2.ZERO, HORIZONTAL_ALIGNMENT_CENTER)
+	title.text = "CRUST RUSH"
+	title.add_theme_color_override("font_color", Color(1, 0.82, 0.3))
+	title.add_theme_constant_override("outline_size", 14)
+	mv.add_child(title)
+	lbl_menu = _label(20, Vector2.ZERO, HORIZONTAL_ALIGNMENT_CENTER)
+	lbl_menu.text = "Hawaiian Bay  ·  3 laps  ·  8 racers"
+	lbl_menu.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl_menu.custom_minimum_size = Vector2(520, 0)
+	mv.add_child(lbl_menu)
+	var mb := func(text: String, fn: Callable) -> Button:
+		var b2 := Button.new()
+		b2.text = text
+		b2.add_theme_font_size_override("font_size", 28)
+		b2.custom_minimum_size = Vector2(0, 58)
+		b2.pressed.connect(fn)
+		mv.add_child(b2)
+		return b2
+	var race_btn: Button = mb.call("Race", _menu_race)
+	mb.call("Host an online race", _menu_host)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	ip_edit = LineEdit.new()
+	ip_edit.placeholder_text = "Host's address, e.g. 192.168.1.20"
+	ip_edit.add_theme_font_size_override("font_size", 22)
+	ip_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ip_edit.custom_minimum_size = Vector2(0, 54)
+	row.add_child(ip_edit)
+	var jb := Button.new()
+	jb.text = "Join"
+	jb.add_theme_font_size_override("font_size", 26)
+	jb.custom_minimum_size = Vector2(120, 54)
+	jb.pressed.connect(_menu_join)
+	row.add_child(jb)
+	mv.add_child(row)
+	btn_start_net = mb.call("Start the online race", _net_start)
+	btn_leave_net = mb.call("Leave online", _menu_leave)
+	mb.call("Quit", _quit)
+	btn_start_net.visible = false
+	btn_leave_net.visible = false
+	panel_menu.visible = false
+	root.add_child(panel_menu)
+	race_btn.grab_focus.call_deferred()
 
 
 func _apply_display() -> void:
@@ -574,7 +668,11 @@ func _toggle_fullscreen() -> void:
 
 
 func _toggle_pause() -> void:
-	if state == "results":
+	if state == "results" or state == "menu":
+		return
+	if net_role != "":
+		# an online race carries on for everyone: this only opens the menu
+		panel_pause.visible = not panel_pause.visible
 		return
 	paused = not paused
 	panel_pause.visible = paused
@@ -587,15 +685,30 @@ func _quit() -> void:
 # ---------------------------------------------------------------- race flow
 
 func _restart() -> void:
+	if net_role == "host":
+		_net_start()
+	elif net_role == "client":
+		_toast("Only the host can restart the race")
+	else:
+		_start_race({})
+
+
+## builds the grid: a one-player race, or (online) the configuration the host sent
+func _start_race(cfg: Dictionary) -> void:
 	paused = false
 	panel_pause.visible = false
 	panel_results.visible = false
+	panel_menu.visible = false
+	hud_race.visible = true
 	_clear_race_nodes()
 	race = Race.new()
 	var pri := int((roster.get("player", {}) as Dictionary).get("ri", 1))
-	race.setup(T, roster, pri)
+	if cfg.is_empty():
+		race.setup(T, roster, pri)
+	else:
+		race.setup_cfg(T, roster, cfg, multiplayer.get_unique_id())
 	kart = race.player
-	if auto_drive:
+	if auto_drive and net_role != "client":
 		kart.ai["auto"] = true
 	for k in race.karts:
 		views[k] = _kart_view(k)
@@ -607,6 +720,9 @@ func _restart() -> void:
 	cd = 3.2
 	fin_t = 0.0
 	last_lap = 1
+	shown_finish = false
+	net_fresh = true
+	net_out.clear()
 	cam_a = kart.ma
 	cam_snap = true
 	stats = {"used": {}, "spins": 0, "boxes": 0, "player_spins": 0}
@@ -631,8 +747,21 @@ func _ordinal(n: int) -> String:
 
 
 func _physics_process(dt: float) -> void:
-	if T == null or race == null or paused:
+	if T == null or race == null:
 		return
+	if state == "menu":
+		return
+	if net_role == "client":
+		_net_client_tick()
+		return
+	if paused:
+		return
+	_sim_tick(dt)
+	if net_role == "host":
+		_net_host_tick()
+
+
+func _sim_tick(dt: float) -> void:
 	if auto_drive and kart != null:
 		kart.ai["auto"] = true
 	if state == "countdown":
@@ -641,20 +770,29 @@ func _physics_process(dt: float) -> void:
 		var after := ceili(cd)
 		if after != before and after > 0:
 			_show_center(str(after), 1.0)
+			sfx.play("beep")
 		if cd <= 0.0:
 			state = "race"
 			race.state = "race"
 			_show_center("GO!", 0.8)
+			sfx.play("go")
 		for k in race.karts:
 			k._save_prev()
 		return
 	race.update(dt, _input_state())
 	_drain_events()
-	if state == "race" and kart.finished:
-		state = "finished"
-		fin_t = 3.5
-		kart.ai["auto"] = true
-		_show_center("Finish!  %s" % _ordinal(kart.place), 3.0)
+	if state == "race":
+		_finish_check()
+		# the race is over once every person has finished (the computer drivers get estimated times)
+		var all_done := true
+		for k in race.karts:
+			if k.peer != 0 and not k.finished:
+				all_done = false
+			elif k.peer != 0 and k.remote:
+				k.ai["auto"] = true
+		if all_done:
+			state = "finished"
+			fin_t = 3.5
 	elif state == "finished":
 		fin_t -= dt
 		if fin_t <= 0.0:
@@ -662,24 +800,61 @@ func _physics_process(dt: float) -> void:
 			state = "results"
 			_show_results()
 	if state == "race":
-		var lp := kart.lap()
-		if lp != last_lap:
-			last_lap = lp
-			_toast("Final lap!" if lp == T.LAPS else "Lap %d" % lp, 2.0)
+		_lap_check()
+
+
+func _finish_check() -> void:
+	if kart.finished and not shown_finish:
+		shown_finish = true
+		kart.ai["auto"] = true
+		_show_center("Finish!  %s" % _ordinal(kart.place), 3.0)
+		sfx.play("finish")
+
+
+func _lap_check() -> void:
+	var lp := kart.lap()
+	if lp != last_lap and not kart.finished:
+		last_lap = lp
+		_toast("Final lap!" if lp == T.LAPS else "Lap %d" % lp, 2.0)
+		sfx.play("lap", 1.0, 1.2 if lp == T.LAPS else 1.0)
 
 
 func _drain_events() -> void:
+	if net_role == "host" and not net_peers.is_empty():
+		for i in race.karts.size():
+			for e in race.karts[i].events:
+				net_out.append(["e", i, e])
+		for e in race.fx:
+			var d: Dictionary = (e as Dictionary).duplicate()
+			for key in ["k", "a", "b"]:
+				if d.has(key) and d[key] is Kart:
+					d[key] = race.karts.find(d[key])
+			net_out.append(d)
 	for k in race.karts:
 		for e in k.events:
 			if k == kart:
 				if e.begins_with("boost") or e == "pad" or e == "loopout":
 					shake = maxf(shake, 0.18)
+					sfx.play("boost", 0.8, 1.0 + 0.12 * (int(e.right(1)) if e.begins_with("boost") else 0))
 				elif e == "bump":
 					shake = maxf(shake, 0.25)
+					sfx.play("bump", 0.8)
 				elif e == "respawn":
 					cam_snap = true
+					sfx.play("bump")
 				elif e == "land":
 					shake = maxf(shake, 0.2)
+					sfx.play("land", 0.7)
+				elif e == "hop":
+					sfx.play("hop", 0.6)
+				elif e.begins_with("tier"):
+					sfx.play("tier", 0.6, 0.8 + 0.2 * int(e.right(1)))
+				elif e == "trick":
+					sfx.play("trick", 0.7)
+				elif e == "ready":
+					sfx.play("ready", 0.8)
+				elif e == "loopin":
+					sfx.play("boost", 0.7, 1.3)
 			if e.begins_with("boost") or e == "pad":
 				_burst(_kpos(k) + Vector3(0, 3, 0), Color(1, 0.7, 0.2), 14, 60.0, 1.6, 0.35)
 		k.events.clear()
@@ -692,6 +867,7 @@ func _drain_events() -> void:
 			var col: Color = HIT_COL.get(String(ed["kind"]), Color(1, 0.9, 0.5))
 			_burst(_kpos(k) + Vector3(0, 6, 0), col, 34, 90.0, 3.0, 0.6)
 			_burst(_kpos(k) + Vector3(0, 6, 0), Color(1, 1, 1), 14, 60.0, 2.0, 0.4)
+			sfx.play("hit", _near(k))
 			if k == kart:
 				stats["player_spins"] = int(stats["player_spins"]) + 1
 				shake = maxf(shake, 1.0)
@@ -700,25 +876,30 @@ func _drain_events() -> void:
 			stats["boxes"] = int(stats["boxes"]) + 1
 			_burst(Vector3(float(ed["x"]), float(ed["h"]) + 7.0, float(ed["y"])), Color(1, 0.85, 0.3), 30, 85.0, 2.4, 0.6)
 			_burst(Vector3(float(ed["x"]), float(ed["h"]) + 7.0, float(ed["y"])), Color(0.9, 0.3, 0.2), 16, 60.0, 2.4, 0.6)
+			sfx.play("pickup", 0.8 if ed["k"] == kart else _near(ed["k"]) * 0.3)
 		elif t == "use":
 			var it: String = ed["it"]
 			stats["used"][it] = int(stats["used"].get(it, 0)) + 1
 			var k2: Kart = ed["k"]
 			_burst(_kpos(k2) + Vector3(0, 7, 0), Color(1, 0.88, 0.4), 10, 45.0, 2.0, 0.35)
+			sfx.play("boost" if (it == "chili" or it == "rush") else "throw", 0.9 if k2 == kart else _near(k2) * 0.5)
 			if k2 == kart:
 				shake = maxf(shake, 0.18)
 		elif t == "shield":
 			stats["used"]["garlic"] = int(stats["used"].get("garlic", 0)) + 1
 			_burst(_kpos(ed["k"]) + Vector3(0, 7, 0), Color(0.5, 0.88, 0.48), 24, 60.0, 2.4, 0.5)
+			sfx.play("shield", 0.8 if ed["k"] == kart else _near(ed["k"]) * 0.4)
 		elif t == "unshield" or t == "absorb":
 			var k3: Kart = ed["k"]
 			_burst(_kpos(k3) + Vector3(0, 7, 0), Color(0.78, 1.0, 0.75), 36, 110.0, 3.0, 0.5)
+			sfx.play("block", 0.9 if k3 == kart else _near(k3) * 0.5)
 			if k3 == kart:
 				shake = maxf(shake, 0.3)
 				_toast("Blocked!", 1.0)
 		elif t == "flour":
 			var p := Vector3(float(ed["x"]), T.ground(float(ed["x"]), float(ed["y"])) + 5.0, float(ed["y"]))
 			_burst(p, Color(0.96, 0.94, 0.9), 60, 70.0, 9.0, 1.3, 0.2)
+			sfx.play("boom", clampf(1.0 - p.distance_to(cam.global_position) / 500.0, 0.0, 1.0))
 			if p.distance_to(cam.global_position) < 140.0:
 				shake = maxf(shake, 0.5)
 		elif t == "clash":
@@ -728,14 +909,17 @@ func _drain_events() -> void:
 			_burst(Vector3(float(ed["x"]), float(ed["h"]), float(ed["y"])), Color(1, 0.83, 0.42), 10, 80.0, 1.6, 0.25)
 			if ed["a"] == kart or ed["b"] == kart:
 				shake = maxf(shake, 0.22)
+				sfx.play("bump", 0.6)
 		elif t == "slice":
 			var k4: Kart = ed["k"]
 			_burst(_kpos(k4) + Vector3(0, 8, 0), Color(1, 0.23, 0.1), 56, 130.0, 4.0, 0.7)
+			sfx.play("boom", maxf(0.3, _near(k4)))
 			if k4 == kart:
 				shake = maxf(shake, 1.6)
 		elif t == "wind":
 			if ed["k"] == kart:
 				_toast("Pizza Wheel!", 1.0)
+				sfx.play("warn")
 		elif t == "oily":
 			if ed["k"] == kart:
 				_toast("Oily wheels!", 1.0)
@@ -744,6 +928,11 @@ func _drain_events() -> void:
 
 func _kpos(k: Kart) -> Vector3:
 	return Vector3(k.x, k.wy, k.y)
+
+
+## how loud something at a kart sounds from the camera: 1 next to it, 0 far away
+func _near(k: Kart) -> float:
+	return clampf(1.0 - _kpos(k).distance_to(cam.global_position) / 420.0, 0.0, 1.0)
 
 
 ## a quick puff of coloured sparks
@@ -812,13 +1001,20 @@ func _show_results() -> void:
 		row.add_child(c)
 		results_box.add_child(row)
 	var again := Button.new()
-	again.text = "Race again"
+	again.text = "Race again" if net_role != "client" else "Waiting for the host"
+	again.disabled = net_role == "client"
 	again.add_theme_font_size_override("font_size", 28)
 	again.custom_minimum_size = Vector2(0, 58)
 	again.pressed.connect(_restart)
 	results_box.add_child(again)
+	var back := Button.new()
+	back.text = "Main menu"
+	back.add_theme_font_size_override("font_size", 22)
+	back.custom_minimum_size = Vector2(0, 46)
+	back.pressed.connect(_to_menu.bind(""))
+	results_box.add_child(back)
 	panel_results.visible = true
-	if not auto_drive:
+	if not auto_drive and net_role != "client":
 		again.grab_focus()
 
 
@@ -918,33 +1114,20 @@ func _input_state() -> Dictionary:
 	var o := {"steer": clampf(steer, -1.0, 1.0), "brake": brake, "nb": nb, "mul": mul, "use": false, "back": false, "hold": false, "hold_sl": 1, "release": null}
 	var it2 := item_queued
 	item_queued = ""
+	if auto_drive and net_role == "client" and kart != null:
+		var tj := (kart.idx + 14) % T.N
+		o["steer"] = clampf(Kart.ang_diff(atan2(T.py[tj] - kart.y, T.px[tj] - kart.x), kart.a) * 2.5, -1.0, 1.0)
+		o["mul"] = 1.0
+		if kart.item != "" and kart.roll <= 0.0 and net_tick % 240 == 0:
+			it2 = "fwd"
 	if it2 != "" and kart != null:
-		_item_intent(kart, it2, o)
+		if net_role == "client":
+			_net_item.rpc_id(1, it2)
+		else:
+			race.item_intent(kart, it2, o)
 	if bool(o["use"]) and kart.item != "" and look and not kart.item in Race.NOBACK:
 		o["back"] = true
 	return o
-
-
-## web itemIntent: what a press on an item button means right now
-func _item_intent(k: Kart, it: String, o: Dictionary) -> void:
-	var sl := 2 if it.ends_with("2") else 1
-	var is_hold := it.begins_with("hold")
-	if not k.held.is_empty() and int(k.held["sl"]) == sl:
-		o["release"] = "back" if is_hold else "fwd"
-	elif not k.held.is_empty():
-		o["use"] = true
-		o["back"] = is_hold
-	else:
-		if sl == 2 and k.item2 != "" and not (k.roll > 0.0):
-			var t := k.item
-			k.item = k.item2
-			k.item2 = t
-		if is_hold and k.item != "" and k.item in Race.HOLDABLE:
-			o["hold"] = true
-			o["hold_sl"] = sl
-		else:
-			o["use"] = true
-			o["back"] = is_hold
 
 
 func _input(ev: InputEvent) -> void:
@@ -963,7 +1146,9 @@ func _input(ev: InputEvent) -> void:
 		if kev.pressed and not kev.echo:
 			match kev.keycode:
 				KEY_X, KEY_E, KEY_ENTER:
-					if state == "results":
+					if state == "menu" or ip_edit.has_focus():
+						pass
+					elif state == "results":
 						_restart()
 					else:
 						item_queued = "fwd"
@@ -986,6 +1171,8 @@ func _input(ev: InputEvent) -> void:
 					_toggle_pause()
 			elif jb.button_index == JOY_BUTTON_A and state == "results":
 				_restart()
+			elif jb.button_index == JOY_BUTTON_A and state == "menu" and net_role == "":
+				_menu_race()
 			elif jb.button_index == JOY_BUTTON_A and paused:
 				_toggle_pause()
 
@@ -1003,7 +1190,9 @@ func _process(dt: float) -> void:
 		return
 	if not paused:
 		time += dt
-	var al := 1.0 if paused else Engine.get_physics_interpolation_fraction()
+	var al := 1.0 if (paused or state == "menu") else Engine.get_physics_interpolation_fraction()
+	if net_role == "client":
+		al = clampf((Time.get_ticks_msec() / 1000.0 - net_snap_at) / net_snap_dt, 0.0, 1.0)
 	var rx := 0.0
 	var ry := 0.0
 	var rz := 0.0
@@ -1213,6 +1402,14 @@ func _draw_items(al: float, dt: float) -> void:
 
 func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 	var k := kart
+	if state == "menu":
+		var oa := time * 0.18 + k.a + 2.4
+		cam.position = Vector3(rx + cos(oa) * 62.0, rz + 17.0 + sin(time * 0.3) * 3.0, ry + sin(oa) * 62.0)
+		cam.look_at(Vector3(rx, rz + 6.0, ry), Vector3.UP)
+		cam.fov = 55.0
+		cam_snap = true
+		cam_a = k.ma
+		return
 	# chase camera (the web game's close camera); hold look-back to see behind
 	cam_a = lerp_angle(cam_a, rma, 1.0 - exp(-5.5 * dt))
 	var dist := 30.0 + (5.0 if k.boost > 0.0 else 0.0)
@@ -1268,8 +1465,14 @@ func _hud(dt: float) -> void:
 		lbl_toast.modulate.a = clampf(toast_t / 0.3, 0.0, 1.0)
 		if toast_t <= 0.0:
 			lbl_toast.text = ""
+	sfx.drive(absf(k.speed) / k.base_max, true, k.boost > 0.0, k.drift != 0 and not k.air, k.tier, state != "countdown" and state != "results" and state != "menu" and not paused)
 	# item slots: while the roulette runs, the icons flick through the items
 	var keys: Array = icons.keys()
+	if k.roll > 0.0 and not paused:
+		roll_tick -= dt
+		if roll_tick <= 0.0:
+			roll_tick = 0.09
+			sfx.play("roll", 0.5)
 	if k.roll > 0.0 and keys.size() > 0:
 		slot1.texture = icons[keys[int(time * 14.0) % keys.size()]]
 		slot2.texture = null
@@ -1298,6 +1501,350 @@ func _fmt(t: float) -> String:
 	var m := int(t / 60.0)
 	var s := t - m * 60.0
 	return "%d:%05.2f" % [m, s]
+
+
+# ---------------------------------------------------------------- menu and online
+
+func _to_menu(note: String) -> void:
+	_net_close()
+	_start_race({})
+	state = "menu"
+	hud_race.visible = false
+	lbl_center.text = ""
+	panel_menu.visible = true
+	_menu_refresh(note)
+
+
+func _menu_refresh(note := "") -> void:
+	btn_start_net.visible = net_role == "host"
+	btn_leave_net.visible = net_role != ""
+	var t := "Hawaiian Bay  ·  3 laps  ·  8 racers"
+	if net_role == "host":
+		t = "Hosting. Friends on the PC version join with your address%s\n%d joined so far" % [net_addr, net_peers.size()]
+		btn_start_net.text = "Start the online race (%d player%s)" % [net_peers.size() + 1, "" if net_peers.is_empty() else "s"]
+	elif net_role == "client":
+		t = "Connecting..."
+	if note != "":
+		t = note
+	lbl_menu.text = t
+
+
+func _menu_race() -> void:
+	_net_close()
+	_start_race({})
+
+
+func _menu_leave() -> void:
+	_net_close()
+	_menu_refresh("")
+
+
+func _menu_host() -> void:
+	if net_role == "host":
+		return
+	_net_close()
+	var peer := ENetMultiplayerPeer.new()
+	if peer.create_server(NET_PORT, 7) != OK:
+		_menu_refresh("Could not open port %d. Is another copy of the game already hosting?" % NET_PORT)
+		return
+	multiplayer.multiplayer_peer = peer
+	net_role = "host"
+	net_peers.clear()
+	var ips := PackedStringArray()
+	for ip in IP.get_local_addresses():
+		if ip.count(".") == 3 and not ip.begins_with("127.") and not ip.begins_with("169.254."):
+			ips.append(ip)
+	net_addr = ":\nsame Wi-Fi or network: %s" % ("  or  ".join(ips) if not ips.is_empty() else "(no network found)")
+	_menu_refresh()
+	if not auto_drive and upnp_thread == null:
+		upnp_thread = Thread.new()
+		upnp_thread.start(_upnp_work)
+
+
+## asks the router to pass the game's port through, so friends elsewhere can join with the public address
+func _upnp_work() -> void:
+	var u := UPNP.new()
+	var ext := ""
+	if u.discover(2000, 2, "InternetGatewayDevice") == UPNP.UPNP_RESULT_SUCCESS and u.get_gateway() != null and u.get_gateway().is_valid_gateway():
+		if u.add_port_mapping(NET_PORT, NET_PORT, "Crust Rush", "UDP", 0) == UPNP.UPNP_RESULT_SUCCESS:
+			ext = u.query_external_address()
+	_upnp_done.call_deferred(ext)
+
+
+func _upnp_done(ext: String) -> void:
+	upnp_thread.wait_to_finish()
+	upnp_thread = null
+	if net_role != "host":
+		return
+	if ext != "":
+		net_addr += "\nover the internet: %s" % ext
+	else:
+		net_addr += "\nover the internet: your router did not open the port by itself (forward UDP %d to this PC)" % NET_PORT
+	if state == "menu":
+		_menu_refresh()
+
+
+func _menu_join() -> void:
+	var ip := ip_edit.text.strip_edges()
+	if ip == "":
+		_menu_refresh("Type the host's address first (they see it after choosing Host an online race)")
+		return
+	_net_close()
+	var peer := ENetMultiplayerPeer.new()
+	if peer.create_client(ip, NET_PORT) != OK:
+		_menu_refresh("That address did not work: %s" % ip)
+		return
+	multiplayer.multiplayer_peer = peer
+	net_role = "client"
+	_menu_refresh("Connecting to %s..." % ip)
+
+
+func _net_close() -> void:
+	if net_role != "":
+		var mp := multiplayer.multiplayer_peer
+		if mp != null:
+			mp.close()
+		multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	net_role = ""
+	net_peers.clear()
+	net_out.clear()
+
+
+func _on_peer_in(id: int) -> void:
+	if net_role == "host":
+		net_peers.append(id)
+		if state == "menu":
+			_menu_refresh()
+
+
+func _on_peer_out(id: int) -> void:
+	if net_role != "host":
+		return
+	net_peers.erase(id)
+	if race != null:
+		for k in race.karts:
+			if k.peer == id:      # the computer takes over a kart whose driver left
+				k.peer = 0
+				k.remote = false
+				k.ai["auto"] = true
+	if state == "menu":
+		_menu_refresh()
+
+
+func _on_connected() -> void:
+	if state == "menu":
+		_menu_refresh("Connected. Waiting for the host to start the race.")
+
+
+func _on_failed() -> void:
+	_net_close()
+	_menu_refresh("Could not reach that address. Check it, and that the host has chosen Host an online race.")
+
+
+func _on_server_gone() -> void:
+	_to_menu("The host left the race.")
+
+
+func _net_start() -> void:
+	if net_role != "host":
+		return
+	var peers: Array = [1]
+	peers.append_array(net_peers)
+	var pri := int((roster.get("player", {}) as Dictionary).get("ri", 1))
+	var cfg := Race.new().make_cfg(roster, pri, peers, int(randi() & 0x7fffffff) + 1)
+	_net_begin.rpc(cfg)
+	_start_race(cfg)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _net_begin(cfg: Dictionary) -> void:
+	if net_role == "client":
+		_start_race(cfg)
+
+
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func _net_input(steer: float, bits: int) -> void:
+	if net_role != "host" or race == null:
+		return
+	var id := multiplayer.get_remote_sender_id()
+	for k in race.karts:
+		if k.peer == id:
+			k.net_inp = {"steer": clampf(steer, -1.0, 1.0), "brake": (bits & 1) != 0, "nb": (bits & 2) != 0, "mul": 1.0 if (bits & 4) != 0 else 0.0, "look": (bits & 8) != 0}
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _net_item(it: String) -> void:
+	if net_role != "host" or race == null or not it in ["fwd", "fwd2", "hold", "hold2"]:
+		return
+	var id := multiplayer.get_remote_sender_id()
+	for k in race.karts:
+		if k.peer == id and k.net_items.size() < 4:
+			k.net_items.append(it)
+
+
+## host: thirty times a second, everything the other screens need to draw the race
+func _net_host_tick() -> void:
+	net_tick += 1
+	if net_peers.is_empty():
+		net_out.clear()
+		return
+	if not net_out.is_empty():
+		_net_fx.rpc(net_out.duplicate())
+		net_out.clear()
+	if net_tick % SNAP_EVERY != 0:
+		return
+	var ks: Array = []
+	for k in race.karts:
+		ks.append([k.x, k.y, k.wy, k.a, k.ma, k.speed, k.steer, k.boost, k.spin, k.inv, k.rush, k.z, k.drift, k.tier, k.d_amt,
+			(1 if k.air else 0) | (2 if k.glide else 0) | (4 if k.big else 0) | (8 if k.finished else 0) | (16 if k.est else 0),
+			k.item, k.item2, String(k.held.get("it", "")), int(k.held.get("sl", 1)), k.sh_l, k.prog, k.idx, k.place, k.finish_time,
+			k.loop_th if not k.loop.is_empty() else -1.0, k.roll, k.trick_t, k.trick_k, k.acc])
+	var bx := PackedFloat32Array()
+	for b in race.boxes:
+		bx.append(float(b["r"]))
+	var pr: Array = []
+	for p in race.projectiles:
+		pr.append([p["id"], p["type"], p["x"], p["y"], p["vx"], p["vy"], p["t"], p["t0"], p.get("ph", ""), p.get("pt", 0.0), p.get("dir", 0.0), p.get("spin", 0.0), p.get("age", 0.0)])
+	var hz: Array = []
+	for h in race.hazards:
+		hz.append([h["id"], h["x"], h["y"], h["t"], h["born"]])
+	_net_snap.rpc([state, cd, race.race_time, ks, bx, pr, hz])
+
+
+@rpc("authority", "call_remote", "reliable")
+func _net_fx(list: Array) -> void:
+	if net_role != "client" or race == null:
+		return
+	for e in list:
+		if e is Array:
+			var i: int = e[1]
+			if i >= 0 and i < race.karts.size():
+				race.karts[i].events.append(String(e[2]))
+		elif e is Dictionary:
+			var d: Dictionary = e
+			var ok := true
+			for key in ["k", "a", "b"]:
+				if d.has(key):
+					var ki := int(d[key])
+					if ki >= 0 and ki < race.karts.size():
+						d[key] = race.karts[ki]
+					else:
+						ok = false
+			if ok:
+				race.fx.append(d)
+
+
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _net_snap(s: Array) -> void:
+	if net_role != "client" or race == null or state == "menu":
+		return
+	net_snaps += 1
+	var now := Time.get_ticks_msec() / 1000.0
+	net_snap_dt = lerpf(net_snap_dt, clampf(now - net_snap_at, 1.0 / 60.0, 0.2), 0.2)
+	net_snap_at = now
+	var st: String = s[0]
+	var ncd: float = s[1]
+	if st == "countdown" and ceili(ncd) != ceili(cd) and ceili(ncd) > 0 and ncd < 3.0:
+		_show_center(str(ceili(ncd)), 1.0)
+		sfx.play("beep")
+	if st != "countdown" and state == "countdown":
+		_show_center("GO!", 0.8)
+		sfx.play("go")
+	cd = ncd
+	race.race_time = s[2]
+	race.state = "countdown" if st == "countdown" else "race"
+	var ks: Array = s[3]
+	for i in mini(ks.size(), race.karts.size()):
+		var k := race.karts[i]
+		var q: Array = ks[i]
+		k.ox = k.x
+		k.oy = k.y
+		k.owy = k.wy
+		k.oa = k.a
+		k.oma = k.ma
+		k.o_th = k.loop_th
+		k.o_loop = not k.loop.is_empty()
+		k.x = q[0]
+		k.y = q[1]
+		k.wy = q[2]
+		k.a = q[3]
+		k.ma = q[4]
+		k.speed = q[5]
+		k.steer = q[6]
+		k.boost = q[7]
+		k.spin = q[8]
+		k.inv = q[9]
+		k.rush = q[10]
+		k.z = q[11]
+		k.drift = q[12]
+		k.tier = q[13]
+		k.d_amt = q[14]
+		var fl: int = q[15]
+		k.air = (fl & 1) != 0
+		k.glide = (fl & 2) != 0
+		k.big = (fl & 4) != 0
+		k.finished = (fl & 8) != 0
+		k.est = (fl & 16) != 0
+		k.item = q[16]
+		k.item2 = q[17]
+		k.held = {"it": q[18], "sl": q[19], "t": 0.0} if String(q[18]) != "" else {}
+		k.sh_l = q[20]
+		k.prog = q[21]
+		k.idx = q[22]
+		k.place = q[23]
+		k.finish_time = q[24]
+		var th: float = q[25]
+		k.loop = {"th": th} if th >= 0.0 else {}
+		k.loop_th = maxf(0.0, th)
+		k.roll = q[26]
+		k.trick_t = q[27]
+		k.trick_k = q[28]
+		k.acc = q[29]
+		if net_fresh or Vector2(k.x - k.ox, k.y - k.oy).length() > 120.0:
+			k._save_prev()      # first picture, or a jump (a respawn): don't slide there
+	net_fresh = false
+	var bx: PackedFloat32Array = s[4]
+	for i in mini(bx.size(), race.boxes.size()):
+		race.boxes[i]["r"] = bx[i]
+	var old := {}
+	for p in race.projectiles:
+		old[p["id"]] = p
+	race.projectiles.clear()
+	for q2 in s[5]:
+		var prev = old.get(q2[0])
+		race.projectiles.append({"id": q2[0], "type": q2[1], "x": q2[2], "y": q2[3], "px": prev["x"] if prev != null else q2[2], "py": prev["y"] if prev != null else q2[3],
+			"vx": q2[4], "vy": q2[5], "t": q2[6], "t0": q2[7], "ph": q2[8], "pt": q2[9], "dir": q2[10], "spin": q2[11], "age": q2[12], "owner": null, "target": null})
+	race.hazards.clear()
+	for q3 in s[6]:
+		race.hazards.append({"id": q3[0], "x": q3[1], "y": q3[2], "t": q3[3], "born": q3[4]})
+	race.stand = race.standings()
+	if st == "results" and state != "results":
+		state = "results"
+		_show_results()
+	elif st != "results":
+		if state == "results":
+			panel_results.visible = false
+		state = st
+
+
+## everyone but the host: send the controls sixty times a second, and play what the host reported
+func _net_client_tick() -> void:
+	net_tick += 1
+	if kart == null:
+		return
+	var o := _input_state()
+	if net_tick % 2 == 0 and state != "results":
+		var bits := (1 if bool(o["brake"]) else 0) | (2 if bool(o["nb"]) else 0) | (4 if float(o["mul"]) > 0.0 else 0) | (8 if look_back else 0)
+		_net_input.rpc_id(1, float(o["steer"]), bits)
+	_drain_events()
+	if state == "race" or state == "finished":
+		_finish_check()
+		_lap_check()
+
+
+func _exit_tree() -> void:
+	if upnp_thread != null:
+		upnp_thread.wait_to_finish()
 
 
 func _enter_tree() -> void:
