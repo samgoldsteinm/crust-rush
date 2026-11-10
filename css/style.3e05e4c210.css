@@ -494,6 +494,13 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .tbprog .s{left:0}.tbprog .e{right:0}
 .tbprog i{position:absolute;top:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background-size:230%;background-position:50% 26%;background-color:#2a1810;box-shadow:0 0 0 2px var(--c,#fff),0 2px 6px rgba(0,0,0,.5);transition:left .25s linear}
 .tbprog i.me{width:28px;height:28px;margin:-14px 0 0 -14px;z-index:2;box-shadow:0 0 0 3px #f7c948,0 0 12px rgba(247,201,72,.7),0 2px 8px rgba(0,0,0,.6)}
+/* cool running: on iPhones the HUD is drawn at the screen's own 3x resolution on the CPU, so anything that changes its look every frame
+   (an animated box-shadow, a sliding 'left') costs real heat. Glows now pulse the opacity of a layer drawn once, markers slide on transforms. */
+.ibtn.has{animation:none}
+.ibtn.has::before{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:0 0 0 3px #ffe9a0,0 0 0 5px rgba(20,10,6,.55),0 0 20px rgba(247,201,72,.6);opacity:0;pointer-events:none;will-change:opacity;animation:glowop 1.2s ease-in-out infinite}
+@keyframes glowop{50%{opacity:1}}
+.brk.drifting{animation:none}
+.tbprog i{left:8px;transition:transform .25s linear}
 .gauge{top:auto;bottom:0;left:calc(var(--btn)*1.25 + 70px);transform:none;width:clamp(80px,17vmin,112px)}
 .ibtn{bottom:auto;top:40%;right:calc(var(--btn)*.55)}
 .abtn{bottom:auto;top:34%;left:calc(var(--btn)*.55)}

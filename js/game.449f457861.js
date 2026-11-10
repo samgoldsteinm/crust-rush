@@ -74,6 +74,7 @@ const CFG=Object.assign({},CFG_DEF,(()=>{try{return JSON.parse(store.get('crust-
 if(!CFG.v33){CFG.v33=1;CFG.fps='60';}/* everyone moves to the steady 60 fps default once */
 if(!CFG.v68){CFG.v68=1;if(!matchMedia('(pointer:coarse)').matches)CFG.fps='auto';}/* computers chase their screen's rate (120 Hz and up) */
 if(!CFG.v109){CFG.v109=1;if(CFG.fps==='60')CFG.fps='auto';}/* 120 fps is the standard now; 60 stays as a choice */
+if(!CFG.v139){CFG.v139=1;if(matchMedia('(pointer:coarse)').matches)CFG.saver=true;}/* phones start in Battery saver: they all throttle when hot */
 if(!CFG.v106){CFG.v106=1;if(CFG.fps==='60'&&matchMedia('(hover:hover) and (pointer:fine)').matches)CFG.fps='auto';if(CFG.fullscr==null)CFG.fullscr=true;}/* any computer still on the 60 fps setting moves to Auto once */
 const saveCfg=()=>store.set('crust-cfg',JSON.stringify(CFG));
 /* ---- which items can turn up in races: saved on this device; in a friends' race the host's choice counts.
@@ -235,6 +236,9 @@ const GLR=(()=>{try{const gl=renderer.getContext();const e=gl.getExtension('WEBG
 const SOFTGL=/swiftshader|llvmpipe|softpipe|software|basic render/i.test(GLR);
 let qKey=store.get('crust-q')||(SOFTGL?'fast':COARSE?'balanced':'ultra');if(qKey==='ultraM'&&!COARSE)qKey='ultra';/* a phone's Ultra on a computer becomes the computer's Ultra */if(!QUAL[qKey]||qKey==='ultra'&&COARSE)qKey='balanced';
 const LOWQF=()=>qKey==='fast'||qKey==='lite';
+/* Battery saver (phones): 60 fps, ~25% fewer pixels (sharpened back), shadows refreshed at 30 Hz from a smaller map, no glow passes,
+   karts switch to their light model sooner. Physics is untouched, so it is safe online. The graphics test ignores it. */
+const saverOn=()=>CFG.saver===true&&!(typeof BENCH!=='undefined'&&BENCH.on);const fps60=()=>CFG.fps==='60'||saverOn();
 /* Safari (iPhone, iPad, Mac): drawing the 3D scene straight into the page's canvas measured slower than drawing it off screen and copying
    it over in one pass (the copy lets Safari hand the frame to the screen without waiting), so Lite, Fast and the no-glow quality step use
    that copy there. The picture is the same. */
@@ -4294,7 +4298,7 @@ function initAudio(){if(ac)return;try{if(navigator.audioSession)navigator.audioS
   /* bus: everything -> gentle compressor -> speakers, with a small room reverb send so effects sound full instead of dry beeps */
   const comp=ac.createDynamicsCompressor();comp.threshold.value=-12;comp.knee.value=6;comp.ratio.value=12;comp.attack.value=.002;comp.release.value=.14;comp.connect(ac.destination);
   const trim=ac.createGain();trim.gain.value=.8;trim.connect(comp);master=ac.createGain();master.gain.value=CFG.vol/100;master.connect(trim);
-  const len=Math.floor(ac.sampleRate*1.3),ir=ac.createBuffer(2,len,ac.sampleRate);for(let c=0;c<2;c++){const d=ir.getChannelData(c);for(let i=0;i<len;i++){const t=i/len;d[i]=(Math.random()*2-1)*Math.pow(1-t,3.2)*(i<ac.sampleRate*.012?i/(ac.sampleRate*.012):1);}}
+  const len=Math.floor(ac.sampleRate*(COARSE?.7:1.3)),ir=ac.createBuffer(2,len,ac.sampleRate);for(let c=0;c<2;c++){const d=ir.getChannelData(c);for(let i=0;i<len;i++){const t=i/len;d[i]=(Math.random()*2-1)*Math.pow(1-t,3.2)*(i<ac.sampleRate*.012?i/(ac.sampleRate*.012):1);}}
   const conv=ac.createConvolver();conv.buffer=ir;revBus=ac.createGain();revBus.gain.value=.22;const rhp=ac.createBiquadFilter();rhp.type='highpass';rhp.frequency.value=260;revBus.connect(rhp);rhp.connect(conv);conv.connect(master);
   /* engine: a harmonic-rich firing pulse (not a smooth drone), chopped by the cylinder beat and band-limited so it reads as a little kart motor */
   const H=28,re=new Float32Array(H+1),im=new Float32Array(H+1);for(let n=1;n<=H;n++){im[n]=(n%2?1:.6)*Math.pow(n,-.95)*(n===1?.55:n===3?1.25:1);re[n]=(n%4===2?.25:0)/n;}const wave=ac.createPeriodicWave(re,im);
@@ -5401,7 +5405,7 @@ function render(time,dt){
   render.n=(render.n||0)+1;render.fdt=render.fdt==null?dt:render.fdt*.9+dt*.1;
   /* above ~85 fps the shadow map is redrawn every other frame: shadows still update 60+ times a second (exactly as at 60 fps), so they look
      the same, but a 120 Hz screen doesn't pay for the 4096 shadow map twice as often */
-  renderer.shadowMap.needsUpdate=BENCH.noShUp?false:LOWQF()?render.n%(QUAL[qKey].shEvery||2)===0:(render.fdt>.0118||render.n%2===0);/* half-rate shadows made moving shadows judder */
+  renderer.shadowMap.needsUpdate=BENCH.noShUp?false:(LOWQF()||saverOn())?render.n%(QUAL[qKey].shEvery||2)===0:(render.fdt>.0118||render.n%2===0);/* half-rate shadows made moving shadows judder */
   if(!LOWQF()&&CFG.post!==false&&!LADV.np&&!BENCH.noPost){try{postRender();}catch(e){console.warn('post',e);CFG.post=false;renderer.setRenderTarget(null);renderer.render(scene,camera);}}else if(APPLEWK&&!POST.liteFail){try{postLite();}catch(e){console.warn('post lite',e);POST.liteFail=true;renderer.setRenderTarget(null);renderer.render(scene,camera);}}else{renderer.render(scene,camera);render.calls=renderer.info.render.calls;render.tris=renderer.info.render.triangles;}
 }
 
@@ -5422,13 +5426,13 @@ const fmt=t=>{const m=Math.floor(t/60),s=t-m*60;return m+':'+(s<10?'0':'')+s.toF
 function showBanner(txt,dur,sm){banner.textContent=txt;banner.classList.toggle('sm',sm===true||sm==='sm');banner.classList.toggle('md',sm==='md');banner.classList.remove('pop');void banner.offsetWidth;banner.classList.add('pop');bannerT=dur;}
 function hud(dt,time){try{tdTick();}catch(e){}if(BENCH.pending){if(state==='intro')introSkip=true;if(state==='race'){const n=performance.now();if(!BENCH.pt)BENCH.pt=n;else if(n-BENCH.pt>1500){BENCH.pending=false;BENCH.pt=0;if(benchStart())showBanner('Graphics test: hands off for 40 s',1.6,'sm');}}else if(state==='menu'&&BENCH.pt===0&&!raceLoading)BENCH.pending=false;}
   if(bannerT>0){bannerT-=dt;if(bannerT<=0)banner.textContent='';}
-  if(!player)return;hud.pf=(hud.pf||0)+1;if(hud.pf%3===0)for(const k of karts){if(!k.pm)continue;const f=Math.max(0,Math.min(1,(k.finished?LAPS*N:k.prog)/(LAPS*N)));const v=(f*100).toFixed(1);if(k.pm._v!==v){k.pm._v=v;k.pm.style.left='calc(8px + (100% - 16px)*'+f.toFixed(4)+')';}}
+  if(!player)return;hud.pf=(hud.pf||0)+1;if(hud.pf%60===1){const el=$('tbProg');hud.pw=el?Math.max(0,el.clientWidth-16):0;}if(hud.pf%3===0)for(const k of karts){if(!k.pm)continue;const f=Math.max(0,Math.min(1,(k.finished?LAPS*N:k.prog)/(LAPS*N)));const v=(f*(hud.pw||0)).toFixed(0);if(k.pm._v!==v){k.pm._v=v;k.pm.style.transform='translateX('+v+'px)';}}
   const pos=standCache.indexOf(player)+1;if(pos&&String(pos)!==lastPos){lastPos=String(pos);posNum.textContent=pos;posSuf.textContent=suf(pos);}
   const lap=clamp(Math.floor(Math.max(0,player.prog)/N)+1,1,LAPS);const ls=lap+'/'+LAPS;if(ls!==lastLap){lastLap=ls;hudLap.textContent=ls;lapBars.forEach((b,i)=>b.classList.toggle('on',i<lap));}
   if(state==='race'&&!player.finished&&lap>lapShown){lapShown=lap;const sp=recLap(lap);showBanner((lap===LAPS?'Final lap':'Lap '+lap)+(sp?' · '+sp:''),sp?2:1.4,true);SFX.lap(lap===LAPS);if(lap===LAPS)try{musFinalLap();}catch(e){}}
   const fastUi=time-(hud.ut||0)>.032||player.finished;if(fastUi)hud.ut=time;
   const ts=fmt(player.finished?player.finishTime:raceTime);if(ts!==lastTimeStr&&fastUi){lastTimeStr=ts;hudTime.textContent=ts;}
-  const sv=Math.round(Math.max(0,player.speed)*(CFG.units==='kmh'?1.062:.66));if(sv!==lastSpd&&(fastUi||sv===0)){lastSpd=sv;spd.textContent=sv;}{const ga=Math.min(100,Math.max(0,player.speed)/(BASE_MAX*1.58)*100).toFixed(1);if(ga!==hud.ga){hud.ga=ga;gVal.style.strokeDasharray=ga+' 100';}}
+  const sv=Math.round(Math.max(0,player.speed)*(CFG.units==='kmh'?1.062:.66));if(sv!==lastSpd&&(fastUi||sv===0)){lastSpd=sv;spd.textContent=sv;}if(fastUi){const ga=Math.min(100,Math.max(0,player.speed)/(BASE_MAX*1.58)*100).toFixed(0);if(ga!==hud.ga){hud.ga=ga;gVal.style.strokeDasharray=ga+' 100';}}
   const chg=player.drift?Math.min(100,player.charge/2.6*100):0,tierN=player.drift?(player.tier||0):0;if((Math.abs(chg-(hud.ch||0))>.8&&fastUi)||tierN!==hud.tn||(chg===0&&hud.ch)){hud.ch=chg;hud.tn=tierN;gCh.style.strokeDasharray=chg.toFixed(1)+' 100';gCh.style.stroke=['#fff4dc','#ffe066','#ff9a1f','#ff3b1a'][tierN];}
   const bst=player.boost>0;if(bst!==hud.bst){hud.bst=bst;gauge.classList.toggle('boost',bst);}
   {const sf=player.boost>0&&state==='race',ff=player.frozen>0;if(sf!==hud.sf){hud.sf=sf;speedfx.classList.toggle('on',sf);}if(ff!==hud.ff){hud.ff=ff;frostfx.classList.toggle('on',ff);}}
@@ -5710,7 +5714,7 @@ function togglePause(){if(!results.hidden)return;/* nothing to pause once the re
 $('startBtn').onclick=startFromMenu;$('againBtn').onclick=()=>{if(gp){if(gp.race>=3)startGP();else{gp.race++;goRace(CUP_TRACKS[gp.cup][gp.race]);}}else goRace(mapIdx);};$('restartBtn').onclick=()=>{if(gp)gp.pts.forEach((v,i)=>gp.pts[i]=v);startRace();};
 $('toMenuBtn').onclick=toMenu;$('trackBtn').onclick=()=>{toMenu();goStep('track');};/* straight to the track list, keeping driver, kart, class and mode */$('mpBtn').onclick=()=>netShowLobby();$('mpBadge').onclick=()=>netShowLobby();$('mpClose').onclick=()=>netHideLobby();$('quitBtn').onclick=toMenu;$('resumeBtn').onclick=togglePause;$('pauseBtn').addEventListener('pointerup',e=>{e.preventDefault();togglePause();});
 const setOv=$('setOv'),howOv=$('howOv'),fpsEl=$('fpsEl');let setFrom=null;
-const BOOLK=['shadows','sharpen','ao','showfps','shake','mini','ghost','music','fullscr'];
+const BOOLK=['shadows','sharpen','ao','saver','showfps','shake','mini','ghost','music','fullscr'];
 const cfgVal=k=>k==='sound'?!muted:k==='stats'?statsOn:CFG[k];
 /* settings are split into tabs; the last one you looked at opens next time */
 let setTabK=(()=>{try{return store.get('crust-settab')||'graphics';}catch(e){return 'graphics';}})();
@@ -5730,7 +5734,8 @@ function fillGuide(){const gi=$('guideItems'),ga=$('guideAbil');if(!gi||gi.datas
 function refreshSettings(){try{fillGuide();}catch(e){}try{renderItemSet();}catch(e){}document.querySelectorAll('#setOv .seg[data-k]').forEach(sg=>{const v=cfgVal(sg.dataset.k),sv=typeof v==='boolean'?(v?'1':'0'):String(v);sg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===sv)));});
   $('volR').value=CFG.vol;$('volO').textContent=CFG.vol;$('mvolR').value=CFG.mvol;$('mvolO').textContent=CFG.mvol;$('camdR').value=CFG.camd||100;$('camdO').textContent=(CFG.camd||100)+'%';refreshMenu();}
 function applySettings(){if(renderer.shadowMap.enabled!==CFG.shadows){renderer.shadowMap.enabled=CFG.shadows;scene.traverse(o=>{if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.needsUpdate=true);});}
-  if(master)master.gain.value=CFG.vol/100;$('spdU').textContent=CFG.units==='kmh'?'KM/H':'MPH';lastSpd=-1;mini.hidden=true;}
+  if(master)master.gain.value=CFG.vol/100;$('spdU').textContent=CFG.units==='kmh'?'KM/H':'MPH';lastSpd=-1;mini.hidden=true;
+  {const sv=saverOn();if(booted&&applySettings.sv!==undefined&&applySettings.sv!==sv)try{applyQuality();}catch(e){}applySettings.sv=sv;}}
 document.querySelectorAll('#setOv .seg[data-k] button').forEach(b=>b.onclick=()=>{const k=b.parentNode.dataset.k,v=b.dataset.v;
   if(k==='sound'){muted=v==='0';store.set('crust-muted',muted?'1':'0');}
   else if(k==='stats'){statsOn=v==='1';store.set('crust-stats',statsOn?'1':'0');}
@@ -5739,7 +5744,7 @@ document.querySelectorAll('#setOv .seg[data-k] button').forEach(b=>b.onclick=()=
 $('volR').oninput=e=>{CFG.vol=+e.target.value;$('volO').textContent=CFG.vol;if(master)master.gain.value=CFG.vol/100;saveCfg();};
 $('mvolR').oninput=e=>{CFG.mvol=+e.target.value;$('mvolO').textContent=CFG.mvol;saveCfg();};
 $('camdR').oninput=e=>{CFG.camd=+e.target.value;$('camdO').textContent=CFG.camd+'%';saveCfg();};
-$('setReset').onclick=()=>{Object.assign(CFG,CFG_DEF);if(matchMedia('(hover:hover) and (pointer:fine)').matches)CFG.fps='auto';saveCfg();muted=false;store.set('crust-muted','0');statsOn=true;store.set('crust-stats','1');qKey=COARSE?'balanced':'ultra';store.set('crust-q',qKey);applyQuality();applySettings();refreshSettings();};
+$('setReset').onclick=()=>{Object.assign(CFG,CFG_DEF);if(COARSE)CFG.saver=true;if(matchMedia('(hover:hover) and (pointer:fine)').matches)CFG.fps='auto';saveCfg();muted=false;store.set('crust-muted','0');statsOn=true;store.set('crust-stats','1');qKey=COARSE?'balanced':'ultra';store.set('crust-q',qKey);applyQuality();applySettings();refreshSettings();};
 $('setBtn').onclick=()=>openSettings(menu);$('pauseSetBtn').onclick=()=>openSettings(pauseOv);$('setDone').onclick=closeSettings;
 $('howBtn').onclick=()=>{menu.hidden=true;howOv.hidden=false;howOv.scrollTop=0;};
 /* Best setup: steps for this kind of device come first and are highlighted; a dot marks the button until it has been opened once */
@@ -5857,14 +5862,14 @@ function buildGarage(){
   cv.addEventListener('pointerdown',e=>{PT.set(e.pointerId,{x:e.clientX,y:e.clientY});try{cv.setPointerCapture(e.pointerId);}catch(_){}
     if(PT.size===1){gDrag={x:e.clientX,y:e.clientY,r:gRot,p:gPitch};tap={x:e.clientX,y:e.clientY,t:performance.now()};}
     else if(PT.size===2){const [a,b]=[...PT.values()];pinch0=Math.hypot(a.x-b.x,a.y-b.y);zoom0=gZoom;gDrag=null;tap=null;}});
-  cv.addEventListener('pointermove',e=>{if(!PT.has(e.pointerId))return;PT.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  cv.addEventListener('pointermove',e=>{gActT=performance.now();if(!PT.has(e.pointerId))return;PT.set(e.pointerId,{x:e.clientX,y:e.clientY});
     if(PT.size===2&&pinch0>0){const [a,b]=[...PT.values()];gZoom=clamp(zoom0*pinch0/Math.max(1,Math.hypot(a.x-b.x,a.y-b.y)),.32,1.5);return;}
     if(gDrag){gRot=gDrag.r+(e.clientX-gDrag.x)*.011;if(gBig)gPitch=clamp(gDrag.p+(e.clientY-gDrag.y)*.006,-.12,1.1);if(tap&&Math.hypot(e.clientX-tap.x,e.clientY-tap.y)>7)tap=null;}});
   const up=e=>{PT.delete(e.pointerId);if(PT.size<2)pinch0=0;if(tap&&!gBig&&performance.now()-tap.t<350)setBig(true);tap=null;if(!PT.size)gDrag=null;};
   cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
   cv.addEventListener('wheel',e=>{e.preventDefault();gZoom=clamp(gZoom*Math.exp(e.deltaY*.0012),.32,1.5);if(!gBig&&e.deltaY<0)setBig(true);},{passive:false});
   $('gZoomBtn').onclick=()=>setBig(!gBig);}
-let gBig=false,gZoom=1,gPitch=0,gZc=1,gPc=0;
+let gBig=false,gZoom=1,gPitch=0,gZc=1,gPc=0,gActT=0;
 function setBig(v){gBig=v;$('gView').classList.toggle('big',v);gW=gH=0;if(!v){gZoom=1;gPitch=0;}$('gZoomBtn').setAttribute('aria-label',v?'Close inspect view':'Inspect kart');}
 const CAR_BODIES=['onyx','hyper','roadster','formula','gt','tourer','concept','interceptor','muscle','monster','hatch','suv','coupe','scissor'];let gTab='kart';
 function refreshGarage(rebuild){setTimeout(panelMore,0);
@@ -6002,15 +6007,15 @@ function postLite(){postInit();const sz=renderer.getDrawingBufferSize(v2);postSi
   renderer.setRenderTarget(POST.rt);renderer.render(scene,camera);render.calls=renderer.info.render.calls;render.tris=renderer.info.render.triangles;const U=POST.M.copy.uniforms;U.tex.value=POST.rt.texture;U.us.value.set(1,1);U.uc.value.set(1-.5/sz.x,1-.5/sz.y);pass(POST.M.copy,null);}
 function postRender(){postInit();const sz=renderer.getDrawingBufferSize(v2);postSize(sz.x,sz.y);const M=POST.M,G=POST.grade;
   const ds=DRS.s,ws=Math.max(1,Math.round(sz.x*ds)),hs=Math.max(1,Math.round(sz.y*ds));/* ambient occlusion reads the scaled region too, so PC Ultra can use dynamic resolution */POST.rt.viewport.set(0,0,ws,hs);POST.rt.scissor.set(0,0,ws,hs);POST.rt.scissorTest=ds<.999;
-  const ux=ws/sz.x,uy=hs/sz.y,cx=ux-.5/sz.x,cy=uy-.5/sz.y;M.bright.uniforms.us.value.set(ux,uy);M.bright.uniforms.uc.value.set(cx,cy);M.final.uniforms.us.value.set(ux,uy);M.final.uniforms.uc.value.set(cx,cy);M.final.uniforms.px.value.set(1/sz.x,1/sz.y);M.final.uniforms.shp.value=CFG.sharpen===false?0:clamp((1-ds)*3.2,0,.8);/* 80% size: 0.64 · 70%: 0.8 (capped: more pushes fine far detail into grain) */
+  const ux=ws/sz.x,uy=hs/sz.y,cx=ux-.5/sz.x,cy=uy-.5/sz.y;M.bright.uniforms.us.value.set(ux,uy);M.bright.uniforms.uc.value.set(cx,cy);M.final.uniforms.us.value.set(ux,uy);M.final.uniforms.uc.value.set(cx,cy);M.final.uniforms.px.value.set(1/sz.x,1/sz.y);M.final.uniforms.shp.value=CFG.sharpen===false?0:Math.max(saverOn()?.35:0,clamp((1-ds)*3.2,0,.8));/* 80% size: 0.64 · 70%: 0.8 (capped: more pushes fine far detail into grain) */
   renderer.setRenderTarget(POST.rt);renderer.render(scene,camera);render.calls=renderer.info.render.calls;render.tris=renderer.info.render.triangles;/* the scene's own draw count, before the post passes overwrite the counters */
   if(POST.aoW&&POST.ao1){const A=M.ao.uniforms;A.tD.value=POST.rt.depthTexture;A.pM.value.copy(camera.projectionMatrix);A.ipM.value.copy(camera.projectionMatrixInverse);A.px.value.set(1/sz.x,1/sz.y);A.asp.value.set(sz.y/sz.x,1);A.us.value.set(ux,uy);pass(M.ao,POST.ao1);
     const B=M.aob.uniforms;B.tA.value=POST.ao1.texture;B.tD.value=POST.rt.depthTexture;B.ipM.value.copy(camera.projectionMatrixInverse);B.px.value.set(1/POST.ao1.width,1/POST.ao1.height);B.us.value.set(ux,uy);pass(M.aob,POST.ao2);M.final.uniforms.aoT.value=POST.ao2.texture;M.final.uniforms.aoOn.value=1;}
   else M.final.uniforms.aoOn.value=0;
-  M.bright.uniforms.tex.value=POST.rt.texture;M.bright.uniforms.thr.value=G.thr;M.bright.uniforms.px.value.set(1/sz.x,1/sz.y);pass(M.bright,POST.b1);
+  const noGlow=saverOn();if(!noGlow){M.bright.uniforms.tex.value=POST.rt.texture;M.bright.uniforms.thr.value=G.thr;M.bright.uniforms.px.value.set(1/sz.x,1/sz.y);pass(M.bright,POST.b1);
   const bl=(a,b,w,h)=>{M.blur.uniforms.tex.value=a.texture;M.blur.uniforms.dir.value.set(1/w,0);pass(M.blur,b);M.blur.uniforms.tex.value=b.texture;M.blur.uniforms.dir.value.set(0,1/h);pass(M.blur,a);};
-  bl(POST.b1,POST.b2,POST.b1.width,POST.b1.height);M.blur.uniforms.tex.value=POST.b1.texture;M.blur.uniforms.dir.value.set(.5/POST.b1.width,0);pass(M.blur,POST.b3);bl(POST.b3,POST.b4,POST.b3.width,POST.b3.height);bl(POST.b3,POST.b4,POST.b3.width,POST.b3.height);
-  const F=M.final.uniforms;F.tex.value=POST.rt.texture;F.b1.value=POST.b1.texture;F.b2.value=POST.b3.texture;F.exposure.value=renderer.toneMappingExposure;F.bloom.value=G.bloom;F.sat.value=G.sat;F.con.value=G.con;F.vig.value=G.vig;F.aspect.value=sz.x/sz.y;{const t=(performance.now()-EDGE.t0)/EDGE.dur,a=t<0||t>1?0:(t<.15?t/.15:1-(t-.15)/.85);F.edgeA.value=a*EDGE.a;F.edgeC.value.copy(EDGE.c);}F.tint.value.set(...G.tint);
+  bl(POST.b1,POST.b2,POST.b1.width,POST.b1.height);M.blur.uniforms.tex.value=POST.b1.texture;M.blur.uniforms.dir.value.set(.5/POST.b1.width,0);pass(M.blur,POST.b3);bl(POST.b3,POST.b4,POST.b3.width,POST.b3.height);bl(POST.b3,POST.b4,POST.b3.width,POST.b3.height);}
+  const F=M.final.uniforms;F.tex.value=POST.rt.texture;F.b1.value=POST.b1.texture;F.b2.value=POST.b3.texture;F.exposure.value=renderer.toneMappingExposure;F.bloom.value=noGlow?0:G.bloom;F.sat.value=G.sat;F.con.value=G.con;F.vig.value=G.vig;F.aspect.value=sz.x/sz.y;{const t=(performance.now()-EDGE.t0)/EDGE.dur,a=t<0||t>1?0:(t<.15?t/.15:1-(t-.15)/.85);F.edgeA.value=a*EDGE.a;F.edgeC.value.copy(EDGE.c);}F.tint.value.set(...G.tint);
   {const k=camT,on=QUAL[qKey].streaks&&k&&state==='race'&&k.boost>0&&!k.spin,tg=on?Math.min(1,.45+.55*Math.min(1,(k.bPk||1)/2.5)):0;F.spd.value+=(tg-F.spd.value)*.12;F.tm.value=performance.now()/1000%100;}
   pass(M.final,null);}
 /* big screens (computer monitors, tablets) would otherwise draw several times a phone's pixels: cap the total pixel count per quality level, and lower it a step with each rung of the quality ladder */
@@ -6027,7 +6032,7 @@ let CPUMS=0,FRMS=0;/* smoothed CPU time per frame: simulation steps plus scene s
 let SSI=Math.max(0,+store.get('crust-ss')||0),ssPending=null,ssUp=0,ssDn=0;
 const ssMul=()=>{const q=QUAL[qKey];return q.ss&&LAD===0?(q.ss[Math.min(SSI,q.ss.length-1)]||1):1;};
 function applySS(i){const q=QUAL[qKey];if(!q.ss)return;SSI=clamp(i,0,q.ss.length-1);store.set('crust-ss',String(SSI));fitPending=true;}
-let prE=1;function fit(){const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;const q=QUAL[qKey],bud=q.mp*1e6*Math.max(.45,1-.1*LAD),prS=pr*ssMul();prE=Math.max(Math.min(prS,.7),Math.min(prS,Math.sqrt(bud/(w*h))));renderer.setPixelRatio(prE);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+let prE=1;function fit(){const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;const q=QUAL[qKey],sv=saverOn(),bud=q.mp*1e6*Math.max(.45,1-.1*LAD)*(sv?.6:1),prS=pr*ssMul()*(sv?.78:1);prE=Math.max(Math.min(prS,.7),Math.min(prS,Math.sqrt(bud/(w*h))));renderer.setPixelRatio(prE);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
 
 /* ================= BOOT ================= */
 let booted=false;
@@ -6081,10 +6086,10 @@ let LAD=0,ladBest=0,LADV=LADS[0];
 function ladKey(){return 'crust-lad2-'+qKey;}/* key changed in v115: the graphics test had been writing its own switches into the ladder */
 function applyLad(n,save){LAD=clamp(n,0,LADS.length-1);LADV=LADS[LAD];const q=QUAL[qKey],fl=Math.min(DPR,q.floor);
   const np=Math.max(fl,Math.min(DPR,q.start)-LADV.p);if(Math.abs(np-pr)>.01)pr=np;fitPending=true;
-  const sm=Math.max(512,Math.round(q.sm*(LADV.sm||1)));if(sun.shadow.mapSize.x!==sm){sun.shadow.mapSize.set(sm,sm);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}}
-  LODM=0;LODF=LADV.lod?100:(q.lodf||120);if(save)store.set(ladKey(),String(LAD));}
+  const sm=Math.min(saverOn()?1024:1e5,Math.max(512,Math.round(q.sm*(LADV.sm||1))));if(sun.shadow.mapSize.x!==sm){sun.shadow.mapSize.set(sm,sm);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}}
+  LODM=0;LODF=(LADV.lod?100:(q.lodf||120))*(saverOn()?.8:1);if(save)store.set(ladKey(),String(LAD));}
 function adaptQuality(dt,time){if(BENCH.on){perfSum=perfN=perfT=0;slowN=fastN=0;return;}/* the graphics test switches presets every few seconds: not a measurement of the player's own setting */perfSum+=dt;perfN++;perfT+=dt;if(perfT<1)return;const avg=perfSum/perfN;perfT=perfSum=perfN=0;
-  bestDt=Math.min(bestDt*1.01,avg);let P=1/60;for(const h of HZ)if(h>=bestDt*.93){P=h;break;}if(CFG.fps==='60')P=Math.max(P,1/60);else P=Math.max(P,1/120);
+  bestDt=Math.min(bestDt*1.01,avg);let P=1/60;for(const h of HZ)if(h>=bestDt*.93){P=h;break;}if(fps60())P=Math.max(P,1/60);else P=Math.max(P,1/120);
   const inMenu=state==='menu'&&!menu.hidden&&time>6;if(state!=='race'&&state!=='countdown'&&!inMenu)return;
   const Pq=CFG.fps==='max'?P:Math.max(P,1/60);slowN=avg>Pq*1.1?slowN+1:0;fastN=avg<Pq*1.03?fastN+1:0;/* quality is judged against 60 fps: on a 120 Hz screen it never drops detail to chase 120 */
   /* never change quality mid-race: a switch rebuilds GPU targets (a hitch) and visibly pops the picture. The measurement is kept and applied on the next loading screen. */
@@ -7103,14 +7108,14 @@ function benchEnd(abort){const B=BENCH;if(!B.on)return;if(B.i<BENCH_STEPS.length
   benchShow();}
 function benchUndo(){const B=BENCH;if(!B.prevQ)return;qKey=B.prevQ;store.set('crust-q',qKey);CFG.fps=B.prevFps;saveCfg();applyQuality();try{refreshMenu();refreshSettings();}catch(e){}$('benchChosen').textContent='Your previous settings are back: '+qName(qKey)+', frame rate '+(CFG.fps==='60'?'60 fps':CFG.fps==='max'?'Max':'Auto')+'.';$('benchUndo').hidden=true;for(const id of ['benchUse120','benchUse60'])$(id).classList.remove('on');}
 function benchText(){const B=BENCH,I=B.info||{},f=(v,d)=>(+v).toFixed(d);let t='Crust Rush graphics test · '+new Date().toISOString().replace('T',' ').slice(0,16)+'\ndevice: '+navigator.userAgent.replace(/Mozilla\/5\.0 \(|\).*/g,'').slice(0,60)+(typeof GLR==='string'&&GLR?' · GPU: '+GLR.replace(/ANGLE \(|\)$|Direct3D11 vs_5_0 ps_5_0, |, OpenGL 4\.\d.*$/g,'').slice(0,70):'')+
-    '\npreset '+I.q+' · 3D buffer '+I.w+'×'+I.h+' (pixel ratio '+f(I.pr||1,2)+') · anti-aliasing '+(I.ms||0)+'× · compact colour buffer '+(I.r11?'yes':'no')+' · shadow map '+I.sm+' · screen '+I.hz+' Hz · frame rate setting '+I.fps+' · automatic quality step '+(I.lad||0)+' of '+(LADS.length-1)+'\n'+(B.pickR?'for 120: '+qName(B.pickR.o120.pick)+' ('+B.pickR.o120.got+' fps) · for 60: '+qName(B.pickR.o60.pick)+' ('+B.pickR.o60.got+' fps)\n':'')+(()=>{const d=benchDrift();return d.pct>=5?'heat check: the same settings ran '+d.pct+'% slower at the end of the test than at the start (the phone warmed up); later rows are pessimistic and the recommendations are corrected for it\n':d.pct<=-5?'heat check: the same settings ran '+(-d.pct)+'% faster at the end than at the start\n':'heat check: steady\n';})()+'\nfps   heat-corr   median ms   slow 10% ms   3D CPU ms   all JS ms   draws   k-tris   test\n';
+    '\npreset '+I.q+' · 3D buffer '+I.w+'×'+I.h+' (pixel ratio '+f(I.pr||1,2)+') · anti-aliasing '+(I.ms||0)+'× · compact colour buffer '+(I.r11?'yes':'no')+' · shadow map '+I.sm+' · screen '+I.hz+' Hz · frame rate setting '+I.fps+(CFG.saver?' \u00b7 battery saver on (paused for the test)':'')+' · automatic quality step '+(I.lad||0)+' of '+(LADS.length-1)+'\n'+(B.pickR?'for 120: '+qName(B.pickR.o120.pick)+' ('+B.pickR.o120.got+' fps) · for 60: '+qName(B.pickR.o60.pick)+' ('+B.pickR.o60.got+' fps)\n':'')+(()=>{const d=benchDrift();return d.pct>=5?'heat check: the same settings ran '+d.pct+'% slower at the end of the test than at the start (the phone warmed up); later rows are pessimistic and the recommendations are corrected for it\n':d.pct<=-5?'heat check: the same settings ran '+(-d.pct)+'% faster at the end than at the start\n':'heat check: steady\n';})()+'\nfps   heat-corr   median ms   slow 10% ms   3D CPU ms   all JS ms   draws   k-tris   test\n';
   for(const r of B.res)t+=(f(r[1],0)).padStart(3)+'   '+f(benchFpsAdj(r),0).padStart(9)+'   '+f(r[2],1).padStart(9)+'   '+f(r[3],1).padStart(11)+'   '+f(r[4],1).padStart(9)+'   '+f(r[5]||0,1).padStart(10)+'   '+String(r[8]||0).padStart(5)+'   '+String(r[9]||0).padStart(6)+'   '+r[0]+'\n';return t;}
 function benchShow(){const ov=$('benchOv'),pk=BENCH.pickR;$('benchText').textContent=benchText();if(pk){const a=pk.o120,b=pk.o60;
     $('bench120').innerHTML='<b>'+qName(a.pick)+'</b>, frame rate Auto<br>about '+a.got+' fps'+(a.hit?' (120 reached)':' (the closest this device gets to 120)');
     $('bench60').innerHTML='<b>'+qName(b.pick)+'</b>, frame rate 60 fps<br>'+(b.hit?(b.pick===a.pick?'the heaviest preset that held 60 in this run was also the fastest: nothing better-looking reached 60 here'+(benchDrift().pct>=30?' (the phone was very hot by the end; let it cool and run again)':''):'holds a steady 60 with room to spare'):'about '+b.got+' fps, the closest this device gets to 60');
     $('benchChosen').textContent='Your settings are unchanged ('+qName(qKey)+'). Pick one:';$('benchUndo').hidden=true;for(const id of ['benchUse120','benchUse60'])$(id).classList.remove('on');}ov.hidden=false;try{store.set('crust-bench',benchText());}catch(e){}}
 function drsMin(){/* the sharpening pass in the final shader keeps a 70% frame looking crisp, so the dynamic resolution has room to hold 120 fps through busy scenes */return qKey==='ultraM'||qKey==='ultra'||qKey==='sharp'?.7:qKey==='balanced'?.75:1;}
-function drsTarget(){if(CFG.fps==='60')return 1/60;const hz=Math.max(SCR.hz.win||0,SCR.hz.fs||0,SCR.cur||0);return hz>=100?1/Math.min(240,hz):hz>=80?1/90:1/60;/* the screen's own period: on a 144 Hz monitor a frame a hair over 6.9 ms is shown for 13.9 (half rate), so the budget is the real refresh, not 120 */}
+function drsTarget(){if(fps60())return 1/60;const hz=Math.max(SCR.hz.win||0,SCR.hz.fs||0,SCR.cur||0);return hz>=100?1/Math.min(240,hz):hz>=80?1/90:1/60;/* the screen's own period: on a 144 Hz monitor a frame a hair over 6.9 ms is shown for 13.9 (half rate), so the budget is the real refresh, not 120 */}
 function drsReset(){const v=+store.get('crust-drs-'+qKey)||1;DRS.s=clamp(Math.round(v*20)/20,drsMin(),1);DRS.acc=DRS.n=DRS.t=DRS.good=DRS.cool=0;DRS.fail={};}
 function drsTick(dt){if(BENCH.on)return;const lo=drsMin();if(lo>=1||LOWQF()||CFG.post===false||LADV.np||state!=='race'){DRS.acc=DRS.n=DRS.t=0;return;}
   if(dt<=0||dt>.1)return;DRS.acc+=dt;DRS.n++;DRS.t+=dt;if(DRS.t<.5)return;const avg=DRS.acc/DRS.n,T=drsTarget();DRS.acc=DRS.n=DRS.t=0;if(DRS.cool>0)DRS.cool--;
@@ -7126,7 +7131,7 @@ function fsNote(){const d=document.createElement('div');d.className='softgl';d.s
 function frame(now){
   if(!booted){requestAnimationFrame(frame);return;}
   scrTrack(now);padPoll();
-  if(CFG.fps==='60'){if(now<frame.due-2.5){requestAnimationFrame(frame);return;}frame.due+=1000/60;if(now-frame.due>1000/60)frame.due=now;}{const fd=now-lastFrameT;if(fd>fpsMax&&fd<1000)fpsMax=fd;if(state==='race'&&fd>0&&fd<200)capWatch(fd);}lastFrameT=now;
+  if(fps60()){if(now<frame.due-2.5){requestAnimationFrame(frame);return;}frame.due+=1000/60;if(now-frame.due>1000/60)frame.due=now;}{const fd=now-lastFrameT;if(fd>fpsMax&&fd<1000)fpsMax=fd;if(state==='race'&&fd>0&&fd<200)capWatch(fd);}lastFrameT=now;
   fpsN++;if(now-fpsT>500){const show=CFG.showfps&&state!=='menu';fpsEl.hidden=!show;if(show)fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' FPS'+(CAPW.capped?' (capped by phone)':'')+' · '+((now-fpsT)/fpsN).toFixed(1)+' ms · worst '+Math.round(fpsMax)+' ms · CPU '+CPUMS.toFixed(1)+(GPUT&&GPUT.ms>0?' · GPU '+GPUT.ms.toFixed(1):'')+(ssMul()>1?' · '+ssMul()+'×':'')+netStat(now-fpsT)+((SCR.cur||SCR.hz.win)?' · screen '+(SCR.fs?SCR.hz.fs||SCR.cur:SCR.hz.win||SCR.cur)+' Hz':'')+scrWhy(fpsN*1000/(now-fpsT));fpsN=0;fpsT=now;fpsMax=0;}
   let dt=(now-last)/1000;last=now;if(dt>.1)dt=.1;if(dt<0)dt=0;const time=now/1000;const cw0=performance.now();
   /* finish-line punch: a beat of slow motion (offline only: online the race runs on the host's clock) and a wide-angle kick in the camera */
@@ -7137,7 +7142,11 @@ function frame(now){
   else if(state==='intro'){alpha=1;introT+=dt;if(introSkip||introT>=INTRO_SHOT*INTRO_N)endIntro();}
   else if(state==='countdown'){alpha=1;cd-=dt;const n=Math.ceil(cd-.4);if(n!==lastCd&&n>=1&&n<=3){lastCd=n;showBanner(String(n),.9,'md');SFX.count(false);}
     if(cd<=.4){state='race';showBanner('Go!',1,'md');SFX.count(true);acc=0;}standCache=standings();if(NET.role==='host')netHostTick();else if(NET.role==='guest'&&NET.snaps.length)netInterp(player);}
-  if(state!=='paused'){if(garageOpen)renderGarage(dt);else{if(fitPending){fitPending=false;fit();}if(state!=='loading'){gpuT0();render(time,dt);gpuT1();CPUMS=CPUMS*.95+(performance.now()-cw0)*.05;adaptQuality(dt,time);drsTick(dt);if(BENCH.on)benchFrame(dt);}}}
+  /* phones: the menu backdrop and an untouched garage turntable draw at about 30 fps; they are scenery, and a phone that idles warm in the
+     menus starts every race already throttling */
+  const amb=COARSE&&!BENCH.on&&(garageOpen?performance.now()-gActT>800:state==='menu');let rdt=dt;
+  if(amb){frame.adt=(frame.adt||0)+dt;if(now-(frame.ar||0)<31){requestAnimationFrame(frame);return;}frame.ar=now;rdt=frame.adt;frame.adt=0;}else frame.adt=0;
+  if(state!=='paused'){if(garageOpen)renderGarage(rdt);else{if(fitPending){fitPending=false;fit();}if(state!=='loading'){gpuT0();render(time,rdt);gpuT1();CPUMS=CPUMS*.95+(performance.now()-cw0)*.05;adaptQuality(dt,time);drsTick(dt);if(BENCH.on)benchFrame(dt);}}}
   hud(dt,time);
   try{musTick();}catch(e){console.warn('music',e);CFG.music=false;}
   FRMS=FRMS*.9+(performance.now()-cw0)*.1;
