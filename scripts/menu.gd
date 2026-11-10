@@ -11,6 +11,7 @@ signal join_online(addr: String)
 signal leave_online
 signal start_online
 signal setting_changed(key: String, value)
+signal modal_closed
 
 const Z := 1.18
 const CHEESE := Color("#f7c948")
@@ -526,7 +527,11 @@ class _Portrait extends Control:
 	## a portrait clipped to a rounded rectangle (object-fit: cover), with a dark fade at the bottom
 	var tex: Texture2D
 	var radius := 14.0
+	var corners := Vector4(-1, -1, -1, -1)   # per corner (tl, tr, br, bl); -1 = use radius
 	var fade := false
+	var label := ""
+	var font: Font
+	var font_px := 14.0
 	func _draw() -> void:
 		var r := Rect2(Vector2.ZERO, size)
 		if tex == null:
@@ -542,7 +547,8 @@ class _Portrait extends Control:
 			var h := tex.get_width() / ra
 			src = Rect2(0, (tex.get_height() - h) * 0.3, tex.get_width(), h)
 		# rounded corners: draw the picture as a polygon with matching UVs
-		var pts := CssBox.outline(r, Vector4.ONE * radius)
+		var rc := Vector4.ONE * radius if corners.x < 0.0 else corners
+		var pts := CssBox.outline(r, rc)
 		var uvs := PackedVector2Array()
 		for p in pts:
 			uvs.append(Vector2((src.position.x + p.x / size.x * src.size.x) / tex.get_width(), (src.position.y + p.y / size.y * src.size.y) / tex.get_height()))
@@ -553,6 +559,9 @@ class _Portrait extends Control:
 				var f := float(i) / n
 				var y0 := size.y * (0.72 + 0.28 * f)
 				draw_rect(Rect2(radius * 0.3 * f, y0, size.x - radius * 0.6 * f, size.y * 0.28 / n + 1.0), Color(0.06, 0.03, 0.02, 0.15 + 0.6 * f))
+		if label != "" and font != null:
+			draw_string(font, Vector2(font_px * 0.5, size.y - font_px * 0.55) + Vector2(0, 1), label, HORIZONTAL_ALIGNMENT_LEFT, size.x - font_px, int(font_px), Color(0, 0, 0, 0.8))
+			draw_string(font, Vector2(font_px * 0.5, size.y - font_px * 0.55), label, HORIZONTAL_ALIGNMENT_LEFT, size.x - font_px, int(font_px), Color("#fff4dc"))
 
 
 class _Dot extends Control:
@@ -625,88 +634,153 @@ func _step_head(back_text: String, back_to: String, small: String, title: String
 
 func _track() -> Control:
 	var root := _screen_root()
-	var v := vbox(10)
+	var v := vbox(8)
 	root.add_child(v)
 	var cls_label := ""
 	for c in CLASSES:
 		if c[0] == cls:
 			cls_label = c[1]
-	v.add_child(_step_head("‹ Driver", "driver", "Step 2 of 2 · " + cls_label, "Grand Prix" if mode == "gp" else "Track", "START RACE", func(): _go()))
+	var gp := mode == "gp"
+	var small := "Step 2 of 2 · " + cls_label + ("" if mode != "lss" else " · Last Slice")
+	v.add_child(_step_head("‹ Driver", "driver", small, "Cup" if gp else "Track", "START GRAND PRIX" if gp else "START RACE", func(): _go()))
 	var body := hbox(16)
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	v.add_child(body)
-	var left := vbox(10)
-	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left.size_flags_stretch_ratio = 1.5
-	body.add_child(left)
 	var detail := panel(glass(18.0, Vector4(14, 14, 14, 14)))
 	detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body.add_child(detail)
-	var dv := vbox(10)
+	var dv := vbox(8)
 	detail.add_child(dv)
-	var cups_row := hbox(8)
-	left.add_child(cups_row)
 	var grid := GridContainer.new()
-	grid.columns = 4
-	grid.add_theme_constant_override("h_separation", zi(10))
-	grid.add_theme_constant_override("v_separation", zi(10))
-	var sc := ScrollContainer.new()
-	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	sc.add_child(grid)
+	grid.columns = 2 if gp else 4
+	grid.add_theme_constant_override("h_separation", zi(12))
+	grid.add_theme_constant_override("v_separation", zi(12))
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left.add_child(sc)
-	var refresh: Callable
-	var show_detail := func(id: String):
+	grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var left: Control = grid
+	if not gp:
+		var sc := ScrollContainer.new()
+		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		sc.add_child(grid)
+		left = sc
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left.size_flags_stretch_ratio = 1.45
+	body.add_child(left)
+	body.add_child(detail)
+	var show_detail := func():
 		for c in dv.get_children():
 			c.queue_free()
-		var m := _map(id)
-		var tr := TextureRect.new()
-		tr.texture = _shot(id, "h")
-		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-		tr.custom_minimum_size = Vector2(z(300), z(170))
-		dv.add_child(tr)
-		dv.add_child(label(String(m.get("name", id)).to_upper(), f_disp, 22.0, CHEESE, SAUCE_DARK))
-		var ci := int(m.get("cup", -1))
-		dv.add_child(label(CUPS[ci][0] if ci >= 0 and ci < CUPS.size() else "Special track", f_bold, 13.0, MUTED))
-		if mode == "gp" and ci >= 0:
-			var names := PackedStringArray()
-			for mm in maps:
-				if int(mm.get("cup", -1)) == ci:
-					names.append(String(mm["name"]))
-			dv.add_child(para("Four races: " + ", ".join(names) + ". Points after every race; the most points wins the cup.", 13.0, MUTED, 280.0))
-	refresh = func():
-		for c in grid.get_children():
-			c.queue_free()
+		if gp:
+			dv.add_child(label((cls_label + " · 4 races").to_upper(), f_bold, 11.0, MUTED))
+			dv.add_child(label(String(CUPS[cup][0]).to_upper(), f_disp, 24.0, CHEESE, SAUCE_DARK, Vector2(0, 3)))
+			var g2 := GridContainer.new()
+			g2.columns = 2
+			g2.add_theme_constant_override("h_separation", zi(8))
+			g2.add_theme_constant_override("v_separation", zi(8))
+			g2.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			for id in _cup_tracks(cup):
+				var pic := _Portrait.new()
+				pic.tex = _shot(id, "h")
+				pic.radius = z(10)
+				pic.fade = true
+				pic.label = String(_map(id).get("name", id))
+				pic.font = f_bold
+				pic.font_px = z(11)
+				pic.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				pic.size_flags_vertical = Control.SIZE_EXPAND_FILL
+				g2.add_child(pic)
+			dv.add_child(g2)
+			dv.add_child(para("Race all four tracks. Points for every finish decide the trophy.", 13.0, CREAM, 360.0))
+		else:
+			var m := _map(map_id)
+			var ci := int(m.get("cup", -1))
+			dv.add_child(label((cls_label + " · " + (CUPS[ci][0] if ci >= 0 and ci < CUPS.size() else "Special track")).to_upper(), f_bold, 11.0, MUTED))
+			dv.add_child(label(String(m.get("name", map_id)).to_upper(), f_disp, 24.0, CHEESE, SAUCE_DARK, Vector2(0, 3)))
+			var pic2 := _Portrait.new()
+			pic2.tex = _shot(map_id, "h")
+			pic2.radius = z(12)
+			pic2.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			dv.add_child(pic2)
+			var pic3 := _Portrait.new()
+			pic3.tex = _shot(map_id, "a")
+			pic3.radius = z(12)
+			pic3.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			dv.add_child(pic3)
+	if gp:
+		for ci in CUPS.size():
+			var card := _cup_card(ci)
+			card.pressed.connect(func():
+				cup = ci
+				var ts := _cup_tracks(ci)
+				if not ts.is_empty():
+					map_id = ts[0]
+				setting_changed.emit("cup", ci)
+				setting_changed.emit("map", map_id)
+				show_detail.call()
+				for c in grid.get_children():
+					_mark_card(c as Button, int(c.get_meta("cup")) == cup))
+			grid.add_child(card)
+	else:
 		for m in maps:
 			var id: String = m["id"]
-			if mode == "gp" and int(m.get("cup", -1)) != cup:
-				continue
-			var card := _map_card(m)
-			card.pressed.connect(func():
+			var card2 := _map_card(m)
+			card2.pressed.connect(func():
 				map_id = id
 				setting_changed.emit("map", id)
-				show_detail.call(id)
+				show_detail.call()
 				for c in grid.get_children():
 					_mark_card(c as Button, String(c.get_meta("id")) == map_id))
-			grid.add_child(card)
-	for ci in CUPS.size():
-		var cb := button(String(CUPS[ci][0]), "seg_on" if ci == cup else "seg_off", 14.0, Vector4(12, 8, 12, 8))
-		cb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		cb.pressed.connect(func():
-			cup = ci
-			if mode == "gp":
-				for mm in maps:
-					if int(mm.get("cup", -1)) == ci:
-						map_id = String(mm["id"])
-						break
-			setting_changed.emit("cup", ci)
-			open("track"))
-		cups_row.add_child(cb)
-	refresh.call()
-	show_detail.call(map_id)
+			grid.add_child(card2)
+	show_detail.call()
 	return root
+
+
+func _cup_tracks(ci: int) -> Array:
+	var out: Array = []
+	for m in maps:
+		if int(m.get("cup", -1)) == ci:
+			out.append(String(m["id"]))
+	return out
+
+
+## a cup: the four tracks' pictures in a square mosaic with the cup's name across the bottom
+func _cup_card(ci: int) -> Button:
+	var b := Button.new()
+	b.set_meta("cup", ci)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	b.custom_minimum_size = Vector2(z(150), z(120))
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_mark_card(b, ci == cup)
+	var g := GridContainer.new()
+	g.columns = 2
+	g.add_theme_constant_override("h_separation", 0)
+	g.add_theme_constant_override("v_separation", 0)
+	g.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	g.offset_left = z(1)
+	g.offset_top = z(1)
+	g.offset_right = -z(1)
+	g.offset_bottom = -z(1)
+	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(g)
+	var ts := _cup_tracks(ci)
+	var rr := z(13)
+	for k in 4:
+		var pic := _Portrait.new()
+		pic.tex = _shot(ts[k], "h") if k < ts.size() else null
+		pic.corners = [Vector4(rr, 0, 0, 0), Vector4(0, rr, 0, 0), Vector4(0, 0, 0, rr), Vector4(0, 0, rr, 0)][k]
+		pic.fade = k >= 2
+		pic.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		pic.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		g.add_child(pic)
+	var l := label(String(CUPS[ci][0]).to_upper(), f_disp, 19.0, CREAM, Color(0, 0, 0, 0.75), Vector2(0, 2))
+	l.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	l.offset_left = z(12)
+	l.offset_top = -z(34)
+	l.offset_bottom = -z(8)
+	b.add_child(l)
+	return b
 
 
 func _map(id: String) -> Dictionary:
@@ -725,24 +799,24 @@ func _map_card(m: Dictionary) -> Button:
 	var b := Button.new()
 	var id: String = m["id"]
 	b.set_meta("id", id)
-	b.custom_minimum_size = Vector2(z(150), z(112))
+	b.custom_minimum_size = Vector2(z(140), z(92))
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_mark_card(b, id == map_id)
-	var v := vbox(4)
-	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.add_child(v)
-	var tr := TextureRect.new()
-	tr.texture = _shot(id, "h")
-	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	tr.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(tr)
-	var l := label(String(m.get("name", id)), f_bold, 13.0, CREAM)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	v.add_child(l)
+	var pic := _Portrait.new()
+	pic.tex = _shot(id, "h")
+	pic.radius = z(12)
+	pic.fade = true
+	pic.label = String(m.get("name", id))
+	pic.font = f_bold
+	pic.font_px = z(12)
+	pic.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	pic.offset_left = z(2)
+	pic.offset_top = z(2)
+	pic.offset_right = -z(2)
+	pic.offset_bottom = -z(2)
+	pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(pic)
 	return b
 
 
@@ -758,6 +832,7 @@ func close_modal() -> void:
 		modal = null
 		for k in screens:
 			(screens[k] as Control).visible = true
+		modal_closed.emit()
 
 
 func show_modal(kind: String) -> void:

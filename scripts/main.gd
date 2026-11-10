@@ -573,45 +573,16 @@ func _build_hud() -> void:
 	btn_fps = Button.new()
 	btn_res = Button.new()
 
-	# results
+	# results and pause: full-screen sheets in the menus' style, filled in when shown
 	panel_results = PanelContainer.new()
-	panel_results.add_theme_stylebox_override("panel", _box_style(Color(0.12, 0.06, 0.04, 0.9), Color(1, 0.82, 0.3), 26, 4))
-	_place(panel_results, 0.5, 0.5, 0.5, 0.5, -330, -330, 330, 330)
-	var mg := MarginContainer.new()
-	for side in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
-		mg.add_theme_constant_override(side, 26)
-	panel_results.add_child(mg)
-	results_box = VBoxContainer.new()
-	results_box.add_theme_constant_override("separation", 8)
-	mg.add_child(results_box)
+	panel_results.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	panel_results.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	panel_results.visible = false
 	root.add_child(panel_results)
-
-	# pause
+	results_box = VBoxContainer.new()
 	panel_pause = PanelContainer.new()
-	panel_pause.add_theme_stylebox_override("panel", _box_style(Color(0.12, 0.06, 0.04, 0.92), Color(1, 0.82, 0.3), 26, 4))
-	_place(panel_pause, 0.5, 0.5, 0.5, 0.5, -230, -315, 230, 315)
-	var mg2 := MarginContainer.new()
-	for side in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
-		mg2.add_theme_constant_override(side, 26)
-	panel_pause.add_child(mg2)
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 14)
-	mg2.add_child(vb)
-	var pt := _label(44, Vector2.ZERO, HORIZONTAL_ALIGNMENT_CENTER)
-	pt.text = "Paused"
-	vb.add_child(pt)
-	for spec in [["Resume", _toggle_pause], ["Restart race", _restart], ["Frame rate", _toggle_fps], ["Resolution", _toggle_res], ["Full screen", _toggle_fullscreen], ["Main menu", _to_menu.bind("")], ["Quit", _quit]]:
-		var b := Button.new()
-		b.text = spec[0]
-		b.add_theme_font_size_override("font_size", 26)
-		b.custom_minimum_size = Vector2(0, 54)
-		b.pressed.connect(spec[1])
-		vb.add_child(b)
-		if spec[0] == "Frame rate":
-			btn_fps = b
-		elif spec[0] == "Resolution":
-			btn_res = b
+	panel_pause.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	panel_pause.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	panel_pause.visible = false
 	root.add_child(panel_pause)
 
@@ -677,6 +648,9 @@ func _build_hud() -> void:
 	menu.visible = false
 	ml.add_child(menu)
 	menu.go.connect(_menu_go)
+	menu.modal_closed.connect(func():
+		if state != "menu":
+			menu.visible = false)
 	menu.setting_changed.connect(func(k, v):
 		sel[k] = v
 		if k == "map" and String(v) != map_id:
@@ -736,9 +710,52 @@ func _toggle_pause() -> void:
 	if net_role != "":
 		# an online race carries on for everyone: this only opens the menu
 		panel_pause.visible = not panel_pause.visible
+		if panel_pause.visible:
+			_build_pause()
 		return
 	paused = not paused
 	panel_pause.visible = paused
+	if paused:
+		_build_pause()
+
+
+## a centred sheet over a dark wash (the web: .overlay > .panel, 520 CSS px wide)
+func _sheet(host: Control, width_css := 520.0) -> VBoxContainer:
+	for c in host.get_children():
+		c.queue_free()
+	var bg := Menu._Backdrop.new()
+	bg.dim = 1.2
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	host.add_child(bg)
+	var cc := CenterContainer.new()
+	cc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	host.add_child(cc)
+	var v := menu.vbox(14)
+	v.custom_minimum_size.x = menu.z(width_css)
+	cc.add_child(v)
+	return v
+
+
+func _build_pause() -> void:
+	var v := _sheet(panel_pause)
+	v.add_child(menu.label("PAUSED", menu.f_disp, 48.0, Color("#f7c948"), Color("#7d1d0e"), Vector2(0, 4)))
+	var res := menu.button("Resume", "cta", 22.0, Vector4(16, 14, 16, 14))
+	res.pressed.connect(_toggle_pause)
+	v.add_child(res)
+	var row := menu.hbox(10)
+	for spec in [["Restart race", _restart], ["Settings", _pause_settings], ["Quit to menu", _to_menu.bind("")]]:
+		var b := menu.button(String(spec[0]), "ghost", 15.0, Vector4(12, 12, 12, 12))
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.pressed.connect(spec[1])
+		row.add_child(b)
+	v.add_child(row)
+	res.grab_focus.call_deferred()
+
+
+func _pause_settings() -> void:
+	menu.visible = true
+	menu.show_modal("set")
 
 
 func _quit() -> void:
@@ -1060,45 +1077,118 @@ func _near(k: Kart) -> float:
 
 
 func _show_results() -> void:
-	for c in results_box.get_children():
-		c.queue_free()
-	var title := _label(46, Vector2.ZERO, HORIZONTAL_ALIGNMENT_CENTER)
-	title.text = "Results"
-	results_box.add_child(title)
 	var st := race.standings()
+	var me_place := st.find(kart) + 1
+	var gp_done := false
+	var gp_rows: Array = []
+	if not gp.is_empty():
+		# points for this race, then the cup table
+		if not bool(gp.get("scored", false)):
+			for i in st.size():
+				var ri := st[i].ri
+				gp["pts"][ri] = int(gp["pts"][ri]) + (Race.PTS[i] if i < Race.PTS.size() else 0)
+			gp["scored"] = true
+		for k in race.karts:
+			gp_rows.append([k, int(gp["pts"][k.ri])])
+		gp_rows.sort_custom(func(a, b): return a[1] > b[1])
+		gp_done = int(gp["race"]) >= (gp["tracks"] as Array).size() - 1
+	var v := _sheet(panel_results, 820.0 if not gp.is_empty() else 520.0)
+	var title := "%s place!" % _ordinal(me_place)
+	if gp_done:
+		var cp := 1
+		for i in gp_rows.size():
+			if gp_rows[i][0] == kart:
+				cp = i + 1
+		title = ("You win the %s!" % Menu.CUPS[int(gp["cup"])][0]) if cp == 1 else ("%s in the cup" % _ordinal(cp))
+	v.add_child(menu.label(title, menu.f_disp, 48.0, Color("#f7c948"), Color("#7d1d0e"), Vector2(0, 4)))
+	var sub := "%s · %s" % [String(_map_info(map_id).get("name", map_id)), String({"small": "50cc", "medium": "100cc", "large": "200cc", "reverse": "Reverse"}.get(String(sel["cls"]), "100cc"))]
+	if not gp.is_empty():
+		sub += " · race %d of %d" % [int(gp["race"]) + 1, (gp["tracks"] as Array).size()]
+	v.add_child(menu.label(sub, menu.f_semi, 15.0, Color("#c2a58c")))
+	var cols := menu.hbox(14)
+	v.add_child(cols)
+	var c1 := menu.vbox(6)
+	c1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cols.add_child(c1)
+	c1.add_child(menu.section_label("Race"))
 	for i in st.size():
 		var k := st[i]
-		var row := HBoxContainer.new()
-		var a := _label(26, Vector2.ZERO)
-		a.text = "%s   %s%s" % [_ordinal(i + 1), k.racer_name, "  (you)" if k == kart else ""]
-		a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		if k == kart:
-			a.add_theme_color_override("font_color", Color(1, 0.82, 0.3))
-		row.add_child(a)
-		var b := _label(26, Vector2.ZERO, HORIZONTAL_ALIGNMENT_RIGHT)
-		b.text = ("~" if k.est else "") + _fmt(k.finish_time)
-		row.add_child(b)
-		var c := _label(22, Vector2.ZERO, HORIZONTAL_ALIGNMENT_RIGHT)
-		c.text = "  +%d" % (Race.PTS[i] if i < Race.PTS.size() else 0)
-		c.custom_minimum_size = Vector2(64, 0)
-		row.add_child(c)
-		results_box.add_child(row)
-	var again := Button.new()
-	again.text = "Race again" if net_role != "client" else "Waiting for the host"
+		c1.add_child(_result_row(i + 1, k, ("~" if k.est else "") + _fmt(k.finish_time), "+%d" % (Race.PTS[i] if i < Race.PTS.size() else 0) if not gp.is_empty() else ""))
+	if not gp.is_empty():
+		var c2 := menu.vbox(6)
+		c2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		cols.add_child(c2)
+		c2.add_child(menu.section_label("Cup standings"))
+		for i in gp_rows.size():
+			c2.add_child(_result_row(i + 1, gp_rows[i][0], "%d pts" % int(gp_rows[i][1]), ""))
+	var again_text := "Race again"
+	if not gp.is_empty():
+		again_text = "New Grand Prix" if gp_done else "Next race  ›"
+	if net_role == "client":
+		again_text = "Waiting for the host…"
+	var again := menu.button(again_text, "cta", 22.0, Vector4(16, 14, 16, 14))
 	again.disabled = net_role == "client"
-	again.add_theme_font_size_override("font_size", 28)
-	again.custom_minimum_size = Vector2(0, 58)
-	again.pressed.connect(_restart)
-	results_box.add_child(again)
-	var back := Button.new()
-	back.text = "Main menu"
-	back.add_theme_font_size_override("font_size", 22)
-	back.custom_minimum_size = Vector2(0, 46)
-	back.pressed.connect(_to_menu.bind(""))
-	results_box.add_child(back)
+	again.pressed.connect(_results_primary)
+	v.add_child(again)
+	var row := menu.hbox(10)
+	var tb := menu.button("Choose another track", "ghost", 15.0, Vector4(12, 12, 12, 12))
+	tb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tb.pressed.connect(func():
+		_to_menu("")
+		menu.open("track"))
+	row.add_child(tb)
+	var mb := menu.button("Change track or driver", "ghost", 15.0, Vector4(12, 12, 12, 12))
+	mb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mb.pressed.connect(_to_menu.bind(""))
+	row.add_child(mb)
+	v.add_child(row)
 	panel_results.visible = true
 	if not auto_drive and net_role != "client":
-		again.grab_focus()
+		again.grab_focus.call_deferred()
+
+
+## one line of a results table: place, the racer's colour, name, time or points
+func _result_row(place: int, k: Kart, right: String, add: String) -> Control:
+	var me := k == kart
+	var st := menu.glass(10.0, Vector4(12, 7, 12, 7))
+	if me:
+		st = menu.box([Color(0.97, 0.79, 0.28, 0.2), Color(0.88, 0.27, 0.17, 0.14)], 135.0, 10.0, Color("#f7c948"), 1.0, Vector4(12, 7, 12, 7))
+	var p := menu.panel(st)
+	var h := menu.hbox(10)
+	p.add_child(h)
+	var pc := [Color("#ffd54a"), Color("#d8dde3"), Color("#e09a5a")]
+	var pl := menu.label(str(place), menu.f_disp, 16.0, pc[place - 1] if place <= 3 else Color("#f7c948"))
+	pl.custom_minimum_size.x = menu.z(26)
+	h.add_child(pl)
+	var sw := ColorRect.new()
+	sw.color = hud._racer_col(k)
+	sw.custom_minimum_size = Vector2(menu.z(12), menu.z(12))
+	sw.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(sw)
+	var nm := menu.label(k.racer_name + ("  (you)" if me else ""), menu.f_bold, 15.0, Color("#fff4dc"))
+	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(nm)
+	if add != "":
+		h.add_child(menu.label(add, menu.f_bold, 14.0, Color("#7fe07a")))
+	h.add_child(menu.label(right, menu.f_semi, 14.0, Color("#c2a58c")))
+	return p
+
+
+## the results screen's main button: race again, the next Grand Prix race, or a new cup
+func _results_primary() -> void:
+	if net_role == "client":
+		return
+	if gp.is_empty():
+		_restart()
+		return
+	var n := (gp["tracks"] as Array).size()
+	if int(gp["race"]) >= n - 1:
+		gp = {"cup": int(gp["cup"]), "race": 0, "pts": [0, 0, 0, 0, 0, 0, 0, 0], "tracks": gp["tracks"]}
+	else:
+		gp["race"] = int(gp["race"]) + 1
+		gp["scored"] = false
+	panel_results.visible = false
+	await _race_on(String(gp["tracks"][int(gp["race"])]))
 
 
 # ---------------------------------------------------------------- input
@@ -1241,10 +1331,8 @@ func _input(ev: InputEvent) -> void:
 				KEY_F3:
 					lbl_info.visible = not lbl_info.visible
 				KEY_X, KEY_E, KEY_ENTER:
-					if state == "menu" or ip_edit.has_focus():
+					if state == "menu" or state == "results" or paused or (ip_edit != null and is_instance_valid(ip_edit) and ip_edit.has_focus()):
 						pass
-					elif state == "results":
-						_restart()
 					else:
 						item_queued = "fwd"
 				KEY_Z, KEY_Q, KEY_V:
@@ -1252,7 +1340,8 @@ func _input(ev: InputEvent) -> void:
 				KEY_SHIFT, KEY_B:
 					item_queued = "hold"
 				KEY_P, KEY_ESCAPE:
-					_toggle_pause()
+					if not (menu != null and menu.visible):
+						_toggle_pause()
 				KEY_F11:
 					_toggle_fullscreen()
 	elif ev is InputEventJoypadButton:
@@ -1261,15 +1350,9 @@ func _input(ev: InputEvent) -> void:
 			pad_used_at = Time.get_ticks_msec()
 			if jb.button_index == JOY_BUTTON_START:
 				if state == "results":
-					_restart()
-				else:
+					_results_primary()
+				elif not (menu != null and menu.visible):
 					_toggle_pause()
-			elif jb.button_index == JOY_BUTTON_A and state == "results":
-				_restart()
-			elif jb.button_index == JOY_BUTTON_A and state == "menu" and net_role == "":
-				_menu_race()
-			elif jb.button_index == JOY_BUTTON_A and paused:
-				_toggle_pause()
 
 
 func _zone(p: Vector2) -> String:

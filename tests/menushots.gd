@@ -21,6 +21,20 @@ func _ready() -> void:
 			main.menu.close_modal()
 			main.menu.open("driver"), "p_driver"],
 		[6, func(): main.menu.open("track"), "p_track"],
+		[6, func():
+			main.sel["mode"] = "single"
+			main.menu.mode = "single"
+			main.menu.open("track"), "p_track_single"],
+		[10, func():
+			main._start_race({})
+			main.state = "race"
+			main.race.state = "race"
+			main._toggle_pause(), "p_pause"],
+		[10, func():
+			main._toggle_pause()
+			main.gp = {"cup": 0, "race": 0, "pts": [0, 0, 0, 0, 0, 0, 0, 0], "tracks": ["bay", "bay", "bay", "bay"]}
+			main.state = "results"
+			main._show_results(), "p_results"],
 	]
 	wait = 4
 
