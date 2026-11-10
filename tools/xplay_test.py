@@ -31,16 +31,20 @@ async def main():
     ok = False
     async with async_playwright() as p:
         b = await p.chromium.launch(args=['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--no-sandbox',
-                                          '--autoplay-policy=no-user-gesture-required'])
+                                          '--autoplay-policy=no-user-gesture-required', '--disable-features=LocalNetworkAccessChecks,PrivateNetworkAccessRespectPreflightResults'])
         ctx = await b.new_context(viewport={'width': 640, 'height': 360}, service_workers='block')
         await ctx.add_init_script('window.CR_BROKERS=%s;' % json.dumps([BROKER]))
         pg = await ctx.new_page()
         errs = []
         pg.on('pageerror', lambda e: errs.append(str(e)[:300]))
+        pg.on('websocket', lambda ws: (print('XPLAY web: websocket', ws.url, flush=True), ws.on('close', lambda *_: print('XPLAY web: websocket closed', ws.url, flush=True)), ws.on('socketerror', lambda e: print('XPLAY web: websocket error', e, flush=True))))
+        pg.on('console', lambda m: print('XPLAY web console:', m.text[:160], flush=True) if ('ebSocket' in m.text or 'mqtt' in m.text.lower()) else None)
 
         async def route(r):
             u = r.request.url
-            if u.startswith('http://127.0.0.1:%d/' % PORT) and (re.search(r'/js/game\.[0-9a-f]+\.js', u) or u.endswith('/') or u.endswith('.html')):
+            # only the game script is rewritten: a page whose HTML comes back rewritten counts as a public origin, and Chrome's
+            # local network checks then refuse its socket to the test broker on 127.0.0.1
+            if u.startswith('http://127.0.0.1:%d/' % PORT) and re.search(r'/js/game\.[0-9a-f]+\.js', u):
                 resp = await r.fetch()
                 body = await resp.text()
                 if 'requestAnimationFrame(frame);\n})();' in body:
