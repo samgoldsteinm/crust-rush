@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   list:
-    if: github.event_name == 'push' || github.event.inputs.step == 'list'
+    if: github.event.inputs.step == 'list'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,3 +26,21 @@ jobs:
           python-version: "3.12"
       - name: List the CC0 scenery assets
         run: python3 tools/hdlist.py
+
+  fetch:
+    if: github.event_name == 'push' || github.event.inputs.step == 'build'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download the CC0 textures
+        run: |
+          OUT=hd python3 tools/hd_fetch.py
+          zip -qr hd.zip hd
+          ls -la hd hd.zip
+      - name: Attach to the "maps" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload maps hd.zip -R "$GITHUB_REPOSITORY" --clobber
