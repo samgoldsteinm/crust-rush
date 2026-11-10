@@ -1,13 +1,25 @@
 class_name Sfx
 extends Node
 ## Sound, made at start-up from simple waveforms (as the web game does with Web Audio): an
-## engine that follows the speed, a tyre squeal while drifting, and short effects.
+## engine that follows the speed, a tyre squeal while drifting, and short effects. The engines of karts, bikes and cars
+## are loops made from real recordings (assets/sfx/eng_*.wav, tools/engine_loops.py), pitched with the revs through
+## the gears like the web's; jets and electric motors keep the made-up hum.
+
+## engine voice per kart body and its tuning (web ENG_BODY / ENG_PROF / ENG_SMP): f pitch, gears, recording, its pitch, level
+const ENG_BODY := {"delivery": "v8", "formula": "race", "interceptor": "race", "hyper": "race", "onyx": "race", "roadster": "race", "scissor": "race",
+	"gt": "race", "coupe": "race", "muscle": "v8", "monster": "v8", "suv": "v8", "rocket": "jet", "bike_rocket": "jet", "bike_moto": "bike", "bike_mx": "bike",
+	"bike_neutron": "bike", "bike_june": "hum", "oven": "chug", "chariot": "chug"}
+const ENG_PROF := {"std": [1.0, true, "kart", 1.0, 0.92], "race": [1.55, true, "race", 1.0, 1.3], "v8": [0.62, true, "v8", 1.0, 1.0],
+	"jet": [2.2, false, "", 1.0, 1.0], "bike": [1.25, true, "kart", 1.18, 0.92], "hum": [3.1, false, "", 1.0, 1.0], "chug": [0.8, true, "v8", 0.84, 1.0]}
 
 const RATE := 22050
 var bank := {}
 var pool: Array[AudioStreamPlayer] = []
 var eng: AudioStreamPlayer
 var eng2: AudioStreamPlayer
+var rec: AudioStreamPlayer        # the recorded engine voice
+var prof: Array = ENG_PROF["std"]
+var rec_name := ""
 var skid: AudioStreamPlayer
 var wind: AudioStreamPlayer
 var rng := RandomNumberGenerator.new()
@@ -23,6 +35,9 @@ func _ready() -> void:
 		pool.append(p)
 	eng = _loop_player("engine")
 	eng2 = _loop_player("engine2")
+	rec = AudioStreamPlayer.new()
+	rec.volume_db = -60.0
+	add_child(rec)
 	skid = _loop_player("skid")
 	wind = _loop_player("wind")
 
@@ -190,15 +205,57 @@ func play(name_: String, vol := 1.0, pitch := 1.0) -> void:
 			return
 
 
+## the engine voice for a kart body (its id from the garage)
+func set_body(body_id: String) -> void:
+	prof = ENG_PROF.get(ENG_BODY.get(body_id, "std"), ENG_PROF["std"])
+	var want := String(prof[2])
+	if want == rec_name:
+		return
+	rec_name = want
+	rec.stop()
+	if want == "":
+		return
+	var path := "res://assets/sfx/eng_%s.wav" % want
+	var st: AudioStreamWAV = load(path) if ResourceLoader.exists(path) else null
+	if st == null:
+		rec_name = ""
+		return
+	st.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	st.loop_begin = 0
+	st.loop_end = int(st.get_length() * st.mix_rate)
+	rec.stream = st
+	rec.play(randf() * st.get_length() * 0.9)
+
+
 ## speed 0..~1.6 of top speed; gas: whether the engine is pulling
 func drive(speed: float, gas: bool, boosting: bool, drifting: bool, tier: int, on: bool) -> void:
 	if not on:
 		eng.volume_db = -60.0
 		eng2.volume_db = -60.0
+		rec.volume_db = -60.0
 		skid.volume_db = -60.0
 		wind.volume_db = -60.0
 		return
 	var s := clampf(speed, 0.0, 1.7)
+	if rec_name != "" and rec.playing:
+		# revs climb through each gear and drop at the shift, like the web's
+		var GT := [0.0, 0.2, 0.42, 0.64, 0.86, 1.31]
+		var r := minf(1.3, s)
+		var gi := 0
+		while gi < 4 and r > float(GT[gi + 1]):
+			gi += 1
+		var rpm := minf(1.12, 0.3 + 0.7 * minf(1.0, (r - float(GT[gi])) / (float(GT[gi + 1]) - float(GT[gi]))) + (0.12 if boosting else 0.0))
+		var ef := (24.0 + rpm * 58.0 + gi * 4.0) * float(prof[0])
+		rec.pitch_scale = clampf(ef / (75.5 * float(prof[0])) * float(prof[3]), 0.3, 2.5)
+		rec.volume_db = linear_to_db(volume * float(prof[4]) * (0.17 + 0.16 * rpm) * (1.0 if gas else 0.7))
+		eng.volume_db = -60.0
+		eng2.volume_db = -60.0
+		skid.volume_db = linear_to_db(volume * 0.22) if drifting else -60.0
+		skid.pitch_scale = 0.9 + 0.12 * tier
+		wind.volume_db = linear_to_db(volume * clampf((s - 0.4) * 0.35, 0.001, 0.4))
+		wind.pitch_scale = 0.8 + 0.5 * s
+		return
+	rec.volume_db = -60.0
 	eng.pitch_scale = 0.7 + s * 1.15 + (0.12 if boosting else 0.0)
 	eng2.pitch_scale = eng.pitch_scale
 	eng.volume_db = linear_to_db(volume * (0.2 + 0.14 * s) * (1.0 if gas else 0.6))

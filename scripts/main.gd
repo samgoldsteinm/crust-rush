@@ -852,6 +852,8 @@ func _start_race(cfg: Dictionary) -> void:
 	race.mode = "lss" if lss else ""
 	T.LAPS = maxi(2, race.karts.size() - 1) if race.mode == "lss" else 3
 	spec_k = null
+	if sfx != null and kart != null:
+		sfx.set_body(String(kart.info.get("body", "")))
 	view.setup(T, race, fx, cam, items_lib)
 	for k in race.karts:
 		view.add_kart(k, _kart_scene)
