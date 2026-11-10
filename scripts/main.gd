@@ -84,11 +84,14 @@ var toast_t := 0.0
 var fps_cap := 60
 var res_scale := 1.0
 var is_phone := false
+var quality := 2             # 0 Low (the web look), 1 High, 2 Ultra
+var btn_quality: Button
 var stats := {"used": {}, "spins": 0, "boxes": 0, "player_spins": 0}
 
 
 func _ready() -> void:
 	is_phone = OS.has_feature("mobile") or DisplayServer.is_touchscreen_available() and OS.get_name() in ["iOS", "Android"]
+	quality = 0 if is_phone else 2
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	T = TrackData.load_from(TRACK_JSON)
 	if T == null:
@@ -146,14 +149,6 @@ func _build_world() -> void:
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.07
 	env.adjustment_saturation = 1.06
-	if not is_phone:
-		env.ssao_enabled = true
-		env.ssao_radius = 2.5
-		env.ssao_intensity = 1.6
-		env.glow_enabled = true
-		env.glow_intensity = 0.35
-		env.glow_bloom = 0.04
-		env.glow_hdr_threshold = 1.1
 	var fog = L.get("fog")
 	if typeof(fog) == TYPE_DICTIONARY:
 		env.fog_enabled = true
@@ -177,16 +172,15 @@ func _build_world() -> void:
 	sun.light_color = _hex(L.get("sunColor"), Color(1, 0.84, 0.66))
 	sun.light_energy = float(L.get("sunI", 3.25)) * 1.25
 	sun.shadow_enabled = true
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if not is_phone else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
-	sun.directional_shadow_max_distance = 900.0 if not is_phone else 700.0
-	sun.directional_shadow_blend_splits = true
-	sun.shadow_blur = 1.0
+	Gfx.apply_environment(env, sun, quality, is_phone)
 
 	# the track: exported cells; clutter cells ("_d") get distance culling like the web game
 	var ps: PackedScene = load(TRACK_SCENE)
 	var track := ps.instantiate()
 	add_child(track)
 	_prepare_track(track)
+	var up := Gfx.upgrade_track(track, quality, T.R, [Color.html("#2a8fb0"), Color.html("#06384a")])
+	print("surface detail: %d flat-coloured materials given grain, %d textured ones given relief, %d water sheets" % [up[0], up[1], up[2]])
 
 
 ## Godot's glTF import doesn't switch vertex colours on in the materials it creates, and most of the
@@ -262,6 +256,7 @@ func _kart_view(k: Kart) -> Dictionary:
 	var model := ps.instantiate()
 	node.add_child(model)
 	_use_vertex_colours(model)
+	Gfx.upgrade_kart(model, quality)
 	var meta: Dictionary = info.get("meta", {})
 	var sc := float(meta.get("scale", 2.024))
 	var wheels: Array = []
@@ -290,7 +285,45 @@ func _kart_view(k: Kart) -> Dictionary:
 	bub.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	bub.visible = false
 	add_child(bub)
-	return {"node": node, "body": model.find_child("body", true, false), "wheels": wheels, "sc": sc, "bubble": bub, "held": null, "held_it": "", "top": float(meta.get("top", 7.0))}
+	var flame := _emitter(Color(1.0, 0.55, 0.12), 48, 0.28, 3.4, 70.0)
+	var sparks := _emitter(Color(0.4, 0.75, 1.0), 40, 0.35, 1.3, 55.0)
+	sparks.gravity = Vector3(0, -120, 0)
+	sparks.spread = 50.0
+	return {"node": node, "body": model.find_child("body", true, false), "wheels": wheels, "sc": sc, "bubble": bub, "held": null, "held_it": "", "top": float(meta.get("top", 7.0)), "flame": flame, "sparks": sparks, "ax_r": float(meta.get("axR", -3.0)) * sc}
+
+
+## a stream of glowing particles (boost flames, drift sparks); switched on and off per kart
+func _emitter(col: Color, amount: int, life: float, size: float, speed: float) -> CPUParticles3D:
+	var p := CPUParticles3D.new()
+	p.emitting = false
+	p.amount = amount
+	p.lifetime = life
+	p.local_coords = false
+	p.direction = Vector3(-1, 0.12, 0)
+	p.spread = 14.0
+	p.initial_velocity_min = speed * 0.6
+	p.initial_velocity_max = speed
+	p.gravity = Vector3(0, 12, 0)
+	p.scale_amount_min = size * 0.6
+	p.scale_amount_max = size
+	var curve := Curve.new()
+	curve.add_point(Vector2(0, 1))
+	curve.add_point(Vector2(1, 0))
+	p.scale_amount_curve = curve
+	p.color = col
+	var qm := QuadMesh.new()
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	m.vertex_color_use_as_albedo = true
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = Color(1, 1, 1, 0.9)
+	qm.material = m
+	p.mesh = qm
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(p)
+	return p
 
 
 func _clear_race_nodes() -> void:
@@ -298,6 +331,8 @@ func _clear_race_nodes() -> void:
 		var v: Dictionary = views[k]
 		(v["node"] as Node).queue_free()
 		(v["bubble"] as Node).queue_free()
+		(v["flame"] as Node).queue_free()
+		(v["sparks"] as Node).queue_free()
 		if v["held"] != null:
 			(v["held"] as Node).queue_free()
 	views.clear()
@@ -467,7 +502,7 @@ func _build_hud() -> void:
 	# pause
 	panel_pause = PanelContainer.new()
 	panel_pause.add_theme_stylebox_override("panel", _box_style(Color(0.12, 0.06, 0.04, 0.92), Color(1, 0.82, 0.3), 26, 4))
-	_place(panel_pause, 0.5, 0.5, 0.5, 0.5, -230, -210, 230, 210)
+	_place(panel_pause, 0.5, 0.5, 0.5, 0.5, -230, -250, 230, 250)
 	var mg2 := MarginContainer.new()
 	for side in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
 		mg2.add_theme_constant_override(side, 26)
@@ -478,13 +513,15 @@ func _build_hud() -> void:
 	var pt := _label(44, Vector2.ZERO, HORIZONTAL_ALIGNMENT_CENTER)
 	pt.text = "Paused"
 	vb.add_child(pt)
-	for spec in [["Resume", _toggle_pause], ["Restart race", _restart], ["Full screen", _toggle_fullscreen], ["Quit", _quit]]:
+	for spec in [["Resume", _toggle_pause], ["Restart race", _restart], ["Graphics: Ultra", _cycle_quality], ["Full screen", _toggle_fullscreen], ["Quit", _quit]]:
 		var b := Button.new()
 		b.text = spec[0]
 		b.add_theme_font_size_override("font_size", 26)
 		b.custom_minimum_size = Vector2(0, 54)
 		b.pressed.connect(spec[1])
 		vb.add_child(b)
+		if String(spec[0]).begins_with("Graphics"):
+			btn_quality = b
 	panel_pause.visible = false
 	root.add_child(panel_pause)
 
@@ -494,6 +531,16 @@ func _apply_display() -> void:
 	res_scale = 0.67 if is_phone else 1.0
 	_apply_fps()
 	_apply_res()
+	Gfx.apply_viewport(get_viewport(), quality, is_phone)
+	btn_quality.text = "Graphics: " + ["Low", "High", "Ultra"][quality]
+
+
+## Ultra -> High -> Low -> Ultra: lighting, shadows and screen effects change at once
+func _cycle_quality() -> void:
+	quality = (quality + 2) % 3
+	Gfx.apply_environment(env, sun, quality, is_phone)
+	Gfx.apply_viewport(get_viewport(), quality, is_phone)
+	btn_quality.text = "Graphics: " + ["Low", "High", "Ultra"][quality]
 
 
 func _toggle_fps() -> void:
@@ -1011,6 +1058,19 @@ func _process(dt: float) -> void:
 				n.rotation.z -= k.speed * dt / (float(w["r"]) * T.KS)
 				if w["front"]:
 					n.rotation.y = -k.steer * 0.38
+		# boost flames out of the back, drift sparks at the rear wheels (blue, orange, pink as the charge builds)
+		var flame: CPUParticles3D = v["flame"]
+		var rear := Vector3(kx + cos(ka) * float(v["ax_r"]) - cos(ka) * 4.0, kz + 3.0, ky + sin(ka) * float(v["ax_r"]) - sin(ka) * 4.0)
+		flame.emitting = k.boost > 0.0 and not paused and k.spin <= 0.0
+		flame.position = rear
+		flame.rotation.y = -ka
+		flame.color = Color(0.45, 0.95, 1.0) if k.rush > 0.0 else Color(1.0, 0.55, 0.12)
+		var sparks: CPUParticles3D = v["sparks"]
+		sparks.emitting = k.drift != 0 and k.tier > 0 and not k.air and not paused
+		sparks.position = rear + Vector3(0, -2.2, 0)
+		sparks.rotation.y = -ka
+		if k.tier > 0:
+			sparks.color = [Color(0.4, 0.75, 1.0), Color(0.4, 0.75, 1.0), Color(1.0, 0.6, 0.15), Color(1.0, 0.4, 0.85)][k.tier]
 		# garlic bubble
 		var bub: MeshInstance3D = v["bubble"]
 		bub.visible = k.sh_l > 0
