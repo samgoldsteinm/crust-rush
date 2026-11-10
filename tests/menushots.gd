@@ -20,6 +20,20 @@ func _ready() -> void:
 		[6, func():
 			main.menu.close_modal()
 			main.menu.open("driver"), "p_driver"],
+		[14, func():
+			main.menu.g_tab = "kart"
+			main.menu.open("garage"), "p_garage"],
+		[10, func():
+			main.menu.g_tab = "car"
+			main.menu.open("garage"), "p_garage_car"],
+		[10, func():
+			main.menu.g_tab = "theme"
+			main.menu.build["t"] = "flame"
+			main.menu.open("garage"), "p_garage_theme"],
+		[10, func():
+			main.menu.g_tab = "glider"
+			main.menu.build["b"] = 1
+			main.menu.open("garage"), "p_garage_glider"],
 		[6, func(): main.menu.open("track"), "p_track"],
 		[6, func():
 			main.sel["mode"] = "single"

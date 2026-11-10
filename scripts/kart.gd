@@ -95,6 +95,21 @@ var spin := 0.0
 var frozen := 0.0
 var rush := 0.0
 var oil_t := 0.0
+# the special ability (web useAbility / abilityTick): charge, queued volleys and what each one leaves running
+var ab_c := 0.0           # 0..1, full after 30 s of racing
+var ab_q: Array = []      # [[seconds left, Callable]]
+var ab_wait := -1.0       # computer drivers: a short think before firing
+var fire_t := 0.0         # Chili: laying fire
+var fire_acc := 0.0
+var mega_t := 0.0         # Shroom: giant
+var flat_t := 0.0         # squashed by a Mega Shroom
+var flat_imm := 0.0
+var pesto_t := 0.0        # Basil: untouchable boost
+var chili_t := 0.0
+var olive_t := 0.0
+var ab_fx := 0.0          # sparkle trail while an ability runs
+var ab_col := Color.WHITE
+var burn_t := 0.0         # caught fire (drawing only)
 var wall_hit := false
 var wall_n := Vector2.ZERO  # last wall's outward normal (for the sparks)
 var f_tier := 0           # which drift tier the current boost came from (flame colour)
@@ -248,7 +263,8 @@ func step(inp: Dictionary, dt: float) -> void:
 		abs_t -= dt
 	if rush > 0.0:
 		rush -= dt
-		mx *= 1.12
+		if not (pesto_t > 0.0):
+			mx *= 1.12
 		pen = maxf(pen, 0.95)
 	if oil_t > 0.0:
 		oil_t -= dt
@@ -256,6 +272,8 @@ func step(inp: Dictionary, dt: float) -> void:
 	if frozen > 0.0:
 		frozen -= dt
 		mx *= 0.55
+	if flat_t > 0.0:
+		mx = minf(mx * 0.6, base_max * mul * pen * sm_spd * 0.6)
 
 	var v0 := speed
 	if spin > 0.0:

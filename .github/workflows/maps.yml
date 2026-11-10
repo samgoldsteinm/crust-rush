@@ -1,12 +1,13 @@
 # Exports every track of the published web game (branch main) for the PC build, one runner per track,
-# and attaches them to the "maps" release. The PC build downloads them from there, so the big track files
-# never go into git. Run it by hand after the web game's tracks change.
+# and its garage (every body, wheel set, glider and driver) on one more, and attaches them to the "maps"
+# release. The PC build downloads them from there, so the big model files never go into git. Run it by hand
+# after the web game's tracks or karts change.
 name: Export tracks
 
 on:
   push:
     branches: [godot]
-    paths: [tools/ciexport.py, tools/glbexport.js, .github/workflows/maps.yml]
+    paths: [tools/ciexport.py, tools/cigarage.py, tools/glbexport.js, .github/workflows/maps.yml]
   workflow_dispatch:
     inputs:
       maps:
@@ -51,3 +52,33 @@ jobs:
         run: |
           gh release view maps -R "$GITHUB_REPOSITORY" > /dev/null 2>&1 || gh release create maps -R "$GITHUB_REPOSITORY" --title "PC build tracks" --notes "Tracks exported from the web game for the PC build (made by the Export tracks workflow)." --target godot --prerelease
           for z in map-*.zip; do gh release upload maps "$z" -R "$GITHUB_REPOSITORY" --clobber; done
+
+  garage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: pc
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: web
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Browser
+        run: |
+          pip install -q playwright
+          python -m playwright install --with-deps chromium > /dev/null
+      - name: Export the garage
+        run: |
+          WEB=web OUT=garage python3 pc/tools/cigarage.py
+          zip -qr garage.zip garage
+          ls -la garage.zip
+      - name: Attach to the "maps" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view maps -R "$GITHUB_REPOSITORY" > /dev/null 2>&1 || gh release create maps -R "$GITHUB_REPOSITORY" --title "PC build tracks" --notes "Tracks and garage exported from the web game for the PC build (made by the Export tracks workflow)." --target godot --prerelease
+          gh release upload maps garage.zip -R "$GITHUB_REPOSITORY" --clobber

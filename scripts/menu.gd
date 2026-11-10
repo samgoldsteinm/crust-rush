@@ -36,6 +36,18 @@ var f_med: Font
 var mode := "gp"
 var cls := "medium"
 var ri := 1
+var build := {"b": 0, "w": 0, "g": 0, "p": 0, "t": ""}   # the kart build (web playerBuild)
+var g_tab := "kart"
+var stats_on := true
+var _gview: SubViewport
+var _gkart: Node3D
+var _gturn: Node3D
+var _grot := 0.6
+var _gcam: Camera3D
+var _grad := 8.0
+var _gcy := 3.0
+var _gasp := 0.0
+var _gdrag := false
 var map_id := "bay"
 var cup := 0
 var maps: Array = []           # from main.maps: {id, name, mi, theme, cup}
@@ -67,8 +79,10 @@ func _input(ev: InputEvent) -> void:
 			close_modal()
 		elif cur == "driver":
 			open("home")
-		elif cur == "track":
+		elif cur == "garage":
 			open("driver")
+		elif cur == "track":
+			open("garage" if KartBuilder.ready() else "driver")
 		get_viewport().set_input_as_handled()
 var _seg_groups := {}
 
@@ -81,6 +95,7 @@ func _ready() -> void:
 	f_semi = load("res://assets/fonts/ChakraPetch-SemiBold.ttf")
 	f_med = load("res://assets/fonts/ChakraPetch-Medium.ttf")
 	bg = _Backdrop.new()
+	bg.blur = false
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
@@ -99,12 +114,34 @@ func zi(v: float) -> int:
 class _Backdrop extends Control:
 	## .overlay: a warm dark wash over the live track (darker at the bottom), an orange glow top-left, a red one bottom-right
 	var dim := 1.0
+	var blur := true
+	var _br: ColorRect
+	## the overlays (garage, pop-ups, pause) blur what is behind them; the menu screens don't
+	func set_blur(on: bool) -> void:
+		blur = on
+		if _br != null:
+			_br.visible = on
+	func _ready() -> void:
+		# backdrop-filter: blur(6px): the track behind is drawn soft, under the wash
+		if true:
+			var br := ColorRect.new()
+			_br = br
+			br.visible = blur
+			br.show_behind_parent = true
+			br.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			br.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			var sm := ShaderMaterial.new()
+			sm.shader = load("res://shaders/backdrop_blur.gdshader")
+			br.material = sm
+			add_child(br)
+			resized.connect(func():
+				sm.set_shader_parameter("lod", clampf(3.0 + log(maxf(1.0, size.y) / 720.0) / log(2.0), 2.0, 4.5)))
 	func _draw() -> void:
 		var r := get_rect()
 		var w := r.size.x
 		var h := r.size.y
-		var top := Color(0.16, 0.07, 0.04, 0.66 * dim)
-		var bot := Color(0.06, 0.025, 0.015, 0.8 * dim)
+		var top := Color(22.0 / 255.0, 11.0 / 255.0, 7.0 / 255.0, minf(1.0, 0.72 * dim))
+		var bot := Color(10.0 / 255.0, 5.0 / 255.0, 3.0 / 255.0, minf(1.0, 0.9 * dim))
 		draw_polygon(PackedVector2Array([Vector2(0, 0), Vector2(w, 0), Vector2(w, h), Vector2(0, h)]), PackedColorArray([top, top, bot, bot]))
 		_glow(Vector2(w * 0.2, 0), w * 0.55, Color(1, 0.54, 0.12, 0.16 * dim))
 		_glow(Vector2(w * 0.9, h), w * 0.5, Color(0.88, 0.27, 0.17, 0.16 * dim))
@@ -357,6 +394,7 @@ func open(name_: String) -> void:
 		(screens[k] as Control).queue_free()
 	screens.clear()
 	cur = name_
+	bg.set_blur(name_ == "garage")
 	var s: Control
 	match name_:
 		"home":
@@ -365,6 +403,8 @@ func open(name_: String) -> void:
 			s = _driver()
 		"track":
 			s = _track()
+		"garage":
+			s = _garage()
 		_:
 			s = _home()
 	screens[name_] = s
@@ -459,7 +499,8 @@ func _driver() -> Control:
 	var root := _screen_root()
 	var v := vbox(8)
 	root.add_child(v)
-	v.add_child(_step_head("‹ Back", "home", "Step 1 of 2", "Choose your driver", "CHOOSE TRACK  ›", func(): open("track")))
+	var three := KartBuilder.ready()
+	v.add_child(_step_head("‹ Back", "home", "Step 1 of 3" if three else "Step 1 of 2", "Choose your driver", "BUILD KART  ›" if three else "CHOOSE TRACK  ›", func(): open("garage" if three else "track")))
 	var body := hbox(14)
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	v.add_child(body)
@@ -641,8 +682,11 @@ func _track() -> Control:
 		if c[0] == cls:
 			cls_label = c[1]
 	var gp := mode == "gp"
-	var small := "Step 2 of 2 · " + cls_label + ("" if mode != "lss" else " · Last Slice")
-	v.add_child(_step_head("‹ Driver", "driver", small, "Cup" if gp else "Track", "START GRAND PRIX" if gp else "START RACE", func(): _go()))
+	var three := KartBuilder.ready()
+	var small := ("Step 3 of 3 · " + build_summary()) if three else ("Step 2 of 2 · " + cls_label)
+	if mode == "lss":
+		small += " · Last Slice"
+	v.add_child(_step_head("‹ Kart" if three else "‹ Driver", "garage" if three else "driver", small, "Cup" if gp else "Track", "START GRAND PRIX" if gp else "START RACE", func(): _go()))
 	var body := hbox(16)
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	v.add_child(body)
@@ -821,7 +865,477 @@ func _map_card(m: Dictionary) -> Button:
 
 
 func _go() -> void:
-	go.emit({"mode": mode, "cls": cls, "ri": ri, "map": map_id, "cup": cup})
+	go.emit({"mode": mode, "cls": cls, "ri": ri, "map": map_id, "cup": cup, "build": build.duplicate()})
+
+
+# ---------------------------------------------------------------- garage (web: the Garage overlay)
+
+func build_summary() -> String:
+	if not KartBuilder.ready():
+		return ""
+	var I: Dictionary = KartBuilder.info
+	var bd: Dictionary = I["bodies"][int(build["b"])]
+	var lv := KartBuilder.livery(String(build.get("t", "")))
+	var wd := KartBuilder.wheel_of(build)
+	return String(bd["name"]) + (" · " + String(lv["name"]) if not lv.is_empty() else "") + " · " + String(wd["name"]) + (" (built in)" if bool(bd.get("bike", false)) else "") + " · " + String(I["gliders"][int(build["g"])]["name"])
+
+
+func _chips(st: Array) -> HFlowContainer:
+	var f := HFlowContainer.new()
+	f.add_theme_constant_override("h_separation", zi(4))
+	f.add_theme_constant_override("v_separation", zi(4))
+	f.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var short: Array = KartBuilder.info.get("statShort", ["SPD", "ACC", "HND", "WGT", "OFF"])
+	var any := false
+	for i in st.size():
+		var v := int(st[i])
+		if v == 0:
+			continue
+		any = true
+		var up := v > 0
+		var pc := panel(box([Color(0.25, 0.55, 0.2, 0.45) if up else Color(0.6, 0.18, 0.12, 0.45)], 180.0, 5.0, Color(0, 0, 0, 0), 0.0, Vector4(5, 1, 5, 1)))
+		pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var l := label(("+" if up else "−") + str(absi(v)) + " " + String(short[i]), f_bold, 9.5, Color("#b8f0a8") if up else Color("#ffb4a0"))
+		pc.add_child(l)
+		f.add_child(pc)
+	if not any:
+		var pc2 := panel(box([Color(1, 0.957, 0.863, 0.1)], 180.0, 5.0, Color(0, 0, 0, 0), 0.0, Vector4(5, 1, 5, 1)))
+		pc2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		pc2.add_child(label("NEUTRAL", f_bold, 9.5, CREAM))
+		f.add_child(pc2)
+	return f
+
+
+func _part_card(name_: String, st: Array, on: bool, dense: bool) -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(z(110 if dense else 140), z(48 if dense else 74))
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_mark_card(b, on)
+	var v := vbox(4)
+	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	v.offset_left = z(10)
+	v.offset_top = z(8)
+	v.offset_right = -z(8)
+	v.offset_bottom = -z(6)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(v)
+	var l := label(name_, f_bold, 12.0 if dense else 14.0, CHEESE if on else CREAM)
+	l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	v.add_child(l)
+	v.add_child(_chips(st))
+	return b
+
+
+func _garage() -> Control:
+	var root := _screen_root()
+	var I: Dictionary = KartBuilder.info
+	var v := vbox(10)
+	root.add_child(v)
+	# header: back, title, tabs, next
+	var h := hbox(14)
+	var back := button("‹ Driver", "ghost", 15.0, Vector4(16, 10, 16, 10))
+	back.pressed.connect(func(): open("driver"))
+	h.add_child(back)
+	var tv := vbox(0)
+	tv.add_child(label("GARAGE", f_disp, 30.0, CHEESE, SAUCE_DARK, Vector2(0, 3)))
+	tv.add_child(label("STEP 2 OF 3", f_bold, 9.0, MUTED))
+	h.add_child(tv)
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(sp)
+	var is_bike := bool(I["bodies"][int(build["b"])].get("bike", false))
+	var tabs := [["kart", "Karts"], ["car", "Cars"], ["bike", "Bikes"], ["glider", "Glider"], ["colour", "Colour"], ["theme", "Theme"]]
+	if not is_bike:
+		tabs.insert(3, ["wheel", "Wheels"])
+	elif g_tab == "wheel":
+		g_tab = "bike"
+	h.add_child(seg("gtab", tabs, g_tab, func(k):
+		g_tab = k
+		open("garage"), 14.0, 6.0))
+	var sp2 := Control.new()
+	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(sp2)
+	var nxt := button("CHOOSE TRACK  ›", "cta", 19.0, Vector4(20, 10, 20, 10))
+	nxt.pressed.connect(func(): open("track"))
+	h.add_child(nxt)
+	default_focus = nxt
+	v.add_child(h)
+	var body := hbox(14)
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(body)
+	# the 3D preview
+	var view := panel(box([Color(0, 0, 0, 0), Color(0, 0, 0, 0)], 180.0, 18.0, Color(1, 0.957, 0.863, 0.12), 1.0, Vector4(1, 1, 1, 1)))
+	view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	view.size_flags_stretch_ratio = 1.15
+	view.clip_contents = true
+	body.add_child(view)
+	var vbg := ColorRect.new()
+	vbg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var vsm := ShaderMaterial.new()
+	vsm.shader = load("res://shaders/gview_bg.gdshader")
+	vbg.material = vsm
+	vbg.resized.connect(func():
+		vsm.set_shader_parameter("size_px", vbg.size)
+		vsm.set_shader_parameter("radius_px", z(17.0)))
+	view.add_child(vbg)
+	var svc := SubViewportContainer.new()
+	svc.stretch = true
+	svc.mouse_filter = Control.MOUSE_FILTER_STOP
+	view.add_child(svc)
+	_gview = SubViewport.new()
+	_gview.own_world_3d = true
+	_gview.transparent_bg = true
+	_gview.msaa_3d = Viewport.MSAA_4X
+	svc.add_child(_gview)
+	_garage_scene()
+	svc.gui_input.connect(func(ev):
+		if ev is InputEventMouseButton:
+			_gdrag = (ev as InputEventMouseButton).pressed and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT
+		elif ev is InputEventMouseMotion and _gdrag:
+			_grot += (ev as InputEventMouseMotion).relative.x * 0.01)
+	var over := vbox(0)
+	over.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	over.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	view.add_child(over)
+	var mg := MarginContainer.new()
+	for k2 in ["margin_left", "margin_top", "margin_right", "margin_bottom"]:
+		mg.add_theme_constant_override(k2, zi(12))
+	mg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mg.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	over.add_child(mg)
+	var ov := vbox(0)
+	ov.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mg.add_child(ov)
+	var rn: String = String(racers_info[ri]["name"]) if ri < racers_info.size() else ""
+	ov.add_child(label((rn + "'s " + String(I["bodies"][int(build["b"])]["name"])).to_upper(), f_disp, 19.0, CHEESE, SAUCE_DARK, Vector2(0, 2)))
+	var fill := Control.new()
+	fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ov.add_child(fill)
+	ov.add_child(_stats_box())
+	# the parts
+	var side := vbox(8)
+	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.add_child(side)
+	var desc := ""
+	var sc := ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var grid := GridContainer.new()
+	grid.add_theme_constant_override("h_separation", zi(8))
+	grid.add_theme_constant_override("v_separation", zi(8))
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(grid)
+	match g_tab:
+		"kart", "car", "bike":
+			var dense := g_tab == "car"
+			grid.columns = 4 if dense else 3
+			for i in (I["bodies"] as Array).size():
+				var bd: Dictionary = I["bodies"][i]
+				var cat := "bike" if bool(bd.get("bike", false)) else ("car" if bool(bd.get("car", false)) else "kart")
+				if cat != g_tab:
+					continue
+				var c := _part_card(String(bd["name"]), bd["st"], i == int(build["b"]), dense)
+				var bi := i
+				c.pressed.connect(func():
+					build["b"] = bi
+					if String(build.get("t", "")) != "":
+						var ok := false
+						for l in KartBuilder.liveries_for(String(I["bodies"][bi]["id"])):
+							if l["id"] == build["t"]:
+								ok = true
+						if not ok:
+							build["t"] = ""
+					_build_changed())
+				grid.add_child(c)
+			var cb: Dictionary = I["bodies"][int(build["b"])]
+			desc = "[b][color=#fff4dc]%s.[/color][/b] %s" % [cb["name"], cb["desc"]]
+		"wheel", "glider":
+			var list: Array = I["wheels"] if g_tab == "wheel" else I["gliders"]
+			var key := "w" if g_tab == "wheel" else "g"
+			grid.columns = 3
+			for i in list.size():
+				var pd: Dictionary = list[i]
+				var c2 := _part_card(String(pd["name"]), pd["st"], i == int(build[key]), false)
+				var pi := i
+				c2.pressed.connect(func():
+					build[key] = pi
+					_build_changed())
+				grid.add_child(c2)
+			var cp: Dictionary = list[int(build[key])]
+			desc = "[b][color=#fff4dc]%s.[/color][/b] %s" % [cp["name"], cp["desc"]]
+		"colour":
+			grid.columns = 5
+			var paints: Array = I["paints"]
+			var pn: Array = I["paintNames"]
+			for i in paints.size():
+				var sw := Button.new()
+				sw.custom_minimum_size = Vector2(z(64), z(64))
+				sw.tooltip_text = String(pn[i])
+				var col := Color(String(paints[i])) if paints[i] != null else Color(String(I["racers"][ri]["color"]))
+				var on := i == int(build["p"]) and String(build.get("t", "")) == ""
+				var st := box([col], 180.0, 32.0, CHEESE if on else Color(1, 0.957, 0.863, 0.3), 3.0 if on else 1.5)
+				for s2 in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
+					sw.add_theme_stylebox_override(s2, st)
+				var pi2 := i
+				sw.pressed.connect(func():
+					build["p"] = pi2
+					build["t"] = ""
+					_build_changed())
+				grid.add_child(sw)
+			desc = "[b][color=#fff4dc]%s.[/color][/b] One colour all over the kart." % pn[int(build["p"])]
+		"theme":
+			grid.columns = 4
+			var none := _livery_card({"id": "", "name": "No theme", "A": "#5a4a40", "B": "#5a4a40", "C": "#5a4a40"}, String(build.get("t", "")) == "")
+			none.pressed.connect(func():
+				build["t"] = ""
+				_build_changed())
+			grid.add_child(none)
+			for l in KartBuilder.liveries_for(String(I["bodies"][int(build["b"])]["id"])):
+				if l.get("lock") != null:
+					continue
+				var lc := _livery_card(l, String(l["id"]) == String(build.get("t", "")))
+				var lid := String(l["id"])
+				lc.pressed.connect(func():
+					build["t"] = lid
+					_build_changed())
+				grid.add_child(lc)
+			desc = "Multi-colour liveries. Some are made for one body only."
+	var rt := RichTextLabel.new()
+	rt.bbcode_enabled = true
+	rt.fit_content = true
+	rt.scroll_active = false
+	rt.add_theme_font_override("normal_font", f_med)
+	rt.add_theme_font_override("bold_font", f_bold)
+	rt.add_theme_font_size_override("normal_font_size", zi(12))
+	rt.add_theme_font_size_override("bold_font_size", zi(12))
+	rt.add_theme_color_override("default_color", MUTED)
+	rt.text = desc
+	side.add_child(rt)
+	side.add_child(sc)
+	return root
+
+
+## a livery swatch: the three colours in diagonal bands, the name, as on the web's theme cards
+func _livery_card(l: Dictionary, on: bool) -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(z(108), z(64))
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_mark_card(b, on)
+	var v := vbox(4)
+	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	v.offset_left = z(5)
+	v.offset_top = z(5)
+	v.offset_right = -z(5)
+	v.offset_bottom = -z(4)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(v)
+	var stripe := _Bands.new()
+	stripe.cols = [Color(String(l["A"])), Color(String(l["B"])), Color(String(l["C"]))]
+	stripe.custom_minimum_size.y = z(20)
+	stripe.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(stripe)
+	var nl := label(String(l["name"]), f_bold, 11.0, CHEESE if on else CREAM)
+	nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(nl)
+	return b
+
+
+class _Bands extends Control:
+	var cols: Array = []
+	func _draw() -> void:
+		if cols.size() < 3:
+			return
+		var w := size.x
+		var h := size.y
+		var r := 6.0
+		var pts := CssBox.outline(Rect2(Vector2.ZERO, size), Vector4(r, r, r, r))
+		draw_colored_polygon(pts, cols[0])
+		# two slanted bands like the web's swatch
+		for k in 2:
+			var x0 := w * (0.5 + 0.17 * k)
+			var poly := PackedVector2Array([Vector2(x0, h), Vector2(x0 + h * 0.6, 0), Vector2(x0 + h * 0.6 + w * 0.12, 0), Vector2(x0 + w * 0.12, h)])
+			draw_colored_polygon(poly, cols[1 + k])
+
+
+func _stats_box() -> Control:
+	var p := panel(box([Color(0.06, 0.03, 0.02, 0.72)], 180.0, 12.0, Color(1, 0.957, 0.863, 0.12), 1.0, Vector4(10, 8, 10, 8)))
+	p.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	p.custom_minimum_size.x = z(200)
+	var v := vbox(4)
+	p.add_child(v)
+	var hh := hbox(8)
+	var sl := label("STATS", f_bold, 10.0, MUTED)
+	sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hh.add_child(sl)
+	var sg := seg("stats", [["1", "On"], ["0", "Off"]], "1" if stats_on else "0", func(k):
+		stats_on = k == "1"
+		setting_changed.emit("stats", stats_on)
+		open("garage"), 11.0, 3.0)
+	sg.custom_minimum_size.x = z(100)
+	hh.add_child(sg)
+	v.add_child(hh)
+	var names: Array = KartBuilder.info.get("statNames", ["Speed", "Accel", "Handling", "Weight", "Off-road"])
+	var bars := KartBuilder.stat_bars(build) if stats_on else [6, 6, 6, 6, 6]
+	for i in 5:
+		var r := hbox(6)
+		var n := label(String(names[i]).to_upper(), f_bold, 8.5, MUTED)
+		n.custom_minimum_size.x = z(64)
+		r.add_child(n)
+		var dots := _Dots.new()
+		dots.n = int(bars[i])
+		dots.custom_minimum_size = Vector2(z(100), z(8))
+		dots.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		r.add_child(dots)
+		v.add_child(r)
+	return p
+
+
+class _Dots extends Control:
+	var n := 6
+	func _draw() -> void:
+		var step := size.x / 12.0
+		for i in 12:
+			var c := Vector2(step * (i + 0.5), size.y / 2.0)
+			draw_circle(c, step * 0.32, Color("#f7a72e") if i < n else Color(1, 0.957, 0.863, 0.16))
+
+
+func _build_changed() -> void:
+	setting_changed.emit("build", build.duplicate())
+	open("garage")
+
+
+## the preview stage: a round board under the kart, a key light, the kart turning slowly
+func _garage_scene() -> void:
+	# the web's garage stage: a hemisphere fill and a warm key light with soft shadows, a dark crust-brown
+	# floor disc with a cheese-yellow ring, ACES at exposure 1.05, over the panel's own background
+	var w3 := Node3D.new()
+	_gview.add_child(w3)
+	var env := WorldEnvironment.new()
+	var e := Environment.new()
+	e.background_mode = Environment.BG_CLEAR_COLOR
+	var sky := Sky.new()
+	var skm := ShaderMaterial.new()
+	skm.shader = load("res://shaders/sky.gdshader")
+	skm.set_shader_parameter("top_col", Color("#fff1d6"))
+	skm.set_shader_parameter("hor_col", Color("#ffd9a8"))
+	skm.set_shader_parameter("bot_col", Color("#6b3a1e"))
+	skm.set_shader_parameter("sun_col", Color("#ff8a2a"))
+	sky.sky_material = skm
+	sky.radiance_size = Sky.RADIANCE_SIZE_64
+	e.sky = sky
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	e.ambient_light_sky_contribution = 1.0
+	e.ambient_light_energy = 0.75
+	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	e.tonemap_mode = Environment.TONE_MAPPER_ACES
+	e.tonemap_white = 16.0
+	e.tonemap_exposure = 1.05 * (1.0 / 0.6) / 1.8
+	env.environment = e
+	w3.add_child(env)
+	var sun := DirectionalLight3D.new()
+	sun.light_energy = 2.4
+	sun.light_color = Color("#fff0d8")
+	sun.shadow_enabled = true
+	sun.shadow_blur = 1.5
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+	sun.directional_shadow_max_distance = 60.0
+	w3.add_child(sun)
+	sun.look_at_from_position(Vector3(10, 22, 12), Vector3.ZERO, Vector3.UP)
+	_gcam = Camera3D.new()
+	_gcam.fov = 30.0
+	w3.add_child(_gcam)
+	var fl := MeshInstance3D.new()
+	var disc := CylinderMesh.new()
+	disc.top_radius = 15.5
+	disc.bottom_radius = 15.5
+	disc.height = 0.02
+	disc.radial_segments = 64
+	disc.rings = 1
+	fl.mesh = disc
+	var fm := StandardMaterial3D.new()
+	fm.albedo_color = Color("#3a2216")
+	fm.roughness = 0.85
+	fl.material_override = fm
+	fl.position.y = -0.01
+	w3.add_child(fl)
+	var rg := MeshInstance3D.new()
+	rg.mesh = View._flat_ring(14.3, 15.0)
+	var rm := StandardMaterial3D.new()
+	rm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	rm.albedo_color = Color("#f7c948")
+	rm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	rg.material_override = rm
+	rg.position.y = 0.03
+	rg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	w3.add_child(rg)
+	_gturn = Node3D.new()
+	w3.add_child(_gturn)
+	var built := KartBuilder.build(build, ri)
+	_grad = 8.0
+	_gcy = 3.0
+	if not built.is_empty():
+		_gkart = built["node"]
+		_gturn.add_child(_gkart)
+		var sc := float((built["meta"] as Dictionary).get("scale", 1.76)) / 1.76
+		_gturn.scale = Vector3.ONE * sc
+		# frame the camera on the kart's bounds, as the web does (gModel.rad, gModel.cy)
+		var bb := AABB()
+		var first := true
+		for mi in _gkart.find_children("*", "MeshInstance3D", true, false):
+			var m := mi as MeshInstance3D
+			if not m.is_visible_in_tree() or m.mesh == null:
+				continue
+			var ab := (_gturn.transform * _gkart.transform * _rel_xf(m, _gkart)) * m.mesh.get_aabb()
+			bb = ab if first else bb.merge(ab)
+			first = false
+		if not first:
+			_grad = bb.size.length() * 0.5
+			_gcy = bb.position.y + bb.size.y * 0.5
+	_frame_garage_cam()
+
+
+## a node's transform relative to an ancestor
+static func _rel_xf(n: Node3D, top: Node3D) -> Transform3D:
+	var xf := Transform3D.IDENTITY
+	var c: Node = n
+	while c != null and c != top:
+		if c is Node3D:
+			xf = (c as Node3D).transform * xf
+		c = c.get_parent()
+	return xf
+
+
+## web frameGarageCam (no glider unfolded, normal zoom): fit the kart's bounding sphere in a 30 degree view, raised .22 rad
+func _frame_garage_cam() -> void:
+	if _gcam == null or not is_instance_valid(_gcam):
+		return
+	var asp := 1.6
+	if _gview != null and _gview.size.y > 0:
+		asp = float(_gview.size.x) / float(_gview.size.y)
+	var vh := deg_to_rad(15.0)
+	var hh := atan(tan(vh) * asp)
+	var d := _grad / sin(minf(vh, hh)) * 0.84
+	var el := 0.22
+	var hz := cos(el) * d
+	var sh := _grad * 0.34 * minf(1.0, asp / 1.3)
+	_gcam.near = maxf(0.5, minf(d - _grad * 1.6, d * 0.25))
+	_gcam.far = maxf(200.0, d * 8.0)
+	_gcam.look_at_from_position(Vector3(hz * 0.756 - sh * 0.654, _gcy + sin(el) * d, hz * 0.654 + sh * 0.756), Vector3(-sh * 0.654, _gcy - _grad * 0.16, sh * 0.756), Vector3.UP)
+
+
+func _process(dt: float) -> void:
+	if _gturn != null and is_instance_valid(_gturn) and cur == "garage":
+		if not _gdrag:
+			_grot += dt * 0.4
+		_gturn.rotation.y = _grot
+		var a := float(_gview.size.x) / maxf(1.0, float(_gview.size.y))
+		if absf(a - _gasp) > 0.01:
+			_gasp = a
+			_frame_garage_cam()
 
 
 # ---------------------------------------------------------------- overlays

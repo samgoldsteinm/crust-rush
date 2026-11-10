@@ -34,6 +34,7 @@ func _frames(n: int) -> void:
 func _wait_t(sec: float) -> void:
 	for i in int(round(sec * 120.0)):
 		main._sim_tick(1.0 / 120.0)
+	main.cam_snap = true      # the web's camera follows every step; here it would still be where the race was before the jump
 	await _frames(2)
 
 

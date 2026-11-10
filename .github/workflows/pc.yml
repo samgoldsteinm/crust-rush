@@ -30,7 +30,7 @@ jobs:
           mkdir -p "$dest"
           mv templates/* "$dest/"
 
-      - name: Fetch the tracks (the "maps" release, made by the Export tracks workflow)
+      - name: Fetch the tracks and the garage (the "maps" release, made by the Export tracks workflow)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -40,6 +40,11 @@ jobs:
             for z in "$RUNNER_TEMP"/maps_zip/*.zip; do [ -f "$z" ] && unzip -q -o "$z" -d maps; done
           fi
           ls maps; du -sh maps
+          # the garage's bodies, wheels, gliders and drivers (imported with the project)
+          if gh release download maps -R "$GITHUB_REPOSITORY" -p 'garage.zip' -D "$RUNNER_TEMP/garage_zip"; then
+            mkdir -p assets && unzip -q -o "$RUNNER_TEMP/garage_zip/garage.zip" -d assets
+          fi
+          ls assets/garage | wc -l || true
 
       - name: Import the project
         run: |

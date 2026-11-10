@@ -121,7 +121,7 @@ var net_out: Array = []
 var net_addr := ""
 var net_ready := false       # client: the connection to the host is up
 var upnp_thread: Thread
-var stats := {"used": {}, "spins": 0, "boxes": 0, "player_spins": 0}
+var stats := {"used": {}, "spins": 0, "boxes": 0, "player_spins": 0, "abilities": {}}
 
 
 func _ready() -> void:
@@ -791,7 +791,7 @@ func _start_race(cfg: Dictionary) -> void:
 	race = Race.new()
 	var pri := int(sel["ri"])
 	if cfg.is_empty():
-		race.setup(T, roster, pri, 0, String(sel["cls"]))
+		race.setup(T, roster, pri, 0, String(sel["cls"]), _my_build())
 	else:
 		race.setup_cfg(T, roster, cfg, multiplayer.get_unique_id())
 	kart = race.player
@@ -822,7 +822,7 @@ func _start_race(cfg: Dictionary) -> void:
 	cam_snap = true
 	shake_imp = 0.0
 	fin_punch = 0.0
-	stats = {"used": {}, "spins": 0, "boxes": 0, "player_spins": 0}
+	stats = {"used": {}, "spins": 0, "boxes": 0, "player_spins": 0, "abilities": {}}
 	_show_center("3", 0.9)
 
 
@@ -945,7 +945,7 @@ func _drain_events() -> void:
 				net_out.append(["e", i, e])
 		for e in race.fx:
 			var d: Dictionary = (e as Dictionary).duplicate()
-			for key in ["k", "a", "b"]:
+			for key in ["k", "a", "b", "by"]:
 				if d.has(key) and d[key] is Kart:
 					d[key] = race.karts.find(d[key])
 			net_out.append(d)
@@ -1064,6 +1064,45 @@ func _drain_events() -> void:
 				_show_center("Oily wheels!", 0.9, "sm")
 				_edge(Color("#c8b23a"), true)
 				_shake(0.25)
+		elif t == "ability":
+			var ka: Kart = ed["k"]
+			stats["abilities"][String(ed["id"])] = int(stats["abilities"].get(String(ed["id"]), 0)) + 1
+			var A: Array = Race.ABIL.get(String(ed["id"]), ["", "", "#ffe066"])
+			if ka == kart:
+				sfx.play("ability", 0.9)
+				_show_center(String(A[0]), 1.1, "sm")
+				_shake(0.6)
+				hud.abil_flash(Color(String(A[2])))
+			elif _near(ka) > 0.0:
+				sfx.play("ability", _near(ka) * 0.6)
+		elif t == "ability_ready":
+			if ed["k"] == kart:
+				sfx.play("ready", 0.8)
+		elif t == "melt":
+			if ed["k"] == kart:
+				sfx.play("shield", 0.9)
+				sfx.play("block", 0.6)
+				_shake(0.2)
+		elif t == "flat":
+			var kf: Kart = ed["k"]
+			if kf == kart:
+				_shake(0.55)
+			elif ed.get("by") == kart:
+				_shake(0.3)
+			sfx.play("bump", maxf(_near(kf), 0.4))
+		elif t == "blast":
+			var bsc := maxf(1.0, float(ed["r"]) / 130.0)
+			var bp := Vector2(float(ed["x"]), float(ed["y"]))
+			var cd2 := Vector2(cam.global_position.x, cam.global_position.z).distance_to(bp)
+			sfx.play("boom", maxf(0.3, clampf(1.0 - cd2 / 420.0, 0.0, 1.0)))
+			if cd2 < 160.0 * bsc:
+				_shake(0.9 * minf(1.6, bsc))
+		elif t == "dodge":
+			if ed["k"] == kart:
+				_show_center("Dodged!", 0.6, "sm")
+		elif t == "ricochet":
+			var rp := Vector3(float(ed["x"]), T.ground(float(ed["x"]), float(ed["y"])), float(ed["y"]))
+			sfx.play("bump", clampf(1.0 - rp.distance_to(cam.global_position) / 420.0, 0.0, 1.0) * 0.45)
 	race.fx.clear()
 
 
@@ -1320,6 +1359,8 @@ func _input(ev: InputEvent) -> void:
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and hud != null and hud_race.visible and state != "menu":
 			if hud.pause_rect().has_point(mb.position):
 				_toggle_pause()
+			elif hud.special_rect().has_point(mb.position):
+				item_queued = "ability"
 			elif hud.item_rect(1).has_point(mb.position):
 				item_queued = "fwd"
 			elif hud.item_rect(2).has_point(mb.position):
@@ -1339,6 +1380,9 @@ func _input(ev: InputEvent) -> void:
 					item_queued = "fwd2"
 				KEY_SHIFT, KEY_B:
 					item_queued = "hold"
+				KEY_C, KEY_R:
+					if state == "race":
+						item_queued = "ability"
 				KEY_P, KEY_ESCAPE:
 					if not (menu != null and menu.visible):
 						_toggle_pause()
@@ -1348,6 +1392,8 @@ func _input(ev: InputEvent) -> void:
 		var jb := ev as InputEventJoypadButton
 		if jb.pressed:
 			pad_used_at = Time.get_ticks_msec()
+			if jb.button_index == JOY_BUTTON_Y and state == "race":
+				item_queued = "ability"
 			if jb.button_index == JOY_BUTTON_START:
 				if state == "results":
 					_results_primary()
@@ -1591,6 +1637,18 @@ func _menu_sync() -> void:
 	menu.ri = int(sel["ri"])
 	menu.cup = int(sel["cup"])
 	menu.map_id = map_id
+	menu.build = _my_build() if KartBuilder.ready() else menu.build
+
+
+## the player's kart build: the garage's choice, else the build the web game gave this driver
+func _my_build() -> Dictionary:
+	if not KartBuilder.ready():
+		return {}
+	var b = sel.get("build")
+	if b is Dictionary and not (b as Dictionary).is_empty():
+		return b
+	var pl: Dictionary = roster.get("player", {})
+	return {"b": int(pl.get("b", 0)), "w": int(pl.get("w", 0)), "g": int(pl.get("g", 0)), "p": int(pl.get("p", 0)), "t": String(pl.get("t", ""))}
 
 
 ## the track menu: show the chosen track behind the menu
@@ -1819,6 +1877,9 @@ func _load_settings() -> void:
 	sfx_vol = float(cf.get_value("snd", "vol", 1.0))
 	for k in ["mode", "cls", "ri", "cup"]:
 		sel[k] = cf.get_value("menu", k, sel[k])
+	var bb = cf.get_value("menu", "build", {})
+	if bb is Dictionary:
+		sel["build"] = bb
 	var mid := String(cf.get_value("menu", "map", ""))
 	if mid != "" and map_id == "" and OS.get_environment("CR_MAP") == "":
 		map_id = mid
@@ -1967,7 +2028,7 @@ func _net_start() -> void:
 	var peers: Array = [1]
 	peers.append_array(net_peers)
 	var pri := int(sel["ri"])
-	var cfg := Race.new().make_cfg(roster, pri, peers, int(randi() & 0x7fffffff) + 1, String(sel["cls"]))
+	var cfg := Race.new().make_cfg(roster, pri, peers, int(randi() & 0x7fffffff) + 1, String(sel["cls"]), _my_build())
 	cfg["map"] = map_id
 	_net_begin.rpc(cfg)
 	_start_race(cfg)
@@ -1991,7 +2052,7 @@ func _net_input(steer: float, bits: int) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _net_item(it: String) -> void:
-	if net_role != "host" or race == null or not it in ["fwd", "fwd2", "hold", "hold2"]:
+	if net_role != "host" or race == null or not it in ["fwd", "fwd2", "hold", "hold2", "ability"]:
 		return
 	var id := multiplayer.get_remote_sender_id()
 	for k in race.karts:
@@ -2015,16 +2076,17 @@ func _net_host_tick() -> void:
 		ks.append([k.x, k.y, k.wy, k.a, k.ma, k.speed, k.steer, k.boost, k.spin, k.inv, k.rush, k.z, k.drift, k.tier, k.d_amt,
 			(1 if k.air else 0) | (2 if k.glide else 0) | (4 if k.big else 0) | (8 if k.finished else 0) | (16 if k.est else 0),
 			k.item, k.item2, String(k.held.get("it", "")), int(k.held.get("sl", 1)), k.sh_l, k.prog, k.idx, k.place, k.finish_time,
-			k.loop_th if not k.loop.is_empty() else -1.0, k.roll, k.trick_t, k.trick_k, k.acc])
+			k.loop_th if not k.loop.is_empty() else -1.0, k.roll, k.trick_t, k.trick_k, k.acc,
+			k.shield, k.mz_h, k.ab_c, k.mega_t, k.flat_t, k.pesto_t, k.chili_t, k.olive_t, k.burn_t, k.ab_fx, k.ab_col.to_html(false)])
 	var bx := PackedFloat32Array()
 	for b in race.boxes:
 		bx.append(float(b["r"]))
 	var pr: Array = []
 	for p in race.projectiles:
-		pr.append([p["id"], p["type"], p["x"], p["y"], p["vx"], p["vy"], p["t"], p["t0"], p.get("ph", ""), p.get("pt", 0.0), p.get("dir", 0.0), p.get("spin", 0.0), p.get("age", 0.0)])
+		pr.append([p["id"], p["type"], p["x"], p["y"], p["vx"], p["vy"], p["t"], p["t0"], p.get("ph", ""), p.get("pt", 0.0), p.get("dir", 0.0), p.get("spin", 0.0), p.get("age", 0.0), 1 if p.get("storm", false) else 0])
 	var hz: Array = []
 	for h in race.hazards:
-		hz.append([h["id"], h["x"], h["y"], h["t"], h["born"]])
+		hz.append([h["id"], h["x"], h["y"], h["t"], h["born"], "olive" if h.get("olive", false) else String(h.get("kind", ""))])
 	_net_snap.rpc([state, cd, race.race_time, ks, bx, pr, hz, race.haz_snap()])
 
 
@@ -2040,7 +2102,7 @@ func _net_fx(list: Array) -> void:
 		elif e is Dictionary:
 			var d: Dictionary = e
 			var ok := true
-			for key in ["k", "a", "b"]:
+			for key in ["k", "a", "b", "by"]:
 				if d.has(key):
 					var ki := int(d[key])
 					if ki >= 0 and ki < race.karts.size():
@@ -2117,6 +2179,18 @@ func _net_snap(s: Array) -> void:
 		k.trick_t = q[27]
 		k.trick_k = q[28]
 		k.acc = q[29]
+		if q.size() > 40:
+			k.shield = q[30]
+			k.mz_h = q[31]
+			k.ab_c = q[32]
+			k.mega_t = q[33]
+			k.flat_t = q[34]
+			k.pesto_t = q[35]
+			k.chili_t = q[36]
+			k.olive_t = q[37]
+			k.burn_t = q[38]
+			k.ab_fx = q[39]
+			k.ab_col = Color(String(q[40]))
 		if net_fresh or Vector2(k.x - k.ox, k.y - k.oy).length() > 120.0:
 			k._save_prev()      # first picture, or a jump (a respawn): don't slide there
 	net_fresh = false
@@ -2130,10 +2204,16 @@ func _net_snap(s: Array) -> void:
 	for q2 in s[5]:
 		var prev = old.get(q2[0])
 		race.projectiles.append({"id": q2[0], "type": q2[1], "x": q2[2], "y": q2[3], "px": prev["x"] if prev != null else q2[2], "py": prev["y"] if prev != null else q2[3],
-			"vx": q2[4], "vy": q2[5], "t": q2[6], "t0": q2[7], "ph": q2[8], "pt": q2[9], "dir": q2[10], "spin": q2[11], "age": q2[12], "owner": null, "target": null})
+			"vx": q2[4], "vy": q2[5], "t": q2[6], "t0": q2[7], "ph": q2[8], "pt": q2[9], "dir": q2[10], "spin": q2[11], "age": q2[12], "storm": q2.size() > 13 and int(q2[13]) == 1, "owner": null, "target": null})
 	race.hazards.clear()
 	for q3 in s[6]:
-		race.hazards.append({"id": q3[0], "x": q3[1], "y": q3[2], "t": q3[3], "born": q3[4]})
+		var hk := String(q3[5]) if q3.size() > 5 else ""
+		var hd := {"id": q3[0], "x": q3[1], "y": q3[2], "t": q3[3], "born": q3[4]}
+		if hk == "olive":
+			hd["olive"] = true
+		elif hk != "":
+			hd["kind"] = hk
+		race.hazards.append(hd)
 	if s.size() > 7:
 		race.haz_unsnap(s[7])
 	race.stand = race.standings()

@@ -6,6 +6,8 @@ build/
 .DS_Store
 Thumbs.db
 maps/
+# the garage models come from the "maps" release too (tools/cigarage.py)
+assets/garage/
 # made by Godot's importer (CI imports fresh)
 *.import
 assets/kart/*_tex_*

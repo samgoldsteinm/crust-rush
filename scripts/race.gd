@@ -13,6 +13,23 @@ const DROPS := ["oil"]
 const HOLDABLE := ["pepperoni", "dough", "flour"]
 const NOBACK := ["chili", "garlic", "wheel", "rush", "freezer"]
 const PTS := [15, 12, 10, 8, 6, 4, 2, 1]
+## every racer's special (web ABIL): name, what it does, its colour
+const ABIL := {
+	"pep": ["Pepperoni Storm", "Fires a fan of six spinning pepperoni slices low along the track, ahead or, while you look back, behind you. Each slice ricochets between the track walls and off anything it hits and vanishes on its third hit.", "#ff5a2a"],
+	"basil": ["Pesto Rush", "The longest ability boost: nothing can hit you while it lasts, and it ignores the slow cheese.", "#3fd06a"],
+	"olive": ["Slick Trail", "Leaves ten olive-oil slicks behind; nothing can touch you while you lay them. Drive through one and your wheels get coated: no spin, but slowed a lot for 5 seconds.", "#c8b23a"],
+	"mozz": ["Melt Shield", "Wraps the kart in stretchy cheese that blocks every hit for a while, with a quick burst of speed.", "#fff4c0"],
+	"chili": ["Fire Trail", "A fiery boost that leaves burning flames on the road: anyone who drives into them spins out and catches fire. Nothing can hit you while it burns.", "#ff3a12"],
+	"shroom": ["Mega Shroom", "Grows huge and unstoppable and flattens anyone it touches for 3 seconds.", "#c8a06a"],
+	"pineapple": ["Spiky Shockwave", "A huge spiky blast that spins out every racer anywhere near you, even in the air. Goes through every protection.", "#ffd23a"],
+	"anchovy": ["School of Fish", "Launches three anchovies that hunt down the next three racers ahead, or the three behind if you look back. A well-timed hop dodges one.", "#8fc8e8"],
+}
+const ABIL_TIME := 30.0
+const MEGA_T := 5.5
+const PESTO_T := 5.9
+const OLIVE_T := 2.6
+const FLAT_T := 3.0
+const BURN_T := 2.0
 const DEF_DIFF := {"skill": [0.88, 0.95], "ahead": 0.94, "behind": 1.06, "delay": [1.6, 5.5], "corner": 0.3, "boost": 0.3}
 
 var T: TrackData
@@ -40,13 +57,13 @@ var _bump_t := {}
 
 
 ## One-player race: the player in the middle of the grid, seven computer drivers.
-func setup(track: TrackData, roster: Dictionary, player_ri: int, seed_: int = 0, cls := "medium") -> void:
+func setup(track: TrackData, roster: Dictionary, player_ri: int, seed_: int = 0, cls := "medium", build := {}) -> void:
 	T = track
 	var sd := seed_
 	if sd == 0:
 		rng.randomize()
 		sd = int(rng.randi() & 0x7fffffff) + 1
-	setup_cfg(track, roster, make_cfg(roster, player_ri, [1], sd, cls), 1)
+	setup_cfg(track, roster, make_cfg(roster, player_ri, [1], sd, cls, build), 1)
 
 
 ## the web's speed classes: top speed and how sharp the computer drivers are
@@ -56,7 +73,7 @@ const CLASS_AI := {"small": "easy", "medium": "normal", "large": "hard", "revers
 
 ## Who sits where: humans (the host first) take the middle of the grid, computer drivers the rest.
 ## peers: the people racing, the host's id (1) first.
-func make_cfg(roster: Dictionary, host_ri: int, peers: Array, seed_: int, cls := "medium") -> Dictionary:
+func make_cfg(roster: Dictionary, host_ri: int, peers: Array, seed_: int, cls := "medium", host_build := {}) -> Dictionary:
 	var r := RandomNumberGenerator.new()
 	r.seed = seed_
 	var free: Array[int] = []
@@ -82,6 +99,17 @@ func make_cfg(roster: Dictionary, host_ri: int, peers: Array, seed_: int, cls :=
 	for s3 in 8:
 		if int(slots[s3]["ri"]) < 0 and not free.is_empty():
 			slots[s3] = {"ri": free.pop_front(), "peer": 0, "own": false}
+	# every slot's kart build travels with the race, so every machine builds the same karts
+	for s4 in 8:
+		var ri4 := int(slots[s4]["ri"])
+		if ri4 < 0:
+			continue
+		if bool(slots[s4]["own"]) and not host_build.is_empty():
+			slots[s4]["build"] = host_build
+		else:
+			var rq := _racer(roster.get("racers", []), ri4)
+			if rq.has("build"):
+				slots[s4]["build"] = rq["build"]
 	return {"seed": seed_, "slots": slots, "cls": cls}
 
 
@@ -105,6 +133,13 @@ func setup_cfg(track: TrackData, roster: Dictionary, cfg: Dictionary, my_peer: i
 		var pid := int(sl["peer"])
 		var pl: Dictionary = roster.get("player", {})
 		var info: Dictionary = pl if bool(sl["own"]) and int(pl.get("ri", -1)) == ri else _racer(racers, ri)
+		# any garage build: the parts' placements and stats (the model itself is made by the view)
+		var spec = sl.get("build")
+		if spec is Dictionary and KartBuilder.ready():
+			var bi := KartBuilder.describe(spec, ri)
+			if not bi.is_empty():
+				info = info.duplicate()
+				info.merge(bi, true)
 		var k := _make_kart(ri, s, pid != 0 and pid == my_peer, info)
 		k.peer = pid
 		k.human = pid != 0
@@ -408,6 +443,7 @@ func update(dt: float, player_inp: Dictionary) -> void:
 	if state == "race":
 		race_time += dt
 	_hazards_tick(dt)
+	_ability_tick(dt)
 	for k in karts:
 		var inp: Dictionary
 		if k.remote and not bool(k.ai.get("auto", false)) and not (k.rush > 0.0):
@@ -415,10 +451,14 @@ func update(dt: float, player_inp: Dictionary) -> void:
 			inp = {"steer": float(k.net_inp["steer"]), "brake": bool(k.net_inp["brake"]), "nb": bool(k.net_inp["nb"]), "mul": float(k.net_inp["mul"]), "use": false, "back": false, "hold": false, "hold_sl": 1, "release": null}
 			if not k.net_items.is_empty():
 				item_intent(k, k.net_items.pop_front(), inp)
+				if bool(inp.get("ability", false)):
+					use_ability(k, bool(k.net_inp["look"]))
 				if bool(inp["use"]) and k.item != "" and bool(k.net_inp["look"]) and not k.item in NOBACK:
 					inp["back"] = true
-		elif k.is_player and not bool(k.ai.get("auto", false)) and not (k.rush > 0.0):
+		elif k.is_player and not bool(k.ai.get("auto", false)) and not (k.rush > 0.0 and not (k.mega_t > 0.0) and not (k.pesto_t > 0.0)):
 			inp = player_inp
+			if bool(player_inp.get("ability", false)):
+				use_ability(k, bool(player_inp.get("look", false)))
 		else:
 			inp = ai_input(k, dt)
 		if k.rush > 0.0:
@@ -433,10 +473,17 @@ func update(dt: float, player_inp: Dictionary) -> void:
 			var dx := b.x - a.x
 			var dy := b.y - a.y
 			var d2 := dx * dx + dy * dy
-			if d2 < 361.0 and d2 > 0.0 and a.loop.is_empty() and b.loop.is_empty():
-				var sa2 := a.shield > 0.0 or a.rush > 0.0
-				var sb2 := b.shield > 0.0 or b.rush > 0.0
-				if sa2 and not sb2:
+			var mg := (a.mega_t > 0.0) != (b.mega_t > 0.0)
+			if d2 < (784.0 if mg else 361.0) and d2 > 0.0 and a.loop.is_empty() and b.loop.is_empty():
+				var sa2 := a.shield > 0.0 or (a.rush > 0.0 and not (a.pesto_t > 0.0))
+				var sb2 := b.shield > 0.0 or (b.rush > 0.0 and not (b.pesto_t > 0.0))
+				if mg:
+					var am := a.mega_t > 0.0
+					if _mega_crush(a if am else b, b if am else a):
+						continue
+					if d2 >= 361.0:
+						continue
+				elif sa2 and not sb2:
 					spin_out(b, "garlic")
 				elif sb2 and not sa2:
 					spin_out(a, "garlic")
@@ -647,6 +694,9 @@ func ai_input(k: Kart, dt: float) -> Dictionary:
 
 ## web itemIntent: what a press on an item button means right now ("fwd", "fwd2", "hold", "hold2")
 func item_intent(k: Kart, it: String, o: Dictionary) -> void:
+	if it == "ability":
+		o["ability"] = true
+		return
 	var sl := 2 if it.ends_with("2") else 1
 	var is_hold := it.begins_with("hold")
 	if not k.held.is_empty() and int(k.held["sl"]) == sl:
@@ -701,6 +751,14 @@ func roll_item(pos: int) -> String:
 func after_roll(k: Kart) -> void:
 	var dl: Array = diff["delay"]
 	k.ai["item_delay"] = float(dl[0]) + rng.randf() * (float(dl[1]) - float(dl[0]))
+
+
+## three pepperoni slices in a fan (the Trio item, and each Pepperoni Storm volley)
+func _fire_trio(k: Kart, back: bool) -> void:
+	for off in [-0.17, 0.0, 0.17]:
+		var an: float = k.a + off + (PI if back else 0.0)
+		var v4 := 240.0 if back else 300.0 + maxf(0.0, k.speed)
+		_proj(k, "pep", k.x + cos(an) * 12.0, k.y + sin(an) * 12.0, cos(an) * v4, sin(an) * v4, 4.0, 0.35)
 
 
 func _proj(k: Kart, type: String, x: float, y: float, vx: float, vy: float, t: float, safe: float) -> Dictionary:
@@ -758,10 +816,7 @@ func use_item(k: Kart, back_in: bool) -> void:
 		var p := _proj(k, "dough", k.x + ca * 10.0 * dr, k.y + sa * 10.0 * dr, ca * v3 * dr, sa * v3 * dr, 9.0, 0.3)
 		p["target"] = tg
 	elif it == "trio":
-		for off in [-0.17, 0.0, 0.17]:
-			var an: float = k.a + off + (PI if back else 0.0)
-			var v4 := 240.0 if back else 300.0 + maxf(0.0, k.speed)
-			_proj(k, "pep", k.x + cos(an) * 12.0, k.y + sin(an) * 12.0, cos(an) * v4, sin(an) * v4, 4.0, 0.35)
+		_fire_trio(k, back)
 	elif it == "flour":
 		if back:
 			_proj(k, "flour", k.x - cos(k.ma) * 18.0, k.y - sin(k.ma) * 18.0, 0.0, 0.0, 0.3, 9.0)
@@ -867,12 +922,19 @@ func spin_out(k: Kart, kind: String, world := false, force := false) -> bool:
 			return false
 		k.shield = 0.0
 		k.abs_t = 0.0
+		k.mz_h = 0
 	else:
-		if k.inv > 0.0 or k.rush > 0.0 or k.abs_t > 0.0:
+		if k.inv > 0.0 or k.rush > 0.0 or ab_inv(k) or k.abs_t > 0.0:
 			return false
 		if not world and (k.air or k.glide or not k.loop.is_empty()):
 			return false
 	if k.shield > 0.0:
+		if k.mz_h > 0:
+			k.mz_h -= 1
+			k.abs_t = 0.6
+			fx.append({"t": "melt", "k": k})
+			if k.mz_h <= 0:
+				k.shield = 0.0
 		return false
 	if not force and not world and _absorb_held(k):
 		return false
@@ -893,6 +955,174 @@ func spin_out(k: Kart, kind: String, world := false, force := false) -> bool:
 	return true
 
 
+## an ability that makes its driver untouchable (web abInv)
+static func ab_inv(k: Kart) -> bool:
+	return k.pesto_t > 0.0 or k.chili_t > 0.0 or k.mega_t > 0.0 or k.olive_t > 0.0
+
+
+static func abil_key(k: Kart) -> String:
+	return k.racer_name.to_lower()
+
+
+## web useAbility
+func use_ability(k: Kart, back: bool) -> void:
+	var id := abil_key(k)
+	if not ABIL.has(id) or k.ab_c < 1.0 or not k.loop.is_empty() or k.finished:
+		return
+	k.ab_c = 0.0
+	var col := Color(String(ABIL[id][2]))
+	fx.append({"t": "ability", "k": k, "id": id})
+	var st := stand
+	var i := st.find(k)
+	match id:
+		"pep":
+			var vol := func():
+				var n0 := projectiles.size()
+				_fire_trio(k, back)
+				for q in range(n0, projectiles.size()):
+					var P: Dictionary = projectiles[q]
+					P["storm"] = true
+					P["hp"] = 3
+					P["t"] = 8.0
+					P["ign"] = {}
+			vol.call()
+			k.ab_q = [[0.25, vol]]
+		"basil":
+			k.boost = maxf(k.boost, PESTO_T)
+			k.rush = maxf(k.rush, PESTO_T)
+			k.pesto_t = PESTO_T
+			k.ab_fx = PESTO_T
+			k.ab_col = col
+		"olive":
+			k.ab_q = []
+			for n in 10:
+				k.ab_q.append([n * 0.25, func():
+					hazards.append({"id": _nid(), "x": k.x - cos(k.ma) * 22.0, "y": k.y - sin(k.ma) * 22.0, "t": 25.0, "born": 0.0, "owner": k, "armed": false, "olive": true})])
+			k.olive_t = OLIVE_T
+			k.ab_fx = OLIVE_T
+			k.ab_col = col
+		"mozz":
+			k.shield = 7.0
+			k.mz_h = 3
+			k.boost = maxf(k.boost, 0.7)
+			k.p_boost = 0.0
+		"chili":
+			k.boost = maxf(k.boost, 2.2)
+			k.fire_t = 2.2
+			k.chili_t = 2.2
+			k.ab_fx = 2.2
+			k.ab_col = col
+		"shroom":
+			k.mega_t = MEGA_T
+			k.boost = maxf(k.boost, 0.55)
+			k.speed = maxf(k.speed, minf(k.speed + 12.0, k.base_max * 1.15))
+			k.p_boost = k.boost
+			k.b_age = 9.0
+			k.b_pk = k.boost
+		"pineapple":
+			blast(k.x, k.y, 260.0, k, "pep", true)
+			k.inv = maxf(k.inv, 0.6)
+		"anchovy":
+			for j in range(1, 4):
+				var ti := i + j if back else i - j
+				var tg: Kart = st[ti] if ti >= 0 and ti < st.size() else null
+				var sp := 360.0 + maxf(0.0, k.speed)
+				var an := k.a + (PI if back else 0.0) + (j - 2) * 0.25
+				var p := _proj(k, "torp", k.x + cos(an) * 12.0, k.y + sin(an) * 12.0, cos(an) * sp, sin(an) * sp, 600.0 if tg != null else 8.0, 0.3)
+				p["target"] = tg
+				p["sure"] = tg != null
+
+
+func _nid() -> int:
+	var v := next_id
+	next_id += 1
+	return v
+
+
+## web blast(): everyone within r spins out (forced: through shields and boosts, and in the air)
+func blast(x: float, y: float, r: float, owner: Kart, kind: String, force := false) -> void:
+	for k in karts:
+		if k == owner or not k.loop.is_empty():
+			continue
+		if (k.x - x) ** 2 + (k.y - y) ** 2 < r * r:
+			var hit := spin_out(k, kind, force, force)
+			if hit and k.air and k.loop.is_empty():
+				k.big = true
+				k.wvy = maxf(k.wvy, 55.0 * maxf(1.0, r / 130.0))
+	fx.append({"t": "blast", "x": x, "y": y, "r": r, "col": String(ABIL["pineapple"][2]) if force else "#ff9a1f"})
+
+
+## web abilityTick: charge up, run queued volleys and fire trails, count down, and let the computer drivers use theirs
+func _ability_tick(dt: float) -> void:
+	for k in karts:
+		if state == "race" and not k.finished and k.ab_c < 1.0:
+			k.ab_c = minf(1.0, k.ab_c + dt / ABIL_TIME)
+			if k.ab_c >= 1.0:
+				fx.append({"t": "ability_ready", "k": k})
+		if not k.ab_q.is_empty():
+			for q in k.ab_q:
+				q[0] = float(q[0]) - dt
+			while not k.ab_q.is_empty() and float(k.ab_q[0][0]) <= 0.0:
+				(k.ab_q.pop_front()[1] as Callable).call()
+		if k.fire_t > 0.0:
+			k.fire_t -= dt
+			k.fire_acc += dt
+			if k.fire_acc > 0.12:
+				k.fire_acc = 0.0
+				hazards.append({"id": _nid(), "x": k.x - cos(k.ma) * 16.0, "y": k.y - sin(k.ma) * 16.0, "t": 2.2, "born": 0.0, "owner": k, "armed": false, "kind": "fire"})
+		for f in ["mega_t", "flat_t", "flat_imm", "pesto_t", "chili_t", "olive_t", "ab_fx", "burn_t"]:
+			if float(k.get(f)) > 0.0:
+				k.set(f, float(k.get(f)) - dt)
+		if not k.human and k.ab_c >= 1.0 and state == "race":
+			k.ab_wait = (1.0 + rng.randf() * 4.0 if k.ab_wait < 0.0 else k.ab_wait) - dt
+			if k.ab_wait <= 0.0:
+				var id := abil_key(k)
+				var i := stand.find(k)
+				var go := true
+				if id == "pineapple":
+					go = false
+					for o in karts:
+						if o != k and (o.x - k.x) ** 2 + (o.y - k.y) ** 2 < 70.0 * 70.0:
+							go = true
+				elif id == "anchovy" or id == "pep":
+					go = i > 0
+				elif id == "olive":
+					go = i < stand.size() - 1
+				if go:
+					use_ability(k, false)
+					k.ab_wait = -1.0
+				else:
+					k.ab_wait = 0.8
+
+
+## a Mega Shroom rolls over a normal kart: squashed flat for 3 s (web megaCrush). True when it rolled over.
+func _mega_crush(a: Kart, b: Kart) -> bool:
+	if b.flat_t > 0.0:
+		return true
+	if b.flat_imm > 0.0 or b.glide or not b.loop.is_empty():
+		return false
+	if b.inv > 0.0 or ab_inv(b) or b.abs_t > 0.0:
+		return false
+	if b.shield > 0.0:
+		spin_out(b, "mega", true)
+		return false
+	b.flat_t = FLAT_T
+	b.flat_imm = FLAT_T + 0.6
+	b.inv = maxf(b.inv, FLAT_T + 3.0)
+	b.air = false
+	b.wvy = 0.0
+	b.big = false
+	b.speed *= 0.5
+	b.drift = 0
+	b.charge = 0.0
+	b.boost = 0.0
+	b.d_want = 0.0
+	b.d_latch = false
+	b.s_t = 0.0
+	fx.append({"t": "flat", "k": b, "by": a})
+	return true
+
+
 func _oil_up(k: Kart) -> void:
 	k.oil_t = 5.0
 	k.inv = maxf(k.inv, 3.0)
@@ -900,6 +1130,49 @@ func _oil_up(k: Kart) -> void:
 
 
 # ---------------------------------------------------------------- thrown items
+
+## Pepperoni Storm slices ricochet off the road's edges: two bounces, the third wall smashes them (web pepWall)
+func _pep_wall(p: Dictionary) -> void:
+	if not p.has("rp"):
+		var o: Kart = p["owner"]
+		p["rp"] = float(o.prog) if o != null else 0.0
+	_rail_sync(p)
+	var j := posmod(int(round(float(p["rp"]))), T.N)
+	var lt := float(p["rl"])
+	var sg := 0
+	var ov := 0.0
+	if not is_nan(T.flo[j]):
+		if lt < T.flo[j]:
+			sg = -1
+			ov = T.flo[j] - lt
+		elif lt > T.fhi[j]:
+			sg = 1
+			ov = lt - T.fhi[j]
+	else:
+		var s0 := -1 if lt < 0.0 else 1
+		var lim := T.RW + 3.0
+		if lt * s0 > lim:
+			sg = s0
+			ov = lt * s0 - lim
+	if sg == 0:
+		return
+	var nx := T.nx[j] * sg
+	var ny := T.ny[j] * sg
+	var dot := float(p["vx"]) * nx + float(p["vy"]) * ny
+	if dot <= 0.0:
+		return
+	p["hp"] = int(p["hp"]) - 1
+	if int(p["hp"]) <= 0:
+		p["t"] = 0.0
+		p["pop"] = true
+		return
+	p["vx"] = float(p["vx"]) - 2.0 * dot * nx
+	p["vy"] = float(p["vy"]) - 2.0 * dot * ny
+	p["x"] = float(p["x"]) - nx * ov
+	p["y"] = float(p["y"]) - ny * ov
+	p["rl"] = float(p["rl"]) - sg * ov
+	fx.append({"t": "ricochet", "x": float(p["x"]), "y": float(p["y"])})
+
 
 func _rail_sync(p: Dictionary) -> void:
 	var j0 := posmod(int(round(float(p["rp"]))), T.N)
@@ -983,9 +1256,13 @@ func _projectiles(dt: float) -> void:
 		var tg: Kart = p["target"]
 		if type == "dough" and tg != null and not tg.finished:
 			_home_step(p, tg, dt, maxf(300.0, absf(tg.speed) * 1.22 + 70.0), 9.0 if Vector2(tg.x - float(p["x"]), tg.y - float(p["y"])).length() < 70.0 else 5.5)
+		elif type == "torp" and tg != null and not tg.finished:
+			_home_step(p, tg, dt, maxf(380.0, absf(tg.speed) * 1.35 + 90.0), 7.0)
 		elif type != "wheel":
 			p["x"] = float(p["x"]) + float(p["vx"]) * dt
 			p["y"] = float(p["y"]) + float(p["vy"]) * dt
+			if p.get("storm", false):
+				_pep_wall(p)
 		var d := Vector2(float(p["x"]), float(p["y"])).length()
 		if d > T.RIM:
 			var nx := float(p["x"]) / d
@@ -1022,6 +1299,57 @@ func _projectiles(dt: float) -> void:
 			i -= 1
 			continue
 		var hit := false
+		if type == "torp" and bool(p.get("sure", false)):
+			# an ability anchovy always reaches its target; it waits out any protection, a hop dodges it
+			if tg == null or tg.finished:
+				projectiles.remove_at(i)
+				i -= 1
+				continue
+			if tg.loop.is_empty() and (tg.x - float(p["x"])) ** 2 + (tg.y - float(p["y"])) ** 2 < 256.0 and not (tg.inv > 0.0 or tg.rush > 0.0 or ab_inv(tg) or tg.abs_t > 0.0):
+				if tg.air and not tg.glide:
+					fx.append({"t": "dodge", "k": tg})
+				elif spin_out(tg, "pep", true):
+					tg.spin *= 0.6
+					tg.inv = tg.spin + 3.0
+					fx.append({"t": "hit", "k": tg, "type": "torp", "x": float(p["x"]), "y": float(p["y"])})
+				projectiles.remove_at(i)
+			i -= 1
+			continue
+		if p.get("storm", false):
+			var ig: Dictionary = p["ign"]
+			for k in karts:
+				if not k.loop.is_empty() or k == p["owner"] or float(ig.get(k, -1.0)) > sim_time:
+					continue
+				if _held_block(k, p):
+					ig[k] = sim_time + 0.5
+					p["hp"] = int(p["hp"]) - 1
+					if int(p["hp"]) <= 0:
+						hit = true
+						break
+					continue
+				if (k.x - float(p["x"])) ** 2 + (k.y - float(p["y"])) ** 2 < 200.0 and k.inv <= 0.0:
+					ig[k] = sim_time + 0.6
+					spin_out(k, "pep")
+					fx.append({"t": "hit", "k": k, "type": "pep", "x": float(p["x"]), "y": float(p["y"])})
+					var ddx := float(p["x"]) - k.x
+					var ddy := float(p["y"]) - k.y
+					var dd := maxf(0.001, sqrt(ddx * ddx + ddy * ddy))
+					var dot2 := float(p["vx"]) * ddx / dd + float(p["vy"]) * ddy / dd
+					if dot2 < 0.0:
+						p["vx"] = float(p["vx"]) - 2.0 * dot2 * ddx / dd
+						p["vy"] = float(p["vy"]) - 2.0 * dot2 * ddy / dd
+					p["hp"] = int(p["hp"]) - 1
+					if int(p["hp"]) <= 0:
+						hit = true
+						break
+			for h in hazards:
+				if (float(h["x"]) - float(p["x"])) ** 2 + (float(h["y"]) - float(p["y"])) ** 2 < 100.0:
+					h["t"] = 0.0
+					p["hp"] = int(p["hp"]) - 1
+			if hit or float(p["t"]) <= 0.0 or int(p["hp"]) <= 0:
+				projectiles.remove_at(i)
+			i -= 1
+			continue
 		for k in karts:
 			if not k.loop.is_empty() or (k == p["owner"] and (float(p["safe"]) > 0.0 or type == "pep")):
 				continue
@@ -1118,7 +1446,15 @@ func _hazards(dt: float) -> void:
 			if not k.loop.is_empty() or (k == o and not bool(h["armed"])):
 				continue
 			if (k.x - float(h["x"])) ** 2 + (k.y - float(h["y"])) ** 2 < 200.0 and k.inv <= 0.0:
-				spin_out(k, "oil")
+				if h.get("olive", false):
+					if k.air or k.glide or k.shield > 0.0 or k.rush > 0.0 or ab_inv(k) or k.oil_t > 4.5:
+						continue
+					_oil_up(k)
+				elif String(h.get("kind", "")) == "fire":
+					if spin_out(k, "fire"):
+						k.burn_t = BURN_T
+				else:
+					spin_out(k, "oil")
 				h["t"] = 0.0
 				break
 		if float(h["t"]) <= 0.0:

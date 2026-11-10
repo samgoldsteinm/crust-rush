@@ -7,12 +7,12 @@ extends Node3D
 const SPARKC := [Color("#fff1c8"), Color("#ffc62e"), Color("#ff1f12"), Color("#8fe0ff")]
 const FLAMEC := [[Color("#ff7a1a"), Color("#fff0a0")], [Color("#ffb51a"), Color("#fff6b8")], [Color("#ff0c06"), Color("#ff5a3c")], [Color("#2f8cff"), Color("#d2f4ff")]]
 const ITEM_GLOW := {"pep": Color("#ff5a2a"), "dough": Color("#ffe2a0"), "lob": Color("#c9e86a"), "oil": Color("#e8b23a"), "flour": Color("#ffffff"), "wheel": Color("#ff3b1a")}
-const TRAIL := {"pep": Color("#ff7a3a"), "dough": Color("#ffe2a0"), "lob": Color("#c9e86a"), "flour": Color("#ffffff")}
+const TRAIL := {"pep": Color("#ff7a3a"), "dough": Color("#ffe2a0"), "lob": Color("#c9e86a"), "flour": Color("#ffffff"), "torp": Color("#9fd8ff")}
 const ITEM_COL := {"chili": Color("#ff5a1a"), "pepperoni": Color("#ff6a3a"), "oil": Color("#e8c040"), "dough": Color("#ffe2a0"), "trio": Color("#ff6a3a"), "garlic": Color("#e8fff0"), "flour": Color("#ffffff"), "wheel": Color("#ff3b1a"), "rush": Color("#7fe8ff"), "freezer": Color("#bfe6ff")}
 const FLY_SC := {"pep": 1.4, "dough": 1.25, "lob": 1.1}
 const HITC := {"flour": ["#ffffff", "#f6f1e6", "#e9dfc8"], "wheel": ["#ff3b1a", "#ffe066", "#ffffff"], "garlic": ["#7fe07a", "#f4ecdc", "#ffffff"], "pep": ["#ff3b1a", "#b8311c", "#ffe066", "#fff4dc"], "dough": ["#fff4dc", "#f3dfb4", "#ffe066"], "oil": ["#ffd24a", "#e0b22a", "#fff2b0"], "lob": ["#ffd24a", "#e0b22a", "#fff2b0"]}
 const TRICKS := [[Vector3(0, 0, 1), 1.0], [Vector3(0, 1, 0), 1.0], [Vector3(0, 0, 1), -1.0], [Vector3(1, 0, 0), -1.0], [Vector3(1, 0, 0), 1.0]]
-const PROJ_NODE := {"pep": "pep", "dough": "dough", "flour": "flour", "lob": "lob", "wheel": "wheel"}
+const PROJ_NODE := {"pep": "pep", "dough": "dough", "flour": "flour", "lob": "lob", "wheel": "wheel", "torp": "torpedo"}
 const HELD_NODE := {"pepperoni": "pep", "dough": "dough", "flour": "flour"}
 
 var T: TrackData
@@ -42,6 +42,10 @@ var ring_mat_d: StandardMaterial3D
 var box_glow_mat: StandardMaterial3D
 var warn_tex: Texture2D
 var haz_ring_mat: StandardMaterial3D
+var mozz_mat: StandardMaterial3D
+var mozz_mesh: SphereMesh
+var fire_mat: StandardMaterial3D
+var fire_in_mat: StandardMaterial3D
 
 
 func setup(track: TrackData, r: Race, f: Fx, camera: Camera3D, items: Node3D) -> void:
@@ -90,6 +94,25 @@ func _shared() -> void:
 	box_glow_mat = _glow_mat(Color("#ffd24a"), 0.5, true)
 	haz_ring_mat = _basic(Color("#ffe02a"), 0.95)
 	warn_tex = _warn_texture()
+	# Melt Shield: a stretchy mozzarella ball per hit it can still take (web bub.userData.mz)
+	mozz_mat = StandardMaterial3D.new()
+	mozz_mat.albedo_color = Color("#fbf5e6")
+	mozz_mat.roughness = 0.35
+	mozz_mat.emission_enabled = true
+	mozz_mat.emission = Color("#fff2cf")
+	mozz_mat.emission_energy_multiplier = 0.18
+	mozz_mesh = SphereMesh.new()
+	mozz_mesh.radius = 1.15
+	mozz_mesh.height = 2.3
+	mozz_mesh.radial_segments = 18
+	mozz_mesh.rings = 12
+	# Fire Trail flames on the road (web flameMat / flameInMat: additive, not tone mapped)
+	fire_mat = _basic(Color("#ff7a1a"), 0.85)
+	fire_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	fire_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	fire_in_mat = _basic(Color("#fff0a0"), 0.95)
+	fire_in_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	fire_in_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
 
 
 static func _basic(col: Color, op: float) -> StandardMaterial3D:
@@ -206,15 +229,26 @@ func item_node(name_: String) -> Node3D:
 func add_kart(k: Kart, sc_file_loader: Callable) -> void:
 	var info: Dictionary = k.info
 	var meta: Dictionary = info.get("meta", {})
-	var file := String(info.get("file", "player.glb"))
-	var ps: PackedScene = sc_file_loader.call(file)
 	var g := Node3D.new()
 	add_child(g)
 	var tilt := Node3D.new()
 	g.add_child(tilt)
-	var model: Node3D = ps.instantiate()
-	tilt.add_child(model)
-	vertex_colours(model)
+	var model: Node3D
+	var glider: Node3D = null
+	if info.has("spec") and KartBuilder.ready():
+		# a garage build: assembled from parts, painted for its paint or livery
+		var built := KartBuilder.build(info["spec"], k.ri)
+		model = built["node"]
+		glider = built["glider_node"]
+		tilt.add_child(model)
+		if glider != null:
+			tilt.add_child(glider)
+	else:
+		var file := String(info.get("file", "player.glb"))
+		var ps: PackedScene = sc_file_loader.call(file)
+		model = ps.instantiate()
+		tilt.add_child(model)
+		vertex_colours(model)
 	var sc := float(meta.get("scale", KS))
 	g.scale = Vector3.ONE * sc
 	var wheels: Array = []
@@ -270,6 +304,18 @@ func add_kart(k: Kart, sc_file_loader: Callable) -> void:
 		c.scale = Vector3.ONE * 1.25
 		bub.add_child(c)
 		cloves.append(c)
+	var mz := Node3D.new()
+	for i in 3:
+		var am := float(i) / 3.0 * TAU
+		var mb := MeshInstance3D.new()
+		mb.mesh = mozz_mesh
+		mb.material_override = mozz_mat
+		mb.position = Vector3(cos(am) * 5.6, sin(am * 3.0) * 1.0, sin(am) * 5.6)
+		mb.scale = Vector3(1.0, 0.85, 1.0)
+		mb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mz.add_child(mb)
+	mz.visible = false
+	bub.add_child(mz)
 	# drift spark fans at the back wheels
 	var fan := MultiMeshInstance3D.new()
 	var mm := MultiMesh.new()
@@ -299,10 +345,10 @@ func add_kart(k: Kart, sc_file_loader: Callable) -> void:
 	if meta.get("smoke") != null:
 		var sv: Array = meta["smoke"]
 		smoke = Vector3(sv[0], sv[1], sv[2])
-	views[k] = {"g": g, "tilt": tilt, "model": model, "wheels": wheels, "flames": flames, "bub": bub, "cloves": cloves, "fan": fan, "fan_mat": fm,
+	views[k] = {"g": g, "tilt": tilt, "model": model, "wheels": wheels, "flames": flames, "bub": bub, "cloves": cloves, "mz": mz, "sc": sc, "pop": false, "bf": 0.0, "fan": fan, "fan_mat": fm,
 		"fxL": fxl, "fxP": fxp, "smoke": smoke, "top": float(meta.get("top", 7.0)), "axF": float(meta.get("axF", 6.0)), "axR": float(meta.get("axR", -6.0)),
 		"axW": float(meta.get("axW", 5.0)), "hover": float(meta.get("hover", 0.0)), "tp": 0.0, "tr": 0.0, "fxc": 0.0, "trick_on": false, "f_ti": -1,
-		"held": null, "held_it": "", "rx": k.x, "ry": k.y, "rz": k.wy, "rma": k.ma}
+		"held": null, "held_it": "", "rx": k.x, "ry": k.y, "rz": k.wy, "rma": k.ma, "glider": glider, "ga": 0.0}
 
 
 func clear() -> void:
@@ -348,6 +394,36 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 	v["rz"] = z
 	v["rma"] = lerp_angle(k.oma, k.ma, al)
 	var pos := Vector3(x, z, y)
+	var B: float = v["sc"]
+	var scv := Vector3.ONE * B
+	if k.mega_t > 0.0:
+		scv *= 1.0 + 0.45 * minf(1.0, minf((Race.MEGA_T - k.mega_t) * 4.0, k.mega_t * 4.0))
+	elif k.flat_t > 0.0:
+		# splat flat in a blink, jiggle like dough, then spring back up (overshoot and settle) with a puff
+		var ft := Race.FLAT_T - k.flat_t
+		var P := 0.32
+		var sy := 1.0
+		var sw := 1.0
+		if ft < 0.06:
+			var e0 := ft / 0.06
+			sy = 1.0 - 0.86 * e0 * e0
+			sw = 1.0 + 0.62 * e0 * e0
+		elif k.flat_t > P:
+			var j := exp(-(ft - 0.06) * 7.0)
+			sy = 0.14 + 0.035 * sin(ft * 46.0) * j
+			sw = 1.62 + 0.1 * sin(ft * 46.0 + 1.3) * j
+		else:
+			var u0 := 1.0 - k.flat_t / P
+			sy = 1.0 - 0.86 * cos(u0 * PI * 2.5) * exp(-u0 * 4.0)
+			sw = 1.0 + (1.0 - sy) * 0.72 if sy < 1.0 else 1.0 - (sy - 1.0) * 0.55
+			if not v["pop"] and not paused:
+				v["pop"] = true
+				for i in 12:
+					var pa := float(i) / 12.0 * TAU
+					fx.spawn_n(x + cos(pa) * 5.0, z + 2.0, y + sin(pa) * 5.0, cos(pa) * 26.0, 10.0 + randf() * 8.0, sin(pa) * 26.0, Color("#efe3cb"), 5.0, 9.0, 0.45, 0.0, 3.0)
+		if k.flat_t > P:
+			v["pop"] = false
+		scv = Vector3(B * sw, B * maxf(0.12, sy), B * sw)
 	if lth == 0.0:
 		var tp: float = v["tp"]
 		var tr: float = v["tr"]
@@ -371,9 +447,9 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 			tr *= 0.97
 		v["tp"] = tp
 		v["tr"] = tr
-		g.transform = Transform3D((Basis(Vector3.UP, -a) * Basis(Vector3(0, 0, 1), tp) * Basis(Vector3(1, 0, 0), tr)).scaled(g.scale), pos)
+		g.transform = Transform3D(Basis(Vector3.UP, -a) * Basis(Vector3(0, 0, 1), tp) * Basis(Vector3(1, 0, 0), tr) * Basis.from_scale(scv), pos)
 	else:
-		g.transform = Transform3D((Basis(Vector3.UP, -a) * Basis(Vector3(0, 0, 1), lth)).scaled(g.scale), pos)
+		g.transform = Transform3D(Basis(Vector3.UP, -a) * Basis(Vector3(0, 0, 1), lth) * Basis.from_scale(scv), pos)
 	g.visible = not (k != me and _near_cam(x, y, 14.0))
 	# blink for three seconds after a hit
 	tilt.visible = not (k.inv > 0.0 and k.spin <= 0.0 and racing and int(floor(time * 12.0)) % 2 == 1)
@@ -406,16 +482,32 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 			if w["front"]:
 				n.rotation.y = -k.steer * 0.42
 	# shield or rush bubble
+	# the glider unfolds while gliding (web: ga eases to 1 at 5/s, folds away at 8/s)
+	var gl = v.get("glider")
+	if gl != null:
+		var gt := 1.0 if k.glide else 0.0
+		v["ga"] = float(v["ga"]) + (gt - float(v["ga"])) * minf(1.0, dt * (5.0 if gt > 0.0 else 8.0))
+		var gv := float(v["ga"]) > 0.02
+		(gl as Node3D).visible = gv
+		if gv:
+			(gl as Node3D).scale = Vector3.ONE * float(v["ga"])
+			(gl as Node3D).rotation = Vector3(-k.steer * 0.18, 0.0, sin(time * 2.2 + k.ri) * 0.06)
 	var bub: MeshInstance3D = v["bub"]
 	var sh_on := (k.shield > 0.0 and (k.shield > 1.2 or int(floor(time * 10.0)) % 2 == 0)) or k.sh_l > 0
-	var ru_on := k.rush > 0.0
+	var ru_on := k.rush > 0.0 or k.chili_t > 0.0 or k.olive_t > 0.0
 	bub.visible = sh_on or ru_on
 	if bub.visible:
 		bub.material_override = bubble_mat if sh_on else rush_mat
 		bub.rotation.y += dt * (2.0 if sh_on else 4.0)
+		# pieces left = hits left
 		var cl: Array = v["cloves"]
 		for i in cl.size():
 			(cl[i] as Node3D).visible = i < k.sh_l
+		var mzn := k.mz_h if k.shield > 0.0 else 0
+		var mz: Node3D = v["mz"]
+		mz.visible = mzn > 0
+		for i in mz.get_child_count():
+			(mz.get_child(i) as Node3D).visible = i < mzn
 	# boost flames, sized by the boost and coloured by the drift tier it came from
 	var on := k.boost > 0.0
 	var sl := 1.0
@@ -442,6 +534,18 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 	if paused:
 		return
 	var gt := g.global_transform
+	var rma: float = v["rma"]
+	if k.burn_t > 0.0:
+		# on fire: flames lick up off the kart and dark smoke trails behind
+		v["bf"] = float(v["bf"]) + dt * 70.0 * minf(1.0, k.burn_t / 0.5 + 0.3)
+		while float(v["bf"]) >= 1.0:
+			v["bf"] = float(v["bf"]) - 1.0
+			var bc: Color = [Color("#ff3a12"), Color("#ff8a1f"), Color("#ffd23a")][randi() % 3]
+			fx.spawn_a(x + (randf() - 0.5) * 10.0, z + 3.0 + randf() * 5.0, y + (randf() - 0.5) * 10.0, (randf() - 0.5) * 8.0, 22.0 + randf() * 20.0, (randf() - 0.5) * 8.0, bc, 5.5, 1.2, 0.38 + randf() * 0.15, -25.0, 1.2)
+			if randf() < 0.3:
+				fx.spawn_n(x + (randf() - 0.5) * 6.0, z + 9.0 + randf() * 3.0, y + (randf() - 0.5) * 6.0, -cos(rma) * 12.0, 14.0 + randf() * 8.0, -sin(rma) * 12.0, Color("#3a2e28") if randf() < 0.5 else Color("#5a4a40"), 5.0, 13.0, 0.9, -8.0, 0.8)
+	if k.ab_fx > 0.0 and randf() < 0.9:
+		fx.spawn_a(x - cos(rma) * 9.0 + (randf() - 0.5) * 6.0, z + 3.0 + randf() * 4.0, y - sin(rma) * 9.0 + (randf() - 0.5) * 6.0, (randf() - 0.5) * 14.0, 8.0, (randf() - 0.5) * 14.0, k.ab_col, 3.4, 0.3, 0.45, 0.0, 1.0)
 	if k.spin > 0.0:
 		for i in 3:
 			var an := time * 9.0 + i * 2.094
@@ -660,10 +764,14 @@ func _draw_projectiles(al: float, dt: float) -> void:
 			var fl := 1.0 - float(pd["t"]) / maxf(0.01, float(pd["t0"]))
 			ms.position = Vector3(x, pg + 2.0 + sin(PI * fl) * 16.0, y)
 			ms.rotation.z -= dt * 8.0
+		elif type == "torp":
+			ms.position = Vector3(x, pg + 4.0, y)
+			ms.basis = Basis.from_euler(Vector3(sin(time * 20.0) * 0.15, -atan2(float(pd["vy"]), float(pd["vx"])), 0.0), EULER_ORDER_XYZ)
 		elif type == "pep":
+			var storm := bool(pd.get("storm", false))
 			pn["sp"] = float(pn["sp"]) + dt * 17.0
-			ms.position = Vector3(x, pg + 3.3 + sin(age * 9.0) * 0.35, y)
-			var q := Quaternion(Vector3.UP, -atan2(float(pd["vy"]), float(pd["vx"]))) * Quaternion(Vector3(0, 0, 1), 0.4) * Quaternion(Vector3(1, 0, 0), sin(age * 7.0) * 0.2) * Quaternion(Vector3.UP, float(pn["sp"]))
+			ms.position = Vector3(x, pg + (1.9 if storm else 3.3) + sin(age * 9.0) * (0.2 if storm else 0.35), y)
+			var q := Quaternion(Vector3.UP, -atan2(float(pd["vy"]), float(pd["vx"]))) * Quaternion(Vector3(0, 0, 1), 0.18 if storm else 0.4) * Quaternion(Vector3(1, 0, 0), sin(age * 7.0) * 0.2) * Quaternion(Vector3.UP, float(pn["sp"]))
 			ms.quaternion = q
 		elif type == "dough":
 			pn["roll"] = float(pn["roll"]) + Vector2(float(pd["vx"]), float(pd["vy"])).length() * dt / 2.6
@@ -783,6 +891,36 @@ func _draw_hazards() -> void:
 		var hd: Dictionary = h
 		var id: int = hd["id"]
 		seen[id] = true
+		if String(hd.get("kind", "")) == "fire":
+			if not haz_nodes.has(id):
+				var fr := Node3D.new()
+				for i in 3:
+					var c := MeshInstance3D.new()
+					c.mesh = flame_meshes[0]
+					c.material_override = fire_mat
+					c.scale = Vector3(3.0, 3.0 + i, 3.0)
+					c.position = Vector3((i - 1) * 2.5, 3.0, 0.0)
+					c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+					fr.add_child(c)
+				var ci := MeshInstance3D.new()
+				ci.mesh = flame_meshes[1]
+				ci.material_override = fire_in_mat
+				ci.scale = Vector3.ONE * 3.0
+				ci.position.y = 2.0
+				ci.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				fr.add_child(ci)
+				add_child(fr)
+				haz_nodes[id] = {"n": fr, "warn": null}
+			var fn: Node3D = haz_nodes[id]["n"]
+			var fxx := float(hd["x"])
+			var fyy := float(hd["y"])
+			var fg := T.ground(fxx, fyy)
+			fn.position = Vector3(fxx, fg + 0.12, fyy)
+			fn.rotation.y = float(hd["born"]) * 0.05
+			fn.scale = Vector3.ONE * maxf(0.01, minf(1.0, float(hd["t"]) * 1.4)) * (1.0 + sin(time * 20.0 + fxx) * 0.1)
+			if randf() < 0.3:
+				fx.spawn_a(fxx, fg + 4.0, fyy, 0, 26, 0, Color("#ff7a1a"), 3.0, 0.3, 0.4, 0.0, 0.0)
+			continue
 		if not haz_nodes.has(id):
 			var root := Node3D.new()
 			var slick := item_node("oil")
@@ -1164,3 +1302,45 @@ func race_event(ed: Dictionary) -> void:
 	elif t == "oily":
 		var k6: Kart = ed["k"]
 		fx.burst(k6.x, k6.wy + 3.0, k6.y, 22, _cols(["#c8b23a", "#8a7a1c", "#fff3b0"]), 55.0, 2.4)
+	elif t == "ability":
+		# web itemFx(k, colour, 50) plus a wide ring on the ground
+		var ka: Kart = ed["k"]
+		var A: Array = Race.ABIL.get(String(ed["id"]), ["", "", "#ffe066"])
+		var ac := Color(String(A[2]))
+		var agy := ka.wy + 7.0
+		fx.ring(ka.x, ka.wy + 0.6, ka.y, ac, 40.0, 0.5)
+		fx.ring(ka.x, agy, ka.y, Color.WHITE, 22.0, 0.3, false)
+		fx.burst(ka.x, agy, ka.y, 50, [ac, Color.WHITE, Color("#ffe066")], 90.0, 3.0)
+		fx.spawn_a(ka.x, agy, ka.y, 0, 0, 0, ac, 40.0, 8.0, 0.22, 0.0, 0.0)
+		fx.ring(ka.x, ka.wy + 0.6, ka.y, ac, 70.0, 0.8)
+	elif t == "melt":
+		var km: Kart = ed["k"]
+		var mgy := km.wy + 7.0
+		fx.burst(km.x, mgy, km.y, 30, _cols(["#fbf5e6", "#fff2cf", "#ffffff"]), 90.0, 2.8)
+		fx.ring(km.x, mgy, km.y, Color("#fff2cf"), 50.0, 0.45)
+	elif t == "flat":
+		var kf: Kart = ed["k"]
+		var fgy := kf.wy + 0.6
+		fx.ring(kf.x, fgy, kf.y, Color("#c8a06a"), 46.0, 0.5)
+		fx.burst(kf.x, fgy + 2.0, kf.y, 26, _cols(["#efe3cb", "#c8a06a", "#ffffff"]), 70.0, 3.0)
+	elif t == "blast":
+		var bx2 := float(ed["x"])
+		var by2 := float(ed["y"])
+		var br := float(ed["r"])
+		var bcol := Color(String(ed["col"]))
+		var bgy := T.ground(bx2, by2)
+		var sc := maxf(1.0, br / 130.0)
+		fx.burst(bx2, bgy + 6.0, by2, int(round(60.0 * sc)), [bcol, Color("#ffe066"), Color.WHITE, Color("#ff5a14")], 140.0 * sc, 4.2 * sc)
+		for n in int(round(24.0 * sc)):
+			var ba := randf() * TAU
+			var bu := 0.3 + randf() * 0.7
+			fx.spawn_n(bx2 + cos(ba) * 6.0, bgy + 4.0, by2 + sin(ba) * 6.0, cos(ba) * 70.0 * bu, 14.0 + randf() * 30.0, sin(ba) * 70.0 * bu, Color("#5a4a3a"), 9.0, 28.0, 1.4, -3.0, 1.2)
+		fx.ring(bx2, bgy + 0.8, by2, bcol, br * 1.3, 0.7 + 0.3 * (sc - 1.0))
+		fx.ring(bx2, bgy + 8.0, by2, Color.WHITE, br, 0.4 + 0.2 * (sc - 1.0), false)
+		if sc > 1.5:
+			fx.ring(bx2, bgy + 16.0, by2, bcol, br * 0.8, 0.9, false)
+		fx.spawn_a(bx2, bgy + 8.0, by2, 0, 0, 0, Color("#fff2c8"), 70.0 * sc, 12.0 * sc, 0.25, 0.0, 0.0)
+	elif t == "ricochet":
+		var rx2 := float(ed["x"])
+		var ry2 := float(ed["y"])
+		fx.burst(rx2, T.ground(rx2, ry2) + 6.0, ry2, 10, _cols(["#ff5a2a", "#ffe066", "#ffffff"]), 60.0, 2.0)

@@ -40,6 +40,8 @@ var wrong_t := 0.0
 var toast_text := ""
 var toast_t := 0.0
 var hitfx_t := 0.0
+var abfx_t := 0.0
+var abfx_col := Color.WHITE
 var show_touch := true
 
 var _ibtn_tex: ImageTexture
@@ -142,6 +144,12 @@ func hit_flash() -> void:
 	hitfx_t = 0.6
 
 
+## web abilFlash: the screen's edges glow in the ability's colour (an inset 30px + 120px blur shadow) and fade over 0.9 s
+func abil_flash(c: Color) -> void:
+	abfx_t = 0.9
+	abfx_col = c
+
+
 # ---------------------------------------------------------------- per frame
 
 func tick(dt: float) -> void:
@@ -154,6 +162,8 @@ func tick(dt: float) -> void:
 		toast_t -= dt
 	if hitfx_t > 0.0:
 		hitfx_t -= dt
+	if abfx_t > 0.0:
+		abfx_t -= dt
 	var vs := get_viewport_rect().size
 	# like the browser's device-pixel ratio: the screen's scale setting (96 dpi = 1)
 	s = clampf(float(DisplayServer.screen_get_dpi()) / 96.0, 1.0, 3.0) if DisplayServer.get_name() != "headless" else 1.0
@@ -375,6 +385,15 @@ func _draw() -> void:
 		for i in 10:
 			var f := float(i) / 10.0
 			draw_rect(Rect2(Vector2(0, 0), vs).grow(-f * vs.y * 0.25), Color(0.88, 0.16, 0.08, a * 0.12 * (1.0 - f)), false, vs.y * 0.025)
+	if abfx_t > 0.0:
+		var u := 1.0 - clampf(abfx_t / 0.9, 0.0, 1.0)
+		var op := (1.0 - u) * (1.0 - u)
+		var vs2 := get_viewport_rect().size
+		var bw := 7.0
+		for i in 22:
+			var d := (float(i) + 0.5) * bw
+			var al := op / (1.0 + exp(1.702 * (d - 30.0) / 60.0))
+			draw_rect(Rect2(Vector2.ZERO, vs2).grow(-(d * s)), Color(abfx_col.r, abfx_col.g, abfx_col.b, al), false, bw * s)
 	# touch steering arrows
 	if show_touch:
 		var az := clampf(7.0 * vmin, 30.0, 48.0)
@@ -635,18 +654,30 @@ func _draw_special(btn: float, top: float) -> void:
 	var x := maxf(8.0, btn * 0.12) + 16.0
 	var y := 12.0 + top
 	var c := Vector2(x + size / 2.0, y + size / 2.0)
+	# web .abtn: the driver's face, a charge ring in the ability's colour (conic, from the top), lit up when ready
+	var ac := Color(String(Race.ABIL.get(me.racer_name.to_lower(), ["", "", "#ffe066"])[2]))
+	var chg := clampf(me.ab_c, 0.0, 1.0)
+	var ready := chg >= 0.999
 	draw_circle(_p(c + Vector2(0, 10)), (size / 2.0 + 3.0) * s, Color(0, 0, 0, 0.2))
-	_ring(c, size / 2.0 + 6.0 - 1.5, 3.0, Color(1, 1, 1, 0.14))
-	draw_circle(_p(c), (size / 2.0 + 3.0) * s, Color(1, 0.957, 0.863, 0.35))
+	if ready:
+		var pulse := 0.6 + 0.4 * sin(t * TAU)
+		_draw_glow(c, size / 2.0 + 4.0, ac, 0.55 * pulse)
+	var R := size / 2.0 + 6.0
+	var rw := R * 0.123
+	_ring(c, R - rw / 2.0, rw, Color(1, 1, 1, 0.14))
+	if chg > 0.002:
+		draw_arc(_p(c), (R - rw / 2.0) * s, -PI / 2.0, -PI / 2.0 + TAU * chg, maxi(8, int(64 * chg)), ac, rw * s, true)
+	draw_circle(_p(c), (size / 2.0 + 3.0) * s, ac if ready else Color(1, 0.957, 0.863, 0.35))
 	draw_circle(_p(c), size / 2.0 * s, Color("#2a1810"))
 	var tex: Texture2D = portraits.get(me.ri)
 	if tex != null:
 		var src := Rect2(tex.get_width() * (0.5 - 0.5 / 2.1), tex.get_height() * (0.28 - 0.28 / 2.1), tex.get_width() / 2.1, tex.get_height() / 2.1)
 		draw_texture_rect_region(tex, Rect2(_p(c - Vector2(size, size) / 2.0), Vector2(size, size) * s), src)
-	draw_circle(_p(c), size / 2.0 * s, Color(10.0 / 255, 5.0 / 255, 3.0 / 255, 0.55))
+	if not ready:
+		draw_circle(_p(c), size / 2.0 * s, Color(10.0 / 255, 5.0 / 255, 3.0 / 255, 0.55))
 	var lw := f_disp.get_string_size("SPECIAL", HORIZONTAL_ALIGNMENT_LEFT, -1, int(11 * s)).x / s + 12.0
-	_rbox(c.x - lw / 2.0, y + size - 7.0, lw, 15.0, Color(14.0 / 255, 7.0 / 255, 4.0 / 255, 0.85), Color(0, 0, 0, 0), 0.0, 8.0)
-	_text(f_disp, "SPECIAL", c.x - lw / 2.0, y + size - 5.5, 11.0, CREAM, HORIZONTAL_ALIGNMENT_CENTER, lw, Color(0, 0, 0, 0), Vector2.ZERO, 0.66)
+	_rbox(c.x - lw / 2.0, y + size - 7.0, lw, 15.0, ac if ready else Color(14.0 / 255, 7.0 / 255, 4.0 / 255, 0.85), Color(0, 0, 0, 0), 0.0, 8.0)
+	_text(f_disp, "SPECIAL", c.x - lw / 2.0, y + size - 5.5, 11.0, Color("#1a0c06") if ready else CREAM, HORIZONTAL_ALIGNMENT_CENTER, lw, Color(0, 0, 0, 0), Vector2.ZERO, 0.66)
 	if pad_mode:
 		_badge(Vector2(x + size - 6.0, y + size - 6.0), "Y", Color("#e0a91a"))
 	# rear-view button
@@ -802,6 +833,13 @@ func pedal_rect(side: int) -> Rect2:
 	var y := H - 14.0 + 6.0 - ph
 	var x := 16.0 + 4.0 if side == 0 else W - 16.0 - 4.0 - pw
 	return Rect2(Vector2(x, y) * s, Vector2(pw, ph) * s)
+
+
+func special_rect() -> Rect2:
+	var btn := _btn()
+	var size := btn * 0.95
+	var x := maxf(8.0, btn * 0.12) + 16.0
+	return Rect2(Vector2(x, 12.0 + _hud_top()) * s, Vector2(size, size) * s)
 
 
 func pause_rect() -> Rect2:

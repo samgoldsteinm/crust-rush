@@ -63,7 +63,8 @@ func _physics_process(dt: float) -> void:
 				slow += 1
 		print("SMOKE results: " + line)
 		print("SMOKE items used %s, spin-outs %d (player %d), boxes taken %d, most thrown at once %d, most slicks %d" % [str(main.stats["used"]), main.stats["spins"], main.stats["player_spins"], main.stats["boxes"], max_proj, max_haz])
-		var ok: bool = slow == 0 and int(main.stats["boxes"]) > 10 and main.stats["used"].size() >= 4 and loops >= 3
+		print("SMOKE abilities used %s" % str(main.stats.get("abilities", {})))
+		var ok: bool = slow == 0 and int(main.stats["boxes"]) > 10 and main.stats["used"].size() >= 4 and loops >= 3 and main.stats.get("abilities", {}).size() >= 3
 		print("SMOKE %s player %s in %.2f s, respawns %d, ramp jumps %d, glides %d, loops %d, highest %.1f, karts stuck on lap 1: %d" % ["PASS" if ok else "FAIL", main._ordinal(k.place), k.finish_time, respawns, jumps, glides, loops, max_air, slow])
 		get_tree().quit(0 if ok else 1)
 	elif t > MAX_T:

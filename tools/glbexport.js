@@ -138,6 +138,65 @@ function bakeLivery(mesh){const m=mesh.material;if(!m||Array.isArray(m)||!m.user
   geo.setAttribute('livColor',new THREE.BufferAttribute(out,3));return {n,bad};}
 
 window.__bakeLivery=bakeLivery;
+/* ================= garage: every body, wheel, glider and driver as separate parts ================= */
+/* Bodies are built with marker colours (a paint and a stripe nobody else uses) and the game's bake() is
+   patched for the export (see __garageBegin) so the paint, the darker trim and the stripe stay separate,
+   named materials (g_paint, g_dark, g_stripe). The PC build recolours them for any paint or livery. */
+const GM={paint:'#fe01fd',stripe:'#01fe03'};
+const ctag=c=>Math.round(c.r*1000)+','+Math.round(c.g*1000)+','+Math.round(c.b*1000);
+const parts=(G,root,space,skip)=>{const b=collect(G,root,space,{skip,visStop:null});const pr=[];for(const [k,bk] of b){const p=G.primitive(bk.parts,bk.mi,bk.useUV,bk.useC);if(p)pr.push(p);}return pr;};
+const under=(o,root)=>{for(let p=o;p;p=p.parent)if(p===root)return true;return false;};
+const rel=(o,g)=>new THREE.Matrix4().copy(g.matrixWorld).invert().multiply(o.matrixWorld);
+function reset(m){const g=m.g;g.position.set(0,0,0);g.rotation.set(0,0,0);g.scale.set(1,1,1);if(m.gl){m.gl.visible=false;}if(m.lo)m.lo.visible=false;if(m.bub)m.bub.visible=false;if(m.ice)m.ice.visible=false;(m.flames||[]).forEach(f=>f.visible=false);m.tilt.visible=true;g.updateMatrixWorld(true);}
+window.__garageInfo=function(){
+  const mkCol=new THREE.Color(GM.paint),stCol=new THREE.Color(GM.stripe),dkCol=new THREE.Color(shade(GM.paint,-.45));
+  return {mark:{paint:GM.paint,stripe:GM.stripe,dark:shade(GM.paint,-.45),tags:{paint:ctag(mkCol),stripe:ctag(stCol),dark:ctag(dkCol)}},
+    bodies:BODIES.map(b=>({id:b.id,name:b.name,desc:b.desc,st:b.st,sf:b.sf||1,bike:!!b.bike,bw:b.bw||null,car:CAR_BODIES.includes(b.id)})),
+    wheels:WHEELS.map(w=>({id:w.id,name:w.name,desc:w.desc,st:w.st,r:w.r,wz:w.wz,pack:w.pack||null})),
+    gliders:GLIDERS.map(g=>({id:g.id,name:g.name,desc:g.desc,st:g.st,sink:g.sink,air:g.air})),
+    paints:PAINTS,paintNames:PAINT_NAMES,liveries:LIVERIES.map(l=>Object.assign({},l)),livCats:LIV_CATS,statW:STAT_W,statNames:STAT_NAMES,statShort:STAT_SHORT,
+    racers:RACERS.map(r=>({name:r.name,color:r.color,stripe:r.stripe,top:r.top,iris:r.iris})),shadeDark:-.45};};
+/* the patched bake: paint, dark trim and stripe (marker colours) keep their own named materials */
+window.__garageBake=function(S){const mk=new THREE.Color(GM.paint),st=new THREE.Color(GM.stripe),dk=new THREE.Color(shade(GM.paint,-.45));const near=(a,b)=>Math.abs(a.r-b.r)+Math.abs(a.g-b.g)+Math.abs(a.b-b.b)<.004;
+  S.traverse(o=>{if(!o.isMesh)return;for(const m of (Array.isArray(o.material)?o.material:[o.material])){if(!m||!m.color||m.map)continue;
+    if(near(m.color,mk)){m.vertexColors=true;m.name='g_paint';}else if(near(m.color,dk)){m.vertexColors=true;m.name='g_dark';}else if(near(m.color,st)){m.vertexColors=true;m.name='g_stripe';}}});};
+/* one body: its geometry without wheels, driver or glider, plus the pack wheels of cars and bikes */
+window.__exportBody=function(b){const G=new GLB();const pi=PAINTS.length-1;const m=buildKart({ri:0,b,w:0,g:0,p:pi,t:'',hq:1});reset(m);const g=m.g;
+  const yaws=m.wheels.map(w=>w.spin.parent),front=new Set(m.front||[]);
+  const skip=o=>yaws.some(y=>under(o,y))||under(o,m.drv)||(m.lo&&under(o,m.lo))||(m.gl&&under(o,m.gl))||(m.bub&&under(o,m.bub))||(m.ice&&under(o,m.ice))||(m.flames||[]).some(f=>under(o,f))||(m.hglow&&o===m.hglow);
+  const top=[G.node('body',parts(G,g,g.matrixWorld,skip))];
+  /* where the livery pattern is computed: the paint mesh's own space */
+  let paintM=null,box=null;g.traverse(o=>{if(!paintM&&o.isMesh&&!skip(o)&&o.material&&o.material.name==='g_paint'){paintM=o;}});
+  let liv=null;if(paintM){const a=paintM.geometry.attributes.position.array;let x0=1e9,x1=-1e9,zw=0,yt=-1e9,y0=1e9;for(let i=0;i<a.length;i+=3){x0=Math.min(x0,a[i]);x1=Math.max(x1,a[i]);zw=Math.max(zw,Math.abs(a[i+2]));yt=Math.max(yt,a[i+1]);y0=Math.min(y0,a[i+1]);}
+    let cfg={};try{const dm=new Proxy({},{get:(t,k)=>k in t?t[k]:(t[k]=new THREE.MeshStandardMaterial())});cfg=BODY_FN[BODIES[b].id](new THREE.Group(),dm,RACERS[0],0,new THREE.Group())||{};}catch(e){}
+    const car=!!cfg.car;liv={box:car?carDims(cfg.car):[x0,x1,zw,yt],belt:car?(cfg.belt||1.5):y0+(yt-y0)*.5,numPos:car?(cfg.numPos||[0,1]):[(x0+x1)/2,y0+(yt-y0)*.5],xf:rel(paintM,g).invert().toArray(),car};}
+  /* cars on their standard wheels and bikes: their own wheel models */
+  const pw=[];m.wheels.forEach((w,i)=>{const yaw=w.spin.parent,sp=w.spin;const ch=sp.children[0];const packed=ch&&ch.isMesh&&ch.geometry&&ch.material&&!(ch.scale.x!==1&&ch.scale.y!==1);
+    const pr=parts(G,sp,sp.matrixWorld,null);if(pr.length){const nm='pw'+i;top.push(G.node(nm,pr));pw.push(nm);}});
+  const root=G.node('kart',null,{children:top});G.j.scenes[0].nodes.push(root);const bytes=G.glb();
+  return {b64:u8ToB64(bytes),liv,pw,stats:Object.assign(G.stats,{bytes:bytes.length})};};
+/* every wheel type, both sides, unscaled, in the wheel's own space */
+window.__exportWheel=function(w){const G=new GLB();const pi=PAINTS.length-1;const m=buildKart({ri:0,b:0,w,g:0,p:pi,t:'',hq:1});reset(m);const top=[];
+  const done={};m.wheels.forEach(q=>{const sp=q.spin,yaw=sp.parent,side=yaw.position.z<0?'L':'R';if(done[side])return;done[side]=1;const wh=sp.children[0];if(!wh)return;
+    const pr=parts(G,wh,wh.matrixWorld,null);if(pr.length)top.push(G.node('wheel_'+side,pr));});
+  const root=G.node('wheels',null,{children:top});G.j.scenes[0].nodes.push(root);const bytes=G.glb();return {b64:u8ToB64(bytes),stats:Object.assign(G.stats,{bytes:bytes.length})};};
+window.__exportGlider=function(gi){const G=new GLB();const pi=PAINTS.length-1;const m=buildKart({ri:0,b:0,w:0,g:gi,p:pi,t:'',hq:1});reset(m);const gl=m.gl;gl.visible=true;gl.scale.setScalar(1);gl.updateMatrixWorld(true);
+  const pr=parts(G,gl,gl.matrixWorld,null);const root=G.node('glider',pr);G.j.scenes[0].nodes.push(root);const bytes=G.glb();return {b64:u8ToB64(bytes),stats:Object.assign(G.stats,{bytes:bytes.length})};};
+window.__exportDriver=function(ri){const G=new GLB();const m=buildKart({ri,b:0,w:0,g:0,p:0,t:'',hq:1});reset(m);const d=m.drv;
+  const pr=parts(G,d,d.matrixWorld,null);const root=G.node('driver',pr);G.j.scenes[0].nodes.push(root);const bytes=G.glb();return {b64:u8ToB64(bytes),stats:Object.assign(G.stats,{bytes:bytes.length})};};
+/* where things go for one body with one wheel type: wheels, lift, glider, bubble, effects */
+window.__placeBW=function(b,w){const m=buildKart({ri:0,b,w,g:0,p:0,t:'',hq:0});reset(m);const g=m.g,front=new Set(m.front||[]);const B=m.drv.parent.parent;
+  const wl=m.wheels.map((q,i)=>{const sp=q.spin,yaw=sp.parent,wh=sp.children[0];const ys=yaw.getWorldPosition(new THREE.Vector3());
+    const ax=[];yaw.children.forEach(c=>{if(c!==sp&&c.isMesh)ax.push({p:c.position.toArray(),s:c.scale.toArray(),r:c.rotation.toArray().slice(0,3)});});
+    return {i,front:front.has(yaw),x:ys.x,y:ys.y,z:ys.z,r:q.r,s:wh?wh.scale.toArray():[1,1,1],axle:ax};});
+  const v=a=>a?(a.isVector3?a.toArray():a):null;
+  return {L:B.position.y,glY:m.gl?m.gl.position.y:0,bub:m.bub?{x:m.bub.position.x,y:m.bub.position.y,z:m.bub.position.z,s:m.bub.scale.x}:null,wheels:wl,top:m.top,axF:m.axF,axR:m.axR,axW:m.axW,sf:m.sf,hover:m.hover,bike:m.bike,
+    fxL:(m.fxL||[]).map(v),fxP:(m.fxP||[]).map(v),smoke:v(m.smoke),flames:(m.flames||[]).map((f,i)=>({i,inner:i%2===1,x:f.position.x,y:f.position.y,z:f.position.z,fl:f.userData.fl}))};};
+/* the driver's seat for one body and one racer (a 4x4 matrix in kart space) */
+window.__placeDrv=function(b,ri){const m=buildKart({ri,b,w:0,g:0,p:0,t:'',hq:0});reset(m);return rel(m.drv,m.g).toArray();};
+/* the shared livery textures: race numbers and decals */
+window.__livTex=function(){const out={};for(const [k,t] of [['num',numTex],['dec',decTex]]){const im=t.image;const c=document.createElement('canvas');c.width=im.width;c.height=im.height;c.getContext('2d').drawImage(im,0,0);out[k]=c.toDataURL('image/png').split(',')[1];}return out;};
+
 window.__exportKart=function(spec){const G=new GLB();const m=buildKart(spec);const g=m.g;g.position.set(0,0,0);g.rotation.set(0,0,0);g.scale.set(1,1,1);g.updateMatrixWorld(true);
   m.tilt.visible=true;if(m.lo)m.lo.visible=false;if(m.gl)m.gl.visible=false;if(m.bub)m.bub.visible=false;if(m.ice)m.ice.visible=false;(m.flames||[]).forEach(f=>{if(f&&f.visible!==undefined)f.visible=false;});
   const livStats=[];g.traverse(o=>{if(o.isMesh){const r=bakeLivery(o);if(r)livStats.push(r);}});
