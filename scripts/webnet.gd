@@ -207,7 +207,9 @@ func poll() -> void:
 		return
 	if now - int(chan.get("last_out", 0)) > 1500:
 		_send({"t": "hb"})
-	var lim := 20000 if (main != null and main.state in ["race", "countdown"] and not host_away) else 180000
+	# 20 s of silence ends a race in progress; while anyone is still loading the track (a browser can go quiet for a
+	# long while building it) the web's 3 minutes apply
+	var lim := 20000 if (go and main != null and main.state in ["race", "countdown"] and not host_away) else 180000
 	if now - int(chan.get("last_in", now)) > lim:
 		_lost("Lost the connection. Check that everyone is online with the game open.")
 		return
@@ -894,7 +896,7 @@ func _poll_host(now: int) -> void:
 			continue
 		if now - int(ch.get("last_out", 0)) > 1500:
 			_send_to(ch, {"t": "hb"})
-		var lim := 20000 if (main != null and main.state in ["race", "countdown"]) else 180000
+		var lim := 20000 if (go and main != null and main.state in ["race", "countdown"]) else 180000
 		if now - int(ch.get("last_in", now)) > lim:
 			_drop(ch)
 	if now - t2 > 2000:
