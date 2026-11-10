@@ -4,6 +4,28 @@
    non-sRGB colour textures are re-encoded so a glTF (sRGB) decode gives back the values three.js used. */
 (function(){
 const SRGB=3001;
+/* ---- props the PC build draws itself: trees, palms, bushes and rocks. They're recorded where the game places them
+   (without changing what it builds or the seeded stream it draws from) and left out of the baked track; the PC draws
+   finished models in their place, or these same shapes from the copies kept here. ---- */
+const HDK=new Set(['palm','treeA','treeB','shrub','pineA','pineB','pine','bush','rock']);
+const PROPS={kinds:{},items:{}};let hdN=0,fcall=0;
+const q3=a=>Array.from(a||[],v=>Math.round(v*1000)/1000);
+try{const _dl=detailLibQ;detailLibQ=function(th){const L=_dl(th);for(const k in L){const t=L[k];if(HDK.has(k)&&t&&t.P&&!t.__hd){t.__hd=k+'#'+(++hdN);PROPS.kinds[t.__hd]={base:k,theme:th,P:q3(t.P),N:q3(t.N),C:q3(t.C),GP:q3(t.GP),GC:q3(t.GC),rad:t.rad||0,h:t.h||0};PROPS.items[t.__hd]=[];}}return L;};}catch(e){console.warn('hd detailLibQ',e);}
+try{const _da=dbAdd;dbAdd=function(t,x,z,ry,s,tint,yOff,blob){if(t&&t.__hd){if(DB_THIN){const kp=dbKeep();if(kp<1&&dbHash(x,z)>kp)return;}
+    const tn=tint==null?null:(tint.isColor?'#'+tint.getHexString():(typeof tint==='number'?'#'+tint.toString(16).padStart(6,'0'):String(tint)));
+    PROPS.items[t.__hd].push([+x.toFixed(2),+(groundAt(x,z)+(yOff||0)).toFixed(2),+z.toFixed(2),+(ry||0).toFixed(4),+(s||1).toFixed(4),tn]);return;}
+  return _da(t,x,z,ry,s,tint,yOff,blob);};}catch(e){console.warn('hd dbAdd',e);}
+try{const _fo=forest;forest=function(list,y,snow,rng,hq,tint){const before=world.children.length;const r=_fo(list,y,snow,rng,hq,tint);const call=++fcall;
+    const names=[];const seen=new Set();for(const t of list)if(!seen.has(t[0])){seen.add(t[0]);names.push(t[0]);}
+    const added=world.children.slice(before).filter(o=>o.isInstancedMesh);
+    added.forEach((im,i)=>{const base=names[i];if(!base)return;const key='f'+call+'_'+base;im.userData.hdProp=key;const g=im.geometry;
+      const P=q3(g.attributes.position.array),N=q3(g.attributes.normal?g.attributes.normal.array:[]),C=q3(g.attributes.color?g.attributes.color.array:[]),I=g.index?Array.from(g.index.array):null;
+      PROPS.kinds[key]={base,forest:1,snow:snow||0,hq:hq===false?0:1,P,N,C,I,GP:[],GC:[],shadow:im.castShadow?1:0};
+      const m=new THREE.Matrix4(),pv=new THREE.Vector3(),qv=new THREE.Quaternion(),sv=new THREE.Vector3(),ev=new THREE.Euler();const it=[];
+      for(let k=0;k<im.count;k++){im.getMatrixAt(k,m);m.decompose(pv,qv,sv);ev.setFromQuaternion(qv,'YXZ');it.push([+pv.x.toFixed(2),+pv.y.toFixed(2),+pv.z.toFixed(2),+ev.y.toFixed(4),+sv.x.toFixed(4),+sv.y.toFixed(4),+sv.z.toFixed(4)]);}
+      PROPS.items[key]=it;});
+    return r;};}catch(e){console.warn('hd forest',e);}
+window.__exportProps=function(){const out={kinds:{},items:{}};for(const k in PROPS.kinds){if(PROPS.items[k]&&PROPS.items[k].length){out.kinds[k]=PROPS.kinds[k];out.items[k]=PROPS.items[k];}}return out;};
 const l2s=c=>c<=0.0031308?c*12.92:1.055*Math.pow(c,1/2.4)-0.055;
 function b64ToU8(d){const s=atob(d.slice(d.indexOf(',')+1)),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u;}
 function u8ToB64(u){let s='';const C=0x8000;for(let i=0;i<u.length;i+=C)s+=String.fromCharCode.apply(null,u.subarray(i,i+C));return btoa(s);}
@@ -111,7 +133,9 @@ window.__exportTrack=function(name){const G=new GLB();G.extDir=name+'_tex';
   const kartSet=new Set(karts.map(k=>k.m&&k.m.g).filter(Boolean));
   /* things that move are drawn by the game, not baked into the track: traffic, walkers, the train's wagons, rolling meatballs, item boxes */
   const hz=__hazSet();
-  const skip=o=>{for(let p=o;p;p=p.parent){if(kartSet.has(p)||hz.has(p))return true;if(p.userData&&(p.userData.isBox||p.userData.box||p.userData.fx||p.userData.dyn))return true;}return false;};
+  const skip=o=>{for(let p=o;p;p=p.parent){if(kartSet.has(p)||hz.has(p))return true;if(p.userData&&(p.userData.isBox||p.userData.box||p.userData.fx||p.userData.dyn||p.userData.hdProp))return true;}return false;};
+  /* the ground gets its own material name, so the PC can give it a finished surface */
+  try{if(typeof TERR!=='undefined'&&TERR&&TERR.chunks)for(const c of TERR.chunks)if(c.material)c.material.name='terrain';}catch(e){}
   const CELL=700,DSET=new Set();for(const ch of (typeof detailChunks!=='undefined'?detailChunks:[]))for(const m of ch.ms)DSET.add(m);
   const cellOf=(o,x,z)=>Math.floor(x/CELL)+'_'+Math.floor(z/CELL)+(DSET.has(o)?'_d':'');
   const buckets=collect(G,world,new THREE.Matrix4(),{skip,cell:cellOf,visStop:null});

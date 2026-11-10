@@ -60,6 +60,9 @@ async def main():
         od = os.path.join(OUT, nm)
         os.makedirs(od, exist_ok=True)
         d['race'] = json.loads(await pg.evaluate("__ev(`JSON.stringify(__exportRace())`)"))
+        # trees, palms, bushes and rocks: where they stand, and a copy of each shape (the PC draws finished ones)
+        d['props'] = json.loads(await pg.evaluate("__ev(`JSON.stringify(__exportProps())`)"))
+        print('props', {k: len(v) for k, v in d['props']['items'].items()}, flush=True)
         hz = json.loads(await pg.evaluate("__ev(`JSON.stringify(__exportHaz())`)"))
         d['haz'] = hz['data']
         d['mi'] = MI
