@@ -442,6 +442,10 @@ func _build_world() -> void:
 	# the ground: the same picture with depth, gloss and a fine grain up close
 	if track != null and hd:
 		print("ground: %d finished" % HdGround.upgrade(track, String(_map_info(map_id)["dir"]).path_join(map_id + "_hd.json")))
+		# the background mountains: the far ranges and the sculpted mountains, finely rebuilt
+		var mt0 := Time.get_ticks_msec()
+		var mst := HdMount.upgrade(track, 2 if quality >= 2 else 1, T.theme)
+		print("mountains: %d ranges, %d sculpted (%d ms)" % [mst["rings"], mst["mounts"], Time.get_ticks_msec() - mt0])
 	# trees, palms, bushes and rocks: finished models on PC (the web game's own shapes far away, and when off)
 	if not T.props.is_empty():
 		var pr := Props.new()

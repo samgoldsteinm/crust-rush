@@ -34,6 +34,11 @@ the ground's cheese with depth (the flecks stand up, the specks sink in, it's gl
 grain close up). Leaves sway in the wind and let a little light through. Far away the web game's own shapes are
 drawn, so nothing changes in the distance. Off draws the web game's shapes everywhere.
 
+The background mountains are part of it too. The far mountain ranges keep the web game's skyline but are rebuilt with
+nine times the points, with finer ridges and gullies cut into the high ground and crags from a CC0 cliff texture on
+their faces. The sculpted mountains (your own mountain model, which the web game uses at 3,500 points) are rebuilt
+from the full model's height field with about twenty times the triangles and lit from a detailed map of its surface.
+
 ## Controls
 - Keyboard: arrows/A D steer · Space/Down/S drift, brake · X/Enter first item · Z/Q second item · Shift/B keep behind ·
   hold F to look back (and throw backwards) · C/R special · P/Esc pause · F11 full screen.
@@ -51,11 +56,13 @@ drawn, so nothing changes in the distance. Off draws the web game's shapes every
 - `scripts/netlog.gd` — the network log of online races.
 - `scripts/music.gd`, `scripts/sfx.gd` — the soundtrack and the sound effects.
 - `scripts/track.gd` — track data exported from the web game.
-- `scripts/props.gd`, `scripts/hd_ground.gd`, `shaders/foliage.gdshader` — the finished trees, bushes, rocks and ground.
+- `scripts/props.gd`, `scripts/hd_ground.gd`, `scripts/hd_mount.gd`, `shaders/foliage.gdshader`, `shaders/mountain*.gdshader`
+  — the finished trees, bushes, rocks, ground and background mountains.
 - `shaders/` — sky, post grade, livery, bubbles, particles and menu backgrounds.
 - `tools/` — the exporters (tracks, garage, soundtrack), run in a browser against the web game; `hd_textures.py`
   (the leaf, frond, bough and bark pictures), `hd_ground.py` (the ground's relief and gloss maps, made in the build),
-  `hd_fetch.py` (downloads the CC0 textures).
+  `hd_fetch.py` (downloads the CC0 textures), `hd_mount.py` (the mountain's height field, surface and colour from the
+  original mountain model).
 - `tests/` — headless race (`smoke`), every track (`allmaps`), two-copy online race (`net`), screenshots matched step
   for step with the web game's (`shots`), menu screenshots (`menushots`).
 - `.github/workflows/pc.yml` — checks, tests and builds on every push. `[quick]` in a commit message skips screenshots and export.
