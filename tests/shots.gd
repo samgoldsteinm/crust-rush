@@ -1,16 +1,13 @@
 extends Node
-## Renders the same moments as the web game's reference shots (tools/webref.py) so the two can be
-## compared side by side: the countdown, the HUD with items, drift sparks, boost flames, each item in use,
-## a trick, a spin-out, the glide canyon, plus views round the track. Run with --fixed-fps 60 so every
-## frame is 1/60 s of game time however slowly the software renderer draws. Saves PNGs to build/shots
-## and prints a JPEG of each to the log in short pieces (SHOT_PART lines).
+## Renders the same moments as the web game's reference shots (tools/webref.py), step for step, so the
+## two can be compared side by side: the countdown, the HUD with items, drift sparks, boost flames, each
+## item in use, a held item, a trick, a spin-out, the Pizza Wheel, the glide canyon, plus views round
+## the track. "wait_t" runs the race for that long without drawing and then draws two frames, as the
+## web script does. Run with --fixed-fps 60. Saves PNGs to build/shots and prints a JPEG of each to
+## the log in short pieces (SHOT_PART lines).
 
 var main: Node
 var dir := ""
-var steps: Array = []
-var si := 0
-var wait := 0
-var each := Callable()
 var T: TrackData
 
 
@@ -21,152 +18,132 @@ func _ready() -> void:
 	T = main.T
 	dir = ProjectSettings.globalize_path("res://build/shots")
 	DirAccess.make_dir_recursive_absolute(dir)
-	steps = [
-		[25, _nop, "g_countdown"],
-		[0, _s_go, ""],
-		[12, _s_items, "g_hud_items"],
-		[12, _s_roll, "g_hud_roll"],
-		[0, _s_sim1, ""],
-		[20, _s_drift3, "g_drift3"],
-		[20, _s_drift1, "g_drift1"],
-		[10, _s_boost, "g_boost"],
-		[8, _s_boost3, "g_boost_t3"],
-		[0, _s_sim15, ""],
-		[15, _s_pep, "g_pep"],
-		[15, _s_trio, "g_trio"],
-		[18, _s_dough, "g_dough"],
-		[30, _s_garlic, "g_garlic"],
-		[24, _s_flour, "g_flour_fly"],
-		[24, _nop, "g_flour_boom"],
-		[18, _s_chili, "g_chili"],
-		[0, _s_sim15, ""],
-		[48, _s_oil, "g_oil_back"],
-		[36, _s_rush, "g_rush"],
-		[0, _s_sim3, ""],
-		[30, _s_held, "g_held"],
-		[15, _s_trick, "g_trick"],
-		[0, _s_sim15, ""],
-		[9, _s_spin, "g_spin"],
-		[0, _s_sim2, ""],
-		[60, _s_wheel, "g_wheel"],
-		[20, _s_canyon, "g_canyon_floor"],
-		[20, _s_p150, "g_early"],
-		[20, _s_p520, "g_mid"],
-		[20, _s_p1000, "g_late"],
-		[20, _s_p1140, "g_loop"],
-	]
-	wait = 1
+	_run()
 
 
 func _k() -> Kart:
 	return main.kart
 
 
-func _nop() -> void:
-	pass
+func _frames(n: int) -> void:
+	for i in n:
+		await get_tree().process_frame
 
 
-func _s_go() -> void:
-	_go(4.0)
+## the race runs for `sec` without drawing, then two frames are drawn (web wait_t)
+func _wait_t(sec: float) -> void:
+	for i in int(round(sec * 120.0)):
+		main._sim_tick(1.0 / 120.0)
+	await _frames(2)
 
 
-func _s_items() -> void:
+func _shot(name: String) -> void:
+	await _frames(1)
+	_capture(name)
+
+
+func _drift(tier: int, steer: float) -> void:
+	var k := _k()
+	k.drift = 1
+	k.tier = tier
+	k.charge = [0.0, 1.0, 2.0, 3.0][tier]
+	k.d_amt = 1.0
+	k.d_time = 0.0
+	k.s_t = 0.0
+	k.steer = steer
+
+
+func _use(it: String, back := false) -> void:
+	_k().item = it
+	main.race.use_item(_k(), back)
+
+
+func _run() -> void:
+	await _frames(25)          # the track and karts settle in
+	await _frames(2)
+	await _shot("g_countdown")
+	main.state = "race"
+	main.race.state = "race"
+	main.cd = 0.0
+	main._show_center("Go!", 1.0, "md")
+	await _wait_t(4.0)
 	_k().item = "pepperoni"
 	_k().item2 = "garlic"
-
-
-func _s_roll() -> void:
+	await _wait_t(0.3)
+	await _shot("g_hud_items")
+	_k().item = ""
+	_k().item2 = ""
+	_k().pend = ["chili"]
+	_k().roll = 1.1
+	await _wait_t(0.3)
+	await _shot("g_hud_roll")
+	await _wait_t(1.0)
+	# drift sparks: three steps with the drift held, one frame each
+	for i in 3:
+		_drift(3, 1.0)
+		main._sim_tick(1.0 / 120.0)
+		_drift(3, 1.0)
+		await _frames(1)
+	await _shot("g_drift3")
+	for i in 3:
+		_drift(1, -1.0)
+		main._sim_tick(1.0 / 120.0)
+		_drift(1, -1.0)
+		await _frames(1)
+	await _shot("g_drift1")
+	_k().drift = 0
+	_k().charge = 0.0
+	# boost flames
 	var k := _k()
-	k.item = ""
-	k.item2 = ""
-	k.pend = ["chili"]
-	k.roll = 1.1
-
-
-func _s_sim1() -> void:
-	_sim(1.0)
-
-
-func _s_sim15() -> void:
-	_sim(1.5)
-
-
-func _s_sim2() -> void:
-	_sim(2.0)
-
-
-func _s_sim3() -> void:
-	_sim(3.0)
-
-
-func _s_drift3() -> void:
-	each = _drift.bind(3)
-
-
-func _s_drift1() -> void:
-	each = _drift.bind(1)
-
-
-func _s_boost() -> void:
-	var k := _k()
-	each = Callable()
-	k.drift = 0
-	k.charge = 0.0
 	k.boost = 2.5
 	k.b_pk = 2.5
 	k.f_tier = 0
-
-
-func _s_boost3() -> void:
-	var k := _k()
+	await _wait_t(0.15)
+	await _shot("g_boost")
 	k.boost = 1.3
 	k.b_pk = 1.3
 	k.f_tier = 3
-
-
-func _s_pep() -> void:
-	_use(_k(), "pepperoni", false)
-
-
-func _s_trio() -> void:
-	_use(_k(), "trio", false)
-
-
-func _s_dough() -> void:
-	_use(_k(), "dough", false)
-
-
-func _s_garlic() -> void:
-	_use(_k(), "garlic", false)
-
-
-func _s_flour() -> void:
-	_use(_k(), "flour", false)
-
-
-func _s_chili() -> void:
+	await _wait_t(0.1)
+	await _shot("g_boost_t3")
+	await _wait_t(1.5)
+	# items in use
+	_use("pepperoni")
+	await _wait_t(0.25)
+	await _shot("g_pep")
+	_use("trio")
+	await _wait_t(0.25)
+	await _shot("g_trio")
+	_use("dough")
+	await _wait_t(0.3)
+	await _shot("g_dough")
+	_use("garlic")
+	await _wait_t(0.5)
+	await _shot("g_garlic")
+	_use("flour")
+	await _wait_t(0.4)
+	await _shot("g_flour_fly")
+	await _wait_t(0.4)
+	await _shot("g_flour_boom")
 	_k().sh_l = 0
-	_use(_k(), "chili", false)
-
-
-func _s_oil() -> void:
+	_use("chili")
+	await _wait_t(0.3)
+	await _shot("g_chili")
+	await _wait_t(1.5)
 	main.test_look = true
-	_use(_k(), "oil", true)
-
-
-func _s_rush() -> void:
+	_use("oil", true)
+	await _wait_t(0.8)
+	await _shot("g_oil_back")
 	main.test_look = false
-	_use(_k(), "rush", false)
-
-
-func _s_held() -> void:
+	_use("rush")
+	await _wait_t(0.6)
+	await _shot("g_rush")
+	await _wait_t(3.0)
 	_k().item = "pepperoni"
 	main.race.hold_item(_k(), 1)
-
-
-func _s_trick() -> void:
-	var k := _k()
-	main.race.drop_held(k)
+	await _wait_t(0.5)
+	await _shot("g_held")
+	main.race.drop_held(_k())
+	k = _k()
 	k.air = true
 	k.big = true
 	k.air_t = 0.3
@@ -175,70 +152,37 @@ func _s_trick() -> void:
 	k.trick = true
 	k.trick_t = Kart.TRICK_T
 	k.trick_k = 1
+	await _wait_t(0.25)
+	await _shot("g_trick")
+	await _wait_t(1.5)
+	_k().inv = 0.0
+	_k().sh_l = 0
+	main.race.spin_out(_k(), "pep")
+	await _wait_t(0.15)
+	await _shot("g_spin")
+	await _wait_t(2.0)
+	_use("wheel")
+	await _wait_t(1.0)
+	await _shot("g_wheel")
+	# the glide canyon, from the floor
+	if not T.glide.is_empty():
+		_place(int((int(T.glide["j0"]) + int(T.glide["j1"])) / 2), true)
+		await _frames(3)
+		await _shot("g_canyon_floor")
+		# looking down into the canyon from the ramp, where the water is
+		_place(int(T.glide["rj"]) - 6, true)
+		await _frames(3)
+		await _shot("g_canyon_ramp")
+	for j in [150, 520, 1000, 1140]:
+		_place(j % T.N, true)
+		await _frames(3)
+		await _shot("g_" + {150: "early", 520: "mid", 1000: "late", 1140: "loop"}[j])
+	print("SHOTS done")
+	get_tree().quit(0)
 
 
-func _s_spin() -> void:
+func _place(j: int, floor_: bool) -> void:
 	var k := _k()
-	k.inv = 0.0
-	k.sh_l = 0
-	main.race.spin_out(k, "pep")
-
-
-func _s_wheel() -> void:
-	_use(_k(), "wheel", false)
-
-
-func _s_canyon() -> void:
-	_place(_k(), int((int(T.glide["j0"]) + int(T.glide["j1"])) / 2), true)
-
-
-func _s_p150() -> void:
-	_place(_k(), 150, false)
-
-
-func _s_p520() -> void:
-	_place(_k(), 520, false)
-
-
-func _s_p1000() -> void:
-	_place(_k(), 1000, false)
-
-
-func _s_p1140() -> void:
-	_place(_k(), 1140, false)
-
-
-func _go(sec: float) -> void:
-	main.state = "race"
-	main.race.state = "race"
-	main.cd = 0.0
-	_sim(sec)
-
-
-## run the race for a while without drawing
-func _sim(sec: float) -> void:
-	for i in int(sec * 120.0):
-		main._sim_tick(1.0 / 120.0)
-	main.cam_snap = true
-
-
-func _drift(tier: int) -> void:
-	var k := _k()
-	k.drift = 1
-	k.tier = tier
-	k.charge = [0.0, 1.0, 2.0, 3.0][tier]
-	k.d_amt = 1.0
-	k.d_time = 0.0
-	k.s_t = 0.0
-	k.steer = 1.0 if tier == 3 else -1.0
-
-
-func _use(k: Kart, it: String, back: bool) -> void:
-	k.item = it
-	main.race.use_item(k, back)
-
-
-func _place(k: Kart, j: int, floor_: bool) -> void:
 	k.x = T.px[j]
 	k.y = T.py[j]
 	k.a = T.ang[j]
@@ -253,29 +197,6 @@ func _place(k: Kart, j: int, floor_: bool) -> void:
 	k.speed = 0.0 if floor_ else 150.0
 	k._save_prev()
 	main.cam_snap = true
-
-
-func _physics_process(_dt: float) -> void:
-	if each.is_valid():
-		each.call()
-
-
-func _process(_dt: float) -> void:
-	if wait > 0:
-		wait -= 1
-		return
-	if si > 0:
-		var nm: String = steps[si - 1][2]
-		if nm != "":
-			_capture(nm)
-	if si >= steps.size():
-		print("SHOTS done")
-		get_tree().quit(0)
-		return
-	var st: Array = steps[si]
-	si += 1
-	(st[1] as Callable).call()
-	wait = int(st[0])
 
 
 func _capture(name: String) -> void:

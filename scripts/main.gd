@@ -298,6 +298,31 @@ func load_map(id: String) -> bool:
 	return true
 
 
+## inverse of Godot's ACES (tonemap_aces in the renderer): the HDR colour that comes out as `t`
+static func _aces_inv(t: Vector3) -> Vector3:
+	const A := 0.0245786
+	const B := 0.000090537
+	const C := 0.983729
+	const D := 0.432951
+	const E := 0.238081
+	var bias := 1.8
+	var w := 16.0 * bias
+	var wt := (w * (w + A) - B) / (w * (C * w + D) + E)
+	var odt := Basis(Vector3(1.60475, -0.10208, -0.00327), Vector3(-0.53108, 1.10813, -0.07276), Vector3(-0.07367, -0.00605, 1.07602))
+	var rrt := Basis(Vector3(0.59719, 0.07600, 0.02840), Vector3(0.35458, 0.90834, 0.13383), Vector3(0.04823, 0.01566, 0.83777))
+	var z := odt.inverse() * (t * wt)
+	var u := Vector3.ZERO
+	for i in 3:
+		var y := clampf(z[i], 0.0, 0.995)
+		# y = (u(u+A)-B)/(u(Cu+D)+E)  ->  (1-yC)u^2 + (A-yD)u - (B+yE) = 0
+		var a := 1.0 - y * C
+		var b := A - y * D
+		var c := -(B + y * E)
+		u[i] = (-b + sqrt(maxf(0.0, b * b - 4.0 * a * c))) / (2.0 * a)
+	var x := rrt.inverse() * u / bias
+	return Vector3(maxf(0.0, x.x), maxf(0.0, x.y), maxf(0.0, x.z))
+
+
 func _build_world() -> void:
 	var L: Dictionary = T.light
 	var S: Dictionary = T.sky
@@ -331,6 +356,7 @@ func _build_world() -> void:
 	env.ssao_enabled = not is_phone
 	env.ssao_radius = 2.5
 	env.ssao_intensity = 1.6
+	env.ssao_light_affect = 0.6   # the web multiplies the whole picture by its AO, lit faces included
 	env.glow_enabled = not is_phone
 	env.glow_intensity = 0.3
 	env.glow_strength = 1.0
@@ -345,7 +371,13 @@ func _build_world() -> void:
 		env.fog_enabled = true
 		env.fog_mode = Environment.FOG_MODE_DEPTH
 		var fd: Dictionary = fog
-		env.fog_light_color = _hex(fd.get("color"), Color(0.94, 0.69, 0.55))
+		# the web mixes fog in after tone mapping (three.js r149 applies fog last), Godot before: pick the
+		# fog light so a fully fogged pixel comes out of Godot's ACES as the web's fog colour
+		var fc := _hex(fd.get("color"), Color(0.94, 0.69, 0.55))
+		var hdr := _aces_inv(Vector3(fc.r, fc.g, fc.b)) / maxf(0.05, env.tonemap_exposure)
+		var mx := maxf(hdr.x, maxf(hdr.y, hdr.z))
+		env.fog_light_color = Color(hdr.x / mx, hdr.y / mx, hdr.z / mx).linear_to_srgb()
+		env.fog_light_energy = mx
 		env.fog_depth_begin = float(fd.get("near", 2600))
 		env.fog_depth_end = float(fd.get("far", 11000))
 		env.fog_depth_curve = 1.0
@@ -429,6 +461,12 @@ func _prepare_track(root: Node) -> void:
 		var nm := String(mi.name)
 		if nm.find("noshadow") >= 0:
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var far := (mi.global_transform * mi.get_aabb()).get_center()
+		if Vector2(far.x, far.z).length() > T.R + 3000.0 and mi.mesh != null:
+			for si2 in mi.mesh.get_surface_count():
+				var cm := mi.mesh.surface_get_material(si2) as BaseMaterial3D
+				if cm != null and cm.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED and cm.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+					cm.disable_fog = true
 		var am := mi.mesh as ArrayMesh
 		if am != null:
 			var bb0 := mi.get_aabb()
