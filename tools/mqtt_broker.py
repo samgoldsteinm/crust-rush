@@ -2,7 +2,7 @@
 and the PC build (CR_BROKERS) both talk to it the way they talk to the public brokers. QoS 0, exact topics, no retained
 messages: just what the games use. Standard library only.
 Usage: python3 tools/mqtt_broker.py [port]   (default 8765; path /mqtt)"""
-import asyncio, base64, hashlib, struct, sys
+import asyncio, base64, hashlib, os, struct, sys
 
 GUID = b'258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 subs = {}   # topic -> set of clients
@@ -63,6 +63,7 @@ def handle_packets(c):
         qos = (b[i] >> 1) & 3
         body = b[j:j + ln]
         i = j + ln
+        if os.environ.get("BROKER_LOG"): print("pkt", typ, len(body), flush=True)
         if typ == 1:     # CONNECT
             c.send_ws(bytes([0x20, 2, 0, 0]))
         elif typ == 8:   # SUBSCRIBE
@@ -94,6 +95,7 @@ def handle_packets(c):
 
 async def serve(r, w):
     c = Client(w)
+    if os.environ.get("BROKER_LOG"): print("conn", w.get_extra_info("peername"), flush=True)
     try:
         req = b''
         while b'\r\n\r\n' not in req:

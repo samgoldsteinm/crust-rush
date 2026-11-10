@@ -63,7 +63,9 @@ async def main():
                 return False
             await asyncio.sleep(2)
         print('XPLAY web: booted in %ds' % (time.time() - t0), flush=True)
-        await pg.evaluate("__ev(`qKey='fast';store.set('crust-q',qKey);applyQuality();introSkip=true;1`)")
+        # (no quality change here: recompiling every shader on a software GPU holds the page past the relay's 9 s
+        # connect limit; the game's own boot preset is fine)
+        await pg.evaluate("__ev(`introSkip=true;1`)")
         if ROLE == 'join':
             ok = await join(pg)
             if errs:
