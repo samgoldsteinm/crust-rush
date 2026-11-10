@@ -6,3 +6,8 @@ build/
 .DS_Store
 Thumbs.db
 maps/
+# made by Godot's importer (CI imports fresh)
+*.import
+assets/kart/*_tex_*
+assets/items/*_tex_*
+assets/track/*_haz_tex_*

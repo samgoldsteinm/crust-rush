@@ -426,9 +426,11 @@ func _load_items() -> void:
 	items_lib = ps.instantiate()
 	_use_vertex_colours(items_lib)
 	for ri in 8:
-		var pp := "res://assets/kart/portrait%d.png" % ri
-		if ResourceLoader.exists(pp):
-			portraits[ri] = load(pp)
+		for ext in ["jpg", "png"]:
+			var pp := "res://assets/kart/portrait%d.%s" % [ri, ext]
+			if ResourceLoader.exists(pp):
+				portraits[ri] = load(pp)
+				break
 	for k in ITEM_NAMES:
 		var p := "res://assets/items/icon_%s.png" % k
 		if ResourceLoader.exists(p):
