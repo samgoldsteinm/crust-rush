@@ -33,7 +33,8 @@ async def main():
         b = await p.chromium.launch(args=['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--no-sandbox',
                                           '--autoplay-policy=no-user-gesture-required', '--disable-features=LocalNetworkAccessChecks,PrivateNetworkAccessRespectPreflightResults'])
         ctx = await b.new_context(viewport={'width': 640, 'height': 360}, service_workers='block')
-        await ctx.add_init_script('window.CR_BROKERS=%s;' % json.dumps([BROKER]))
+        # the lightest picture preset from the start (no recompiling later): a software GPU manages only a few frames a second
+        await ctx.add_init_script("window.CR_BROKERS=%s;try{localStorage.setItem('crust-q','lite')}catch(e){}" % json.dumps([BROKER]))
         pg = await ctx.new_page()
         errs = []
         pg.on('pageerror', lambda e: errs.append(str(e)[:300]))
@@ -120,9 +121,12 @@ async def main():
             if s['conns'] == 0 and s['st'] in ('race', 'countdown'):
                 print('XPLAY WEB FAIL the PC left during the race', flush=True)
                 break
-            if s['st'] == 'race' and s['rt'] > 32:
-                ok = (s['pk'] or 0) > 150 and s['ack'] > 1500
+            # passes once the PC's kart has got well round on its own controls; then stays a little so the PC sees it too
+            ok = s['st'] == 'race' and s['rt'] > 15 and (s['pk'] or 0) > 150 and s['ack'] > 1500
+            if ok or (s['st'] == 'race' and s['rt'] > 150):
                 print('XPLAY WEB %s PC kart prog %s, controls played %d, race time %.1f' % ('PASS' if ok else 'FAIL', s['pk'], s['ack'], s['rt']), flush=True)
+                if ok:
+                    await asyncio.sleep(20)
                 break
             await asyncio.sleep(0.5)
         if errs:
@@ -163,9 +167,11 @@ async def join(pg):
         if not s['role']:
             print('XPLAY WEB FAIL left the room', flush=True)
             return False
-        if s['st'] == 'race' and s['rt'] > 32:
-            ok = (s['me'] or 0) > 150 and s['ack'] > 1500
+        ok = s['st'] == 'race' and s['rt'] > 15 and (s['me'] or 0) > 150 and s['ack'] > 1500
+        if ok or (s['st'] == 'race' and s['rt'] > 200):
             print('XPLAY WEB %s my kart prog %s, controls sent %d, played by the PC %d, big fixes %d, race time %.1f' % ('PASS' if ok else 'FAIL', s['me'], s['seq'], s['ack'], s['fix'], s['rt']), flush=True)
+            if ok:
+                await asyncio.sleep(20)
             return ok
         await asyncio.sleep(0.5)
     print('XPLAY WEB FAIL timed out', flush=True)

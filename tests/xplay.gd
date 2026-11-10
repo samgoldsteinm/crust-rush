@@ -37,12 +37,20 @@ func _process(dt: float) -> void:
 			var c := FileAccess.get_file_as_string(room_file).strip_edges()
 			if c.length() == 4:
 				joined = true
-				Engine.max_fps = 120
+				Engine.max_fps = 60
 				web.join(c, "PC tester")
 				print("XPLAY pc: joining room %s" % c)
 	elif int(t * 2) % 10 == 0 and int((t - dt) * 2) % 10 != 0:
 		print("XPLAY pc t=%.0f role %s link %s state %s go %s snaps-ack %d seq %d host %s race_time %.1f prog %d fixes %d ping %.0f" % [t, web.role, "up" if not web.chan.is_empty() else "-", main.state, web.go, web.ack_rx, web.seq, web.host_gs, main.race.race_time if main.race else 0.0, main.kart.prog if main.kart else -1, web.fixes, web.ping_ms])
-	if joined and web.racing() and main.race != null and main.race.race_time > 30.0:
+	if joined and web.go and not web.racing() and main.state != "loading":
+		done = true
+		print("XPLAY PC FAIL the browser left the race first: state %s, race time %.1f" % [main.state, main.race.race_time if main.race else 0.0])
+		get_tree().quit(1)
+		return
+	# passes once our kart has got well round with the browser playing our controls; then stays until the browser,
+	# which checks the same from its side, has gone
+	if joined and web.racing() and main.race != null and main.race.race_time > 10.0 and (main.race.race_time > 150.0 or
+			(main.kart.prog > 150 and web.ack_rx > 1500 and web.seq > 1500)):
 		done = true
 		var k: Kart = main.kart
 		var ok: bool = k.prog > 150 and web.ack_rx > 1500 and web.seq > 1500
@@ -70,7 +78,7 @@ func _host(web: WebNet, dt: float) -> void:
 		for p in web.pl:
 			if int(p["id"]) > 0 and bool(p.get("ready", false)):
 				started = true
-				Engine.max_fps = 120
+				Engine.max_fps = 60
 				var e := web.host_start()
 				print("XPLAY pc: starting the race on %s %s" % [main.map_id, e])
 		return
@@ -81,17 +89,23 @@ func _host(web: WebNet, dt: float) -> void:
 	if int(t * 2) % 10 == 0 and int((t - dt) * 2) % 10 != 0:
 		print("XPLAY pc t=%.0f state %s go %s race_time %.1f their prog %d acks %s queue %s my prog %d" % [t, main.state, web.go, main.race.race_time, their.prog if their else -1,
 			str(web.acks), str(web.in_q.get(1, []).size()), main.kart.prog])
-	if main.race.race_time > 30.0 and not done:
+	var ack := int(web.acks.get(1, 0))
+	if web.go and web.chans.is_empty() and not done:
 		done = true
-		var ack := int(web.acks.get(1, 0))
+		print("XPLAY PC FAIL the browser left the race first: race time %.1f, their prog %d, controls played %d" % [main.race.race_time, their.prog if their else -1, ack])
+		get_tree().quit(1)
+		return
+	# the browser is far slower than us on a software GPU: it is given time to get going
+	if not done and main.race.race_time > 10.0 and (main.race.race_time > 200.0 or (their != null and their.prog > 150 and ack > 1500)):
+		done = true
 		var ok: bool = their != null and their.prog > 150 and ack > 1500
 		print("XPLAY PC %s their kart prog %d, controls played %d, race time %.1f" % ["PASS" if ok else "FAIL", their.prog if their else -1, ack, main.race.race_time])
 		await _linger(web)
 		get_tree().quit(0 if ok else 1)
 
 
-## Our check is done a little before the browser's (race time 30 against its 32): stay in the race until the browser
-## has made its own check and gone (a slow software GPU takes a while to get there), then leave.
+## Stay in the race until the browser has made its own check and gone (a slow software GPU takes a while to get
+## there), then leave.
 func _linger(web: WebNet) -> void:
 	var t0 := t
 	while t - t0 < 300.0:
