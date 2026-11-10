@@ -149,7 +149,11 @@ window.__exportKart=function(spec){const G=new GLB();const m=buildKart(spec);con
     const bk=collect(G,w.spin,sp,{visStop:null});const pr=[];for(const [k,b] of bk){const p=G.primitive(b.parts,b.mi,b.useUV,b.useC);if(p)pr.push(p);}
     const isF=front.has(yaw);const nm='wheel_'+(isF?'F':'R')+(ys.z<0?'L':'R');top.push(G.node(nm,pr,{translation:[ys.x,ys.y,ys.z]}));wheels.push({name:nm,front:isF,x:ys.x,y:ys.y,z:ys.z,r:w.r});});
   const root=G.node('kart',null,{children:top});G.j.scenes[0].nodes.push(root);
-  const bytes=G.glb();return {livery:livStats,b64:u8ToB64(bytes),meta:{scale:KS*(m.sf||1),sf:m.sf||1,KS,wheels,axF:m.axF,axR:m.axR,top:m.top,bike:!!m.bike,hover:m.hover||0,drvY:m.drvY||0},stats:Object.assign(G.stats,{bytes:bytes.length})};};
+  const bytes=G.glb();return {livery:livStats,b64:u8ToB64(bytes),meta:{scale:KS*(m.sf||1),sf:m.sf||1,KS,wheels,axF:m.axF,axR:m.axR,axW:m.axW,top:m.top,bike:!!m.bike,hover:m.hover||0,drvY:m.drvY||0,
+      fxL:(m.fxL||[]).map(v=>[v.x,v.y,v.z]),fxP:(m.fxP||[]).map(v=>[v.x,v.y,v.z]),smoke:m.smoke?[m.smoke.x,m.smoke.y,m.smoke.z]:null,
+      bub:m.bub?{x:m.bub.position.x,y:m.bub.position.y,z:m.bub.position.z,s:m.bub.scale.x}:null,
+      flames:(m.flames||[]).map((f,i)=>{const w=new THREE.Vector3();f.getWorldPosition(w);return {i,inner:i%2===1,x:w.x,y:w.y,z:w.z,fl:f.userData.fl||null,lx:f.position.x};}),
+      tiltPos:[m.tilt.position.x,m.tilt.position.y,m.tilt.position.z]},stats:Object.assign(G.stats,{bytes:bytes.length})};};
 
 window.__exportData=function(step){step=step||10;const def=MAPS[mapIdx];const R=def.R;
   const tr=track.map(p=>[+p.x.toFixed(3),+p.y.toFixed(3),+p.nx.toFixed(5),+p.ny.toFixed(5),+p.tx.toFixed(5),+p.ty.toFixed(5),+p.ang.toFixed(5),p.wall|0,p.pond|0,p.open?1:0,+(p.ey||0).toFixed(3),p.flo===undefined?null:+p.flo.toFixed(2),p.fhi===undefined?null:+p.fhi.toFixed(2)]);

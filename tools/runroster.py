@@ -28,6 +28,10 @@ async def main():
     ic=json.loads(await pg.evaluate("__ev(`JSON.stringify(__exportIcons())`)"))
     for k,v in ic.items():open(OUT+'/items/icon_%s.png'%k,'wb').write(base64.b64decode(v))
     print('icons',list(ic.keys()),flush=True)
+    pts=json.loads(await pg.evaluate("__ev(`JSON.stringify(PORTRAITS.map(u=>u||''))`)"))
+    for i,u in enumerate(pts):
+      if u.startswith('data:image/png;base64,'):open(OUT+'/kart/portrait%d.png'%i,'wb').write(base64.b64decode(u.split(',',1)[1]))
+    print('portraits',sum(1 for u in pts if u),flush=True)
     it=json.loads(await pg.evaluate("__ev(`JSON.stringify(__exportItems())`)"))
     open(OUT+'/items/items.glb','wb').write(base64.b64decode(it['b64']));print('items',it['names'],it['stats'],flush=True)
     roster=json.loads(await pg.evaluate("__ev(`JSON.stringify(__exportRoster())`)"))

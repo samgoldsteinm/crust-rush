@@ -96,6 +96,9 @@ var frozen := 0.0
 var rush := 0.0
 var oil_t := 0.0
 var wall_hit := false
+var wall_n := Vector2.ZERO  # last wall's outward normal (for the sparks)
+var f_tier := 0           # which drift tier the current boost came from (flame colour)
+var sf := 1.0             # the kart model's size factor (where a held item trails)
 
 # loop-the-loop
 var loop := {}            # {th, p, lat0, shift, g0, j, full} while inside the loop
@@ -228,6 +231,7 @@ func step(inp: Dictionary, dt: float) -> void:
 	var mx: float = base_max * mul * pen * sm_spd * (glider_air if glide else 1.0)
 	if boost > p_boost + 1e-4:
 		b_pk = boost
+		f_tier = 0
 	if boost > 0.0:
 		b_age = (b_age + dt) if p_boost > 0.0 else 0.0
 		mx *= 1.58
@@ -416,6 +420,7 @@ func _drive(inp: Dictionary, dt: float, brake_in: bool, d_press: bool, trick_now
 				p_boost = boost
 				b_age = 9.0
 				b_pk = boost
+				f_tier = tr
 				events.append("boost%d" % tr)
 			drift = 0
 			charge = 0.0
@@ -583,7 +588,8 @@ func _slide(nx_: float, ny_: float, keep: float, turn: float) -> void:
 		a += ang_diff(na, a) * turn
 	if dot > 0.45 and wall_t <= 0.0:
 		wall_t = 0.35
-		events.append("bump")
+		wall_n = Vector2(nx_, ny_)
+		events.append("wall")
 
 
 ## the side walls, the pond's edge and a bridge's lateral limits

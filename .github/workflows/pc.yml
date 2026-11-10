@@ -59,7 +59,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq mesa-vulkan-drivers xvfb > /dev/null
           mkdir -p build/shots
-          timeout 1800 xvfb-run -a -s "-screen 0 1280x720x24" ./godot --path . --rendering-driver vulkan --resolution 1280x720 res://tests/shots.tscn > shots.log 2>&1 || true
+          timeout 1800 xvfb-run -a -s "-screen 0 1280x720x24" ./godot --path . --rendering-driver vulkan --resolution 1280x720 --fixed-fps 60 res://tests/shots.tscn > shots.log 2>&1 || true
           grep -v "^SHOT_PART" shots.log | tail -40
           if ! ls build/shots/*.png > /dev/null 2>&1; then
             echo "Vulkan produced no shots; trying the OpenGL renderer"

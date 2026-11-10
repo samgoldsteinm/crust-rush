@@ -12,16 +12,21 @@ const ROSTER_JSON := "res://assets/kart/roster.json"
 const ITEMS_SCENE := "res://assets/items/items.glb"
 const CULL_DIST := 2600.0   # far clutter cells hide beyond this (the web uses 1500-2250 by preset)
 const ITEM_NAMES := {"chili": "Chili Boost", "pepperoni": "Pepperoni", "oil": "Olive Oil", "dough": "Dough Ball", "trio": "Pepperoni Trio", "garlic": "Garlic Shield", "flour": "Flour Bomb", "wheel": "Pizza Wheel", "rush": "Delivery Rush"}
-const PROJ_NODE := {"pep": "pep", "dough": "dough", "flour": "flour", "lob": "lob", "wheel": "wheel"}
-const HELD_NODE := {"pepperoni": "pep", "dough": "dough", "flour": "flour"}
-const HIT_COL := {"pep": Color(1, 0.35, 0.16), "dough": Color(1, 0.89, 0.63), "flour": Color(1, 1, 1), "oil": Color(0.91, 0.7, 0.23), "wheel": Color(1, 0.23, 0.1), "garlic": Color(0.5, 0.88, 0.48)}
+const TRICK_NAMES := ["Backflip", "360 Spin", "Frontflip", "Barrel roll", "Barrel roll"]
 
 var T: TrackData
 var race: Race
 var roster := {}
 var kart: Kart               # the player's kart (kept for the tests)
-var views := {}              # Kart -> {node, body, wheels, sc, bubble, held}
 var kart_scenes := {}        # file -> PackedScene
+var view: View
+var fx: Fx
+var hud: Hud
+var rim: DirectionalLight3D
+var post: ColorRect
+var post_mat: ShaderMaterial
+var water_mats: Array = []
+var portraits := {}
 var items_lib: Node3D
 var cam: Camera3D
 var sun: DirectionalLight3D
@@ -34,7 +39,23 @@ var cam_a := 0.0
 var cam_base := Vector3.ZERO
 var cam_look := Vector3.ZERO
 var cam_snap := true
-var shake := 0.0
+var shake_imp := 0.0
+var cam_gp := 0.0
+var cam_gr := 0.0
+var cam_sx := 0.0
+var cam_oy := 0.0
+var cam_vy := 0.0
+var cam_pvz := 0.0
+var cam_pspd := 0.0
+var cam_occ := 1.0
+var cam_lb := false
+var cam_bo := false
+var cam_up := Vector3.UP
+var fin_punch := 0.0
+var edge_c := Color.WHITE
+var edge_a := 0.0
+var edge_t := 0.0
+var spd_fx := 0.0
 var cull_list: Array = []    # {node, rect: Rect2 in ground x/z}
 var cull_t := 0.0
 var auto_drive := false      # set by the tests: the computer drives the player's kart
@@ -42,11 +63,6 @@ var paused := false
 var time := 0.0
 var last_lap := 1
 
-# things drawn for the race
-var box_nodes: Array = []    # one Node3D per race.boxes entry
-var proj_nodes := {}         # id -> Node3D
-var haz_nodes := {}          # id -> Node3D
-var fx_root: Node3D
 var sfx: Sfx
 var roll_tick := 0.0
 
@@ -60,29 +76,13 @@ var look_back := false
 
 # HUD
 var ui_root: Control
-var lbl_pos: Label
-var lbl_lap: Label
-var lbl_time: Label
-var lbl_speed: Label
 var lbl_info: Label
-var lbl_center: Label
-var lbl_toast: Label
-var slot1: TextureRect
-var slot2: TextureRect
-var slot1_bg: Panel
-var slot2_bg: Panel
-var lbl_item: Label
-var mini: MiniMap
-var pedal_l: Panel
-var pedal_r: Panel
 var btn_fps: Button
 var btn_res: Button
 var panel_results: PanelContainer
 var results_box: VBoxContainer
 var panel_pause: PanelContainer
 var icons := {}
-var center_t := 0.0
-var toast_t := 0.0
 var fps_cap := 60
 var res_scale := 1.0
 var is_phone := false
@@ -95,9 +95,8 @@ var btn_start_net: Button
 var btn_leave_net: Button
 var btn_again: Button
 var skip_menu := false       # tests go straight to the race
+var test_look := false       # tests: look back
 var shown_finish := false
-var p_ka := 0.0              # the player's kart as drawn: heading and angle round the loop
-var p_th := 0.0
 
 # online, PC to PC: the host runs the race; everyone else sends their controls and draws what the host sends back
 const NET_PORT := 24680
@@ -113,7 +112,6 @@ var net_out: Array = []
 var net_addr := ""
 var net_ready := false       # client: the connection to the host is up
 var upnp_thread: Thread
-var btn_quality: Button
 var stats := {"used": {}, "spins": 0, "boxes": 0, "player_spins": 0}
 
 
@@ -129,8 +127,11 @@ func _ready() -> void:
 		roster = JSON.parse_string(f.get_as_text())
 	_build_world()
 	_load_items()
-	fx_root = Node3D.new()
-	add_child(fx_root)
+	fx = Fx.new()
+	add_child(fx)
+	fx.cam = cam
+	view = View.new()
+	add_child(view)
 	sfx = Sfx.new()
 	add_child(sfx)
 	_build_hud()
@@ -169,24 +170,36 @@ func _build_world() -> void:
 	sm.set_shader_parameter("bot_col", _hex(S.get("bot"), Color(0.16, 0.44, 0.52)))
 	sm.set_shader_parameter("sun_col", _hex(S.get("sunCol"), Color(1, 0.85, 0.63)))
 	sky.sky_material = sm
-	sky.radiance_size = Sky.RADIANCE_SIZE_128 if not is_phone else Sky.RADIANCE_SIZE_64
+	sky.radiance_size = Sky.RADIANCE_SIZE_64
 	env.sky = sky
-	# the web game's lighting with its default "Vivid" look: hemisphere fill x0.7, sun x1.25, exposure x0.96,
-	# a touch more contrast and saturation. Its fill is a warm cream from above, so the ambient is that colour,
-	# with a little of the sky gradient (teal below) for the hemisphere's falloff.
+	# the web game's lighting: a hemisphere fill (warm cream from above), the sun, ACES tone mapping in every
+	# material, then its own grade (saturation, contrast, vignette: shaders/post.gdshader)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.ambient_light_sky_contribution = 0.25
 	env.ambient_light_color = _hex(L.get("hemiSky"), Color(1, 0.89, 0.77))
 	env.ambient_light_energy = float(L.get("hemiI", 0.52)) * 0.7
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	# Godot's ACES pre-scales by 1.8 and normalises to its white point; the web game's (three.js) pre-scales by
-	# 1/0.6 and doesn't normalise. A high white point and exposure x(1.667/1.8) make the two curves match.
+	# Godot's ACES pre-scales by 1.8 and normalises to its white point; three.js pre-scales by 1/0.6 and
+	# doesn't normalise. A high white point and exposure x(1.667/1.8) make the two curves match.
 	env.tonemap_white = 16.0
 	env.tonemap_exposure = float(L.get("exposure", 0.92)) * 0.96 * (1.0 / 0.6) / 1.8
-	env.adjustment_enabled = true
-	env.adjustment_contrast = 1.07
-	env.adjustment_saturation = 1.06
+	# Ultra's screen-space ambient occlusion (radius 7, strong) and its bloom (threshold .94, strength .3)
+	env.ssao_enabled = not is_phone
+	env.ssao_radius = 7.0
+	env.ssao_intensity = 2.3
+	env.ssao_power = 1.5
+	env.ssao_detail = 0.5
+	env.ssao_horizon = 0.06
+	env.glow_enabled = not is_phone
+	env.glow_intensity = 0.3
+	env.glow_strength = 1.0
+	env.glow_bloom = 0.0
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
+	env.glow_hdr_threshold = 1.6
+	env.glow_hdr_scale = 2.0
+	for i in 7:
+		env.set_glow_level(i, 1.0 if i == 2 or i == 4 else 0.0)
 	var fog = L.get("fog")
 	if typeof(fog) == TYPE_DICTIONARY:
 		env.fog_enabled = true
@@ -201,7 +214,7 @@ func _build_world() -> void:
 	we.environment = env
 	add_child(we)
 
-	# the sun
+	# the sun: one 4096 shadow map covering ±150 around a point 80 ahead of your kart (web snapSun, Ultra)
 	sun = DirectionalLight3D.new()
 	var sd: Array = L.get("sunDir", [0.84, 0.47, 0.26])
 	var to_sun := Vector3(sd[0], sd[1], sd[2]).normalized()
@@ -210,19 +223,38 @@ func _build_world() -> void:
 	sun.light_color = _hex(L.get("sunColor"), Color(1, 0.84, 0.66))
 	sun.light_energy = float(L.get("sunI", 3.25)) * 1.25
 	sun.shadow_enabled = true
-	Gfx.apply_environment(env, sun, quality, is_phone)
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+	sun.directional_shadow_max_distance = 300.0
+	sun.directional_shadow_fade_start = 0.9
+	sun.shadow_bias = 0.04
+	sun.shadow_normal_bias = 1.0
+	sun.shadow_blur = 1.2
+	# the web's rim light: a cool light from behind the camera, opposite the sun
+	rim = DirectionalLight3D.new()
+	rim.light_color = Color("#a8ccff")
+	rim.light_energy = 0.55 * 1.25
+	rim.shadow_enabled = false
+	add_child(rim)
+	var rd := Vector3(to_sun.x * 400.0, -300.0, to_sun.z * 400.0).normalized()
+	rim.look_at_from_position(Vector3.ZERO - rd, Vector3.ZERO, Vector3.UP)
 
 	# the track: exported cells; clutter cells ("_d") get distance culling like the web game
 	var ps: PackedScene = load(TRACK_SCENE)
 	var track := ps.instantiate()
 	add_child(track)
 	_prepare_track(track)
-	var up := Gfx.upgrade_track(track, quality, T.R, [Color.html("#2a8fb0"), Color.html("#06384a")])
-	print("surface detail: %d flat-coloured materials given grain, %d textured ones given relief, %d water sheets" % [up[0], up[1], up[2]])
 
-
-## Godot's glTF import doesn't switch vertex colours on in the materials it creates, and most of the
-## scenery (and the karts' paint) gets its colour from them, as in the web game. Turn them on.
+	# the web's final grade, drawn over the 3D view (under the HUD)
+	var pl := CanvasLayer.new()
+	pl.layer = -1
+	add_child(pl)
+	post = ColorRect.new()
+	post.set_anchors_preset(Control.PRESET_FULL_RECT)
+	post.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	post_mat = ShaderMaterial.new()
+	post_mat.shader = load("res://shaders/post.gdshader")
+	post.material = post_mat
+	pl.add_child(post)
 func _use_vertex_colours(root: Node) -> int:
 	var n := 0
 	for node in root.find_children("*", "MeshInstance3D", true, false):
@@ -244,6 +276,13 @@ func _prepare_track(root: Node) -> void:
 		var nm := String(mi.name)
 		if nm.find("noshadow") >= 0:
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var am := mi.mesh as ArrayMesh
+		if am != null:
+			var bb0 := mi.get_aabb()
+			for si in am.get_surface_count():
+				var wm := am.surface_get_material(si) as StandardMaterial3D
+				if wm != null and bb0.size.y < 3.0 and bb0.size.x > T.R and wm.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED and wm.albedo_texture != null:
+					water_mats.append(wm)
 		var cell_name := String(mi.get_parent().name) if mi.get_parent() else ""
 		if nm.find("_d_") >= 0 or nm.ends_with("_d") or cell_name.ends_with("_d"):
 			var bb := mi.global_transform * mi.get_aabb()
@@ -256,133 +295,23 @@ func _load_items() -> void:
 		return
 	items_lib = ps.instantiate()
 	_use_vertex_colours(items_lib)
+	for ri in 8:
+		var pp := "res://assets/kart/portrait%d.png" % ri
+		if ResourceLoader.exists(pp):
+			portraits[ri] = load(pp)
 	for k in ITEM_NAMES:
 		var p := "res://assets/items/icon_%s.png" % k
 		if ResourceLoader.exists(p):
 			icons[k] = load(p)
 
 
-## a copy of one of the web game's item models (pep, dough, oil, flour, wheel, itembox...)
-func _item_node(name_: String) -> Node3D:
-	var n3 := Node3D.new()
-	if items_lib != null:
-		var src := items_lib.find_child(name_, true, false)
-		if src != null:
-			var c := src.duplicate() as Node3D
-			c.transform = Transform3D.IDENTITY
-			n3.add_child(c)
-			return n3
-	var mi := MeshInstance3D.new()
-	var sp := SphereMesh.new()
-	sp.radius = 2.5
-	sp.height = 5.0
-	mi.mesh = sp
-	n3.add_child(mi)
-	return n3
-
-
 # ---------------------------------------------------------------- karts
 
-func _kart_view(k: Kart) -> Dictionary:
-	var info: Dictionary = k.info
-	var file := String(info.get("file", "player.glb"))
-	if not kart_scenes.has(file):
-		kart_scenes[file] = load("res://assets/kart/" + file)
-	var node := Node3D.new()
-	add_child(node)
-	var ps: PackedScene = kart_scenes[file]
-	var model := ps.instantiate()
-	node.add_child(model)
-	_use_vertex_colours(model)
-	Gfx.upgrade_kart(model, quality)
-	var meta: Dictionary = info.get("meta", {})
-	var sc := float(meta.get("scale", 2.024))
-	var wheels: Array = []
-	for w in meta.get("wheels", []):
-		var wd: Dictionary = w
-		var wn := model.find_child(String(wd["name"]), true, false)
-		if wn:
-			wheels.append({"node": wn, "r": float(wd["r"]), "front": bool(wd["front"])})
-	# garlic shield: a soft green bubble, shown while a layer is up
-	var bub := MeshInstance3D.new()
-	var sp := SphereMesh.new()
-	sp.radius = 13.0
-	sp.height = 22.0
-	bub.mesh = sp
-	var bm := StandardMaterial3D.new()
-	bm.albedo_color = Color(0.6, 1.0, 0.62, 0.22)
-	bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	bm.emission_enabled = true
-	bm.emission = Color(0.45, 0.9, 0.5)
-	bm.emission_energy_multiplier = 0.6
-	bm.rim_enabled = true
-	bm.rim = 1.0
-	bm.roughness = 0.1
-	bm.cull_mode = BaseMaterial3D.CULL_DISABLED
-	bub.material_override = bm
-	bub.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	bub.visible = false
-	add_child(bub)
-	var flame := _emitter(Color(1.0, 0.55, 0.12), 48, 0.28, 3.4, 70.0)
-	var sparks := _emitter(Color(0.4, 0.75, 1.0), 40, 0.35, 1.3, 55.0)
-	sparks.gravity = Vector3(0, -120, 0)
-	sparks.spread = 50.0
-	return {"node": node, "body": model.find_child("body", true, false), "wheels": wheels, "sc": sc, "bubble": bub, "held": null, "held_it": "", "top": float(meta.get("top", 7.0)), "flame": flame, "sparks": sparks, "ax_r": float(meta.get("axR", -3.0)) * sc}
-
-
-## a stream of glowing particles (boost flames, drift sparks); switched on and off per kart
-func _emitter(col: Color, amount: int, life: float, size: float, speed: float) -> CPUParticles3D:
-	var p := CPUParticles3D.new()
-	p.emitting = false
-	p.amount = amount
-	p.lifetime = life
-	p.local_coords = false
-	p.direction = Vector3(-1, 0.12, 0)
-	p.spread = 14.0
-	p.initial_velocity_min = speed * 0.6
-	p.initial_velocity_max = speed
-	p.gravity = Vector3(0, 12, 0)
-	p.scale_amount_min = size * 0.6
-	p.scale_amount_max = size
-	var curve := Curve.new()
-	curve.add_point(Vector2(0, 1))
-	curve.add_point(Vector2(1, 0))
-	p.scale_amount_curve = curve
-	p.color = col
-	var qm := QuadMesh.new()
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	m.vertex_color_use_as_albedo = true
-	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.albedo_color = Color(1, 1, 1, 0.9)
-	qm.material = m
-	p.mesh = qm
-	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(p)
-	return p
-
-
 func _clear_race_nodes() -> void:
-	for k in views:
-		var v: Dictionary = views[k]
-		(v["node"] as Node).queue_free()
-		(v["bubble"] as Node).queue_free()
-		(v["flame"] as Node).queue_free()
-		(v["sparks"] as Node).queue_free()
-		if v["held"] != null:
-			(v["held"] as Node).queue_free()
-	views.clear()
-	for n in box_nodes:
-		(n as Node).queue_free()
-	box_nodes.clear()
-	for id in proj_nodes:
-		(proj_nodes[id] as Node).queue_free()
-	proj_nodes.clear()
-	for id in haz_nodes:
-		(haz_nodes[id] as Node).queue_free()
-	haz_nodes.clear()
+	if view != null:
+		view.clear()
+	if fx != null:
+		fx.clear()
 
 
 # ---------------------------------------------------------------- HUD
@@ -420,25 +349,6 @@ func _box_style(bg: Color, border: Color, radius: int, bw := 3) -> StyleBoxFlat:
 	return sb
 
 
-func _pedal(left: bool) -> Panel:
-	var p := Panel.new()
-	p.add_theme_stylebox_override("panel", _box_style(Color(0.1, 0.05, 0.03, 0.55), Color(1, 0.96, 0.86, 0.45), 22))
-	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if left:
-		_place(p, 0, 1, 0, 1, 14, -204, 164, -14)
-	else:
-		_place(p, 1, 1, 1, 1, -164, -204, -14, -14)
-	var l := Label.new()
-	l.text = "DRIFT"
-	l.add_theme_font_size_override("font_size", 22)
-	l.add_theme_color_override("font_color", Color(1, 0.96, 0.86, 0.8))
-	_place(l, 0, 0, 1, 1, 0, 0, 0, 0)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	p.add_child(l)
-	return p
-
-
 func _button(text: String, pos: Vector2) -> Button:
 	var b := Button.new()
 	b.text = text
@@ -446,20 +356,6 @@ func _button(text: String, pos: Vector2) -> Button:
 	_place(b, 1, 0, 1, 0, pos.x, pos.y, pos.x + 140, pos.y + 44)
 	b.focus_mode = Control.FOCUS_NONE
 	return b
-
-
-func _slot(x: float, size: float) -> Array:
-	var bg := Panel.new()
-	bg.add_theme_stylebox_override("panel", _box_style(Color(0.1, 0.05, 0.03, 0.6), Color(1, 0.82, 0.3, 0.9), int(size * 0.24), 4))
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_place(bg, 0.5, 0, 0.5, 0, x, 18, x + size, 18 + size)
-	var tr := TextureRect.new()
-	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_place(tr, 0, 0, 1, 1, 6, 6, -6, -6)
-	bg.add_child(tr)
-	return [bg, tr]
 
 
 func _build_hud() -> void:
@@ -474,58 +370,15 @@ func _build_hud() -> void:
 	hud_race.set_anchors_preset(Control.PRESET_FULL_RECT)
 	hud_race.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(hud_race)
-	lbl_pos = _label(92, Vector2(0, 0))
-	_place(lbl_pos, 0, 1, 0, 1, 30, -150, 330, -24)
-	lbl_pos.add_theme_constant_override("outline_size", 14)
-	hud_race.add_child(lbl_pos)
-	lbl_lap = _label(38, Vector2(28, 16))
-	hud_race.add_child(lbl_lap)
-	lbl_time = _label(28, Vector2(28, 62))
-	hud_race.add_child(lbl_time)
-	lbl_info = _label(15, Vector2(28, 102))
-	lbl_info.modulate.a = 0.75
+	hud = Hud.new()
+	hud_race.add_child(hud)
+	lbl_info = _label(13, Vector2(0, 0), HORIZONTAL_ALIGNMENT_CENTER)
+	_place(lbl_info, 0.5, 0, 0.5, 0, -300, 4, 300, 22)
+	lbl_info.modulate.a = 0.8
+	lbl_info.visible = false
 	hud_race.add_child(lbl_info)
-	lbl_speed = _label(40, Vector2(0, 0), HORIZONTAL_ALIGNMENT_RIGHT)
-	_place(lbl_speed, 1, 1, 1, 1, -330, -86, -30, -24)
-	hud_race.add_child(lbl_speed)
-	lbl_center = _label(110, Vector2(0, 0), HORIZONTAL_ALIGNMENT_CENTER)
-	_place(lbl_center, 0.5, 0.5, 0.5, 0.5, -600, -200, 600, -40)
-	lbl_center.add_theme_constant_override("outline_size", 16)
-	root.add_child(lbl_center)
-	lbl_toast = _label(34, Vector2(0, 0), HORIZONTAL_ALIGNMENT_CENTER)
-	_place(lbl_toast, 0.5, 0, 0.5, 0, -500, 130, 500, 180)
-	hud_race.add_child(lbl_toast)
-	# two item slots, top centre: the big one fires first
-	var s1 := _slot(-58, 104)
-	slot1_bg = s1[0]
-	slot1 = s1[1]
-	hud_race.add_child(slot1_bg)
-	var s2 := _slot(58, 70)
-	slot2_bg = s2[0]
-	slot2 = s2[1]
-	hud_race.add_child(slot2_bg)
-	lbl_item = _label(20, Vector2(0, 0), HORIZONTAL_ALIGNMENT_CENTER)
-	_place(lbl_item, 0.5, 0, 0.5, 0, -200, 124, 200, 150)
-	hud_race.add_child(lbl_item)
-	mini = MiniMap.new()
-	mini.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_place(mini, 1, 0, 1, 0, -250, 70, -20, 300)
-	hud_race.add_child(mini)
-	pedal_l = _pedal(true)
-	pedal_r = _pedal(false)
-	hud_race.add_child(pedal_l)
-	hud_race.add_child(pedal_r)
-	pedal_l.visible = is_phone
-	pedal_r.visible = is_phone
-	btn_fps = _button("60 fps", Vector2(-156, 14))
-	btn_fps.pressed.connect(_toggle_fps)
-	hud_race.add_child(btn_fps)
-	btn_res = _button("Res 100%", Vector2(-306, 14))
-	btn_res.pressed.connect(_toggle_res)
-	hud_race.add_child(btn_res)
-	var pb := _button("Pause", Vector2(-456, 14))
-	pb.pressed.connect(_toggle_pause)
-	hud_race.add_child(pb)
+	btn_fps = Button.new()
+	btn_res = Button.new()
 
 	# results
 	panel_results = PanelContainer.new()
@@ -544,7 +397,7 @@ func _build_hud() -> void:
 	# pause
 	panel_pause = PanelContainer.new()
 	panel_pause.add_theme_stylebox_override("panel", _box_style(Color(0.12, 0.06, 0.04, 0.92), Color(1, 0.82, 0.3), 26, 4))
-	_place(panel_pause, 0.5, 0.5, 0.5, 0.5, -230, -285, 230, 285)
+	_place(panel_pause, 0.5, 0.5, 0.5, 0.5, -230, -315, 230, 315)
 	var mg2 := MarginContainer.new()
 	for side in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
 		mg2.add_theme_constant_override(side, 26)
@@ -555,15 +408,17 @@ func _build_hud() -> void:
 	var pt := _label(44, Vector2.ZERO, HORIZONTAL_ALIGNMENT_CENTER)
 	pt.text = "Paused"
 	vb.add_child(pt)
-	for spec in [["Resume", _toggle_pause], ["Restart race", _restart], ["Graphics: Ultra", _cycle_quality], ["Full screen", _toggle_fullscreen], ["Main menu", _to_menu.bind("")], ["Quit", _quit]]:
+	for spec in [["Resume", _toggle_pause], ["Restart race", _restart], ["Frame rate", _toggle_fps], ["Resolution", _toggle_res], ["Full screen", _toggle_fullscreen], ["Main menu", _to_menu.bind("")], ["Quit", _quit]]:
 		var b := Button.new()
 		b.text = spec[0]
 		b.add_theme_font_size_override("font_size", 26)
 		b.custom_minimum_size = Vector2(0, 54)
 		b.pressed.connect(spec[1])
 		vb.add_child(b)
-		if String(spec[0]).begins_with("Graphics"):
-			btn_quality = b
+		if spec[0] == "Frame rate":
+			btn_fps = b
+		elif spec[0] == "Resolution":
+			btn_res = b
 	panel_pause.visible = false
 	root.add_child(panel_pause)
 
@@ -628,16 +483,10 @@ func _apply_display() -> void:
 	res_scale = 0.67 if is_phone else 1.0
 	_apply_fps()
 	_apply_res()
-	Gfx.apply_viewport(get_viewport(), quality, is_phone)
-	btn_quality.text = "Graphics: " + ["Low", "High", "Ultra"][quality]
-
-
-## Ultra -> High -> Low -> Ultra: lighting, shadows and screen effects change at once
-func _cycle_quality() -> void:
-	quality = (quality + 2) % 3
-	Gfx.apply_environment(env, sun, quality, is_phone)
-	Gfx.apply_viewport(get_viewport(), quality, is_phone)
-	btn_quality.text = "Graphics: " + ["Low", "High", "Ultra"][quality]
+	var vp := get_viewport()
+	vp.msaa_3d = Viewport.MSAA_4X if not is_phone else Viewport.MSAA_DISABLED   # web Ultra: 4x anti-aliasing
+	vp.use_debanding = true
+	vp.anisotropic_filtering_level = Viewport.ANISOTROPY_8X
 
 
 func _toggle_fps() -> void:
@@ -647,7 +496,7 @@ func _toggle_fps() -> void:
 
 func _apply_fps() -> void:
 	Engine.max_fps = fps_cap
-	btn_fps.text = ("%d fps" % fps_cap) if fps_cap > 0 else "max fps"
+	btn_fps.text = ("Frame rate: %d" % fps_cap) if fps_cap > 0 else "Frame rate: max"
 
 
 func _toggle_res() -> void:
@@ -662,7 +511,7 @@ func _apply_res() -> void:
 	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if res_scale < 0.99 else Viewport.SCALING_3D_MODE_BILINEAR
 	vp.scaling_3d_scale = res_scale
 	vp.fsr_sharpness = 0.25
-	btn_res.text = "Res %d%%" % int(round(res_scale * 100.0))
+	btn_res.text = "Resolution: %d%%" % int(round(res_scale * 100.0))
 
 
 func _toggle_fullscreen() -> void:
@@ -713,12 +562,18 @@ func _start_race(cfg: Dictionary) -> void:
 	kart = race.player
 	if auto_drive and net_role != "client":
 		kart.ai["auto"] = true
+	view.setup(T, race, fx, cam, items_lib)
 	for k in race.karts:
-		views[k] = _kart_view(k)
-	for b in race.boxes:
-		var n := _item_node("itembox2" if bool(b["dbl"]) else "itembox")
-		add_child(n)
-		box_nodes.append(n)
+		view.add_kart(k, _kart_scene)
+	view.build_boxes()
+	hud.race = race
+	hud.me = kart
+	hud.T = T
+	hud.icons = icons
+	hud.portraits = portraits
+	hud.racer_cols = []
+	for r in T.racers:
+		hud.racer_cols.append(Color.html(String((r as Dictionary)["color"])))
 	state = "countdown"
 	cd = 3.2
 	fin_t = 0.0
@@ -728,18 +583,38 @@ func _start_race(cfg: Dictionary) -> void:
 	net_out.clear()
 	cam_a = kart.ma
 	cam_snap = true
+	shake_imp = 0.0
+	fin_punch = 0.0
 	stats = {"used": {}, "spins": 0, "boxes": 0, "player_spins": 0}
-	_show_center("3", 1.0)
+	_show_center("3", 0.9)
 
 
-func _show_center(t: String, dur: float) -> void:
-	lbl_center.text = t
-	center_t = dur
+func _show_center(t: String, dur: float, kind := "md") -> void:
+	if hud != null:
+		hud.banner(t, dur, kind)
+
+
+func _kart_scene(file: String) -> PackedScene:
+	if not kart_scenes.has(file):
+		kart_scenes[file] = load("res://assets/kart/" + file)
+	return kart_scenes[file]
+
+
+## web shake(): impulses add up (to 1.6) and fade at the camera
+func _shake(a: float) -> void:
+	shake_imp = minf(1.6, shake_imp + a)
+
+
+## web edgeFx: a colour flash creeping in from the screen edges
+func _edge(col: Color, soft := false) -> void:
+	edge_c = col
+	edge_a = 0.5 if soft else 0.8
+	edge_t = 0.3
 
 
 func _toast(t: String, dur := 1.6) -> void:
-	lbl_toast.text = t
-	toast_t = dur
+	if hud != null:
+		hud.banner(t, dur, "sm")
 
 
 func _ordinal(n: int) -> String:
@@ -772,12 +647,12 @@ func _sim_tick(dt: float) -> void:
 		cd -= dt
 		var after := ceili(cd)
 		if after != before and after > 0:
-			_show_center(str(after), 1.0)
+			_show_center(str(after), 0.9)
 			sfx.play("beep")
 		if cd <= 0.0:
 			state = "race"
 			race.state = "race"
-			_show_center("GO!", 0.8)
+			_show_center("Go!", 1.0)
 			sfx.play("go")
 		for k in race.karts:
 			k._save_prev()
@@ -810,7 +685,9 @@ func _finish_check() -> void:
 	if kart.finished and not shown_finish:
 		shown_finish = true
 		kart.ai["auto"] = true
-		_show_center("Finish!  %s" % _ordinal(kart.place), 3.0)
+		_show_center("Finish!", 2.4)
+		fin_punch = 0.0001
+		_shake(0.5)
 		sfx.play("finish")
 
 
@@ -818,7 +695,7 @@ func _lap_check() -> void:
 	var lp := kart.lap()
 	if lp != last_lap and not kart.finished:
 		last_lap = lp
-		_toast("Final lap!" if lp == T.LAPS else "Lap %d" % lp, 2.0)
+		_toast("Final lap" if lp == T.LAPS else "Lap %d" % lp, 1.4)
 		sfx.play("lap", 1.0, 1.2 if lp == T.LAPS else 1.0)
 
 
@@ -835,97 +712,114 @@ func _drain_events() -> void:
 			net_out.append(d)
 	for k in race.karts:
 		for e in k.events:
-			if k == kart:
-				if e.begins_with("boost") or e == "pad" or e == "loopout":
-					shake = maxf(shake, 0.18)
-					sfx.play("boost", 0.8, 1.0 + 0.12 * (int(e.right(1)) if e.begins_with("boost") else 0))
-				elif e == "bump":
-					shake = maxf(shake, 0.25)
-					sfx.play("bump", 0.8)
-				elif e == "respawn":
+			view.kart_event(k, e)
+			var mine := k == kart
+			if e.begins_with("boost") and e.length() == 6:
+				var tier := int(e.right(1))
+				if mine:
+					_shake(0.15 + tier * 0.05)
+					sfx.play("boost", 0.8, 1.0 + 0.12 * tier)
+			elif e == "pad":
+				if mine:
+					_shake(0.25)
+					sfx.play("boost", 0.7)
+			elif e == "loopout":
+				if mine:
+					_shake(0.5)
+					sfx.play("boost", 0.8, 1.3)
+			elif e == "loopin":
+				if mine:
+					sfx.play("boost", 0.6, 1.2)
+			elif e == "wall":
+				if mine:
+					_shake(0.25)
+					sfx.play("bump", 0.7)
+			elif e == "bump":
+				if mine:
+					_shake(0.5)
+				sfx.play("bump", _near(k))
+			elif e == "respawn":
+				if mine:
 					cam_snap = true
+					_shake(0.4)
+					_edge(Color.WHITE, true)
 					sfx.play("bump")
-				elif e == "land":
-					shake = maxf(shake, 0.2)
-					sfx.play("land", 0.7)
-				elif e == "hop":
+			elif e == "land":
+				if mine:
+					_shake(0.55)
+				sfx.play("land", 0.7 * maxf(_near(k), 0.4 if mine else 0.0))
+			elif e == "hop":
+				if mine:
 					sfx.play("hop", 0.6)
-				elif e.begins_with("tier"):
+			elif e.begins_with("tier"):
+				if mine:
 					sfx.play("tier", 0.6, 0.8 + 0.2 * int(e.right(1)))
-				elif e == "trick":
+			elif e == "trick":
+				if mine:
 					sfx.play("trick", 0.7)
-				elif e == "ready":
+					var tn: String = TRICK_NAMES[clampi(k.trick_k, 0, 4)]
+					_show_center(tn + (" x%d" % k.g_tr if k.g_tr > 1 else "") + "!", 0.6, "sm")
+			elif e == "ready":
+				if mine:
 					sfx.play("ready", 0.8)
-				elif e == "loopin":
-					sfx.play("boost", 0.7, 1.3)
-			if e.begins_with("boost") or e == "pad":
-				_burst(_kpos(k) + Vector3(0, 3, 0), Color(1, 0.7, 0.2), 14, 60.0, 1.6, 0.35)
 		k.events.clear()
 	for e in race.fx:
 		var ed: Dictionary = e
+		view.race_event(ed)
 		var t: String = ed["t"]
 		if t == "spin":
 			var k: Kart = ed["k"]
 			stats["spins"] = int(stats["spins"]) + 1
-			var col: Color = HIT_COL.get(String(ed["kind"]), Color(1, 0.9, 0.5))
-			_burst(_kpos(k) + Vector3(0, 6, 0), col, 34, 90.0, 3.0, 0.6)
-			_burst(_kpos(k) + Vector3(0, 6, 0), Color(1, 1, 1), 14, 60.0, 2.0, 0.4)
 			sfx.play("hit", _near(k))
 			if k == kart:
 				stats["player_spins"] = int(stats["player_spins"]) + 1
-				shake = maxf(shake, 1.0)
-				_toast("Spun out!", 1.2)
+				_shake(1.1)
+				hud.hit_flash()
 		elif t == "box":
 			stats["boxes"] = int(stats["boxes"]) + 1
-			_burst(Vector3(float(ed["x"]), float(ed["h"]) + 7.0, float(ed["y"])), Color(1, 0.85, 0.3), 30, 85.0, 2.4, 0.6)
-			_burst(Vector3(float(ed["x"]), float(ed["h"]) + 7.0, float(ed["y"])), Color(0.9, 0.3, 0.2), 16, 60.0, 2.4, 0.6)
 			sfx.play("pickup", 0.8 if ed["k"] == kart else _near(ed["k"]) * 0.3)
 		elif t == "use":
 			var it: String = ed["it"]
 			stats["used"][it] = int(stats["used"].get(it, 0)) + 1
 			var k2: Kart = ed["k"]
-			_burst(_kpos(k2) + Vector3(0, 7, 0), Color(1, 0.88, 0.4), 10, 45.0, 2.0, 0.35)
 			sfx.play("boost" if (it == "chili" or it == "rush") else "throw", 0.9 if k2 == kart else _near(k2) * 0.5)
 			if k2 == kart:
-				shake = maxf(shake, 0.18)
+				_shake(0.18)
 		elif t == "shield":
 			stats["used"]["garlic"] = int(stats["used"].get("garlic", 0)) + 1
-			_burst(_kpos(ed["k"]) + Vector3(0, 7, 0), Color(0.5, 0.88, 0.48), 24, 60.0, 2.4, 0.5)
 			sfx.play("shield", 0.8 if ed["k"] == kart else _near(ed["k"]) * 0.4)
+			if ed["k"] == kart:
+				_edge(Color("#fff3c4"), true)
 		elif t == "unshield" or t == "absorb":
 			var k3: Kart = ed["k"]
-			_burst(_kpos(k3) + Vector3(0, 7, 0), Color(0.78, 1.0, 0.75), 36, 110.0, 3.0, 0.5)
 			sfx.play("block", 0.9 if k3 == kart else _near(k3) * 0.5)
 			if k3 == kart:
-				shake = maxf(shake, 0.3)
-				_toast("Blocked!", 1.0)
+				_shake(0.35)
+				_edge(Color("#fff3c4"), t == "absorb")
 		elif t == "flour":
 			var p := Vector3(float(ed["x"]), T.ground(float(ed["x"]), float(ed["y"])) + 5.0, float(ed["y"]))
-			_burst(p, Color(0.96, 0.94, 0.9), 60, 70.0, 9.0, 1.3, 0.2)
 			sfx.play("boom", clampf(1.0 - p.distance_to(cam.global_position) / 500.0, 0.0, 1.0))
-			if p.distance_to(cam.global_position) < 140.0:
-				shake = maxf(shake, 0.5)
+			if Vector2(p.x - cam.global_position.x, p.z - cam.global_position.z).length() < 120.0:
+				_shake(0.5)
 		elif t == "clash":
-			var p2 := Vector3(float(ed["x"]), T.ground(float(ed["x"]), float(ed["y"])) + 6.0, float(ed["y"]))
-			_burst(p2, Color(1, 0.8, 0.3), 26, 90.0, 3.0, 0.4)
+			sfx.play("bump", 0.5)
 		elif t == "bump":
-			_burst(Vector3(float(ed["x"]), float(ed["h"]), float(ed["y"])), Color(1, 0.83, 0.42), 10, 80.0, 1.6, 0.25)
 			if ed["a"] == kart or ed["b"] == kart:
-				shake = maxf(shake, 0.22)
-				sfx.play("bump", 0.6)
+				_shake(0.22)
+				sfx.play("bump", 0.55)
 		elif t == "slice":
 			var k4: Kart = ed["k"]
-			_burst(_kpos(k4) + Vector3(0, 8, 0), Color(1, 0.23, 0.1), 56, 130.0, 4.0, 0.7)
 			sfx.play("boom", maxf(0.3, _near(k4)))
 			if k4 == kart:
-				shake = maxf(shake, 1.6)
+				_shake(1.6)
 		elif t == "wind":
 			if ed["k"] == kart:
-				_toast("Pizza Wheel!", 1.0)
 				sfx.play("warn")
 		elif t == "oily":
 			if ed["k"] == kart:
-				_toast("Oily wheels!", 1.0)
+				_show_center("Oily wheels!", 0.9, "sm")
+				_edge(Color("#c8b23a"), true)
+				_shake(0.25)
 	race.fx.clear()
 
 
@@ -936,47 +830,6 @@ func _kpos(k: Kart) -> Vector3:
 ## how loud something at a kart sounds from the camera: 1 next to it, 0 far away
 func _near(k: Kart) -> float:
 	return clampf(1.0 - _kpos(k).distance_to(cam.global_position) / 420.0, 0.0, 1.0)
-
-
-## a quick puff of coloured sparks
-func _burst(pos: Vector3, col: Color, n: int, speed: float, size: float, life: float, gravity := 1.0) -> void:
-	if DisplayServer.get_name() == "headless":
-		return
-	var p := CPUParticles3D.new()
-	p.one_shot = true
-	p.explosiveness = 0.95
-	p.amount = n
-	p.lifetime = life
-	p.direction = Vector3.UP
-	p.spread = 180.0
-	p.initial_velocity_min = speed * 0.35
-	p.initial_velocity_max = speed
-	p.gravity = Vector3(0, -90.0 * gravity, 0)
-	p.damping_min = speed * 0.6
-	p.damping_max = speed * 1.2
-	p.scale_amount_min = size * 0.5
-	p.scale_amount_max = size
-	var curve := Curve.new()
-	curve.add_point(Vector2(0, 1))
-	curve.add_point(Vector2(1, 0))
-	p.scale_amount_curve = curve
-	var qm := QuadMesh.new()
-	qm.size = Vector2(1, 1)
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	m.albedo_color = col
-	m.emission_enabled = true
-	m.emission = col
-	m.emission_energy_multiplier = 1.5
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	qm.material = m
-	p.mesh = qm
-	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	fx_root.add_child(p)
-	p.global_position = pos
-	p.emitting = true
-	get_tree().create_timer(life + 0.3).timeout.connect(p.queue_free)
 
 
 func _show_results() -> void:
@@ -1113,7 +966,7 @@ func _input_state() -> Dictionary:
 		steer -= 1.0
 	if r:
 		steer += 1.0
-	look_back = look
+	look_back = look or test_look
 	var o := {"steer": clampf(steer, -1.0, 1.0), "brake": brake, "nb": nb, "mul": mul, "use": false, "back": false, "hold": false, "hold_sl": 1, "release": null}
 	var it2 := item_queued
 	item_queued = ""
@@ -1145,10 +998,21 @@ func _input(ev: InputEvent) -> void:
 		var d := ev as InputEventScreenDrag
 		if touches.has(d.index) and touches[d.index] != "pedal":
 			touches[d.index] = _zone(d.position)
+	elif ev is InputEventMouseButton:
+		var mb := ev as InputEventMouseButton
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and hud != null and hud_race.visible and state != "menu":
+			if hud.pause_rect().has_point(mb.position):
+				_toggle_pause()
+			elif hud.item_rect(1).has_point(mb.position):
+				item_queued = "fwd"
+			elif hud.item_rect(2).has_point(mb.position):
+				item_queued = "fwd2"
 	elif ev is InputEventKey:
 		var kev := ev as InputEventKey
 		if kev.pressed and not kev.echo:
 			match kev.keycode:
+				KEY_F3:
+					lbl_info.visible = not lbl_info.visible
 				KEY_X, KEY_E, KEY_ENTER:
 					if state == "menu" or ip_edit.has_focus():
 						pass
@@ -1182,7 +1046,7 @@ func _input(ev: InputEvent) -> void:
 
 
 func _zone(p: Vector2) -> String:
-	if is_phone and (pedal_l.get_global_rect().has_point(p) or pedal_r.get_global_rect().has_point(p)):
+	if hud.pedal_rect(0).has_point(p) or hud.pedal_rect(1).has_point(p):
 		return "pedal"
 	return "l" if p.x < get_viewport().get_visible_rect().size.x * 0.5 else "r"
 
@@ -1197,101 +1061,10 @@ func _process(dt: float) -> void:
 	var al := 1.0 if (paused or state == "menu") else Engine.get_physics_interpolation_fraction()
 	if net_role == "client":
 		al = clampf((Time.get_ticks_msec() / 1000.0 - net_snap_at) / net_snap_dt, 0.0, 1.0)
-	var rx := 0.0
-	var ry := 0.0
-	var rz := 0.0
-	var rma := 0.0
-	for k in race.karts:
-		var v: Dictionary = views[k]
-		var kx := lerpf(k.ox, k.x, al)
-		var ky := lerpf(k.oy, k.y, al)
-		var kz := lerpf(k.owy, k.wy, al)
-		var ka := lerp_angle(k.oa, k.a, al)
-		var th := 0.0
-		if not k.loop.is_empty():
-			th = lerpf(k.o_th if k.o_loop else 0.0, k.loop_th, al)
-		if k == kart:
-			rx = kx
-			ry = ky
-			rz = kz
-			rma = lerp_angle(k.oma, k.ma, al)
-			p_ka = ka
-			p_th = th
-		# kart: model forward is +X; heading a turns +X toward +Z; in the loop it pitches round with the track
-		var node: Node3D = v["node"]
-		var sc: float = v["sc"]
-		var bs := Basis(Vector3.UP, -ka)
-		if th != 0.0:
-			bs = bs * Basis(Vector3(0, 0, 1), th)
-		node.transform = Transform3D(bs.scaled(Vector3.ONE * sc), Vector3(kx, kz, ky))
-		# blink while protected after a hit
-		node.visible = not (k.inv > 0.0 and k.spin <= 0.0 and int(time * 16.0) % 2 == 0 and not k.finished)
-		var body: Node3D = v["body"]
-		if body and not paused:
-			var f := 1.0 - exp(-10.0 * dt)
-			var roll := (k.steer * 0.08 * k.d_amt if k.drift != 0 else 0.0) + k.steer * 0.04
-			var pitch := clampf(k.acc * 0.0006, -0.07, 0.05)
-			if k.trick_t > 0.0:
-				var u := 1.0 - k.trick_t / Kart.TRICK_T
-				if k.trick_k == 3 or k.trick_k == 4:
-					roll += (TAU * u) * (-1.0 if k.trick_k == 3 else 1.0)
-				elif k.trick_k == 1:
-					pitch += TAU * u
-				else:
-					body.rotation.y = TAU * u
-			else:
-				body.rotation.y = 0.0
-			if k.trick_t > 0.0:
-				body.rotation.x = roll
-				body.rotation.z = pitch
-			else:
-				body.rotation.x += (roll - body.rotation.x) * f
-				body.rotation.z += (pitch - body.rotation.z) * f
-		if not paused:
-			for w in v["wheels"]:
-				var n: Node3D = w["node"]
-				n.rotation.z -= k.speed * dt / (float(w["r"]) * T.KS)
-				if w["front"]:
-					n.rotation.y = -k.steer * 0.38
-		# boost flames out of the back, drift sparks at the rear wheels (blue, orange, pink as the charge builds)
-		var flame: CPUParticles3D = v["flame"]
-		var rear := Vector3(kx + cos(ka) * float(v["ax_r"]) - cos(ka) * 4.0, kz + 3.0, ky + sin(ka) * float(v["ax_r"]) - sin(ka) * 4.0)
-		flame.emitting = k.boost > 0.0 and not paused and k.spin <= 0.0
-		flame.position = rear
-		flame.rotation.y = -ka
-		flame.color = Color(0.45, 0.95, 1.0) if k.rush > 0.0 else Color(1.0, 0.55, 0.12)
-		var sparks: CPUParticles3D = v["sparks"]
-		sparks.emitting = k.drift != 0 and k.tier > 0 and not k.air and not paused
-		sparks.position = rear + Vector3(0, -2.2, 0)
-		sparks.rotation.y = -ka
-		if k.tier > 0:
-			sparks.color = [Color(0.4, 0.75, 1.0), Color(0.4, 0.75, 1.0), Color(1.0, 0.6, 0.15), Color(1.0, 0.4, 0.85)][k.tier]
-		# garlic bubble
-		var bub: MeshInstance3D = v["bubble"]
-		bub.visible = k.sh_l > 0
-		if bub.visible:
-			bub.position = Vector3(kx, kz + 7.0, ky)
-			var s := (1.0 + 0.04 * sin(time * 6.0)) * (1.12 if k.sh_l > 1 else 1.0)
-			bub.scale = Vector3.ONE * s
-		# item trailing behind
-		var want: String = String(k.held.get("it", "")) if not k.held.is_empty() else ""
-		if want != String(v["held_it"]):
-			if v["held"] != null:
-				(v["held"] as Node).queue_free()
-				v["held"] = null
-			v["held_it"] = want
-			if want != "":
-				var hn := _item_node(HELD_NODE.get(want, "pep"))
-				add_child(hn)
-				v["held"] = hn
-		if v["held"] != null:
-			var hn2: Node3D = v["held"]
-			hn2.position = Vector3(kx - cos(ka) * 11.0, kz + 3.0, ky - sin(ka) * 11.0)
-			hn2.rotation.y = time * 3.0
-
-	_draw_items(al, dt)
-	_camera(dt, rx, ry, rz, rma)
-
+	view.draw(al, dt, state == "race", paused)
+	var v: Dictionary = view.views[kart]
+	_camera(dt, float(v["rx"]), float(v["ry"]), float(v["rz"]), float(v["rma"]))
+	# shadows follow your kart (the web re-centres its shadow camera 80 ahead of it)
 	# far clutter cells, five times a second
 	cull_t -= dt
 	if cull_t <= 0.0:
@@ -1306,108 +1079,27 @@ func _process(dt: float) -> void:
 			if vis != was:
 				c["vis"] = vis
 				(c["node"] as Node3D).visible = vis
+	# the sea drifts and breathes (web buildWater animator)
+	for wm in water_mats:
+		var w: StandardMaterial3D = wm
+		w.uv1_offset += Vector3(dt * 0.004, dt * 0.003, 0.0) * (0.0 if paused else 1.0)
+	# post: edge flash, speed streaks while boosting
+	if edge_t > 0.0:
+		edge_t -= dt
+	var ea := edge_a * clampf(edge_t / 0.3, 0.0, 1.0)
+	post_mat.set_shader_parameter("edge_c", Vector3(edge_c.r, edge_c.g, edge_c.b))
+	post_mat.set_shader_parameter("edge_a", ea)
+	spd_fx += ((1.0 if (kart.boost > 0.0 and state == "race") else 0.0) - spd_fx) * minf(1.0, dt / 0.25)
+	post_mat.set_shader_parameter("spd", spd_fx)
+	post_mat.set_shader_parameter("tm", time)
 	_hud(dt)
 
 
-func _draw_items(al: float, dt: float) -> void:
-	# item boxes: spin and bob; gone for four seconds after someone takes one
-	for i in race.boxes.size():
-		var b: Dictionary = race.boxes[i]
-		var n: Node3D = box_nodes[i]
-		var up := float(b["r"]) <= 0.0
-		var base_y: float = float(b["gy"]) if bool(b["air"]) else T.ground(float(b["x"]), float(b["y"]))
-		n.visible = up or float(b["r"]) < 0.35
-		if n.visible:
-			var grow := 1.0 if up else clampf(1.0 - float(b["r"]) / 0.35, 0.05, 1.0)
-			n.position = Vector3(float(b["x"]), base_y + 7.0 + sin(time * 2.2 + i) * 0.9, float(b["y"]))
-			n.rotation = Vector3(0.25 * sin(time * 1.3 + i), time * 1.6 + i, 0.2)
-			n.scale = Vector3.ONE * 1.25 * grow
-	# thrown items
-	var seen := {}
-	for p in race.projectiles:
-		var pd: Dictionary = p
-		var id: int = pd["id"]
-		seen[id] = true
-		var type: String = pd["type"]
-		if not proj_nodes.has(id):
-			var nn := _item_node(PROJ_NODE.get(type, "pep"))
-			add_child(nn)
-			proj_nodes[id] = nn
-		var node: Node3D = proj_nodes[id]
-		var x := lerpf(float(pd["px"]), float(pd["x"]), al)
-		var y := lerpf(float(pd["py"]), float(pd["y"]), al)
-		var g := T.ground(x, y)
-		if type == "pep":
-			node.position = Vector3(x, g + 3.4, y)
-			node.rotation = Vector3(0.0, time * 14.0, 0.25)
-		elif type == "dough":
-			node.position = Vector3(x, g + 2.8, y)
-			var sp := Vector2(float(pd["vx"]), float(pd["vy"])).length()
-			node.rotation = Vector3(0.0, -atan2(float(pd["vy"]), float(pd["vx"])), node.rotation.z - sp * dt / 2.6)
-		elif type == "flour" or type == "lob":
-			var t0 := maxf(0.05, float(pd["t0"]))
-			var u := clampf(1.0 - float(pd["t"]) / t0, 0.0, 1.0)
-			node.position = Vector3(x, g + 4.0 + sin(PI * u) * (16.0 if type == "flour" else 12.0), y)
-			node.rotation = Vector3(time * 5.0, time * 3.0, 0.0)
-		elif type == "wheel":
-			var ph: String = pd.get("ph", "")
-			var yy := g + 7.5
-			var pitch := 0.0
-			var bank := 0.42 + sin(time * 5.5) * 0.1
-			var s := minf(1.0, 0.35 + float(pd.get("age", 1.0)) * 3.5)
-			if ph == "wind":
-				var e := minf(1.0, 1.0 - maxf(0.0, float(pd["pt"])) / 0.62)
-				yy = g + 8.0 + 9.0 * e
-				pitch = e
-				s = 1.0 + 0.06 * e
-			elif ph == "slice":
-				var f := minf(1.0, 1.0 - maxf(0.0, float(pd["pt"])) / 0.16)
-				yy = g + 17.0 - 11.0 * f * f
-				pitch = 1.0 - 2.1 * f
-				s = 1.18
-			elif ph == "done":
-				var f2 := minf(1.0, 1.0 - maxf(0.0, float(pd["pt"])) / 0.4)
-				yy = g + 7.0 + f2 * 5.0
-				pitch = -1.1
-				s = 1.18 * (1.0 - f2 * f2)
-			node.position = Vector3(x, yy, y)
-			node.rotation = Vector3(bank, -float(pd["dir"]) + PI / 2.0, pitch)
-			node.scale = Vector3.ONE * maxf(0.01, s)
-	for id in proj_nodes.keys():
-		if not seen.has(id):
-			var gone: Node3D = proj_nodes[id]
-			_burst(gone.position, Color(1, 0.8, 0.4), 12, 50.0, 2.0, 0.3)
-			gone.queue_free()
-			proj_nodes.erase(id)
-	# oil slicks on the road
-	var hseen := {}
-	for h in race.hazards:
-		var hd: Dictionary = h
-		var hid: int = hd["id"]
-		hseen[hid] = true
-		if not haz_nodes.has(hid):
-			var hn := _item_node("oil")
-			add_child(hn)
-			var gx := float(hd["x"])
-			var gz := float(hd["y"])
-			var g0 := T.ground(gx, gz)
-			# lie on the slope
-			var nrm := Vector3(T.ground(gx - 3.0, gz) - T.ground(gx + 3.0, gz), 6.0, T.ground(gx, gz - 3.0) - T.ground(gx, gz + 3.0)).normalized()
-			hn.position = Vector3(gx, g0 + 0.35, gz)
-			if absf(nrm.dot(Vector3.UP)) < 0.999:
-				hn.quaternion = Quaternion(Vector3.UP, nrm)
-			haz_nodes[hid] = hn
-		var hnode: Node3D = haz_nodes[hid]
-		var grow2 := clampf(float(hd["born"]) / 0.25, 0.1, 1.0) * clampf(float(hd["t"]) / 0.4, 0.0, 1.0)
-		hnode.scale = Vector3.ONE * grow2
-	for hid2 in haz_nodes.keys():
-		if not hseen.has(hid2):
-			(haz_nodes[hid2] as Node).queue_free()
-			haz_nodes.erase(hid2)
-
-
+## the web game's close chase camera: it eases round behind the kart, hangs on a sprung mount, leans
+## into turns and with the ground, shakes with speed and hits, and rides round the loop-the-loop
 func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 	var k := kart
+	var v: Dictionary = view.views[k]
 	if state == "menu":
 		var oa := time * 0.18 + k.a + 2.4
 		cam.position = Vector3(rx + cos(oa) * 62.0, rz + 17.0 + sin(time * 0.3) * 3.0, ry + sin(oa) * 62.0)
@@ -1416,99 +1108,139 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 		cam_snap = true
 		cam_a = k.ma
 		return
-	# chase camera (the web game's close camera); hold look-back to see behind
 	cam_a = lerp_angle(cam_a, rma, 1.0 - exp(-5.5 * dt))
-	var dist := 30.0 + (5.0 if k.boost > 0.0 else 0.0)
-	var h := 12.6
-	var back := -1.0 if look_back and state == "race" else 1.0
-	var fx := cos(cam_a) * back
-	var fy := sin(cam_a) * back
+	var ex := maxf(0.0, float(v["top"]) - 7.2) * T.KS
+	var dist := 30.0 + (5.0 if k.boost > 0.0 else 0.0) + ex * 1.1
+	var h := 12.6 + ex * 0.8
+	var lb := look_back and state == "race" and k.loop.is_empty()
+	if lb != cam_lb:
+		cam_lb = lb
+		cam_snap = true
+	var fx_ := cos(cam_a) * (-1.0 if lb else 1.0)
+	var fy := sin(cam_a) * (-1.0 if lb else 1.0)
 	var rg := T.ground(rx, ry)
-	var in_loop := not k.loop.is_empty()
-	var cy := rz - 4.0 if (k.glide or in_loop) else rg + (rz - rg) * 0.45
-	var tv2 := Vector3(rx - fx * dist, cy + h, ry - fy * dist)
-	var tv := Vector3(rx + fx * 32.0, cy + 6.2, ry + fy * 32.0)
+	if not T.glide.is_empty():
+		var gyy := T.glide_y(rx, ry)
+		if rg < gyy - 20.0:
+			rg = minf(rz, gyy)
+	var cy := rz - 4.0 if k.glide else rg + (rz - rg) * 0.45
+	var tv2 := Vector3(rx - fx_ * dist, cy + h, ry - fy * dist)
+	var tv := Vector3(rx + fx_ * 32.0, cy + 6.2 + ex * 0.5, ry + fy * 32.0)
+	var in_loop := not k.loop.is_empty() and k.loop.has("p")
+	var up_t := Vector3.UP
 	if in_loop:
-		# ride round the loop with the kart: behind it and towards the middle of the ring, rolling over with it
-		var lb := Basis(Vector3.UP, -p_ka) * Basis(Vector3(0, 0, 1), p_th)
+		var P: Dictionary = k.loop["p"]
+		var th := k.loop_th
+		var F := Vector3(float(P["tx"]) * cos(th), sin(th), float(P["ty"]) * cos(th)).normalized()
+		var U := Vector3(-float(P["tx"]) * sin(th), cos(th), -float(P["ty"]) * sin(th))
 		var kp := Vector3(rx, rz, ry)
-		cam_base = kp + lb * Vector3(-26.0, 9.5, 0.0)
-		cam_look = kp + lb * Vector3(22.0, 4.0, 0.0)
-		cam.position = cam_base
-		cam.look_at(cam_look, lb * Vector3.UP)
-		cam.fov += (78.0 - cam.fov) * minf(1.0, 5.0 * dt)
-		return
-	if cam_snap:
-		cam_base = tv2
-		cam_look = tv
-		cam_snap = false
+		tv2 = kp - F * 30.0 + U * 13.0
+		tv = kp + F * 16.0 + U * 3.0
+		cam_base = cam_base.lerp(tv2, 1.0 - exp(-16.0 * dt))
+		cam_look = cam_look.lerp(tv, 1.0 - exp(-18.0 * dt))
+		cam_up = cam_up.lerp(U, 1.0 - exp(-12.0 * dt)).normalized()
+		cam_a = float(P["ang"])
 	else:
-		cam_base = cam_base.lerp(tv2, 1.0 - exp(-(30.0 if look_back else 12.0) * dt))
-		cam_look = cam_look.lerp(tv, 1.0 - exp(-(30.0 if look_back else 16.0) * dt))
-	var sh := Vector3.ZERO
-	if shake > 0.0:
-		shake = maxf(0.0, shake - dt)
-		sh = Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * minf(shake, 1.2) * 2.0
-	cam.position = cam_base + sh
-	if cam.position.distance_to(cam_look) > 0.1:
-		cam.look_at(cam_look, Vector3.UP)
+		cam_up = cam_up.lerp(Vector3.UP, 1.0 - exp(-8.0 * dt)).normalized()
+		if cam_snap:
+			cam_base = tv2
+			cam_look = tv
+			cam_snap = false
+		else:
+			cam_base = cam_base.lerp(tv2, 1.0 - exp(-12.0 * dt))
+			cam_look = cam_look.lerp(tv, 1.0 - exp(-16.0 * dt))
+		# hills and banks beside the road: pull the camera in along its line of sight instead of sinking into the ground
+		var t := 1.0
+		while t > 0.3:
+			var x := cam_look.x + (cam_base.x - cam_look.x) * t
+			var z := cam_look.z + (cam_base.z - cam_look.z) * t
+			var y := cam_look.y + (cam_base.y - cam_look.y) * t
+			if y >= T.ground(x, z) + 2.5:
+				break
+			t -= 0.1
+		cam_occ = t if t < cam_occ else cam_occ + (t - cam_occ) * minf(1.0, dt * 3.0)
+		if cam_occ < 0.999:
+			cam_base = cam_look + (cam_base - cam_look) * cam_occ
+		var fl := T.ground(cam_base.x, cam_base.z) + 2.5
+		if cam_base.y < fl:
+			cam_base.y = fl
+	var spn := minf(1.4, absf(k.speed) / k.base_max)
+	var lat := absf(T.lateral(k.idx, k.x, k.y))
+	var sf := 2 if lat < T.RW else (1 if lat < T.CURB else 0)
+	var amp := 0.03 + 0.09 * spn + (0.32 if sf == 0 and spn > 0.25 else (0.12 if sf == 1 and spn > 0.25 else 0.0)) + (0.24 if k.boost > 0.0 else 0.0) + shake_imp
+	shake_imp *= exp(-6.0 * dt)
+	var bo := k.boost > 0.0
+	if bo and not cam_bo and state == "race":
+		_shake(0.75)
+	cam_bo = bo
+	if state == "countdown":
+		amp = 0.02
+	var n1 := sin(time * 29.0) * 0.5 + sin(time * 47.3 + 1.3) * 0.3 + sin(time * 11.7 + 0.7) * 0.2
+	var n2 := sin(time * 33.1 + 2.0) * 0.5 + sin(time * 53.0 + 0.4) * 0.3 + sin(time * 9.3 + 1.1) * 0.2
+	var n3 := sin(time * 26.7 + 4.0) * 0.5 + sin(time * 41.0 + 2.2) * 0.5
+	var G := 0.0 if (state == "countdown" or in_loop or dt <= 0.0) else 1.0
+	var ff := func(kk: float) -> float: return 1.0 - exp(-kk * dt)
+	var acc := (k.speed - cam_pspd) / dt if dt > 0.0 else 0.0
+	cam_pspd = k.speed
+	cam_gp += ((float(v["tp"]) * 0.4 - clampf(acc * 0.00016, -0.035, 0.035)) * G - cam_gp) * ff.call(6.0)
+	cam_gr += ((float(v["tr"]) * 0.5 - k.steer * 0.04 - (k.steer * 0.035 * k.d_amt if k.drift != 0 else 0.0)) * G - cam_gr) * ff.call(5.0)
+	cam_sx += (k.steer * 2.4 * spn * G - cam_sx) * ff.call(3.0)
+	var vz := (rz - cam_pvz) / dt if dt > 0.0 else 0.0
+	cam_pvz = rz
+	var f := (-cam_oy * 55.0 - cam_vy * 9.0) + clampf(-vz * 0.9, -40.0, 40.0) * G * (0.25 if k.air else 1.0)
+	cam_vy += f * dt
+	cam_oy = clampf(cam_oy + cam_vy * dt, -2.6, 2.6)
+	var sx_ := sin(cam_a)
+	var sz_ := -cos(cam_a)
+	cam.position = Vector3(cam_base.x + n1 * amp * 0.3 - sx_ * cam_sx, cam_base.y + n2 * amp * 0.35 + cam_oy, cam_base.z + n3 * amp * 0.3 - sz_ * cam_sx)
+	var look := Vector3(cam_look.x, cam_look.y + cam_oy * 0.45, cam_look.z)
+	if cam.position.distance_to(look) > 0.1:
+		cam.look_at(look, cam_up)
+	cam.rotate_object_local(Vector3(1, 0, 0), -cam_gp)
+	cam.rotate_object_local(Vector3(0, 0, 1), cam_gr + n3 * amp * 0.006)
 	var vs := get_viewport().get_visible_rect().size
 	var aspect := vs.x / maxf(1.0, vs.y)
-	var hf := deg_to_rad(96.0 if k.boost > 0.0 else 92.0)
+	var hf := deg_to_rad(100.0 if k.boost > 0.0 else 92.0)
 	var vf := clampf(rad_to_deg(2.0 * atan(tan(hf / 2.0) / aspect)), 52.0, 100.0)
-	cam.fov += (vf - cam.fov) * minf(1.0, 5.0 * dt)
+	var fp := 0.0
+	if fin_punch > 0.0:
+		fin_punch += dt
+		fp = sin(minf(1.0, fin_punch / 0.8) * PI) * (fin_punch / 0.12 if fin_punch < 0.12 else 1.0) * 14.0
+		if fin_punch > 0.8:
+			fin_punch = 0.0
+	vf += fp
+	if absf(cam.fov - vf) > 0.05:
+		cam.fov += (vf - cam.fov) * minf(1.0, (18.0 if fp > 0.0 else 5.0) * dt)
+	# the sun's shadow box follows the kart (centred 80 ahead of it)
+	var sc := Vector3(rx + cos(cam_a) * 80.0, rg, ry + sin(cam_a) * 80.0)
+	sun.global_position = sc
 
 
 func _hud(dt: float) -> void:
 	var k := kart
-	var pos := race.position_of(k)
-	lbl_pos.text = _ordinal(k.place if k.finished else pos)
-	lbl_pos.add_theme_color_override("font_color", [Color(1, 0.84, 0.25), Color(0.88, 0.9, 0.95), Color(0.93, 0.62, 0.38)][pos - 1] if pos <= 3 else Color(1, 0.96, 0.86))
-	lbl_lap.text = "Lap %d/%d" % [k.lap(), T.LAPS]
-	lbl_time.text = _fmt(k.finish_time if k.finished else race.race_time)
-	lbl_speed.text = "%d mph" % int(round(maxf(0.0, k.speed) * 0.66))
-	var prims := int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
-	var draws := int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
-	lbl_info.text = "%d fps · %s · %dk tris · %d draws" % [Engine.get_frames_per_second(), RenderingServer.get_current_rendering_driver_name(), prims / 1000, draws]
-	if center_t > 0.0:
-		center_t -= dt
-		if center_t <= 0.0:
-			lbl_center.text = ""
-	if toast_t > 0.0:
-		toast_t -= dt
-		lbl_toast.modulate.a = clampf(toast_t / 0.3, 0.0, 1.0)
-		if toast_t <= 0.0:
-			lbl_toast.text = ""
+	lbl_info.text = "%d fps · %s · %dk tris · %d draws" % [Engine.get_frames_per_second(), RenderingServer.get_current_rendering_driver_name(), int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)) / 1000, int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))]
 	sfx.drive(absf(k.speed) / k.base_max, true, k.boost > 0.0, k.drift != 0 and not k.air, k.tier, state != "countdown" and state != "results" and state != "menu" and not paused)
-	# item slots: while the roulette runs, the icons flick through the items
-	var keys: Array = icons.keys()
 	if k.roll > 0.0 and not paused:
 		roll_tick -= dt
 		if roll_tick <= 0.0:
 			roll_tick = 0.09
 			sfx.play("roll", 0.5)
-	if k.roll > 0.0 and keys.size() > 0:
-		slot1.texture = icons[keys[int(time * 14.0) % keys.size()]]
-		slot2.texture = null
-		lbl_item.text = ""
-	else:
-		var show1: String = k.item
-		if show1 == "" and not k.held.is_empty():
-			show1 = String(k.held["it"])
-		slot1.texture = icons.get(show1) if show1 != "" else null
-		slot1.modulate.a = 0.5 if (k.item == "" and not k.held.is_empty()) else 1.0
-		slot2.texture = icons.get(k.item2) if k.item2 != "" else null
-		lbl_item.text = String(ITEM_NAMES.get(show1, "")) if show1 != "" else ""
-	slot2_bg.modulate.a = 1.0 if slot2.texture != null else 0.45
-	slot1_bg.modulate.a = 1.0 if slot1.texture != null else 0.6
-	mini.T = T
-	mini.race = race
-	mini.me = kart
-	mini.queue_redraw()
-	if is_phone:
-		var piv := 1.0 if touches.values().has("pedal") else 0.55
-		pedal_l.modulate.a = piv
-		pedal_r.modulate.a = piv
+	# wrong way: moving against the track for most of a second
+	var back := state == "race" and not k.finished and k.spin <= 0.0 and k.speed > 15.0 and (cos(k.ma) * T.tx[k.idx] + sin(k.ma) * T.ty[k.idx]) < -0.4
+	hud.wrong_t = hud.wrong_t + dt if back else 0.0
+	var st := 0
+	for z in touches.values():
+		if z == "l":
+			st = -1
+		elif z == "r":
+			st = 1
+	if st == 0:
+		st = -1 if k.steer < -0.3 else (1 if k.steer > 0.3 else 0)
+	hud.steer_dir = st
+	hud.braking = k.brake > 0.04
+	hud.look = look_back
+	hud.pad_mode = Time.get_ticks_msec() - pad_used_at < 20000
+	hud.tick(dt)
 
 
 func _fmt(t: float) -> String:
@@ -1524,7 +1256,7 @@ func _to_menu(note: String) -> void:
 	_start_race({})
 	state = "menu"
 	hud_race.visible = false
-	lbl_center.text = ""
+	hud.banner("", 0.0)
 	panel_menu.visible = true
 	_menu_refresh(note)
 
@@ -1871,40 +1603,3 @@ func _enter_tree() -> void:
 	add_child(cam)
 	cam.current = true
 
-
-## the track from above, with a dot per racer
-class MiniMap extends Control:
-	var T: TrackData
-	var race: Race
-	var me: Kart
-	var pts := PackedVector2Array()
-	var for_size := Vector2.ZERO
-	const COLS := [Color(0.84, 0.23, 0.15), Color(0.18, 0.6, 0.24), Color(0.42, 0.31, 0.69), Color(0.95, 0.92, 0.85), Color(0.94, 0.45, 0.08), Color(0.54, 0.37, 0.26), Color(0.95, 0.75, 0.12), Color(0.16, 0.5, 0.85)]
-
-	func _map(x: float, y: float) -> Vector2:
-		var r := T.R
-		var s: float = minf(size.x, size.y)
-		return Vector2((x / r * 0.5 + 0.5) * s, (y / r * 0.5 + 0.5) * s)
-
-	func _draw() -> void:
-		if T == null or race == null:
-			return
-		if pts.is_empty() or for_size != size:
-			for_size = size
-			pts = PackedVector2Array()
-			for i in range(0, T.N, 6):
-				pts.append(_map(T.px[i], T.py[i]))
-			pts.append(pts[0])
-		draw_polyline(pts, Color(0.1, 0.05, 0.03, 0.7), 9.0, true)
-		draw_polyline(pts, Color(1, 0.96, 0.86, 0.85), 4.0, true)
-		for k in race.karts:
-			if k == me:
-				continue
-			var c: Color = COLS[k.ri % COLS.size()]
-			if k.ri < T.racers.size():
-				c = Color.html(String(T.racers[k.ri]["color"]))
-			draw_circle(_map(k.x, k.y), 6.0, Color(0.1, 0.05, 0.03))
-			draw_circle(_map(k.x, k.y), 4.5, c)
-		if me != null:
-			draw_circle(_map(me.x, me.y), 9.0, Color(0.1, 0.05, 0.03))
-			draw_circle(_map(me.x, me.y), 7.0, Color(1, 0.84, 0.25))

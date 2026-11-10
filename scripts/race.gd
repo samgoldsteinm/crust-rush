@@ -143,6 +143,7 @@ func _make_kart(ri: int, slot: int, is_player: bool, info: Dictionary) -> Kart:
 	k.is_player = is_player
 	k.human = is_player
 	k.info = info
+	k.sf = float((info.get("meta", {}) as Dictionary).get("sf", 1.0))
 	k.race = self
 	k.ai = {"lane": lat, "lane_target": lat, "lane_t": 1.0 + rng.randf() * 3.0, "skill": sk, "item_delay": 0.0, "in_bend": false, "auto": not is_player}
 	return k
@@ -575,9 +576,10 @@ func release_held(k: Kart, back: bool) -> void:
 	k.ai["item_delay"] = d
 
 
-## where a held item trails: right behind the kart
+## where a held item trails: right behind the kart (the web draws it there and checks hits there)
 func held_pos(k: Kart) -> Vector2:
-	return Vector2(k.x - cos(k.ma) * 11.0, k.y - sin(k.ma) * 11.0)
+	var L := 11.0 * k.sf * T.KS * 0.62 + 4.0
+	return Vector2(k.x - cos(k.ma) * L, k.y - sin(k.ma) * L)
 
 
 func _absorb_held(k: Kart) -> bool:
