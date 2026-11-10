@@ -39,11 +39,11 @@ def one(path):
     lum = img[:, :, 0] * 0.3 + img[:, :, 1] * 0.55 + img[:, :, 2] * 0.15
     base = tile_blur(lum, max(8, w // 24))
     d = np.clip((lum - base) * 3.2, -1, 1)
-    hgt = tile_blur(d, 2) * 0.55 + ripple(h, w, 7) * 0.12
+    hgt = tile_blur(d, 2) * 0.6 + ripple(h, w, 7) * 0.2
     # normal from height, wrapping at the edges
     gx = (np.roll(hgt, -1, 1) - np.roll(hgt, 1, 1)) * 0.5
     gy = (np.roll(hgt, -1, 0) - np.roll(hgt, 1, 0)) * 0.5
-    s = 9.0
+    s = 14.0
     nx, ny, nz = -gx * s, gy * s, np.ones_like(hgt)
     l = np.sqrt(nx * nx + ny * ny + nz * nz)
     n = np.stack([nx / l, ny / l, nz / l], -1)

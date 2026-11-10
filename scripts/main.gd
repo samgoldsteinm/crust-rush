@@ -436,7 +436,7 @@ func _build_world() -> void:
 	var hd := hd_on and quality >= 1
 	# the ground: the same picture with depth, gloss and a fine grain up close
 	if track != null and hd:
-		HdGround.upgrade(track, String(_map_info(map_id)["dir"]).path_join(map_id + "_hd.json"))
+		print("ground: %d finished" % HdGround.upgrade(track, String(_map_info(map_id)["dir"]).path_join(map_id + "_hd.json")))
 	# trees, palms, bushes and rocks: finished models on PC (the web game's own shapes far away, and when off)
 	if not T.props.is_empty():
 		var pr := Props.new()

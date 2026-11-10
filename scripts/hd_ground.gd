@@ -50,7 +50,7 @@ static func _finish(m: StandardMaterial3D, n_path: String, r_path: String) -> vo
 	if nt != null:
 		m.normal_enabled = true
 		m.normal_texture = nt
-		m.normal_scale = 1.0
+		m.normal_scale = 1.6
 	var rt := _load(r_path)
 	if rt != null:
 		m.roughness = 1.0

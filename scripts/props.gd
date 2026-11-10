@@ -164,9 +164,21 @@ func _proto_mesh(kd: Dictionary) -> ArrayMesh:
 	arrays[Mesh.ARRAY_VERTEX] = v
 	arrays[Mesh.ARRAY_NORMAL] = n
 	arrays[Mesh.ARRAY_COLOR] = c
+	# three.js faces wind counter-clockwise, Godot's clockwise: every triangle is turned round (or the shapes
+	# show their insides, dark)
 	var I = kd.get("I")
+	var idx := PackedInt32Array()
 	if I is Array and not (I as Array).is_empty():
-		arrays[Mesh.ARRAY_INDEX] = PackedInt32Array(I)
+		idx = PackedInt32Array(I)
+	else:
+		idx.resize(nv)
+		for i in nv:
+			idx[i] = i
+	for t in idx.size() / 3:
+		var b := idx[t * 3 + 1]
+		idx[t * 3 + 1] = idx[t * 3 + 2]
+		idx[t * 3 + 2] = b
+	arrays[Mesh.ARRAY_INDEX] = idx
 	var am := ArrayMesh.new()
 	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	var m := StandardMaterial3D.new()
@@ -183,8 +195,10 @@ func _proto_mesh(kd: Dictionary) -> ArrayMesh:
 		var gv := PackedVector3Array()
 		var gc := PackedColorArray()
 		for i in GP.size() / 3:
-			gv.append(Vector3(GP[i * 3], GP[i * 3 + 1], GP[i * 3 + 2]))
-			gc.append(Color(GC[i * 3], GC[i * 3 + 1], GC[i * 3 + 2]) if GC.size() >= GP.size() else Color.WHITE)
+			# turned round like the rest: each triangle's corners 0, 2, 1
+			var j: int = i - i % 3 + [0, 2, 1][i % 3]
+			gv.append(Vector3(GP[j * 3], GP[j * 3 + 1], GP[j * 3 + 2]))
+			gc.append(Color(GC[j * 3], GC[j * 3 + 1], GC[j * 3 + 2]) if GC.size() >= GP.size() else Color.WHITE)
 		var ga := []
 		ga.resize(Mesh.ARRAY_MAX)
 		ga[Mesh.ARRAY_VERTEX] = gv
