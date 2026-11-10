@@ -16,7 +16,7 @@ to the `maps` release; the PC build downloads them from there.
   More), Records, Achievements, How to play, Play with friends, pause and results.
 - The soundtrack: a song for every track and four menu songs, rendered from the web game's music.
 - Your best-run ghost, lap splits against your best, your best time under the clock.
-- Cheat codes in Settings > More (UNLOCK, TESTING), as on the web.
+- Keyboard keys you can change in Settings > Controls; cheat codes in Settings > More (UNLOCK, TESTING), as on the web.
 - Online races between PCs: one hosts, the others join with the host's address.
 
 ## Graphics
@@ -50,4 +50,4 @@ stay sharp at a glance and glossy paint reflects a finer sky. Turn it off for th
 - `.github/workflows/ios.yml` — iPhone build, manual only (paused).
 
 ## Not ported yet
-Cross-play with the browser version, the online network log, key rebinding, and the TESTING cheat's shortcut prompt.
+Cross-play with the browser version, the online network log, and the TESTING cheat's shortcut prompt.

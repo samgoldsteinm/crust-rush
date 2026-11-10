@@ -1724,7 +1724,7 @@ static func how_to() -> Array:
 	]
 
 const TIPS := [
-	["Pick a graphics preset.", "Pause, then Graphics: Ultra on a gaming PC, High on most others, Low on older laptops."],
-	["Frame rate.", "The PC version runs at your monitor's rate. Choose 60 fps in the pause menu if it feels uneven."],
+	["Pick a graphics preset.", "Settings, Graphics: Ultra on a gaming PC, Balanced on most others, Fast on older laptops. PC extras adds longer, softer shadows and bounce light on Ultra; turn it off for a few more frames."],
+	["Frame rate.", "The PC version runs at your monitor's rate. Choose 60 fps in Settings, Graphics if it feels uneven."],
 	["Full screen.", "F11 switches between full screen and a window."],
 ]
