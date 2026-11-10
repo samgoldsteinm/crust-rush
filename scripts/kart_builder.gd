@@ -66,13 +66,29 @@ static func liveries_for(body_id: String) -> Array:
 	return out
 
 
+## web randomBuild: a rival's kart for this race (or Grand Prix): any body, usually standard wheels,
+## any glider, mostly their own colour, sometimes a livery that isn't a reward
+static func random_build() -> Dictionary:
+	if not ready():
+		return {}
+	var nb := (info["bodies"] as Array).size()
+	var b := randi() % nb
+	var lv: Array = []
+	for l in liveries_for(String(info["bodies"][b]["id"])):
+		if l.get("lock") == null or not l.get("lock"):
+			lv.append(l)
+	var np := (info.get("paints", []) as Array).size()
+	return {"b": b, "w": 0 if randf() < 0.35 else randi() % (info["wheels"] as Array).size(), "g": randi() % (info["gliders"] as Array).size(),
+		"p": 0 if randf() < 0.65 or np < 2 else 1 + randi() % (np - 1), "t": String(lv[randi() % lv.size()]["id"]) if randf() < 0.45 and not lv.is_empty() else ""}
+
+
 static func wheel_of(spec: Dictionary) -> Dictionary:
 	var bd: Dictionary = info["bodies"][int(spec["b"])]
 	if bool(bd.get("bike", false)) and bd.get("bw") != null:
 		for w in info["wheels"]:
 			if w["id"] == bd["bw"]:
 				return w
-	return info["wheels"][int(spec.get("w", 0))]
+	return info["wheels"][clampi(int(spec.get("w", 0)), 0, (info["wheels"] as Array).size() - 1)]
 
 
 ## the web's statMods: body counts most, wheels less, the glider a little, soft-capped
@@ -217,6 +233,7 @@ static func build(spec: Dictionary, ri: int) -> Dictionary:
 			xf.origin.y += lift
 			dn.transform = xf
 			root.add_child(dn)
+			_paint(dn, cols, null, ri)   # vertex colours on (the importer leaves them off)
 	# the glider, folded away until a glide
 	var glider: Node3D = null
 	var gsrc := _scene("glider_%s.glb" % info["gliders"][gi]["id"])
@@ -241,7 +258,10 @@ static func build(spec: Dictionary, ri: int) -> Dictionary:
 ## recolour the exported marker materials: paint (or the livery), dark trim, stripe
 static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false) -> void:
 	var lv: Dictionary = cols["lv"]
-	for mi in n.find_children("*", "MeshInstance3D", true, false):
+	var meshes := n.find_children("*", "MeshInstance3D", true, false)
+	if n is MeshInstance3D:
+		meshes.push_front(n)   # the node itself (a body or wheel exported as one mesh)
+	for mi in meshes:
 		var m3 := mi as MeshInstance3D
 		var mesh := m3.mesh
 		if mesh == null:
@@ -256,7 +276,20 @@ static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false) -> v
 				c0.vertex_color_use_as_albedo = true
 				m3.set_surface_override_material(si, c0)
 			if nm.begins_with("g_paint"):
-				if not lv.is_empty() and liv != null and not lv.has("tex"):
+				var wrap: Texture2D = _texture("liv_%s.jpg" % String(lv["tex"])) if lv.has("tex") else null
+				if wrap != null:
+					# a wrap painted from a picture, on the body's own UVs (web liveryMaterial with lv.tex)
+					var wm2 := StandardMaterial3D.new()
+					wm2.albedo_texture = wrap
+					wm2.vertex_color_use_as_albedo = true
+					wm2.metallic = float(lv.get("m", 0.3))
+					wm2.roughness = float(lv.get("r", 0.28))
+					wm2.clearcoat_enabled = true
+					wm2.clearcoat = 1.0
+					wm2.clearcoat_roughness = 0.05
+					wm2.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+					m3.set_surface_override_material(si, wm2)
+				elif not lv.is_empty() and liv != null and not lv.has("tex"):
 					m3.set_surface_override_material(si, _livery_mat(lv, liv, ri))
 				else:
 					var pm := StandardMaterial3D.new()

@@ -524,7 +524,22 @@ func _marker(k: Kart, x: float, y: float, r: float, ring: float, ring_col: Color
 	if tex != null:
 		# background-size 230%, centred at 50% 26%: the face fills the disc
 		var src := Rect2(tex.get_width() * (0.5 - 0.5 / 2.3), tex.get_height() * (0.26 - 0.26 / 2.3), tex.get_width() / 2.3, tex.get_height() / 2.3)
-		draw_texture_rect_region(tex, Rect2(_p(Vector2(x - r, y - r)), Vector2(2 * r, 2 * r) * s), src)
+		_disc_tex(tex, Vector2(x, y), r, src)
+
+
+## a portrait cut to a circle (the web's border-radius: 50% with a background image)
+func _disc_tex(tex: Texture2D, c: Vector2, r: float, src: Rect2) -> void:
+	var n := 40
+	var pts := PackedVector2Array()
+	var uvs := PackedVector2Array()
+	var tw := float(tex.get_width())
+	var th := float(tex.get_height())
+	for i in n:
+		var a := TAU * i / n
+		var d := Vector2(cos(a), sin(a))
+		pts.append(_p(c + d * r))
+		uvs.append(Vector2((src.position.x + (0.5 + 0.5 * d.x) * src.size.x) / tw, (src.position.y + (0.5 + 0.5 * d.y) * src.size.y) / th))
+	draw_polygon(pts, PackedColorArray([Color.WHITE]), uvs, tex)
 
 
 func _draw_pause() -> void:
@@ -672,7 +687,7 @@ func _draw_special(btn: float, top: float) -> void:
 	var tex: Texture2D = portraits.get(me.ri)
 	if tex != null:
 		var src := Rect2(tex.get_width() * (0.5 - 0.5 / 2.1), tex.get_height() * (0.28 - 0.28 / 2.1), tex.get_width() / 2.1, tex.get_height() / 2.1)
-		draw_texture_rect_region(tex, Rect2(_p(c - Vector2(size, size) / 2.0), Vector2(size, size) * s), src)
+		_disc_tex(tex, c, size / 2.0, src)
 	if not ready:
 		draw_circle(_p(c), size / 2.0 * s, Color(10.0 / 255, 5.0 / 255, 3.0 / 255, 0.55))
 	var lw := f_disp.get_string_size("SPECIAL", HORIZONTAL_ALIGNMENT_LEFT, -1, int(11 * s)).x / s + 12.0

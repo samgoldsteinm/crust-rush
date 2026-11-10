@@ -72,8 +72,9 @@ const CLASS_AI := {"small": "easy", "medium": "normal", "large": "hard", "revers
 
 
 ## Who sits where: humans (the host first) take the middle of the grid, computer drivers the rest.
-## peers: the people racing, the host's id (1) first.
-func make_cfg(roster: Dictionary, host_ri: int, peers: Array, seed_: int, cls := "medium", host_build := {}) -> Dictionary:
+## peers: the people racing, the host's id (1) first. prefs: each joined player's chosen driver and kart
+## ({peer id: {"ri", "build"}}); a driver someone else already has goes to the next free one.
+func make_cfg(roster: Dictionary, host_ri: int, peers: Array, seed_: int, cls := "medium", host_build := {}, prefs := {}) -> Dictionary:
 	var r := RandomNumberGenerator.new()
 	r.seed = seed_
 	var free: Array[int] = []
@@ -95,7 +96,9 @@ func make_cfg(roster: Dictionary, host_ri: int, peers: Array, seed_: int, cls :=
 		if n == 0:
 			slots[s2] = {"ri": host_ri, "peer": int(peers[0]), "own": true}
 		elif not free.is_empty():
-			slots[s2] = {"ri": free.pop_front(), "peer": int(peers[n]), "own": false}
+			var want := int((prefs.get(int(peers[n]), {}) as Dictionary).get("ri", -1))
+			var pick: int = free.pop_at(free.find(want)) if free.has(want) else free.pop_front()
+			slots[s2] = {"ri": pick, "peer": int(peers[n]), "own": false}
 	for s3 in 8:
 		if int(slots[s3]["ri"]) < 0 and not free.is_empty():
 			slots[s3] = {"ri": free.pop_front(), "peer": 0, "own": false}
@@ -104,8 +107,11 @@ func make_cfg(roster: Dictionary, host_ri: int, peers: Array, seed_: int, cls :=
 		var ri4 := int(slots[s4]["ri"])
 		if ri4 < 0:
 			continue
+		var pb = (prefs.get(int(slots[s4]["peer"]), {}) as Dictionary).get("build")
 		if bool(slots[s4]["own"]) and not host_build.is_empty():
 			slots[s4]["build"] = host_build
+		elif pb is Dictionary and not (pb as Dictionary).is_empty():
+			slots[s4]["build"] = pb
 		else:
 			var rq := _racer(roster.get("racers", []), ri4)
 			if rq.has("build"):

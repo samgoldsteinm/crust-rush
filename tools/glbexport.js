@@ -167,6 +167,8 @@ window.__exportBody=function(b){const G=new GLB();const pi=PAINTS.length-1;const
   const top=[G.node('body',parts(G,g,g.matrixWorld,skip))];
   /* where the livery pattern is computed: the paint mesh's own space */
   let paintM=null,box=null;g.traverse(o=>{if(!paintM&&o.isMesh&&!skip(o)&&o.material&&o.material.name==='g_paint'){paintM=o;}});
+  /* the imported cars keep their own paint mesh (not baked): it wears the marker paint colour */
+  if(!paintM){const mk=new THREE.Color(GM.paint);g.traverse(o=>{if(!paintM&&o.isMesh&&!skip(o)&&o.material&&!Array.isArray(o.material)&&o.material.color&&Math.abs(o.material.color.r-mk.r)+Math.abs(o.material.color.g-mk.g)+Math.abs(o.material.color.b-mk.b)<.004)paintM=o;});}
   let liv=null;if(paintM){const a=paintM.geometry.attributes.position.array;let x0=1e9,x1=-1e9,zw=0,yt=-1e9,y0=1e9;for(let i=0;i<a.length;i+=3){x0=Math.min(x0,a[i]);x1=Math.max(x1,a[i]);zw=Math.max(zw,Math.abs(a[i+2]));yt=Math.max(yt,a[i+1]);y0=Math.min(y0,a[i+1]);}
     let cfg={};try{const dm=new Proxy({},{get:(t,k)=>k in t?t[k]:(t[k]=new THREE.MeshStandardMaterial())});cfg=BODY_FN[BODIES[b].id](new THREE.Group(),dm,RACERS[0],0,new THREE.Group())||{};}catch(e){}
     const car=!!cfg.car;liv={box:car?carDims(cfg.car):[x0,x1,zw,yt],belt:car?(cfg.belt||1.5):y0+(yt-y0)*.5,numPos:car?(cfg.numPos||[0,1]):[(x0+x1)/2,y0+(yt-y0)*.5],xf:rel(paintM,g).invert().toArray(),car};}
@@ -195,7 +197,10 @@ window.__placeBW=function(b,w){const m=buildKart({ri:0,b,w,g:0,p:0,t:'',hq:0});r
 /* the driver's seat for one body and one racer (a 4x4 matrix in kart space) */
 window.__placeDrv=function(b,ri){const m=buildKart({ri,b,w:0,g:0,p:0,t:'',hq:0});reset(m);return rel(m.drv,m.g).toArray();};
 /* the shared livery textures: race numbers and decals */
-window.__livTex=function(){const out={};for(const [k,t] of [['num',numTex],['dec',decTex]]){const im=t.image;const c=document.createElement('canvas');c.width=im.width;c.height=im.height;c.getContext('2d').drawImage(im,0,0);out[k]=c.toDataURL('image/png').split(',')[1];}return out;};
+window.__livTex=async function(){const out={};for(const [k,t] of [['num',numTex],['dec',decTex]]){const im=t.image;const c=document.createElement('canvas');c.width=im.width;c.height=im.height;c.getContext('2d').drawImage(im,0,0);out[k+'.png']=c.toDataURL('image/png').split(',')[1];}
+  /* wrap liveries painted from a picture (the Onyx's race wrap): the picture itself, as the web loads it */
+  for(const lv of LIVERIES){if(!lv.tex||out[lv.tex+'.jpg'])continue;const r=await fetch(texSrc(PROP_TEX[lv.tex]));out[lv.tex+'.jpg']=u8ToB64(new Uint8Array(await r.arrayBuffer()));}
+  return out;};
 
 window.__exportKart=function(spec){const G=new GLB();const m=buildKart(spec);const g=m.g;g.position.set(0,0,0);g.rotation.set(0,0,0);g.scale.set(1,1,1);g.updateMatrixWorld(true);
   m.tilt.visible=true;if(m.lo)m.lo.visible=false;if(m.gl)m.gl.visible=false;if(m.bub)m.bub.visible=false;if(m.ice)m.ice.visible=false;(m.flames||[]).forEach(f=>{if(f&&f.visible!==undefined)f.visible=false;});

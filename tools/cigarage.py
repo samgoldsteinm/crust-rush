@@ -70,9 +70,9 @@ async def main():
             d = json.loads(await ev("JSON.stringify(__exportDriver(%d))" % ri))
             open(os.path.join(OUT, 'driver_%d.glb' % ri), 'wb').write(base64.b64decode(d['b64']))
             print('driver', ri, d['stats'].get('bytes'), flush=True)
-        lt = json.loads(await ev("JSON.stringify(__livTex())"))
+        lt = json.loads(await ev("__livTex().then(o=>JSON.stringify(o))"))
         for k, v in lt.items():
-            open(os.path.join(OUT, 'liv_%s.png' % k), 'wb').write(base64.b64decode(v))
+            open(os.path.join(OUT, 'liv_%s' % k), 'wb').write(base64.b64decode(v))
         # marker colours: a paint and a stripe nobody else uses; the bake keeps paint, trim and stripe apart
         await ev("window.__b0=bake;bake=function(S,sh,vc){__garageBake(S);return window.__b0(S,sh,vc);};PAINTS.push('#fe01fd');window.__st0=RACERS.map(r=>r.stripe);RACERS.forEach(r=>r.stripe='#01fe03');1")
         info['liv'] = [None] * nb

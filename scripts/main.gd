@@ -20,6 +20,7 @@ var world: Node3D            # everything that belongs to the loaded track (sky,
 var haz_lib: Node3D          # the track's moving hazards (traffic, walkers...), copied into each race
 var race: Race
 var roster := {}
+var net_prefs := {}       # host: each joined player's chosen driver and kart
 var kart: Kart               # the player's kart (kept for the tests)
 var kart_scenes := {}        # file -> PackedScene
 var view: View
@@ -138,6 +139,7 @@ func _ready() -> void:
 	var f := FileAccess.open(ROSTER_JSON, FileAccess.READ)
 	if f:
 		roster = JSON.parse_string(f.get_as_text())
+	_new_cpu_builds()
 	_build_post()
 	if not load_map(map_id):
 		return
@@ -1663,9 +1665,18 @@ func _menu_preview_map(id: String) -> void:
 	loading.visible = false
 
 
+## the rivals get new karts each time a race or Grand Prix starts from the menu (web cpuBuilds)
+func _new_cpu_builds() -> void:
+	if not KartBuilder.ready():
+		return
+	for r in roster.get("racers", []):
+		(r as Dictionary)["build"] = KartBuilder.random_build()
+
+
 ## the menu's Start: a single race, Last Slice, or a whole Grand Prix cup
 func _menu_go(o: Dictionary) -> void:
 	sel.merge(o, true)
+	_new_cpu_builds()
 	var id := String(o.get("map", map_id))
 	if String(o["mode"]) == "gp":
 		var ts: Array = []
@@ -1997,6 +2008,7 @@ func _on_peer_out(id: int) -> void:
 	if net_role != "host":
 		return
 	net_peers.erase(id)
+	net_prefs.erase(id)
 	if race != null:
 		for k in race.karts:
 			if k.peer == id:      # the computer takes over a kart whose driver left
@@ -2009,6 +2021,8 @@ func _on_peer_out(id: int) -> void:
 
 func _on_connected() -> void:
 	net_ready = true
+	# tell the host which driver and kart we picked
+	_net_pref.rpc_id(1, int(sel["ri"]), _my_build())
 	if state == "menu":
 		_menu_refresh("Connected. Waiting for the host to start the race.")
 
@@ -2028,7 +2042,7 @@ func _net_start() -> void:
 	var peers: Array = [1]
 	peers.append_array(net_peers)
 	var pri := int(sel["ri"])
-	var cfg := Race.new().make_cfg(roster, pri, peers, int(randi() & 0x7fffffff) + 1, String(sel["cls"]), _my_build())
+	var cfg := Race.new().make_cfg(roster, pri, peers, int(randi() & 0x7fffffff) + 1, String(sel["cls"]), _my_build(), net_prefs)
 	cfg["map"] = map_id
 	_net_begin.rpc(cfg)
 	_start_race(cfg)
@@ -2048,6 +2062,20 @@ func _net_input(steer: float, bits: int) -> void:
 	for k in race.karts:
 		if k.peer == id:
 			k.net_inp = {"steer": clampf(steer, -1.0, 1.0), "brake": (bits & 1) != 0, "nb": (bits & 2) != 0, "mul": 1.0 if (bits & 4) != 0 else 0.0, "look": (bits & 8) != 0}
+
+
+## a joined player's chosen driver and kart (checked: only small numbers and a livery id get through)
+@rpc("any_peer", "call_remote", "reliable")
+func _net_pref(ri: int, build: Dictionary) -> void:
+	if net_role != "host":
+		return
+	var b := {}
+	for key in ["b", "w", "g", "p"]:
+		if build.has(key) and typeof(build[key]) in [TYPE_INT, TYPE_FLOAT]:
+			b[key] = clampi(int(build[key]), 0, 255)
+	if build.has("t") and typeof(build["t"]) == TYPE_STRING and String(build["t"]).length() < 40:
+		b["t"] = String(build["t"])
+	net_prefs[multiplayer.get_remote_sender_id()] = {"ri": clampi(ri, 0, 7), "build": b if b.size() >= 4 else {}}
 
 
 @rpc("any_peer", "call_remote", "reliable")
