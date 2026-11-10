@@ -44,7 +44,10 @@ var abfx_t := 0.0
 var abfx_col := Color.WHITE
 var heat_t := 0.0
 var kmh := false
-var pb_text := ""         # under the lap time: your best on this track and class (web #hudPB)
+var pb_text := ""
+var td := {}              # the TESTING cheat: {on, show, sec, take, skip} (web #tdTag / #tdBar)
+var td_take_r := Rect2()
+var td_skip_r := Rect2()         # under the lap time: your best on this track and class (web #hudPB)
 var fps_on := false
 var sauce_a := 0.0        # the sauce smears on the screen (web .saucefx): on at once, fading over 1.6 s
 var sauce_blobs: Array = []
@@ -435,6 +438,8 @@ func _draw() -> void:
 			draw_rect(Rect2(Vector2(0, 0), vs).grow(-f * vs.y * 0.25), Color(0.88, 0.16, 0.08, a * 0.12 * (1.0 - f)), false, vs.y * 0.025)
 	if sauce_a > 0.0:
 		_draw_sauce()
+	if bool(td.get("on", false)):
+		_draw_td()
 	if fps_on:
 		_text(f_bold, "%d fps" % Engine.get_frames_per_second(), W / 2.0 - 40.0, H - 22.0, 12.0, Color(1, 0.957, 0.863, 0.8), HORIZONTAL_ALIGNMENT_CENTER, 80.0, Color(0, 0, 0, 0.8), Vector2(0, 1), 1.5)
 	if heat_t > 0.0:
@@ -916,6 +921,52 @@ func special_rect() -> Rect2:
 	var size := btn * 0.95
 	var x := maxf(8.0, btn * 0.12) + 16.0
 	return Rect2(Vector2(x, 12.0 + _hud_top()) * s, Vector2(size, size) * s)
+
+
+## web .tdtag (AUTO-DRIVE at the top) and .tdbar (the shortcut choice at the bottom)
+func _draw_td() -> void:
+	var tag := "AUTO-DRIVE"
+	var tw := f_bold.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, int(11 * s)).x / s + 11 * 0.12 * tag.length() + 18.0
+	_rbox(W / 2.0 - tw / 2.0, 6.0, tw, 21.0, Color(0.184, 0.604, 0.227, 0.85), Color(0, 0, 0, 0), 0.0, 8.0)
+	_text(f_bold, tag, W / 2.0 - tw / 2.0, 11.0, 11.0, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, tw, Color(0, 0, 0, 0), Vector2.ZERO, 11 * 0.12)
+	td_take_r = Rect2()
+	td_skip_r = Rect2()
+	if not bool(td.get("show", false)):
+		return
+	var lab := "Shortcut in "
+	var secs := str(int(td.get("sec", 0)))
+	var lab2 := " s"
+	var fz := 13.0
+	var bw1 := f_bold.get_string_size("Take shortcut", HORIZONTAL_ALIGNMENT_LEFT, -1, int(14 * s)).x / s + 28.0
+	var bw2 := f_bold.get_string_size("Ignore shortcut", HORIZONTAL_ALIGNMENT_LEFT, -1, int(14 * s)).x / s + 28.0
+	var lw := (f_bold.get_string_size(lab + secs + lab2, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fz * s)).x) / s + 8.0
+	var w := 10.0 + lw + 8.0 + bw1 + 8.0 + bw2 + 10.0
+	var h := 44.0 + 16.0
+	var x := W / 2.0 - w / 2.0
+	var y := H - 14.0 - h
+	_rbox(x, y, w, h, Color(0.086, 0.055, 0.035, 0.86), Color(0, 0, 0, 0), 0.0, 18.0, 24.0, Color(0, 0, 0, 0.35))
+	var tx := x + 10.0 + 4.0
+	var ty := y + h / 2.0 - fz * 0.6
+	_text(f_bold, lab, tx, ty, fz, CREAM)
+	var w1 := f_bold.get_string_size(lab, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fz * s)).x / s
+	_text(f_bold, secs, tx + w1, ty, fz, Color("#9dff7a"))
+	var w2 := f_bold.get_string_size(secs, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fz * s)).x / s
+	_text(f_bold, lab2, tx + w1 + w2, ty, fz, CREAM)
+	var bx := x + 10.0 + lw + 8.0
+	var by := y + 8.0
+	for i in 2:
+		var bwi := bw1 if i == 0 else bw2
+		var on := bool(td.get("take" if i == 0 else "skip", false))
+		if on:
+			_rbox(bx - 4.0, by - 4.0, bwi + 8.0, 52.0, Color(0, 0, 0, 0), Color("#ffd24a"), 3.0, 15.0)
+		_rbox(bx, by, bwi, 44.0, Color("#2f9a3a") if i == 0 else Color(1, 0.957, 0.863, 0.12), Color(0, 0, 0, 0), 0.0, 12.0)
+		_text(f_bold, "Take shortcut" if i == 0 else "Ignore shortcut", bx, by + 22.0 - 14.0 * 0.6, 14.0, Color.WHITE if i == 0 else CREAM, HORIZONTAL_ALIGNMENT_CENTER, bwi)
+		var r := Rect2(Vector2(bx, by) * s, Vector2(bwi, 44.0) * s)
+		if i == 0:
+			td_take_r = r
+		else:
+			td_skip_r = r
+		bx += bwi + 8.0
 
 
 func pause_rect() -> Rect2:

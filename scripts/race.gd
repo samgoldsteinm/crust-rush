@@ -797,6 +797,224 @@ func ai_input(k: Kart, dt: float) -> Dictionary:
 	return {"steer": steer, "brake": false, "nb": false, "mul": mul, "use": use, "back": back, "hold": hold, "hold_sl": 1, "release": release}
 
 
+# ---------------------------------------------------------------- the TESTING cheat's driver (web TD)
+
+const STEP := 1.0 / 120.0
+var td_sc := -1          # the shortcut the bar is asking about
+var td_ch := {}          # shortcut -> true (take it) / false (ignore it); asked again each lap
+var td_lane = null
+
+
+## the next shortcut ahead and how many points away (web tdNext)
+func td_next(k: Kart) -> Array:
+	var best := -1
+	var bd := 1 << 30
+	for ci in T.shorts.size():
+		var dj := int(T.shorts[ci]["a"]) - k.idx
+		if dj < -6:
+			dj += T.N
+		if dj > T.N - 6:
+			dj -= T.N
+		if dj < -6:
+			continue
+		if dj < bd:
+			bd = dj
+			best = ci
+	return [best, bd] if best >= 0 else []
+
+
+## what's ahead to steer round, as [lateral, radius] (web tdObst): traps, meatballs, walkers, traffic, flying items
+func td_obst(k: Kart) -> Array:
+	var L: Array = []
+	var j := k.idx
+	var ca := cos(k.ma)
+	var sa := sin(k.ma)
+	var add := func(x: float, y: float, r: float) -> void:
+		var f := (x - k.x) * ca + (y - k.y) * sa
+		if f > -6.0 and f < 230.0:
+			L.append([(x - T.px[j]) * T.nx[j] + (y - T.py[j]) * T.ny[j], r])
+	for h in hazards:
+		if float(h["t"]) > 0.0 and not (h["owner"] == k and not bool(h["armed"])):
+			add.call(float(h["x"]), float(h["y"]), 24.0)
+	for r in rollers:
+		var dj := int(r["j"]) - k.idx
+		if dj > T.N / 2:
+			dj -= T.N
+		if dj < -T.N / 2:
+			dj += T.N
+		if dj > -5 and dj < 60:
+			var tt := maxf(0.0, dj) * T.L / T.N / maxf(60.0, k.speed)
+			L.append([sin((sim_time + tt) * 1.05 + float(r["ph"])) * (T.RW + 6.0), 32.0])
+	for w in walkers:
+		var dj2 := int(w["j"]) - k.idx
+		if dj2 > T.N / 2:
+			dj2 -= T.N
+		if dj2 < -T.N / 2:
+			dj2 += T.N
+		if dj2 > -4 and dj2 < 45:
+			L.append([float(w["lat"]), 24.0])
+			L.append([float(w["latT"]), 24.0])
+			L.append([(float(w["lat"]) + float(w["latT"])) / 2.0, 24.0])
+	for c in traffic:
+		if c["hide"]:
+			continue
+		var dj3 := int(c["i"]) - k.idx
+		if dj3 > T.N / 2:
+			dj3 -= T.N
+		if dj3 < -T.N / 2:
+			dj3 += T.N
+		if dj3 > -8 and dj3 < 40:
+			L.append([float(c["lat"]), 34.0])
+	# flying items: where each one will be at its closest pass
+	var kv := maxf(0.0, k.speed)
+	var kx := ca * kv
+	var ky := sa * kv
+	for q in projectiles:
+		if q["owner"] == k or float(q.get("t", 0.0)) <= 0.0 or q.get("dead", false):
+			continue
+		var x := float(q["x"])
+		var y := float(q["y"])
+		var vx := float(q.get("vx", 0.0))
+		var vy := float(q.get("vy", 0.0))
+		var rx := x - k.x
+		var ry := y - k.y
+		if rx * rx + ry * ry > 300.0 * 300.0:
+			continue
+		var wx := vx - kx
+		var wy := vy - ky
+		var w2 := wx * wx + wy * wy
+		if w2 < 1.0:
+			continue
+		var t := -(rx * wx + ry * wy) / w2
+		if t < 0.0 or t > 1.4:
+			continue
+		var cx := rx + wx * t
+		var cy := ry + wy * t
+		if cx * cx + cy * cy > 70.0 * 70.0:
+			continue
+		L.append([(x + vx * t - T.px[j]) * T.nx[j] + (y + vy * t - T.py[j]) * T.ny[j], 22.0])
+	return L
+
+
+## your kart drives itself (web tdDrive): the computer's racing line held steady, the nearest clear lane round
+## anything ahead, and a shortcut taken only when you chose it in the bar. Items stay yours to use.
+func td_drive(k: Kart, o: Dictionary) -> void:
+	var ai := k.ai
+	if ai.is_empty():
+		return
+	if k.sc < 0:
+		var nx := td_next(k)
+		if not nx.is_empty() and int(nx[1]) < 70:
+			ai["sc_seen"] = int(nx[0])
+			ai["sc_pick"] = int(nx[0]) if bool(td_ch.get(int(nx[0]), false)) else -1
+	ai["lane_t"] = maxf(float(ai["lane_t"]), 0.5)
+	ai["lane_target"] = float(ai["lane_target"]) * 0.985
+	var L: Array = [] if k.sc >= 0 else td_obst(k)
+	var dl = null
+	if not L.is_empty():
+		var best := 0.0
+		var bc := 1e9
+		var cur: float = td_lane if td_lane != null else float(ai["lane"])
+		for ci in range(-13, 14):
+			var c := ci * 4.0
+			var cost := absf(c - cur) + absf(c) * 0.15
+			for q in L:
+				if absf(c - float(q[0])) < float(q[1]):
+					cost += 1e4
+			if cost < bc:
+				bc = cost
+				best = c
+		if bc < 1e4:
+			dl = best
+	var b0 := k.boost
+	var r := ai_input(k, STEP)
+	k.boost = b0
+	var steer := float(r["steer"])
+	var busy := k.sc >= 0
+	for Lp in T.loops:
+		var d := (int(Lp["j"]) - k.idx + T.N) % T.N
+		if d < 80 or d > T.N - 10:
+			busy = true
+	if not T.glide.is_empty() and (int(T.glide["rj"]) - k.idx + T.N) % T.N < 70:
+		busy = true
+	var pick := int(ai.get("sc_pick", -1))
+	var pd := 0
+	if pick >= 0:
+		pd = k.idx - int(T.shorts[pick]["a"])
+		if pd > T.N / 2:
+			pd -= T.N
+		if pd < -T.N / 2:
+			pd += T.N
+		if pd > -45 and pd < 8:
+			busy = true
+	var mul := minf(1.0, float(r.get("mul", 1.0)) / 0.97)
+	var lane_steer := func(lane: float) -> float:
+		var ti := (k.idx + 6 + int(floor(maxf(0.0, k.speed) / 45.0))) % T.N
+		var des := atan2(T.py[ti] + T.ny[ti] * lane - k.y, T.px[ti] + T.nx[ti] * lane - k.x)
+		return clampf(Kart.ang_diff(des, k.a) * 3.0, -1.0, 1.0)
+	if pick >= 0 and k.sc < 0 and pd > -60 and pd < 8:
+		# a shortcut you chose: move out to its side early, then aim straight into its mouth
+		var sc: Dictionary = T.shorts[pick]
+		if pd < (-20 if bool(sc["route"]) else -14):
+			td_lane = float(ai["lane"]) if td_lane == null else float(td_lane)
+			td_lane = float(td_lane) + (int(sc["s"]) * 58.0 - float(td_lane)) * minf(1.0, STEP * 3.5)
+			ai["lane"] = td_lane
+			steer = lane_steer.call(float(td_lane))
+		else:
+			var px: PackedFloat32Array = sc["x"]
+			var py: PackedFloat32Array = sc["y"]
+			var bi := 0
+			var bd := 1e18
+			for i in mini(16, px.size()):
+				var dd := (px[i] - k.x) ** 2 + (py[i] - k.y) ** 2
+				if dd < bd:
+					bd = dd
+					bi = i
+			var qi := mini(px.size() - 1, bi + 4)
+			steer = clampf(Kart.ang_diff(atan2(py[qi] - k.y, px[qi] - k.x), k.a) * 3.2, -1.0, 1.0)
+			mul = minf(mul, 0.85)
+	elif dl != null and not busy:
+		td_lane = float(ai["lane"]) if td_lane == null else float(td_lane)
+		td_lane = float(td_lane) + (float(dl) - float(td_lane)) * minf(1.0, STEP * 6.0)
+		ai["lane"] = td_lane
+		ai["lane_target"] = dl
+		steer = lane_steer.call(float(td_lane))
+	else:
+		td_lane = null
+	o["steer"] = roundf(steer * 100.0) / 100.0
+	o["brake"] = false
+	o["nb"] = false
+	o["mul"] = mul
+
+
+## the bar's state each frame (web tdTick): which shortcut, how many seconds away, your choice; once a shortcut is
+## behind you it's asked again next lap
+func td_tick(k: Kart) -> Dictionary:
+	var out := {"show": false}
+	if k.sc < 0:
+		var nx := td_next(k)
+		if not nx.is_empty():
+			var sec := int(nx[1]) * T.L / T.N / maxf(120.0, k.speed)
+			if int(nx[1]) > 2 and (sec <= 10.5 or (td_sc == int(nx[0]) and int(nx[1]) < 600)):
+				td_sc = int(nx[0])
+				var has := td_ch.has(td_sc)
+				out = {"show": true, "sec": maxi(0, ceili(sec)), "take": has and bool(td_ch[td_sc]), "skip": has and not bool(td_ch[td_sc])}
+	for sc in td_ch.keys():
+		var dj := k.idx - int(T.shorts[int(sc)]["b"])
+		if dj < 0:
+			dj += T.N
+		if dj > 20 and dj < 140 and k.sc < 0:
+			td_ch.erase(sc)
+			if td_sc == int(sc):
+				td_sc = -1
+	return out
+
+
+func td_pick(take: bool) -> void:
+	if td_sc >= 0:
+		td_ch[td_sc] = take
+
+
 # ---------------------------------------------------------------- items
 
 ## web itemIntent: what a press on an item button means right now ("fwd", "fwd2", "hold", "hold2")

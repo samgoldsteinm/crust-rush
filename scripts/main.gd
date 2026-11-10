@@ -816,7 +816,7 @@ func _start_race(cfg: Dictionary) -> void:
 	else:
 		race.setup_cfg(T, roster, cfg, multiplayer.get_unique_id())
 	kart = race.player
-	if (auto_drive or test_drive) and net_role != "client":
+	if auto_drive and net_role != "client":
 		kart.ai["auto"] = true
 	race.items_off = items_off()
 	var lss := String(cfg.get("mode", "")) == "lss" if not cfg.is_empty() else (String(sel.get("mode", "")) == "lss" and gp.is_empty())
@@ -1498,6 +1498,9 @@ func _input_state() -> Dictionary:
 			race.item_intent(kart, it2, o)
 	if bool(o["use"]) and kart.item != "" and look and not kart.item in Race.NOBACK:
 		o["back"] = true
+	# the TESTING cheat: the kart drives itself; your items are still yours
+	if test_drive and kart != null and race != null and state == "race" and not kart.finished:
+		race.td_drive(kart, o)
 	return o
 
 
@@ -1515,7 +1518,11 @@ func _input(ev: InputEvent) -> void:
 	elif ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and hud != null and hud_race.visible and state != "menu":
-			if hud.pause_rect().has_point(mb.position):
+			if hud.td_take_r.has_area() and hud.td_take_r.has_point(mb.position):
+				race.td_pick(true)
+			elif hud.td_skip_r.has_area() and hud.td_skip_r.has_point(mb.position):
+				race.td_pick(false)
+			elif hud.pause_rect().has_point(mb.position):
 				_toggle_pause()
 			elif hud.special_rect().has_point(mb.position):
 				item_queued = "ability"
@@ -1542,6 +1549,10 @@ func _input(ev: InputEvent) -> void:
 				_toggle_fullscreen()
 				return
 			if get_viewport().gui_get_focus_owner() is LineEdit:
+				return
+			# the TESTING bar: Y takes the shortcut, N ignores it
+			if test_drive and state == "race" and race != null and bool(hud.td.get("show", false)) and (code == KEY_Y or code == KEY_N):
+				race.td_pick(code == KEY_Y)
 				return
 			var act := Keys.action_of(code)
 			var racing := not (state == "menu" or state == "results" or paused)
@@ -1791,6 +1802,10 @@ func _hud(dt: float) -> void:
 	hud.look = look_back
 	hud.pad_mode = Time.get_ticks_msec() - pad_used_at < 20000
 	hud.tick(dt)
+	hud.td = {}
+	if test_drive and kart != null and race != null and state == "race" and not kart.finished and spec_k == null:
+		hud.td = race.td_tick(kart)
+		hud.td["on"] = true
 
 
 func _fmt(t: float) -> String:
@@ -2133,9 +2148,7 @@ func _apply_cheat(code: String) -> void:
 	elif c == "TESTING":
 		test_drive = not test_drive
 		cheat_ok = true
-		cheat_msg = "Auto-drive on: your kart drives itself perfectly and steering is ignored. Enter TESTING again to turn it off." if test_drive else "Auto-drive off."
-		if kart != null and state != "menu" and net_role == "":
-			kart.ai["auto"] = test_drive
+		cheat_msg = "Auto-drive on: your kart drives itself perfectly and steering is ignored. About 10 seconds before a shortcut you choose to take it or skip it. Enter TESTING again to turn it off." if test_drive else "Auto-drive off."
 		sfx.play("lap", 0.8, 1.2)
 	else:
 		cheat_ok = false

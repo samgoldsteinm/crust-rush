@@ -5,6 +5,7 @@ name: PC build
 on:
   push:
     branches: [godot]
+    paths-ignore: [tools/hd*.py, .github/workflows/hd.yml, .github/workflows/maps.yml, README.md]
   workflow_dispatch:
 
 jobs:
