@@ -16,6 +16,9 @@ func _ready() -> void:
 	main.auto_drive = true
 	add_child(main)
 	T = main.T
+	# the side-by-side shots are the web's Ultra exactly; the PC extras get their own shots at the end
+	main.pc_plus = false
+	main._apply_quality()
 	dir = ProjectSettings.globalize_path("res://build/shots")
 	DirAccess.make_dir_recursive_absolute(dir)
 	_run()
@@ -34,6 +37,7 @@ func _frames(n: int) -> void:
 func _wait_t(sec: float) -> void:
 	for i in int(round(sec * 120.0)):
 		main._sim_tick(1.0 / 120.0)
+	main.hud.banner_t -= sec     # the banners time out with the race, as the web's do
 	main.cam_snap = true      # the web's camera follows every step; here it would still be where the race was before the jump
 	await _frames(2)
 
@@ -63,6 +67,7 @@ func _run() -> void:
 	await _frames(25)          # the track and karts settle in
 	await _frames(2)
 	await _shot("g_countdown")
+	main.test_hold = true      # from here the race only moves in the test's steps, like the web reference script
 	main.state = "race"
 	main.race.state = "race"
 	main.cd = 0.0
@@ -165,21 +170,32 @@ func _run() -> void:
 	_use("wheel")
 	await _wait_t(1.0)
 	await _shot("g_wheel")
-	# the glide canyon, from the floor
+	# the views round the track: held still, each drawn as the web's Ultra (g_) and then with Settings >
+	# PC extras on (x_), so the two can be compared exactly
+	main.paused = true
 	if not T.glide.is_empty():
 		_place(int((int(T.glide["j0"]) + int(T.glide["j1"])) / 2), true)
 		await _frames(3)
 		await _shot("g_canyon_floor")
 		# looking down into the canyon from the ramp, where the water is
 		_place(int(T.glide["rj"]) - 6, true)
-		await _frames(3)
-		await _shot("g_canyon_ramp")
+		await _both("canyon_ramp")
 	for j in [150, 520, 1000, 1140]:
 		_place(j % T.N, true)
-		await _frames(3)
-		await _shot("g_" + {150: "early", 520: "mid", 1000: "late", 1140: "loop"}[j])
+		await _both({150: "early", 520: "mid", 1000: "late", 1140: "loop"}[j])
 	print("SHOTS done")
 	get_tree().quit(0)
+
+
+func _both(name: String) -> void:
+	await _frames(3)
+	await _shot("g_" + name)
+	main.pc_plus = true
+	main._apply_quality()
+	await _frames(4)
+	await _shot("x_" + name)
+	main.pc_plus = false
+	main._apply_quality()
 
 
 func _place(j: int, floor_: bool) -> void:

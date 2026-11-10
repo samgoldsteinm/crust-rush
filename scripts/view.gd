@@ -649,8 +649,10 @@ func _fan(k: Kart, v: Dictionary, near: bool) -> void:
 	fan.visible = tier > 0
 	if tier == 0:
 		return
-	var c: Color = SPARKC[tier]
-	(v["fan_mat"] as StandardMaterial3D).albedo_color = c
+	# the web draws these without tone mapping: lift them by the same amount as the spark sprites so they
+	# come out of Godot's tone mapper at full strength
+	var c: Color = SPARKC[tier].srgb_to_linear() * 1.6
+	(v["fan_mat"] as StandardMaterial3D).albedo_color = Color(c.r, c.g, c.b, 1.0).linear_to_srgb()
 	var mm := fan.multimesh
 	var n := 0
 	for lv in v["fxL"]:
@@ -661,7 +663,8 @@ func _fan(k: Kart, v: Dictionary, near: bool) -> void:
 			var d := Vector3(-1.0, 0.2 + randf() * 1.25, (randf() - 0.25) * 1.1 * sz).normalized()
 			var w := 0.18 + randf() * 0.16
 			var q := Quaternion(Vector3(1, 0, 0), d)
-			mm.set_instance_transform(n, Transform3D(Basis(q).scaled(Vector3(L, w, w)), Vector3(lp.x, lp.y + 0.12, lp.z)))
+			# stretch the blade along its own length first, then turn it (three.js compose: rotation x scale)
+			mm.set_instance_transform(n, Transform3D(Basis(q) * Basis.from_scale(Vector3(L, w, w)), Vector3(lp.x, lp.y + 0.12, lp.z)))
 			n += 1
 			if n >= 18:
 				break

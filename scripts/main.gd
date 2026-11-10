@@ -110,6 +110,7 @@ var btn_leave_net: Button
 var btn_again: Button
 var skip_menu := false       # tests go straight to the race
 var test_look := false       # tests: look back
+var test_hold := false       # tests: the race only moves when the test steps it (the screenshots match the web's step for step)
 var shown_finish := false
 
 # online, PC to PC: the host runs the race; everyone else sends their controls and draws what the host sends back
@@ -690,7 +691,6 @@ func _apply_display() -> void:
 	var vp := get_viewport()
 	_apply_quality()
 	vp.use_debanding = true
-	vp.anisotropic_filtering_level = Viewport.ANISOTROPY_8X
 
 
 func _toggle_fps() -> void:
@@ -898,7 +898,7 @@ func _physics_process(dt: float) -> void:
 			race.haz_guest_step(dt)
 		_net_client_tick()
 		return
-	if paused:
+	if paused or test_hold:
 		return
 	_sim_tick(dt)
 	if net_role == "host":
@@ -1972,6 +1972,7 @@ func _settings_panel() -> Control:
 			c.add_child(_set_rows([
 				["Quality", "Ultra: every racer and building in high detail, ambient occlusion, shadows across the whole view, 4x anti-aliasing and bloom. Balanced: lighter shadows and no ambient occlusion. Fast: the lightest, for older laptops.", "q", [["0", "Fast"], ["1", "Balanced"], ["2", "Ultra"]], str(quality)],
 				["Shadows", "Real-time shadows from karts and scenery.", "shadows", on_off, "1" if shadows_on else "0"],
+				["PC extras", "A step past the web game's Ultra: shadows reach more than twice as far and soften with distance like real sunlight, a little light bounces between nearby surfaces, and textures and reflections are sharper. Off matches the web game's Ultra exactly. Ultra only.", "pcx", on_off, "1" if pc_plus else "0"],
 				["Look", "Vivid: a darker base tone with a stronger sun, deeper shadows and richer colour, so lit faces and light sources stand out. Classic: the softer, brighter balance. Applies from the next race.", "look", [["vivid", "Vivid"], ["classic", "Classic"]], look],
 				["Ambient occlusion", "Soft contact shading in corners and crevices, computed every frame. The single most expensive effect: turn it off to run Ultra's detail at a higher frame rate.", "ao", on_off, "1" if ao_on else "0"],
 				["Sharpening", "When the 3D view is drawn below screen size to hold the frame rate, a sharpening pass brings the detail back. Turn off if you prefer a softer picture.", "sharp", on_off, "1" if sharpen_on else "0"],
@@ -2129,6 +2130,7 @@ func _item_grid() -> Control:
 func _reset_settings() -> void:
 	quality = 2
 	shadows_on = true
+	pc_plus = true
 	look = "vivid"
 	ao_on = true
 	sharpen_on = true
@@ -2161,6 +2163,7 @@ var music: Music
 var music_on := true
 var music_level := 0.45
 var shadows_on := true
+var pc_plus := true       # Settings > PC extras
 var look := "vivid"
 var ao_on := true
 var sharpen_on := true
@@ -2224,6 +2227,9 @@ func _apply_setting(key: String, val: String) -> void:
 		"shadows":
 			shadows_on = val == "1"
 			_apply_quality()
+		"pcx":
+			pc_plus = val == "1"
+			_apply_quality()
 		"ao":
 			ao_on = val == "1"
 			_apply_quality()
@@ -2265,13 +2271,46 @@ func _apply_volume() -> void:
 
 ## Ultra: everything; High: no ambient occlusion, shorter shadows; Low: no shadows, glow or ambient occlusion
 func _apply_quality() -> void:
+	var vp := get_viewport()
+	# PC extras (Ultra on a computer): a step past the web's Ultra, drawing only. Shadows reach more than twice
+	# as far in four cascades, so the hills and buildings in the distance are shaded too and the ones up close
+	# are crisper, with edges that soften the further a shadow falls from what casts it (like real sunlight);
+	# a little light bounces between nearby surfaces; textures stay sharp at a glance along the road; and glossy
+	# paint reflects a finer sky. Off is the web's Ultra exactly.
+	var plus := pc_plus and quality >= 2 and not is_phone
+	vp.anisotropic_filtering_level = Viewport.ANISOTROPY_16X if plus else Viewport.ANISOTROPY_8X
 	if env == null or sun == null:
 		return
 	env.ssao_enabled = quality >= 2 and not is_phone and ao_on
 	env.glow_enabled = quality >= 1 or not is_phone
+	env.ssil_enabled = plus and ao_on
+	env.ssil_radius = 6.0
+	env.ssil_intensity = 0.55
+	env.ssil_sharpness = 0.98
+	env.ssil_normal_rejection = 1.0
+	if env.sky != null:
+		var rs := Sky.RADIANCE_SIZE_256 if plus else Sky.RADIANCE_SIZE_64
+		if env.sky.radiance_size != rs:
+			env.sky.radiance_size = rs
 	sun.shadow_enabled = quality >= 1 and shadows_on
-	sun.directional_shadow_max_distance = 300.0 if quality >= 2 else 200.0
-	get_viewport().msaa_3d = Viewport.MSAA_4X if quality >= 2 else (Viewport.MSAA_2X if quality >= 1 else Viewport.MSAA_DISABLED)   # web Ultra: 4x
+	if plus:
+		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+		sun.directional_shadow_max_distance = 700.0
+		sun.directional_shadow_split_1 = 0.05
+		sun.directional_shadow_split_2 = 0.14
+		sun.directional_shadow_split_3 = 0.38
+		sun.directional_shadow_blend_splits = true
+		sun.directional_shadow_fade_start = 0.8
+		sun.light_angular_distance = 0.35
+		sun.shadow_blur = 1.0
+	else:
+		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+		sun.directional_shadow_max_distance = 300.0 if quality >= 2 else 200.0
+		sun.directional_shadow_blend_splits = false
+		sun.directional_shadow_fade_start = 0.9
+		sun.light_angular_distance = 0.0
+		sun.shadow_blur = 1.2
+	vp.msaa_3d = Viewport.MSAA_4X if quality >= 2 else (Viewport.MSAA_2X if quality >= 1 else Viewport.MSAA_DISABLED)   # web Ultra: 4x
 
 
 func _save_settings() -> void:
@@ -2281,7 +2320,7 @@ func _save_settings() -> void:
 	cf.set_value("gfx", "res", res_scale)
 	cf.set_value("snd", "vol", sfx_vol)
 	cf.set_value("snd", "level", snd_level)
-	for k2 in ["shadows_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "item_set", "music_on", "music_level", "look"]:
+	for k2 in ["shadows_on", "pc_plus", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "item_set", "music_on", "music_level", "look"]:
 		cf.set_value("opt", k2, get(k2))
 	cf.set_value("opt", "stats_on", KartBuilder.stats_on)
 	cf.set_value("opt", "kmh", hud.kmh if hud != null else false)
@@ -2305,7 +2344,7 @@ func _load_settings() -> void:
 	res_scale = float(cf.get_value("gfx", "res", res_scale))
 	sfx_vol = float(cf.get_value("snd", "vol", 1.0))
 	snd_level = float(cf.get_value("snd", "level", 1.0))
-	for k2 in ["shadows_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "item_set", "music_on", "music_level", "look"]:
+	for k2 in ["shadows_on", "pc_plus", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "item_set", "music_on", "music_level", "look"]:
 		var vv = cf.get_value("opt", k2, get(k2))
 		if typeof(vv) == typeof(get(k2)):
 			set(k2, vv)
