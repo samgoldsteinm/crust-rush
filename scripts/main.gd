@@ -157,6 +157,10 @@ func _ready() -> void:
 	add_child(view)
 	sfx = Sfx.new()
 	add_child(sfx)
+	music = Music.new()
+	add_child(music)
+	music.on = music_on
+	music.level = music_level
 	_build_hud()
 	_apply_display()
 	if sfx_vol < 0.99:
@@ -989,6 +993,8 @@ func _lap_check() -> void:
 	if lp != last_lap and not kart.finished:
 		last_lap = lp
 		_toast("Final lap" if lp == T.LAPS else "Lap %d" % lp, 1.4)
+		if lp == T.LAPS and music != null:
+			music.final_lap()
 		sfx.play("lap", 1.0, 1.2 if lp == T.LAPS else 1.0)
 
 
@@ -1539,6 +1545,8 @@ func _zone(p: Vector2) -> String:
 # ---------------------------------------------------------------- drawing
 
 func _process(dt: float) -> void:
+	if music != null and not auto_drive:
+		music.want(map_id, "loading" if (loading != null and loading.visible) else state, paused, dt)
 	if T == null or race == null:
 		return
 	if not paused:
@@ -1971,6 +1979,8 @@ func _settings_panel() -> Control:
 			c.add_child(_set_rows([
 				["Sound", "Engine, effects and music cues.", "snd", on_off, "1" if sfx_vol > 0.01 else "0"],
 				["Volume", "How loud everything plays.", "vol", [["0.25", "25%"], ["0.5", "50%"], ["0.75", "75%"], ["1.0", "100%"]], str(snappedf(snd_level, 0.25))],
+				["Music", "A different soundtrack on every track, four that take turns on the menus.", "music", on_off, "1" if music_on else "0"],
+				["Music volume", "How loud the soundtrack sits under the engine and effects.", "mvol", [["0.25", "25%"], ["0.45", "45%"], ["0.7", "70%"], ["1.0", "100%"]], str(music_level)],
 			]))
 		"gameplay":
 			c.add_child(menu.section_label("Gameplay"))
@@ -2125,6 +2135,11 @@ func _reset_settings() -> void:
 	cam_far = false
 	cam_d = 100
 	shake_on = true
+	music_on = true
+	music_level = 0.45
+	if music != null:
+		music.on = true
+		music.level = 0.45
 	item_set.clear()
 	_apply_quality()
 	_apply_fps()
@@ -2134,6 +2149,9 @@ func _reset_settings() -> void:
 
 
 var set_tab := "graphics"
+var music: Music
+var music_on := true
+var music_level := 0.45
 var shadows_on := true
 var ao_on := true
 var sharpen_on := true
@@ -2218,6 +2236,14 @@ func _apply_setting(key: String, val: String) -> void:
 			cam_d = int(val)
 		"shake":
 			shake_on = val == "1"
+		"music":
+			music_on = val == "1"
+			if music != null:
+				music.on = music_on
+		"mvol":
+			music_level = float(val)
+			if music != null:
+				music.level = music_level
 	_save_settings()
 
 
@@ -2244,7 +2270,7 @@ func _save_settings() -> void:
 	cf.set_value("gfx", "res", res_scale)
 	cf.set_value("snd", "vol", sfx_vol)
 	cf.set_value("snd", "level", snd_level)
-	for k2 in ["shadows_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "item_set"]:
+	for k2 in ["shadows_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "item_set", "music_on", "music_level"]:
 		cf.set_value("opt", k2, get(k2))
 	cf.set_value("opt", "stats_on", KartBuilder.stats_on)
 	cf.set_value("opt", "kmh", hud.kmh if hud != null else false)
@@ -2268,7 +2294,7 @@ func _load_settings() -> void:
 	res_scale = float(cf.get_value("gfx", "res", res_scale))
 	sfx_vol = float(cf.get_value("snd", "vol", 1.0))
 	snd_level = float(cf.get_value("snd", "level", 1.0))
-	for k2 in ["shadows_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "item_set"]:
+	for k2 in ["shadows_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "item_set", "music_on", "music_level"]:
 		var vv = cf.get_value("opt", k2, get(k2))
 		if typeof(vv) == typeof(get(k2)):
 			set(k2, vv)

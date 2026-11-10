@@ -7,7 +7,7 @@ name: Export tracks
 on:
   push:
     branches: [godot]
-    paths: [tools/ciexport.py, tools/cigarage.py, tools/glbexport.js, .github/workflows/maps.yml]
+    paths: [tools/ciexport.py, tools/cigarage.py, tools/cimusic.py, tools/glbexport.js, .github/workflows/maps.yml]
   workflow_dispatch:
     inputs:
       maps:
@@ -52,6 +52,35 @@ jobs:
         run: |
           gh release view maps -R "$GITHUB_REPOSITORY" > /dev/null 2>&1 || gh release create maps -R "$GITHUB_REPOSITORY" --title "PC build tracks" --notes "Tracks exported from the web game for the PC build (made by the Export tracks workflow)." --target godot --prerelease
           for z in map-*.zip; do gh release upload maps "$z" -R "$GITHUB_REPOSITORY" --clobber; done
+
+  music:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: pc
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: web
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Browser
+        run: |
+          pip install -q playwright numpy
+          python -m playwright install --with-deps chromium > /dev/null
+          ffmpeg -version | head -1
+      - name: Render the soundtrack
+        run: |
+          WEB=web OUT=music python3 pc/tools/cimusic.py
+          zip -qr music.zip music
+          ls -la music.zip
+      - name: Attach to the "maps" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload maps music.zip -R "$GITHUB_REPOSITORY" --clobber
 
   garage:
     runs-on: ubuntu-latest

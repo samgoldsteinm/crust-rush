@@ -45,6 +45,11 @@ jobs:
             mkdir -p assets && unzip -q -o "$RUNNER_TEMP/garage_zip/garage.zip" -d assets
           fi
           ls assets/garage | wc -l || true
+          # the soundtrack, rendered from the web game's music (tools/cimusic.py)
+          if gh release download maps -R "$GITHUB_REPOSITORY" -p 'music.zip' -D "$RUNNER_TEMP/music_zip"; then
+            mkdir -p assets && unzip -q -o "$RUNNER_TEMP/music_zip/music.zip" -d assets
+          fi
+          ls assets/music | wc -l || true
 
       - name: Import the project
         run: |
