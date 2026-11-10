@@ -44,6 +44,7 @@ var abfx_t := 0.0
 var abfx_col := Color.WHITE
 var heat_t := 0.0
 var kmh := false
+var pb_text := ""         # under the lap time: your best on this track and class (web #hudPB)
 var fps_on := false
 var sauce_a := 0.0        # the sauce smears on the screen (web .saucefx): on at once, fading over 1.6 s
 var sauce_blobs: Array = []
@@ -257,11 +258,15 @@ func _top_bar() -> Dictionary:
 	var row_w := f_bold.get_string_size("LAP", HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x + 4.0 + 8.0 + f_disp.get_string_size(lap_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, int(lap_big)).x + 8.0 + 3 * 10.0 + 2 * 3.0
 	var lap_w := maxf(row_w, 80.0) + 20.0
 	var lap_h := 4.0 + lap_big * 1.15 + 1.0 + time_size * 1.2 + 5.0
+	var pb_size := clampf(2.2 * _vmin(), 11.0, 14.0)
+	if pb_text != "":
+		lap_h += pb_size * 1.2
+		row_w = maxf(row_w, f_bold.get_string_size(pb_text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(pb_size)).x)
 	var bar_h := maxf(pos_size * 0.85, lap_h)
 	var tb_x := x0 + pos_w + 12.0
 	var tb_w := tl_w - pos_w - lap_w - 24.0
 	return {"x0": x0, "w": tl_w, "y0": 12.0, "h": bar_h, "pos_size": pos_size, "suf_size": suf_size, "num": num, "num_w": num_w,
-		"tb_x": tb_x, "tb_w": tb_w, "lap_x": tb_x + tb_w + 12.0, "lap_w": lap_w, "lap_h": lap_h, "lap_big": lap_big, "time_size": time_size, "lap_txt": lap_txt}
+		"tb_x": tb_x, "tb_w": tb_w, "lap_x": tb_x + tb_w + 12.0, "lap_w": lap_w, "lap_h": lap_h, "lap_big": lap_big, "time_size": time_size, "lap_txt": lap_txt, "pb_size": pb_size}
 
 
 func _place_texts() -> void:
@@ -555,6 +560,9 @@ func _draw_top_bar() -> void:
 		_rbox(bx + i * 13.0, ly + 4.0 + lb * 0.575 - 2.5, 10.0, 5.0, c2, Color(0, 0, 0, 0), 0.0, 3.0)
 	var tsz: float = tb["time_size"]
 	_text(f_bold, _fmt(me.finish_time if me.finished else race.race_time), lx + 10.0, ly + 4.0 + lb * 1.15 + 1.0, tsz, CHEESE, HORIZONTAL_ALIGNMENT_LEFT, -1.0, Color(0, 0, 0, 0.7), Vector2(0, 2), tsz * 0.02)
+	if pb_text != "":
+		var pbs: float = tb["pb_size"]
+		_text(f_bold, pb_text, lx + 10.0, ly + 4.0 + lb * 1.15 + 1.0 + tsz * 1.2, pbs, Color(1, 0.957, 0.863, 0.75), HORIZONTAL_ALIGNMENT_LEFT, -1.0, Color(0, 0, 0, 0.7), Vector2(0, 2))
 
 
 func _racer_col(k: Kart) -> Color:

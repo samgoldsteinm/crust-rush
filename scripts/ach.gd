@@ -157,7 +157,7 @@ static func cup_done(gp: Dictionary, cup_place: int, cls: String) -> void:
 
 ## a finished run: a new personal best when faster (or the first), and the recent races list.
 ## Returns {t, old (or -1), pb}.
-static func record(map_id: String, cls: String, t: float, place: int, ri: int, spec: Dictionary) -> Dictionary:
+static func record(map_id: String, cls: String, t: float, place: int, ri: int, spec: Dictionary, run := {}) -> Dictionary:
 	_load()
 	var key := map_id + "|" + cls
 	var recs: Dictionary = d["recs"]
@@ -165,6 +165,17 @@ static func record(map_id: String, cls: String, t: float, place: int, ri: int, s
 	var pb := old.is_empty() or t < float(old.get("t", 1e9))
 	if pb:
 		recs[key] = {"t": t, "d": int(Time.get_unix_time_from_system()), "place": place, "dr": ri, "spec": spec}
+		# the best-run ghost and its lap times
+		for k2 in run:
+			recs[key][k2] = run[k2]
+		# keep the save in check: drop the oldest ghosts if it ever gets large (web saveRun)
+		var size := JSON.stringify(recs).length()
+		if size > 3000000:
+			var ks: Array = recs.keys().filter(func(k3): return k3 != key and (recs[k3] as Dictionary).has("g"))
+			ks.sort_custom(func(a, b): return float(recs[a].get("d", 0)) < float(recs[b].get("d", 0)))
+			while size > 3000000 and not ks.is_empty():
+				(recs[ks.pop_front()] as Dictionary).erase("g")
+				size = JSON.stringify(recs).length()
 	var h: Array = d["hist"]
 	h.push_front({"m": map_id, "c": cls, "t": t, "p": place, "d": int(Time.get_unix_time_from_system()), "dr": ri, "pb": pb})
 	while h.size() > 60:

@@ -22,6 +22,8 @@ var roster := {}
 var net_prefs := {}       # host: each joined player's chosen driver and kart
 var item_set := {}        # Settings > Items: {name: false} for items switched off
 var last_run := {}        # the player's last finished run against their best: {t, old, pb}
+var ghost: Ghost          # your best run, raced against you
+var ghost_on := true      # Settings > Best-run ghost
 var was_last := false     # dropped to last place this race (for Comeback Kid)
 var found_sc := {}        # hidden shortcuts found this race
 var spec_k: Kart = null   # Last Slice: the kart the camera watches once you are out
@@ -830,6 +832,18 @@ func _start_race(cfg: Dictionary) -> void:
 	hud.race = race
 	hud.me = kart
 	hud.T = T
+	# your best run on this track and class: its time under the clock, and its ghost (not in Last Slice Standing)
+	if ghost == null:
+		ghost = Ghost.new()
+		ghost.name = "Ghost"
+		add_child(ghost)
+	var best := Ach.best(map_id, String(cfg.get("cls", sel["cls"])) if not cfg.is_empty() else String(sel["cls"]))
+	hud.pb_text = ("Best " + Hud._fmt(float(best["t"]))) if not best.is_empty() else ""
+	if race.mode == "lss" or auto_drive:
+		ghost.start({}, false, kart.ri, {})
+		ghost.recording = not auto_drive
+	else:
+		ghost.start(best, ghost_on, kart.ri, _my_build())
 	hud.icons = icons
 	hud.portraits = portraits
 	hud.racer_cols = []
@@ -973,7 +987,8 @@ func _progress_finish() -> void:
 	if auto_drive or kart == null or kart.est:
 		return
 	var cls := String(sel["cls"])
-	last_run = Ach.record(map_id, cls, kart.finish_time, kart.place, kart.ri, _my_build())
+	var run := ghost.finish() if ghost != null and race.mode != "lss" else {}
+	last_run = Ach.record(map_id, cls, kart.finish_time, kart.place, kart.ri, _my_build(), run)
 	Ach.n_tracks = maxi(1, maps.size())
 	Ach.race_done(kart.place, was_last, cls, kart.ri, map_id, gp)
 	_ach_toasts()
@@ -998,7 +1013,8 @@ func _lap_check() -> void:
 	var lp := kart.lap()
 	if lp != last_lap and not kart.finished:
 		last_lap = lp
-		_toast("Final lap" if lp == T.LAPS else "Lap %d" % lp, 1.4)
+		var split := ghost.lap(race.race_time, lp) if ghost != null else ""
+		_toast(("Final lap" if lp == T.LAPS else "Lap %d" % lp) + (" · " + split if split != "" else ""), 2.0 if split != "" else 1.4)
 		if lp == T.LAPS and music != null:
 			music.final_lap()
 		sfx.play("lap", 1.0, 1.2 if lp == T.LAPS else 1.0)
@@ -1570,6 +1586,10 @@ func _process(dt: float) -> void:
 	var ck: Kart = spec_k if spec_k != null and kart.elim else kart
 	var v: Dictionary = view.views[ck]
 	_camera(dt, float(v["rx"]), float(v["ry"]), float(v["rz"]), float(v["rma"]))
+	if ghost != null:
+		if state == "race" and not paused:
+			ghost.record(race.race_time, (view.views[kart]["tilt"] as Node3D).global_transform, kart.finished)
+		ghost.tick(race.race_time if state == "race" else 0.0, state == "race" or state == "countdown", cam.global_position)
 	# shadows follow your kart (the web re-centres its shadow camera 80 ahead of it)
 	# far clutter cells, five times a second
 	cull_t -= dt
@@ -1998,6 +2018,7 @@ func _settings_panel() -> Control:
 				["Camera", "Close sits right behind your driver.", "cam", [["close", "Close"], ["far", "Far"]], "far" if cam_far else "close"],
 				["Camera distance", "How far behind your kart the camera sits.", "camd", [["80", "80%"], ["90", "90%"], ["100", "100%"], ["110", "110%"], ["120", "120%"]], str(cam_d)],
 				["Camera shake", "Shake on bumps, boosts and hits.", "shake", on_off, "1" if shake_on else "0"],
+				["Best-run ghost", "Race a see-through copy of your personal best.", "ghost", on_off, "1" if ghost_on else "0"],
 			]))
 		"controls":
 			c.add_child(menu.section_label("Controls"))
@@ -2145,6 +2166,7 @@ func _reset_settings() -> void:
 	cam_far = false
 	cam_d = 100
 	shake_on = true
+	ghost_on = true
 	music_on = true
 	music_level = 0.45
 	if music != null:
@@ -2253,6 +2275,8 @@ func _apply_setting(key: String, val: String) -> void:
 			cam_d = int(val)
 		"shake":
 			shake_on = val == "1"
+		"ghost":
+			ghost_on = val == "1"
 		"music":
 			music_on = val == "1"
 			if music != null:
@@ -2320,7 +2344,7 @@ func _save_settings() -> void:
 	cf.set_value("gfx", "res", res_scale)
 	cf.set_value("snd", "vol", sfx_vol)
 	cf.set_value("snd", "level", snd_level)
-	for k2 in ["shadows_on", "pc_plus", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "item_set", "music_on", "music_level", "look"]:
+	for k2 in ["shadows_on", "pc_plus", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look"]:
 		cf.set_value("opt", k2, get(k2))
 	cf.set_value("opt", "stats_on", KartBuilder.stats_on)
 	cf.set_value("opt", "kmh", hud.kmh if hud != null else false)
@@ -2344,7 +2368,7 @@ func _load_settings() -> void:
 	res_scale = float(cf.get_value("gfx", "res", res_scale))
 	sfx_vol = float(cf.get_value("snd", "vol", 1.0))
 	snd_level = float(cf.get_value("snd", "level", 1.0))
-	for k2 in ["shadows_on", "pc_plus", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "item_set", "music_on", "music_level", "look"]:
+	for k2 in ["shadows_on", "pc_plus", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look"]:
 		var vv = cf.get_value("opt", k2, get(k2))
 		if typeof(vv) == typeof(get(k2)):
 			set(k2, vv)
