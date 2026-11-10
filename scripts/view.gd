@@ -459,7 +459,7 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 		g.transform = Transform3D(Basis(Vector3.UP, -a) * Basis(Vector3(0, 0, 1), tp) * Basis(Vector3(1, 0, 0), tr) * Basis.from_scale(scv), pos)
 	else:
 		g.transform = Transform3D(Basis(Vector3.UP, -a) * Basis(Vector3(0, 0, 1), lth) * Basis.from_scale(scv), pos)
-	g.visible = not (k != me and _near_cam(x, y, 14.0))
+	g.visible = not (k != me and _near_cam(x, y, 14.0)) and not k.elim
 	# blink for three seconds after a hit
 	tilt.visible = not (k.inv > 0.0 and k.spin <= 0.0 and racing and int(floor(time * 12.0)) % 2 == 1)
 	var f := minf(1.0, 8.0 * dt)

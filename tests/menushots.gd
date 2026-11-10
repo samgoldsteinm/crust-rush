@@ -15,6 +15,15 @@ func _ready() -> void:
 	steps = [
 		[8, func(): pass, "p_home"],
 		[6, func(): main.menu.show_modal("set"), "p_set"],
+		[6, func():
+			main.set_tab = "items"
+			main.menu.show_modal("set"), "p_set_items"],
+		[6, func():
+			main.set_tab = "gameplay"
+			main.menu.show_modal("set"), "p_set_gameplay"],
+		[6, func():
+			main.set_tab = "controls"
+			main.menu.show_modal("set"), "p_set_controls"],
 		[6, func(): main.menu.show_modal("mp"), "p_mp"],
 		[6, func(): main.menu.show_modal("how"), "p_how"],
 		[6, func(): main.menu.show_modal("rec"), "p_rec"],

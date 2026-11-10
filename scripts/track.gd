@@ -92,12 +92,18 @@ func _read(d: Dictionary) -> void:
 		var cd: Dictionary = c
 		if not cd.has("pts"):
 			continue
-		var sc := {"a": int(cd["a"]), "b": int(cd["b"]), "s": int(cd["s"]), "route": bool(cd.get("route", false)), "w": float(cd.get("w", 19.0)),
-			"x": PackedFloat32Array(), "y": PackedFloat32Array(), "tx": PackedFloat32Array(), "ty": PackedFloat32Array(), "nx": PackedFloat32Array(), "ny": PackedFloat32Array()}
+		var sc := {"a": int(cd["a"]), "b": int(cd["b"]), "s": int(cd["s"]), "route": bool(cd.get("route", false)), "w": float(cd.get("w", 19.0))}
+		var cols := [PackedFloat32Array(), PackedFloat32Array(), PackedFloat32Array(), PackedFloat32Array(), PackedFloat32Array(), PackedFloat32Array()]
 		for q in cd["pts"]:
 			for k in 6:
-				(sc[["x", "y", "tx", "ty", "nx", "ny"][k]] as PackedFloat32Array).append(float(q[k]))
-		sc["n"] = (sc["x"] as PackedFloat32Array).size()
+				var arr: PackedFloat32Array = cols[k]
+				arr.append(float(q[k]))
+				cols[k] = arr   # packed arrays are values: put the grown one back
+		for k in 6:
+			sc[["x", "y", "tx", "ty", "nx", "ny"][k]] = cols[k]
+		sc["n"] = (cols[0] as PackedFloat32Array).size()
+		if int(sc["n"]) < 4:
+			continue
 		shorts.append(sc)
 	id = d["map"]
 	title = d["name"]

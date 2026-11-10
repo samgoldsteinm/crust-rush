@@ -92,7 +92,12 @@ static func wheel_of(spec: Dictionary) -> Dictionary:
 
 
 ## the web's statMods: body counts most, wheels less, the glider a little, soft-capped
+static var stats_on := true   # Settings > Kart stats: off makes every part cosmetic
+
+
 static func stat_mods(spec: Dictionary) -> Dictionary:
+	if not stats_on:
+		return {"spd": 1.0, "acc": 1.0, "hnd": 1.0, "wgt": 1.0, "off": 0.0}
 	var W: Array = info.get("statW", [1.5, 1.0, 0.5])
 	var o := [0.0, 0.0, 0.0, 0.0, 0.0]
 	var parts_ := [info["bodies"][int(spec["b"])], wheel_of(spec), info["gliders"][int(spec.get("g", 0))]]

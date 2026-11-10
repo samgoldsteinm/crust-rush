@@ -10,7 +10,6 @@ const BUILTIN_DIR := "res://assets/track"   # Hawaiian Bay ships inside the game
 const ROSTER_JSON := "res://assets/kart/roster.json"
 const ITEMS_SCENE := "res://assets/items/items.glb"
 const CULL_DIST := 2600.0   # far clutter cells hide beyond this (the web uses 1500-2250 by preset)
-const ITEM_NAMES := {"chili": "Chili Boost", "pepperoni": "Pepperoni", "oil": "Olive Oil", "dough": "Dough Ball", "trio": "Pepperoni Trio", "garlic": "Garlic Shield", "flour": "Flour Bomb", "wheel": "Pizza Wheel", "rush": "Delivery Rush"}
 const TRICK_NAMES := ["Backflip", "360 Spin", "Frontflip", "Barrel roll", "Barrel roll"]
 
 var T: TrackData
@@ -25,6 +24,7 @@ var item_set := {}        # Settings > Items: {name: false} for items switched o
 var last_run := {}        # the player's last finished run against their best: {t, old, pb}
 var was_last := false     # dropped to last place this race (for Comeback Kid)
 var found_sc := {}        # hidden shortcuts found this race
+var spec_k: Kart = null   # Last Slice: the kart the camera watches once you are out
 var kart: Kart               # the player's kart (kept for the tests)
 var kart_scenes := {}        # file -> PackedScene
 var view: View
@@ -138,6 +138,8 @@ func _ready() -> void:
 	scan_maps()
 	if map_id == "":
 		map_id = OS.get_environment("CR_MAP")
+	if OS.get_environment("CR_MODE") != "":
+		sel["mode"] = OS.get_environment("CR_MODE")
 	if map_id == "" or _map_info(map_id).is_empty():
 		map_id = "bay"
 	var f := FileAccess.open(ROSTER_JSON, FileAccess.READ)
@@ -570,6 +572,7 @@ func _build_hud() -> void:
 	hud_race.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(hud_race)
 	hud = Hud.new()
+	hud.kmh = opt_kmh
 	hud_race.add_child(hud)
 	lbl_info = _label(13, Vector2(0, 0), HORIZONTAL_ALIGNMENT_CENTER)
 	_place(lbl_info, 0.5, 0, 0.5, 0, -300, 4, 300, 22)
@@ -701,7 +704,7 @@ func _apply_res() -> void:
 	var vp := get_viewport()
 	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if res_scale < 0.99 else Viewport.SCALING_3D_MODE_BILINEAR
 	vp.scaling_3d_scale = res_scale
-	vp.fsr_sharpness = 0.25
+	vp.fsr_sharpness = 0.25 if sharpen_on else 2.0
 	btn_res.text = "Resolution: %d%%" % int(round(res_scale * 100.0))
 
 
@@ -804,6 +807,10 @@ func _start_race(cfg: Dictionary) -> void:
 	if auto_drive and net_role != "client":
 		kart.ai["auto"] = true
 	race.items_off = items_off()
+	var lss := String(cfg.get("mode", "")) == "lss" if not cfg.is_empty() else (String(sel.get("mode", "")) == "lss" and gp.is_empty())
+	race.mode = "lss" if lss else ""
+	T.LAPS = maxi(2, race.karts.size() - 1) if race.mode == "lss" else 3
+	spec_k = null
 	view.setup(T, race, fx, cam, items_lib)
 	for k in race.karts:
 		view.add_kart(k, _kart_scene)
@@ -922,6 +929,8 @@ func _sim_tick(dt: float) -> void:
 				all_done = false
 			elif k.peer != 0 and k.remote:
 				k.ai["auto"] = true
+		if race.mode == "lss":
+			all_done = race.lss_done
 		if all_done:
 			state = "finished"
 			fin_t = 3.5
@@ -936,6 +945,8 @@ func _sim_tick(dt: float) -> void:
 
 
 func _finish_check() -> void:
+	if race.mode == "lss":
+		return
 	if kart.finished and not shown_finish:
 		shown_finish = true
 		_progress_finish()
@@ -1163,6 +1174,24 @@ func _drain_events() -> void:
 		elif t == "dodge":
 			if ed["k"] == kart:
 				_show_center("Dodged!", 0.6, "sm")
+		elif t == "elim":
+			var ke: Kart = ed["k"]
+			if bool(ed["loud"]):
+				_show_center(("You\u2019re out" if ke == kart else ke.racer_name + " is out") + " \u00b7 " + _ordinal(int(ed["place"])), 2.2, "sm")
+				sfx.play("hit", 0.8, 0.7)
+			if ke == kart:
+				kart.ai["auto"] = true
+		elif t == "lss_win":
+			var kw: Kart = ed["k"]
+			sfx.play("finish")
+			if kw == kart:
+				_show_center("Last Slice Standing!", 2.6, "md")
+				if not auto_drive:
+					Ach.race_done(1, was_last, String(sel["cls"]), kart.ri, map_id, {})
+					_ach_toasts()
+			else:
+				_show_center(kw.racer_name + " wins!", 2.4, "md")
+			kart.ai["auto"] = true
 		elif t == "frozen":
 			if ed["k"] == kart:
 				_edge(Color("#bfe6ff"))
@@ -1249,7 +1278,10 @@ func _show_results() -> void:
 	c1.add_child(menu.section_label("Race"))
 	for i in st.size():
 		var k := st[i]
-		c1.add_child(_result_row(i + 1, k, ("~" if k.est else "") + _fmt(k.finish_time), "+%d" % (Race.PTS[i] if i < Race.PTS.size() else 0) if not gp.is_empty() else ""))
+		var rtxt := ("~" if k.est else "") + _fmt(k.finish_time)
+		if race.mode == "lss":
+			rtxt = ("out on lap %d" % k.elim_lap) if k.elim else ("last slice" if k.place == 1 else _fmt(k.finish_time))
+		c1.add_child(_result_row(i + 1, k, rtxt, "+%d" % (Race.PTS[i] if i < Race.PTS.size() else 0) if not gp.is_empty() else ""))
 	if not gp.is_empty():
 		var c2 := menu.vbox(6)
 		c2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1515,7 +1547,14 @@ func _process(dt: float) -> void:
 	if net_role == "client":
 		al = clampf((Time.get_ticks_msec() / 1000.0 - net_snap_at) / net_snap_dt, 0.0, 1.0)
 	view.draw(al, dt, state == "race", paused)
-	var v: Dictionary = view.views[kart]
+	if kart.elim and race.mode == "lss" and state == "race":
+		var st0 := race.standings()
+		for q in st0:
+			if not q.finished:
+				spec_k = q
+				break
+	var ck: Kart = spec_k if spec_k != null and kart.elim else kart
+	var v: Dictionary = view.views[ck]
 	_camera(dt, float(v["rx"]), float(v["ry"]), float(v["rz"]), float(v["rma"]))
 	# shadows follow your kart (the web re-centres its shadow camera 80 ahead of it)
 	# far clutter cells, five times a second
@@ -1528,7 +1567,8 @@ func _process(dt: float) -> void:
 			var q := Vector2(clampf(cp.x, rect.position.x, rect.end.x), clampf(cp.y, rect.position.y, rect.end.y))
 			var dd := cp.distance_to(q)
 			var was: bool = c["vis"]
-			var vis: bool = dd < (CULL_DIST * 1.08 if was else CULL_DIST)
+			var cdist: float = CULL_DIST * [0.6, 1.0, 1.5][clampi(scenery, 0, 2)]
+			var vis: bool = dd < (cdist * 1.08 if was else cdist)
 			if vis != was:
 				c["vis"] = vis
 				(c["node"] as Node3D).visible = vis
@@ -1551,7 +1591,7 @@ func _process(dt: float) -> void:
 ## the web game's close chase camera: it eases round behind the kart, hangs on a sprung mount, leans
 ## into turns and with the ground, shakes with speed and hits, and rides round the loop-the-loop
 func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
-	var k := kart
+	var k: Kart = spec_k if spec_k != null and kart.elim else kart
 	var v: Dictionary = view.views[k]
 	if state == "menu":
 		var oa := time * 0.18 + k.a + 2.4
@@ -1563,8 +1603,9 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 		return
 	cam_a = lerp_angle(cam_a, rma, 1.0 - exp(-5.5 * dt))
 	var ex := maxf(0.0, float(v["top"]) - 7.2) * T.KS
-	var dist := 30.0 + (5.0 if k.boost > 0.0 else 0.0) + ex * 1.1
-	var h := 12.6 + ex * 0.8
+	var cS := cam_d / 100.0
+	var dist := ((44.0 if cam_far else 30.0) + ((4.0 if cam_far else 5.0) if k.boost > 0.0 else 0.0) + ex * 1.1) * cS
+	var h := ((17.4 if cam_far else 12.6) + ex * 0.8) * (0.4 + 0.6 * cS)
 	var lb := look_back and state == "race" and k.loop.is_empty()
 	if lb != cam_lb:
 		cam_lb = lb
@@ -1622,6 +1663,8 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 	var sf := 2 if lat < T.RW else (1 if lat < T.CURB else 0)
 	var amp := 0.03 + 0.09 * spn + (0.32 if sf == 0 and spn > 0.25 else (0.12 if sf == 1 and spn > 0.25 else 0.0)) + (0.24 if k.boost > 0.0 else 0.0) + shake_imp
 	shake_imp *= exp(-6.0 * dt)
+	if not shake_on:
+		amp = 0.0
 	var bo := k.boost > 0.0
 	if bo and not cam_bo and state == "race":
 		_shake(0.75)
@@ -1653,7 +1696,7 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 	cam.rotate_object_local(Vector3(0, 0, 1), cam_gr + n3 * amp * 0.006)
 	var vs := get_viewport().get_visible_rect().size
 	var aspect := vs.x / maxf(1.0, vs.y)
-	var hf := deg_to_rad(100.0 if k.boost > 0.0 else 92.0)
+	var hf := deg_to_rad((96.0 if cam_far else 100.0) if k.boost > 0.0 else (90.0 if cam_far else 92.0))
 	var vf := clampf(rad_to_deg(2.0 * atan(tan(hf / 2.0) / aspect)), 52.0, 100.0)
 	var fp := 0.0
 	if fin_punch > 0.0:
@@ -1671,6 +1714,7 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 
 func _hud(dt: float) -> void:
 	var k := kart
+	hud.fps_on = fps_counter
 	lbl_info.text = "%d fps · %s · %dk tris · %d draws" % [Engine.get_frames_per_second(), RenderingServer.get_current_rendering_driver_name(), int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)) / 1000, int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))]
 	sfx.drive(absf(k.speed) / k.base_max, true, k.boost > 0.0, k.drift != 0 and not k.air, k.tier, state != "countdown" and state != "results" and state != "menu" and not paused)
 	if k.roll > 0.0 and not paused:
@@ -1889,25 +1933,216 @@ var net_addr_last := ""
 
 
 ## Settings: the PC version's options, laid out like the web's (tabs, a title and a note per row)
+## web #settings: Graphics, Sound, Gameplay, Controls, Items & specials, More
 func _settings_panel() -> Control:
+	var v := menu.vbox(12)
+	var tabs := [["graphics", "Graphics"], ["sound", "Sound"], ["gameplay", "Gameplay"], ["controls", "Controls"], ["items", "Items & specials"], ["more", "More"]]
+	var th := menu.hbox(0)
+	th.add_child(menu.seg("settab", tabs, set_tab, func(k):
+		set_tab = String(k)
+		menu.show_modal("set"), 14.0, 6.0))
+	v.add_child(th)
 	var sc := ScrollContainer.new()
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(sc)
 	var card := menu.panel(menu.glass(18.0, Vector4(16, 16, 16, 16)))
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sc.add_child(card)
-	var v := menu.vbox(12)
-	card.add_child(v)
-	v.add_child(menu.section_label("Graphics"))
-	var rows := [
-		["Quality", "Ultra: every effect on, shadows across the whole view, ambient occlusion and bloom. High: lighter shadows and no ambient occlusion. Low: the lightest, for older laptops.", "q", [["0", "Low"], ["1", "High"], ["2", "Ultra"]], str(quality)],
-		["Frame rate", "Auto runs at your monitor's full rate. 60 holds a steady 60 frames a second.", "fps", [["0", "Auto"], ["60", "60 fps"], ["120", "120 fps"]], str(fps_cap)],
-		["Resolution", "Draw the 3D view smaller and scale it up, for a higher frame rate on slower graphics cards.", "res", [["1.0", "100%"], ["0.85", "85%"], ["0.67", "67%"]], str(snappedf(res_scale, 0.01)) if res_scale < 0.99 else "1.0"],
-		["Full screen", "F11 switches too.", "fs", [["1", "On"], ["0", "Off"]], "1" if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN or DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN else "0"],
-	]
-	v.add_child(_set_rows(rows))
-	v.add_child(menu.section_label("Sound"))
-	v.add_child(_set_rows([["Sound effects", "Engines, drifts, items and the crowd.", "vol", [["1.0", "On"], ["0.5", "Quiet"], ["0.0", "Off"]], str(snappedf(sfx_vol, 0.1)) if sfx_vol > 0.05 and sfx_vol < 0.95 else ("1.0" if sfx_vol >= 0.95 else "0.0")]]))
-	return sc
+	var c := menu.vbox(12)
+	card.add_child(c)
+	var on_off := [["1", "On"], ["0", "Off"]]
+	match set_tab:
+		"graphics":
+			c.add_child(menu.section_label("Graphics"))
+			c.add_child(_set_rows([
+				["Quality", "Ultra: every racer and building in high detail, ambient occlusion, shadows across the whole view, 4x anti-aliasing and bloom. Balanced: lighter shadows and no ambient occlusion. Fast: the lightest, for older laptops.", "q", [["0", "Fast"], ["1", "Balanced"], ["2", "Ultra"]], str(quality)],
+				["Shadows", "Real-time shadows from karts and scenery.", "shadows", on_off, "1" if shadows_on else "0"],
+				["Ambient occlusion", "Soft contact shading in corners and crevices, computed every frame. The single most expensive effect: turn it off to run Ultra's detail at a higher frame rate.", "ao", on_off, "1" if ao_on else "0"],
+				["Sharpening", "When the 3D view is drawn below screen size to hold the frame rate, a sharpening pass brings the detail back. Turn off if you prefer a softer picture.", "sharp", on_off, "1" if sharpen_on else "0"],
+				["Scenery distance", "How far away trackside props are drawn.", "scenery", [["0", "Near"], ["1", "Normal"], ["2", "Far"]], str(scenery)],
+				["Frame rate", "Auto runs at your monitor's full rate. 60 fps caps the game at a steady 60 for slower computers.", "fps", [["0", "Auto"], ["60", "60 fps"], ["120", "120 fps"]], str(fps_cap)],
+				["Resolution", "Draw the 3D view smaller and scale it up, for a higher frame rate on slower graphics cards.", "res", [["1.0", "100%"], ["0.85", "85%"], ["0.67", "67%"]], str(snappedf(res_scale, 0.01)) if res_scale < 0.99 else "1.0"],
+				["Full screen", "F11 switches too.", "fs", on_off, "1" if DisplayServer.window_get_mode() in [DisplayServer.WINDOW_MODE_FULLSCREEN, DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN] else "0"],
+				["Frame counter", "Show frames per second during a race.", "fpsc", on_off, "1" if fps_counter else "0"],
+			]))
+		"sound":
+			c.add_child(menu.section_label("Sound"))
+			c.add_child(_set_rows([
+				["Sound", "Engine, effects and music cues.", "snd", on_off, "1" if sfx_vol > 0.01 else "0"],
+				["Volume", "How loud everything plays.", "vol", [["0.25", "25%"], ["0.5", "50%"], ["0.75", "75%"], ["1.0", "100%"]], str(snappedf(snd_level, 0.25))],
+			]))
+		"gameplay":
+			c.add_child(menu.section_label("Gameplay"))
+			c.add_child(_set_rows([
+				["Kart stats", "Off makes every part cosmetic, so all karts drive the same. Applies from the next race.", "stats", on_off, "1" if KartBuilder.stats_on else "0"],
+				["Speed units", "", "units", [["mph", "mph"], ["kmh", "km/h"]], "kmh" if hud.kmh else "mph"],
+				["Camera", "Close sits right behind your driver.", "cam", [["close", "Close"], ["far", "Far"]], "far" if cam_far else "close"],
+				["Camera distance", "How far behind your kart the camera sits.", "camd", [["80", "80%"], ["90", "90%"], ["100", "100%"], ["110", "110%"], ["120", "120%"]], str(cam_d)],
+				["Camera shake", "Shake on bumps, boosts and hits.", "shake", on_off, "1" if shake_on else "0"],
+			]))
+		"controls":
+			c.add_child(menu.section_label("Controls"))
+			c.add_child(_controls_table())
+		"items":
+			c.add_child(menu.section_label("Items"))
+			c.add_child(menu.para("Hold up to two items and use either slot. Items marked drop land on the road behind you; everything else fires or works forward. Click an item to switch it on or off for races; your choice is saved, and in a friends' race the host's choice is used. Locked items are rewards from Awards.", 13.0, Color("#c2a58c"), 720.0))
+			c.add_child(_item_grid())
+			var all_on := menu.button("Turn all items back on", "ghost", 14.0, Vector4(14, 8, 14, 8))
+			all_on.pressed.connect(func():
+				item_set.clear()
+				_save_settings()
+				menu.show_modal("set"))
+			c.add_child(all_on)
+			c.add_child(menu.section_label("Special abilities"))
+			c.add_child(menu.para("Every driver has their own special. It recharges over 30 seconds; the ring around the button fills as it charges. Use it when it glows.", 13.0, Color("#c2a58c"), 720.0))
+			var g := GridContainer.new()
+			g.columns = 2
+			g.add_theme_constant_override("h_separation", menu.zi(10))
+			g.add_theme_constant_override("v_separation", menu.zi(10))
+			for r in roster.get("racers", []):
+				var A: Array = Race.ABIL.get(String(r["name"]).to_lower(), [])
+				if A.is_empty():
+					continue
+				var pc := menu.panel(menu.glass(12.0, Vector4(12, 10, 12, 10)))
+				pc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				var pv := menu.vbox(2)
+				pc.add_child(pv)
+				pv.add_child(menu.label("%s · %s" % [String(r["name"]), String(A[0])], menu.f_bold, 14.0, Color(String(A[2]))))
+				pv.add_child(menu.para(String(A[1]), 12.0, Color("#c2a58c"), 340.0))
+				g.add_child(pc)
+			c.add_child(g)
+		"more":
+			c.add_child(menu.section_label("Reset"))
+			var rr := menu.hbox(20)
+			var rv := menu.vbox(2)
+			rv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			rv.add_child(menu.label("Reset settings", menu.f_bold, 16.0, Color("#fff4dc")))
+			rv.add_child(menu.para("Puts these settings back to how they started. Your progress and karts are kept.", 13.0, Color("#c2a58c"), 420.0))
+			rr.add_child(rv)
+			var rb := menu.button("Reset to defaults", "ghost", 14.0, Vector4(14, 8, 14, 8))
+			rb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			rb.pressed.connect(func():
+				_reset_settings()
+				menu.show_modal("set"))
+			rr.add_child(rb)
+			c.add_child(rr)
+	return v
+
+
+## web .ctl: what does what, on the keyboard and on a controller
+func _controls_table() -> Control:
+	var rows := [["Steer", "\u2190 \u2192 or A / D", "Left stick or D-pad"], ["Accelerate", "Automatic", "Hold RT (right trigger)"], ["Brake / reverse", "Hold Space, \u2193 or S when slow", "Hold LT (left trigger) when slow"],
+		["Drift / trick in the air", "Space, \u2193 or S", "LT (left trigger) \u00b7 GameCube R"], ["Use first item", "X or Enter", "A or LB \u00b7 GameCube A"], ["Use second item", "Z or Q", "B or RB \u00b7 GameCube B"],
+		["Keep an item behind you", "Shift or B", "Hold the item button"], ["Throw the item you're holding", "X", "Let go of the item button"], ["Drop it behind you", "Shift or B again", "Stick down as you let go"],
+		["Throw an item behind you", "Hold F, then the item key", "Pull the left stick back as you press the item, or hold X"], ["Special ability", "C or R", "Y"], ["Look back", "Hold F", "Hold X"], ["Pause", "P or Esc", "Start / Menu"]]
+	var g := GridContainer.new()
+	g.columns = 3
+	g.add_theme_constant_override("h_separation", menu.zi(18))
+	g.add_theme_constant_override("v_separation", menu.zi(8))
+	for hcol in ["Action", "Keyboard", "Controller"]:
+		g.add_child(menu.label(hcol.to_upper(), menu.f_bold, 11.0, Color("#c2a58c")))
+	for r in rows:
+		g.add_child(menu.label(String(r[0]), menu.f_bold, 14.0, Color("#fff4dc")))
+		var k := menu.para(String(r[1]), 13.0, Color("#c2a58c"), 220.0)
+		g.add_child(k)
+		g.add_child(menu.para(String(r[2]), 13.0, Color("#c2a58c"), 260.0))
+	var v := menu.vbox(10)
+	v.add_child(g)
+	v.add_child(menu.para("Xbox, PlayStation, Backbone and GameCube controllers work. In menus the stick or D-pad moves, A selects and B goes back. F11 switches full screen.", 13.0, Color("#c2a58c"), 720.0))
+	return v
+
+
+const ITEM_NAMES := {"chili": "Chili Boost", "pepperoni": "Pepperoni", "oil": "Olive Oil", "dough": "Dough Ball", "trio": "Pepperoni Trio", "garlic": "Garlic Shield", "flour": "Flour Bomb", "wheel": "Pizza Wheel", "rush": "Delivery Rush",
+	"freezer": "Freezer Blast", "jalapeno": "Jalape\u00f1o Triple", "meatball": "Bowling Meatball", "torpedo": "Anchovy Torpedo", "shroom": "Spring Shroom", "magnet": "Pizza Magnet", "cutter": "Cutter Orbit", "sauce": "Sauce Splat",
+	"heat": "Heat Wave", "bomb": "Calzone Bomb", "forks": "Fork Spikes", "ghost": "Ghost Pepper", "cannon": "Pizza Cannon", "twister": "Dough Twister", "swap": "Topping Swap", "boxes": "Box Barricade"}
+
+
+## the item switches: every item's icon and name; on, off, or locked until its achievement
+func _item_grid() -> Control:
+	var g := GridContainer.new()
+	g.columns = 5
+	g.add_theme_constant_override("h_separation", menu.zi(8))
+	g.add_theme_constant_override("v_separation", menu.zi(8))
+	for it in ITEM_NAMES:
+		var locked := Race.ITEM_AWARD.has(it) and not Ach.unlocked(String(Race.ITEM_AWARD[it]))
+		var on: bool = not locked and item_set.get(it, true) != false
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(menu.z(128), menu.z(46))
+		b.focus_mode = Control.FOCUS_ALL
+		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		var st := menu.glass(10.0, Vector4(6, 4, 6, 4))
+		if on:
+			st = menu.box([Color(0.97, 0.79, 0.28, 0.18), Color(0.88, 0.27, 0.17, 0.12)], 135.0, 10.0, Color(0.97, 0.79, 0.28, 0.55), 1.0, Vector4(6, 4, 6, 4))
+		for sn in ["normal", "hover", "pressed", "focus", "disabled"]:
+			b.add_theme_stylebox_override(sn, st)
+		var h := menu.hbox(6)
+		h.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		h.offset_left = menu.z(6)
+		h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(h)
+		var ic := TextureRect.new()
+		ic.texture = load("res://assets/items/icon_%s.png" % it) if ResourceLoader.exists("res://assets/items/icon_%s.png" % it) else null
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.custom_minimum_size = Vector2(menu.z(30), menu.z(30))
+		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		ic.modulate = Color(1, 1, 1, 1.0 if on else 0.4)
+		h.add_child(ic)
+		var nv := menu.vbox(0)
+		nv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var nl := menu.label(String(ITEM_NAMES[it]), menu.f_bold, 11.0, Color("#fff4dc") if on else Color("#c2a58c"))
+		nv.add_child(nl)
+		nv.add_child(menu.label("locked" if locked else ("drop" if it in Race.DROPS else ("on" if on else "off")), menu.f_med, 10.0, Color("#7fe07a") if on else Color("#c2a58c")))
+		h.add_child(nv)
+		var iid: String = it
+		b.pressed.connect(func():
+			if locked:
+				return
+			if item_set.get(iid, true) == false:
+				item_set.erase(iid)
+			else:
+				item_set[iid] = false
+			_save_settings()
+			menu.show_modal("set"))
+		g.add_child(b)
+	return g
+
+
+func _reset_settings() -> void:
+	quality = 2
+	shadows_on = true
+	ao_on = true
+	sharpen_on = true
+	scenery = 1
+	fps_cap = 0
+	res_scale = 1.0
+	fps_counter = false
+	snd_level = 1.0
+	sfx_vol = 1.0
+	KartBuilder.stats_on = true
+	hud.kmh = false
+	cam_far = false
+	cam_d = 100
+	shake_on = true
+	item_set.clear()
+	_apply_quality()
+	_apply_fps()
+	_apply_res()
+	_apply_volume()
+	_save_settings()
+
+
+var set_tab := "graphics"
+var shadows_on := true
+var ao_on := true
+var sharpen_on := true
+var scenery := 1          # 0 near, 1 normal, 2 far
+var fps_counter := false
+var snd_level := 1.0
+var cam_far := false
+var cam_d := 100
+var shake_on := true
 
 
 var sfx_vol := 1.0
@@ -1951,20 +2186,53 @@ func _apply_setting(key: String, val: String) -> void:
 			var is_fs := DisplayServer.window_get_mode() in [DisplayServer.WINDOW_MODE_FULLSCREEN, DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN]
 			if want != is_fs:
 				_toggle_fullscreen()
+		"snd":
+			sfx_vol = snd_level if val == "1" else 0.0
+			_apply_volume()
 		"vol":
-			sfx_vol = float(val)
-			AudioServer.set_bus_volume_db(0, linear_to_db(maxf(0.0001, sfx_vol)))
-			AudioServer.set_bus_mute(0, sfx_vol < 0.01)
+			snd_level = float(val)
+			if sfx_vol > 0.01:
+				sfx_vol = snd_level
+			_apply_volume()
+		"shadows":
+			shadows_on = val == "1"
+			_apply_quality()
+		"ao":
+			ao_on = val == "1"
+			_apply_quality()
+		"sharp":
+			sharpen_on = val == "1"
+			_apply_res()
+		"scenery":
+			scenery = int(val)
+		"fpsc":
+			fps_counter = val == "1"
+		"stats":
+			KartBuilder.stats_on = val == "1"
+			menu.stats_on = KartBuilder.stats_on
+		"units":
+			hud.kmh = val == "kmh"
+		"cam":
+			cam_far = val == "far"
+		"camd":
+			cam_d = int(val)
+		"shake":
+			shake_on = val == "1"
 	_save_settings()
+
+
+func _apply_volume() -> void:
+	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(0.0001, sfx_vol)))
+	AudioServer.set_bus_mute(0, sfx_vol < 0.01)
 
 
 ## Ultra: everything; High: no ambient occlusion, shorter shadows; Low: no shadows, glow or ambient occlusion
 func _apply_quality() -> void:
 	if env == null or sun == null:
 		return
-	env.ssao_enabled = quality >= 2 and not is_phone
+	env.ssao_enabled = quality >= 2 and not is_phone and ao_on
 	env.glow_enabled = quality >= 1 or not is_phone
-	sun.shadow_enabled = quality >= 1
+	sun.shadow_enabled = quality >= 1 and shadows_on
 	sun.directional_shadow_max_distance = 300.0 if quality >= 2 else 200.0
 	get_viewport().msaa_3d = Viewport.MSAA_4X if quality >= 2 else (Viewport.MSAA_2X if quality >= 1 else Viewport.MSAA_DISABLED)   # web Ultra: 4x
 
@@ -1975,6 +2243,11 @@ func _save_settings() -> void:
 	cf.set_value("gfx", "fps", fps_cap)
 	cf.set_value("gfx", "res", res_scale)
 	cf.set_value("snd", "vol", sfx_vol)
+	cf.set_value("snd", "level", snd_level)
+	for k2 in ["shadows_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "item_set"]:
+		cf.set_value("opt", k2, get(k2))
+	cf.set_value("opt", "stats_on", KartBuilder.stats_on)
+	cf.set_value("opt", "kmh", hud.kmh if hud != null else false)
 	for k in sel:
 		cf.set_value("menu", k, sel[k])
 	cf.set_value("menu", "map", map_id)
@@ -1982,6 +2255,7 @@ func _save_settings() -> void:
 
 
 var settings_loaded := false
+var opt_kmh := false
 
 
 func _load_settings() -> void:
@@ -1993,6 +2267,13 @@ func _load_settings() -> void:
 	fps_cap = int(cf.get_value("gfx", "fps", fps_cap))
 	res_scale = float(cf.get_value("gfx", "res", res_scale))
 	sfx_vol = float(cf.get_value("snd", "vol", 1.0))
+	snd_level = float(cf.get_value("snd", "level", 1.0))
+	for k2 in ["shadows_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "item_set"]:
+		var vv = cf.get_value("opt", k2, get(k2))
+		if typeof(vv) == typeof(get(k2)):
+			set(k2, vv)
+	KartBuilder.stats_on = bool(cf.get_value("opt", "stats_on", true))
+	opt_kmh = bool(cf.get_value("opt", "kmh", false))
 	for k in ["mode", "cls", "ri", "cup"]:
 		sel[k] = cf.get_value("menu", k, sel[k])
 	var bb = cf.get_value("menu", "build", {})
@@ -2151,6 +2432,8 @@ func _net_start() -> void:
 	var pri := int(sel["ri"])
 	var cfg := Race.new().make_cfg(roster, pri, peers, int(randi() & 0x7fffffff) + 1, String(sel["cls"]), _my_build(), net_prefs)
 	cfg["map"] = map_id
+	if String(sel.get("mode", "")) == "lss" and gp.is_empty():
+		cfg["mode"] = "lss"
 	_net_begin.rpc(cfg)
 	_start_race(cfg)
 
@@ -2209,7 +2492,7 @@ func _net_host_tick() -> void:
 	var ks: Array = []
 	for k in race.karts:
 		ks.append([k.x, k.y, k.wy, k.a, k.ma, k.speed, k.steer, k.boost, k.spin, k.inv, k.rush, k.z, k.drift, k.tier, k.d_amt,
-			(1 if k.air else 0) | (2 if k.glide else 0) | (4 if k.big else 0) | (8 if k.finished else 0) | (16 if k.est else 0),
+			(1 if k.air else 0) | (2 if k.glide else 0) | (4 if k.big else 0) | (8 if k.finished else 0) | (16 if k.est else 0) | (32 if k.elim else 0),
 			k.item, k.item2, String(k.held.get("it", "")), int(k.held.get("sl", 1)), k.sh_l, k.prog, k.idx, k.place, k.finish_time,
 			k.loop_th if not k.loop.is_empty() else -1.0, k.roll, k.trick_t, k.trick_k, k.acc,
 			k.shield, k.mz_h, k.ab_c, k.mega_t, k.flat_t, k.pesto_t, k.chili_t, k.olive_t, k.burn_t, k.ab_fx, k.ab_col.to_html(false),
@@ -2300,6 +2583,7 @@ func _net_snap(s: Array) -> void:
 		k.big = (fl & 4) != 0
 		k.finished = (fl & 8) != 0
 		k.est = (fl & 16) != 0
+		k.elim = (fl & 32) != 0
 		k.item = q[16]
 		k.item2 = q[17]
 		k.held = {"it": q[18], "sl": q[19], "t": 0.0} if String(q[18]) != "" else {}

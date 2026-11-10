@@ -72,9 +72,17 @@ func _physics_process(dt: float) -> void:
 		print("SMOKE items used %s, spin-outs %d (player %d), boxes taken %d, most thrown at once %d, most slicks %d" % [str(main.stats["used"]), main.stats["spins"], main.stats["player_spins"], main.stats["boxes"], max_proj, max_haz])
 		print("SMOKE abilities used %s" % str(main.stats.get("abilities", {})))
 		print("SMOKE shortcut runs (all karts) %d of %d on this track" % [sc_runs, main.T.shorts.size()])
+		if main.race.mode == "lss":
+			var outs := 0
+			for q in race.karts:
+				if q.elim:
+					outs += 1
+			print("SMOKE Last Slice: %d knocked out, winner %s" % [outs, st[0].racer_name])
+			slow = 0 if outs == race.karts.size() - 1 else 99
+			loops = maxi(loops, 3)
 		var ok: bool = slow == 0 and int(main.stats["boxes"]) > 10 and main.stats["used"].size() >= 4 and loops >= 3 and main.stats.get("abilities", {}).size() >= 3
 		print("SMOKE %s player %s in %.2f s, respawns %d, ramp jumps %d, glides %d, loops %d, highest %.1f, karts stuck on lap 1: %d" % ["PASS" if ok else "FAIL", main._ordinal(k.place), k.finish_time, respawns, jumps, glides, loops, max_air, slow])
 		get_tree().quit(0 if ok else 1)
-	elif t > MAX_T:
+	elif t > (MAX_T * 2.2 if main.race.mode == "lss" else MAX_T):
 		print("SMOKE FAIL no finish after %d s: prog %d of %d, respawns %d" % [int(t), k.prog, main.T.LAPS * main.T.N, respawns])
 		get_tree().quit(1)

@@ -63,6 +63,9 @@ var rollers: Array = []       # {j, ph, lat, x, y}
 var walkers: Array = []       # {j, lat, latT, v, ph, pause, H, along, x, y, face, hit_t}
 var train := {}               # {px, py, ux, uy, span, len, v, cars: [{off, L, t}], state, wait, pos, dir}
 var _bump_t := {}
+var mode := ""               # "lss": Last Slice Standing
+var lss_lap := 0
+var lss_done := false
 var items_off := {}         # items switched off (settings) or not yet won (award items): {name: true}
 
 
@@ -463,6 +466,8 @@ func update(dt: float, player_inp: Dictionary) -> void:
 	_ability_tick(dt)
 	_items_tick(dt)
 	for k in karts:
+		if k.elim:
+			continue
 		var inp: Dictionary
 		if k.remote and not bool(k.ai.get("auto", false)) and not (k.rush > 0.0):
 			# a friend's kart: their latest controls, and any item presses they sent
@@ -580,6 +585,10 @@ func update(dt: float, player_inp: Dictionary) -> void:
 	_projectiles(dt)
 	_hazards(dt)
 
+	if mode == "lss":
+		if state == "race":
+			_lss_tick()
+		return
 	for k in karts:
 		if state == "race" and not k.finished and k.prog >= T.LAPS * T.N:
 			k.finished = true
@@ -587,6 +596,63 @@ func update(dt: float, player_inp: Dictionary) -> void:
 			finish_count += 1
 			k.place = finish_count
 			fx.append({"t": "finish", "k": k})
+
+
+## Last Slice Standing: each time the leader starts a new lap, whoever is last is out; the last kart racing wins (web lssTick)
+func _lss_tick() -> void:
+	var act: Array[Kart] = []
+	for k in karts:
+		if not k.finished:
+			act.append(k)
+	if act.size() <= 1:
+		return
+	var lead: Kart = act[0]
+	for k in act:
+		if k.prog > lead.prog:
+			lead = k
+	if lead.prog >= T.LAPS * T.N:
+		# the winner: everyone left is placed by how far they got
+		var rest: Array[Kart] = []
+		for k in act:
+			if k != lead:
+				rest.append(k)
+		rest.sort_custom(func(a, b): return a.prog < b.prog)
+		for i in rest.size():
+			_lss_elim(rest[i], rest.size() - i + 1, false)
+		lead.finished = true
+		lead.finish_time = race_time
+		lead.place = 1
+		lss_done = true
+		fx.append({"t": "lss_win", "k": lead})
+		return
+	var lap := int(floor(float(lead.prog) / T.N))
+	if lap > lss_lap and lap < T.LAPS:
+		lss_lap = lap
+		var last: Kart = act[0]
+		for k in act:
+			if k.prog < last.prog:
+				last = k
+		_lss_elim(last, act.size(), true)
+
+
+func _lss_elim(k: Kart, place: int, loud: bool) -> void:
+	if k.finished:
+		return
+	k.finished = true
+	k.elim = true
+	k.elim_lap = mini(T.LAPS, int(floor(maxf(0.0, float(k.prog)) / T.N)) + 1)
+	k.finish_time = race_time
+	k.place = place
+	k.speed = 0.0
+	k.ai["auto"] = true
+	k.item = ""
+	k.item2 = ""
+	k.ab_q = []
+	# out of the race: parked far off the pizza
+	k.x = 50000.0 + place * 300.0
+	k.y = 50000.0
+	k._save_prev()
+	fx.append({"t": "elim", "k": k, "place": place, "loud": loud})
 
 
 # ---------------------------------------------------------------- the computer drivers (web aiInput)

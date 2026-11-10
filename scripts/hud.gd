@@ -43,6 +43,8 @@ var hitfx_t := 0.0
 var abfx_t := 0.0
 var abfx_col := Color.WHITE
 var heat_t := 0.0
+var kmh := false
+var fps_on := false
 var sauce_a := 0.0        # the sauce smears on the screen (web .saucefx): on at once, fading over 1.6 s
 var sauce_blobs: Array = []
 var show_touch := true
@@ -428,6 +430,8 @@ func _draw() -> void:
 			draw_rect(Rect2(Vector2(0, 0), vs).grow(-f * vs.y * 0.25), Color(0.88, 0.16, 0.08, a * 0.12 * (1.0 - f)), false, vs.y * 0.025)
 	if sauce_a > 0.0:
 		_draw_sauce()
+	if fps_on:
+		_text(f_bold, "%d fps" % Engine.get_frames_per_second(), W / 2.0 - 40.0, H - 22.0, 12.0, Color(1, 0.957, 0.863, 0.8), HORIZONTAL_ALIGNMENT_CENTER, 80.0, Color(0, 0, 0, 0.8), Vector2(0, 1), 1.5)
 	if heat_t > 0.0:
 		var hv := get_viewport_rect().size
 		var ha := clampf(heat_t / 0.9, 0.0, 1.0)
@@ -801,12 +805,12 @@ func _draw_gauge(btn: float) -> void:
 			draw_arc(_p(c), 36.0 * k * s, a0, a0 + sweep * ch, 32, SPARK_TIER[clampi(me.tier, 0, 3)], 3.0 * k * s, true)
 	# number
 	var ns := clampf(5.0 * _vmin(), 20.0, 32.0)
-	var num := str(int(round(maxf(0.0, me.speed) * 0.66)))
+	var num := str(int(round(maxf(0.0, me.speed) * 0.66 * (1.609 if kmh else 1.0))))
 	var top := gy + gh * 0.38
 	var nw := f_disp.get_string_size(num, HORIZONTAL_ALIGNMENT_LEFT, -1, int(ns * s)).x / s
 	_rbox(c.x - maxf(nw, ns * 0.7) / 2.0 - 6.0, top - 2.0, maxf(nw, ns * 0.7) + 12.0, ns + 2.0, Color(20.0 / 255, 10.0 / 255, 6.0 / 255, 0.55), Color(0, 0, 0, 0), 0.0, 6.0)
 	_text(f_disp, num, gx, top, ns, CREAM, HORIZONTAL_ALIGNMENT_CENTER, gw, Color(0, 0, 0, 0.7), Vector2(0, 2))
-	_text(f_bold, "MPH", gx, top + ns + 2.0, 9.0, Color(1, 0.957, 0.863, 0.85), HORIZONTAL_ALIGNMENT_CENTER, gw, Color(0, 0, 0, 0.9), Vector2(0, 1), 1.8)
+	_text(f_bold, "KM/H" if kmh else "MPH", gx, top + ns + 2.0, 9.0, Color(1, 0.957, 0.863, 0.85), HORIZONTAL_ALIGNMENT_CENTER, gw, Color(0, 0, 0, 0.9), Vector2(0, 1), 1.8)
 
 
 static func _gauge_col(f: float) -> Color:
