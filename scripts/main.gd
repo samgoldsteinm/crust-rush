@@ -96,6 +96,8 @@ var btn_leave_net: Button
 var btn_again: Button
 var skip_menu := false       # tests go straight to the race
 var shown_finish := false
+var p_ka := 0.0              # the player's kart as drawn: heading and angle round the loop
+var p_th := 0.0
 
 # online, PC to PC: the host runs the race; everyone else sends their controls and draws what the host sends back
 const NET_PORT := 24680
@@ -1213,6 +1215,8 @@ func _process(dt: float) -> void:
 			ry = ky
 			rz = kz
 			rma = lerp_angle(k.oma, k.ma, al)
+			p_ka = ka
+			p_th = th
 		# kart: model forward is +X; heading a turns +X toward +Z; in the loop it pitches round with the track
 		var node: Node3D = v["node"]
 		var sc: float = v["sc"]
@@ -1425,7 +1429,15 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 	var tv2 := Vector3(rx - fx * dist, cy + h, ry - fy * dist)
 	var tv := Vector3(rx + fx * 32.0, cy + 6.2, ry + fy * 32.0)
 	if in_loop:
-		tv = Vector3(rx, rz + 4.0, ry)
+		# ride round the loop with the kart: behind it and towards the middle of the ring, rolling over with it
+		var lb := Basis(Vector3.UP, -p_ka) * Basis(Vector3(0, 0, 1), p_th)
+		var kp := Vector3(rx, rz, ry)
+		cam_base = kp + lb * Vector3(-26.0, 9.5, 0.0)
+		cam_look = kp + lb * Vector3(22.0, 4.0, 0.0)
+		cam.position = cam_base
+		cam.look_at(cam_look, lb * Vector3.UP)
+		cam.fov += (78.0 - cam.fov) * minf(1.0, 5.0 * dt)
+		return
 	if cam_snap:
 		cam_base = tv2
 		cam_look = tv
