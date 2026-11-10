@@ -80,6 +80,8 @@ var peer := 0             # online: who drives it (0 = computer)
 var remote := false       # online host: driven by a friend's controls
 var net_inp := {"steer": 0.0, "brake": false, "nb": false, "mul": 1.0, "look": false}
 var net_items: Array[String] = []
+var web := false          # online host: a browser friend's kart, driven by exactly the controls they sent
+var web_q: Array = []     # ...the ones to play this step: [steer, brake, nb, mul, ev, ab]
 
 # items and hits
 var item := ""

@@ -1076,11 +1076,15 @@ static func _flat_ring(r0: float, r1: float) -> ArrayMesh:
 
 # ---------------------------------------------------------------- one frame
 
+var own_k: Kart = null    # cross-play guest: your own kart moves between its own steps, the others between the host's pictures
+var own_al := 1.0
+
+
 func draw(al: float, dt: float, racing: bool, paused: bool) -> void:
 	if not paused:
 		time += dt
 	for k in race.karts:
-		draw_kart(k, al, dt, racing, paused)
+		draw_kart(k, own_al if k == own_k else al, dt, racing, paused)
 	for k in race.karts:
 		_draw_held(k)
 	_draw_boxes()

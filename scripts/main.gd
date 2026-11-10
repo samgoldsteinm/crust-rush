@@ -136,6 +136,11 @@ func _ready() -> void:
 	is_phone = OS.has_feature("mobile") or DisplayServer.is_touchscreen_available() and OS.get_name() in ["iOS", "Android"]
 	quality = 0 if is_phone else 2
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	web = WebNet.new()
+	web.name = "WebNet"
+	web.main = self
+	add_child(web)
+	web.changed.connect(_web_changed)
 	if not auto_drive and not skip_menu:
 		_load_settings()
 	scan_maps()
@@ -826,15 +831,19 @@ func _start_race(cfg: Dictionary) -> void:
 	if cfg.is_empty():
 		race.setup(T, roster, pri, 0, String(sel["cls"]), _my_build())
 	else:
-		race.setup_cfg(T, roster, cfg, multiplayer.get_unique_id())
+		race.setup_cfg(T, roster, cfg, (web.me + 1) if (web.role != "" and not web.cfg.is_empty()) else multiplayer.get_unique_id())
+		if web.hosting():
+			for k in race.karts:
+				if k.peer > 1:
+					k.web = true
 	kart = race.player
 	if auto_drive and net_role != "client":
 		kart.ai["auto"] = true
 	race.items_off = items_off()
 	# the network log: a row a second of every online race (Settings > More > Network log)
 	NetLog.stop(_net_names())
-	if net_role != "" and not cfg.is_empty():
-		NetLog.start(net_role, map_id, ["fast", "balanced", "ultra"][clampi(quality, 0, 2)], _net_names())
+	if (net_role != "" or web.racing()) and not cfg.is_empty():
+		NetLog.start("client" if web.racing() else net_role, map_id, ["fast", "balanced", "ultra"][clampi(quality, 0, 2)], _net_names())
 	var lss := String(cfg.get("mode", "")) == "lss" if not cfg.is_empty() else (String(sel.get("mode", "")) == "lss" and gp.is_empty())
 	race.mode = "lss" if lss else ""
 	T.LAPS = maxi(2, race.karts.size() - 1) if race.mode == "lss" else 3
@@ -922,6 +931,19 @@ func _physics_process(dt: float) -> void:
 	if T == null or race == null:
 		return
 	if state == "menu":
+		return
+	if web.racing():
+		_web_physics(dt)
+		return
+	if web.hosting():
+		# hosting browser friends: wait until everyone has the track loaded, then race with their controls fed in
+		if not web.go:
+			for k in race.karts:
+				k._save_prev()
+			return
+		web.host_pre()
+		_sim_tick(dt)
+		web.host_post()
 		return
 	if net_role == "client":
 		if state != "results":
@@ -1274,6 +1296,185 @@ func _near(k: Kart) -> float:
 	return clampf(1.0 - _kpos(k).distance_to(cam.global_position) / 420.0, 0.0, 1.0)
 
 
+# ---------------------------------------------------------------- cross-play with the browser version (scripts/webnet.gd)
+
+func _map_by_mi(mi: int) -> String:
+	for m in maps:
+		if int(m.get("mi", -1)) == mi:
+			return String(m["id"])
+	return ""
+
+
+func _web_name() -> String:
+	for q in roster.get("racers", []):
+		if int((q as Dictionary).get("ri", -1)) == int(sel["ri"]):
+			return String((q as Dictionary).get("name", "PC racer"))
+	return "PC racer"
+
+
+func _web_join() -> void:
+	if web_code == null:
+		return
+	_net_close()
+	web.join(web_code.text, _web_name())
+
+
+func _web_changed(msg: String) -> void:
+	if web_lbl == null or not is_instance_valid(web_lbl):
+		return
+	var t := "Friends playing in a browser: they tap Play with friends, then Host a room, and you type their 4-letter room code here. You race as your chosen driver and kart; the host picks the track and starts the race."
+	if web.role == "host":
+		var names := PackedStringArray()
+		var waiting := 0
+		for p in web.pl:
+			var pd: Dictionary = p
+			var who := int(pd.get("id", -1))
+			names.append(String(pd.get("name", "?")) + (" (you)" if who == 0 else ("" if bool(pd.get("ready", false)) else " (in the garage)")))
+			if who != 0 and not bool(pd.get("ready", false)):
+				waiting += 1
+		t = "Room code %s. Friends open Crust Rush in a browser, tap Play with friends and enter the code. In the room: %s. %s" % [web.code, ", ".join(names),
+			("Waiting for %d to tap Ready." % waiting) if waiting > 0 else "Pick your driver and track, then Start: the race is on %s." % String(_map_info(map_id).get("name", map_id))]
+	elif web.role == "guest":
+		if web.chan.is_empty():
+			t = "Looking for room %s… This can take a few seconds." % web.code
+		else:
+			var names := PackedStringArray()
+			for p in web.pl:
+				var pd: Dictionary = p
+				var who := int(pd.get("id", -1))
+				names.append(String(pd.get("name", "?")) + (" (host)" if who == 0 else (" (you)" if who == web.me else "")))
+			t = "In room %s: %s. %s" % [web.code, ", ".join(names), ("The host has picked %s. The race starts when everyone is ready and the host taps Start." % web.host_tk) if web.host_tk != "" else "You're ready; the host picks the track."]
+	if msg != "":
+		t = msg
+	web_lbl.text = t
+	web_join_b.visible = web.role == ""
+	web_code.visible = web.role != "host"
+	web_code.editable = web.role == ""
+	web_leave_b.visible = web.role != ""
+	if web_host_b != null and is_instance_valid(web_host_b):
+		web_host_b.visible = web.role == ""
+		web_start_b.visible = web.role == "host"
+
+
+## the host started loading a race: load the same track and grid, then wait for everyone (web netBeginLoad)
+func _web_load(c: Dictionary) -> String:
+	if String(c.get("cls", "")) == "reverse":
+		return "This race runs the track in reverse, which the PC version can't do yet. Ask the host for 50cc, 100cc or 200cc."
+	var mid := _map_by_mi(int(c.get("mi", -1)))
+	if mid == "":
+		return "This race is on a track that isn't in your maps folder."
+	var pc := web.pc_cfg(c)
+	pc["map"] = mid
+	if String(c.get("mode", "")) == "lss":
+		pc["mode"] = "lss"
+	gp = {}
+	if menu != null:
+		menu.close_modal()
+	_start_race(pc)
+	if race == null or kart == null or map_id != mid:
+		return "Could not start that race."
+	cd = 3.2
+	_show_center("Waiting for racers…", 30.0)
+	return ""
+
+
+## hosting: the race you start for the room (the browser friends load it at the same time)
+func _web_host_load(pc: Dictionary) -> String:
+	gp = {}
+	if menu != null:
+		menu.close_modal()
+		menu.visible = false
+	pc["map"] = map_id
+	if String(web.cfg.get("mode", "")) == "lss":
+		pc["mode"] = "lss"
+	_start_race(pc)
+	if race == null or kart == null:
+		return "Could not start that race."
+	cd = 3.2
+	if not web.guests_open().is_empty():
+		_show_center("Waiting for racers…", 30.0)
+	return ""
+
+
+func _web_host_room() -> void:
+	_net_close()
+	web.host(_web_name())
+
+
+func _web_host_start() -> void:
+	var e := web.host_start()
+	if e != "":
+		_web_changed(e)
+
+
+func _web_go() -> void:
+	_show_center("", 0.0)
+
+
+func _web_race_on() -> void:
+	if state != "countdown":
+		return
+	state = "race"
+	race.state = "race"
+	_show_center("Go!", 1.0)
+	sfx.play("go")
+
+
+func _web_menu() -> void:
+	if state != "menu":
+		_to_menu("")
+	if menu != null:
+		menu.show_modal("mp")
+	_web_changed("")
+
+
+func _web_lost(msg: String, was_race: bool) -> void:
+	if was_race and state != "menu":
+		_to_menu("")
+		if menu != null:
+			menu.show_modal("mp")
+	_web_changed(msg)
+
+
+## a browser friend's race, every 120 Hz step: your kart drives here and its controls go to the host
+func _web_physics(dt: float) -> void:
+	race.haz_guest_step(dt)
+	if state == "countdown":
+		kart._save_prev()
+		if web.go:
+			var before := ceili(cd)
+			cd -= dt
+			var after := ceili(cd)
+			if after != before and after > 0:
+				_show_center(str(after), 0.9)
+				sfx.play("beep")
+			if cd <= 0.0:
+				_web_race_on()
+		return
+	if state == "results":
+		return
+	var o := _input_state()
+	web.step(dt, o)
+	_drain_events()
+	if state == "race" or state == "finished":
+		_finish_check()
+		_lap_check()
+	if state == "race" and kart.finished:
+		var all_done := true
+		for k in race.karts:
+			if k.peer != 0 and not k.finished:
+				all_done = false
+		if all_done or Time.get_ticks_msec() - web.snap_at > 4000:
+			state = "finished"
+			fin_t = 3.5
+	elif state == "finished":
+		fin_t -= dt
+		if fin_t <= 0.0:
+			race.finalize()
+			state = "results"
+			_show_results()
+
+
 ## the online racers' names, for the network log
 func _net_names() -> Array:
 	var out: Array = []
@@ -1347,10 +1548,10 @@ func _show_results() -> void:
 	var again_text := "Race again"
 	if not gp.is_empty():
 		again_text = "New Grand Prix" if gp_done else "Next race  ›"
-	if net_role == "client":
+	if net_role == "client" or web.racing():
 		again_text = "Waiting for the host…"
 	var again := menu.button(again_text, "cta", 22.0, Vector4(16, 14, 16, 14))
-	again.disabled = net_role == "client"
+	again.disabled = net_role == "client" or web.racing()
 	again.pressed.connect(_results_primary)
 	v.add_child(again)
 	var row := menu.hbox(10)
@@ -1365,7 +1566,7 @@ func _show_results() -> void:
 	mb.pressed.connect(_to_menu.bind(""))
 	row.add_child(mb)
 	v.add_child(row)
-	if net_role != "":
+	if net_role != "" or web.racing():
 		var nb := menu.button("Network log", "ghost", 14.0, Vector4(12, 8, 12, 8))
 		nb.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		nb.pressed.connect(func():
@@ -1373,7 +1574,7 @@ func _show_results() -> void:
 			menu.show_modal("netlog"))
 		v.add_child(nb)
 	panel_results.visible = true
-	if not auto_drive and net_role != "client":
+	if not auto_drive and net_role != "client" and not web.racing():
 		again.grab_focus.call_deferred()
 
 
@@ -1406,7 +1607,14 @@ func _result_row(place: int, k: Kart, right: String, add: String) -> Control:
 
 ## the results screen's main button: race again, the next Grand Prix race, or a new cup
 func _results_primary() -> void:
-	if net_role == "client":
+	if net_role == "client" or web.racing():
+		return
+	if web.role == "host":
+		panel_results.visible = false
+		var e := web.host_start()
+		if e != "":
+			_to_menu("")
+			_web_changed(e)
 		return
 	if gp.is_empty():
 		_restart()
@@ -1518,13 +1726,15 @@ func _input_state() -> Dictionary:
 	var o := {"steer": clampf(steer, -1.0, 1.0), "brake": brake, "nb": nb, "mul": mul, "use": false, "back": false, "hold": false, "hold_sl": 1, "release": null}
 	var it2 := item_queued
 	item_queued = ""
-	if auto_drive and net_role == "client" and kart != null:
+	if auto_drive and (net_role == "client" or web.racing()) and kart != null:
 		var tj := (kart.idx + 14) % T.N
 		o["steer"] = clampf(Kart.ang_diff(atan2(T.py[tj] - kart.y, T.px[tj] - kart.x), kart.a) * 2.5, -1.0, 1.0)
 		o["mul"] = 1.0
 		if kart.item != "" and kart.roll <= 0.0 and net_tick % 240 == 0:
 			it2 = "fwd"
-	if it2 != "" and kart != null:
+	if it2 != "" and kart != null and web.racing():
+		web.press(it2, look)
+	elif it2 != "" and kart != null:
 		if net_role == "client":
 			if net_ready:
 				_net_item.rpc_id(1, it2)
@@ -1631,6 +1841,8 @@ func _zone(p: Vector2) -> String:
 # ---------------------------------------------------------------- drawing
 
 func _process(dt: float) -> void:
+	if web != null:
+		web.poll()
 	if music != null and not auto_drive:
 		music.want(map_id, "loading" if (loading != null and loading.visible) else state, paused, dt)
 	if T == null or race == null:
@@ -1639,10 +1851,16 @@ func _process(dt: float) -> void:
 		time += dt
 	if NetLog.on:
 		NetLog.frame(state)
-		NetLog.tick(multiplayer.multiplayer_peer, net_peers)
+		NetLog.tick(multiplayer.multiplayer_peer, net_peers, web.stats() if web.racing() else {})
 	var al := 1.0 if (paused or state == "menu") else Engine.get_physics_interpolation_fraction()
 	if net_role == "client":
 		al = clampf((Time.get_ticks_msec() / 1000.0 - net_snap_at) / net_snap_dt, 0.0, 1.0)
+	# a browser friend's race: the others between the host's last two pictures, your own kart between its own steps
+	view.own_k = null
+	if web.racing() and not paused:
+		view.own_k = kart
+		view.own_al = al
+		al = web.alpha()
 	view.draw(al, dt, state == "race", paused)
 	if kart.elim and race.mode == "lss" and state == "race":
 		var st0 := race.standings()
@@ -1856,6 +2074,10 @@ func _fmt(t: float) -> String:
 func _to_menu(note: String) -> void:
 	NetLog.stop(_net_names())
 	_net_close()
+	if web.racing():
+		web.quit_race()
+	elif web.hosting():
+		web.host_menu()
 	gp = {}
 	_start_race({})
 	state = "menu"
@@ -2089,6 +2311,41 @@ func _mp_panel() -> Control:
 	btn_leave_net.pressed.connect(_menu_leave)
 	row2.add_child(btn_leave_net)
 	cv.add_child(row2)
+	# cross-play: join a room made in the browser version
+	var card2 := menu.panel(menu.glass(18.0, Vector4(18, 16, 18, 16)))
+	v.add_child(card2)
+	var cw := menu.vbox(12)
+	card2.add_child(cw)
+	cw.add_child(menu.section_label("Race with browser friends (room code)"))
+	web_lbl = menu.para("", 15.0, Color("#c2a58c"), 640.0)
+	cw.add_child(web_lbl)
+	var wr := menu.hbox(10)
+	web_code = LineEdit.new()
+	web_code.placeholder_text = "CODE"
+	web_code.max_length = 4
+	web_code.custom_minimum_size.x = menu.z(130)
+	web_code.add_theme_font_override("font", menu.f_disp)
+	web_code.add_theme_font_size_override("font_size", menu.zi(20))
+	web_code.add_theme_stylebox_override("normal", menu.glass(12.0, Vector4(12, 8, 12, 8)))
+	web_code.add_theme_stylebox_override("focus", menu.box([Color(1, 0.957, 0.863, 0.08)], 180.0, 12.0, Color("#f7c948"), 2.0, Vector4(12, 8, 12, 8)))
+	web_code.text_submitted.connect(func(_t): _web_join())
+	wr.add_child(web_code)
+	web_join_b = menu.button("Join room", "cta", 17.0, Vector4(20, 10, 20, 10))
+	web_join_b.pressed.connect(_web_join)
+	wr.add_child(web_join_b)
+	web_host_b = menu.button("Host a room", "ghost", 15.0, Vector4(18, 10, 18, 10))
+	web_host_b.pressed.connect(_web_host_room)
+	wr.add_child(web_host_b)
+	web_start_b = menu.button("Start race", "cta", 17.0, Vector4(20, 10, 20, 10))
+	web_start_b.pressed.connect(_web_host_start)
+	wr.add_child(web_start_b)
+	web_leave_b = menu.button("Leave room", "ghost", 15.0, Vector4(18, 10, 18, 10))
+	web_leave_b.pressed.connect(func():
+		web.leave()
+		_web_changed(""))
+	wr.add_child(web_leave_b)
+	cw.add_child(wr)
+	_web_changed("")
 	_menu_refresh("")
 	return v
 
@@ -2444,6 +2701,13 @@ var music_on := true
 var music_level := 0.45
 var shadows_on := true
 var pc_plus := true       # Settings > PC extras
+var web: WebNet           # cross-play with the browser version (a room code)
+var web_lbl: Label
+var web_code: LineEdit
+var web_join_b: Button
+var web_leave_b: Button
+var web_host_b: Button
+var web_start_b: Button
 var hd_on := true         # Settings > Finished models
 var look := "vivid"
 var ao_on := true

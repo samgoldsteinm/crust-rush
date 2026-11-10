@@ -469,6 +469,26 @@ func update(dt: float, player_inp: Dictionary) -> void:
 		if k.elim:
 			continue
 		var inp: Dictionary
+		if k.web and k.remote and not bool(k.ai.get("auto", false)):
+			# a browser friend's kart: each of their numbered controls played exactly once, in order (none, or a few
+			# to catch up), so it drives the same path it drove on their screen (web netSteps)
+			for e in k.web_q:
+				var wi := {"steer": float(e[0]), "brake": bool(e[1]), "nb": bool(e[2]), "mul": float(e[3]), "use": false, "back": false, "hold": false, "hold_sl": 1, "release": null}
+				var ev := String(e[4])
+				if ev != "" and k.spin <= 0.0:
+					var bk := ev.ends_with("B")
+					if bk:
+						ev = ev.substr(0, ev.length() - 1)
+					item_intent(k, ev, wi)
+					if bk and bool(wi["use"]):
+						wi["back"] = true
+				if int(e[5]) != 0 and state == "race":
+					use_ability(k, int(e[5]) == 2)
+				if k.rush > 0.0:
+					wi["use"] = false
+				k.step(wi, dt)
+			k.web_q.clear()
+			continue
 		if k.remote and not bool(k.ai.get("auto", false)) and not (k.rush > 0.0):
 			# a friend's kart: their latest controls, and any item presses they sent
 			inp = {"steer": float(k.net_inp["steer"]), "brake": bool(k.net_inp["brake"]), "nb": bool(k.net_inp["nb"]), "mul": float(k.net_inp["mul"]), "use": false, "back": false, "hold": false, "hold_sl": 1, "release": null}

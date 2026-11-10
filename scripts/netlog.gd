@@ -111,7 +111,7 @@ static func _pstat(pp: ENetPacketPeer, s: int) -> float:
 
 
 ## once a second: one row of numbers
-static func tick(mp: MultiplayerPeer, peers: Array) -> void:
+static func tick(mp: MultiplayerPeer, peers: Array, web := {}) -> void:
 	if not on:
 		return
 	var now := _now()
@@ -129,7 +129,15 @@ static func tick(mp: MultiplayerPeer, peers: Array) -> void:
 		kb_out = roundi(em.host.pop_statistic(ENetConnection.HOST_TOTAL_SENT_DATA) / 1024.0)
 		kb_in = roundi(em.host.pop_statistic(ENetConnection.HOST_TOTAL_RECEIVED_DATA) / 1024.0)
 	var row: Array
-	if role == "client":
+	if not web.is_empty():
+		# a browser friend's room (the relay): round trip by ping, big position fixes in place of lost packets
+		if snap_at > 0 and now - snap_at > 1000 and not quiet:
+			quiet = true
+			ev("host-quiet", now - snap_at)
+		row = [t, fps, "relay", int(web.get("rtt", 0)), int(web.get("fixes", 0)), 0, snaps, late, roundi(int(web.get("out", 0)) / 1024.0), roundi(int(web.get("in", 0)) / 1024.0)]
+		snaps = 0
+		late = 0
+	elif role == "client":
 		var pp: ENetPacketPeer = em.get_peer(1) if em != null else null
 		if snap_at > 0 and now - snap_at > 1000 and not quiet:
 			quiet = true
@@ -229,10 +237,20 @@ static func text(e: Dictionary) -> String:
 	var g := String(e.get("role", "")) == "guest"
 	var r: Array = e.get("rows", [])
 	var pl: Array = e.get("players", [])
-	var h := "Crust Rush network log · %s · %s · %s · %s · %d s · PC, direct connection\nplayers: %s\ndevice: %s\n" % [
+	var relay := false
+	for q in r:
+		if q is Array and (q as Array).size() > 2 and str(q[2]) == "relay":
+			relay = true
+			break
+	var h := "Crust Rush network log · %s · %s · %s · %s · %d s · %s\nplayers: %s\ndevice: %s\n" % [
 		String(e.get("when", "")).replace("T", " ").substr(0, 16), e.get("map", "?"), e.get("role", "?"), e.get("quality", "?"),
-		int(e.get("secs", 0)), ", ".join(PackedStringArray(pl)), e.get("ua", "?")]
-	if g:
+		int(e.get("secs", 0)), "PC in a browser room, through the relay" if relay else "PC, direct connection", ", ".join(PackedStringArray(pl)), e.get("ua", "?")]
+	if g and relay:
+		var rt2 := _col(r, 3)
+		h += "round trip: median %d ms, worst %d ms · big position fixes %d · late snapshots %d · snapshots a second: median %d · fps avg %d\n" % [
+			_med(rt2), _mx(rt2), _sum(_col(r, 4)), _sum(_col(r, 7)), _med(_col(r, 6)), _av(_col(r, 1))]
+		h += "rows: t fps route rtt fixes - snaps late KBout KBin\n"
+	elif g:
 		var rt := _col(r, 3)
 		var loss := _col(r, 4)
 		var lt := _col(r, 7)
