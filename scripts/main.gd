@@ -143,6 +143,7 @@ func _ready() -> void:
 	web.changed.connect(_web_changed)
 	if not auto_drive and not skip_menu:
 		_load_settings()
+		_fit_window.call_deferred(true)
 	scan_maps()
 	if map_id == "":
 		map_id = OS.get_environment("CR_MAP")
@@ -606,6 +607,8 @@ func _build_hud() -> void:
 	root.add_child(hud_race)
 	hud = Hud.new()
 	hud.kmh = opt_kmh
+	# the on-screen pedals and steering arrows are for touch screens: off on a PC until a real touch arrives
+	hud.show_touch = OS.has_feature("mobile")
 	hud_race.add_child(hud)
 	lbl_info = _label(13, Vector2(0, 0), HORIZONTAL_ALIGNMENT_CENTER)
 	_place(lbl_info, 0.5, 0, 0.5, 0, -300, 4, 300, 22)
@@ -743,7 +746,32 @@ func _apply_res() -> void:
 
 func _toggle_fullscreen() -> void:
 	var w := get_window()
-	w.mode = Window.MODE_MAXIMIZED if w.mode == Window.MODE_FULLSCREEN or w.mode == Window.MODE_EXCLUSIVE_FULLSCREEN else Window.MODE_FULLSCREEN
+	fs_on = not (w.mode == Window.MODE_FULLSCREEN or w.mode == Window.MODE_EXCLUSIVE_FULLSCREEN)
+	_fit_window(false)
+	_save_settings()
+
+
+## the window exactly covers the screen it is on (full screen), or sits inside that screen's free area: a window
+## left bigger than its screen (it happens with several screens at different sizes) cut the menus off at the edge
+func _fit_window(startup: bool) -> void:
+	if OS.has_feature("mobile") or OS.has_feature("web") or DisplayServer.get_name() == "headless":
+		return
+	var w := get_window()
+	var scr := DisplayServer.window_get_current_screen()
+	var sp := DisplayServer.screen_get_position(scr)
+	var ss := DisplayServer.screen_get_size(scr)
+	if fs_on:
+		if startup or w.mode != Window.MODE_FULLSCREEN or w.position != sp or w.size != ss:
+			w.mode = Window.MODE_WINDOWED
+			w.position = sp
+			w.size = ss
+			w.mode = Window.MODE_FULLSCREEN
+	else:
+		var ur := DisplayServer.screen_get_usable_rect(scr)
+		w.mode = Window.MODE_WINDOWED
+		w.position = ur.position
+		w.size = ur.size
+		w.mode = Window.MODE_MAXIMIZED
 
 
 func _toggle_pause() -> void:
@@ -1755,14 +1783,35 @@ func _input_state() -> Dictionary:
 
 
 func _input(ev: InputEvent) -> void:
+	# the pause and results sheets: a controller or key press with nothing on them focused gives the focus to their
+	# first button (and A goes on to press it), as the menus do
+	if (ev is InputEventJoypadButton or ev is InputEventKey or ev is InputEventJoypadMotion) and not (menu != null and menu.visible):
+		var acc := ev.is_action_pressed("ui_accept")
+		var nav := ev.is_action_pressed("ui_up") or ev.is_action_pressed("ui_down") or ev.is_action_pressed("ui_left") or ev.is_action_pressed("ui_right")
+		var host: Control = panel_pause if panel_pause != null and panel_pause.visible else (panel_results if panel_results != null and panel_results.visible else null)
+		if host != null and (acc or nav):
+			var fo := get_viewport().gui_get_focus_owner()
+			if fo == null or not fo.is_visible_in_tree() or not host.is_ancestor_of(fo):
+				var t := Menu._first_focusable(host)
+				if t != null:
+					t.grab_focus()
+					if nav:
+						get_viewport().set_input_as_handled()
+						return
 	if ev is InputEventScreenTouch:
 		var t := ev as InputEventScreenTouch
+		if t.device != InputEvent.DEVICE_ID_EMULATION and hud != null:
+			hud.show_touch = true
+		if hud != null and not hud.show_touch:
+			return     # a mouse click on a PC: no touch steering
 		if t.pressed:
 			touches[t.index] = _zone(t.position)
 		else:
 			touches.erase(t.index)
 	elif ev is InputEventScreenDrag:
 		var d := ev as InputEventScreenDrag
+		if hud != null and not hud.show_touch:
+			return
 		if touches.has(d.index) and touches[d.index] != "pedal":
 			touches[d.index] = _zone(d.position)
 	elif ev is InputEventMouseButton:
@@ -2392,7 +2441,7 @@ func _settings_panel() -> Control:
 				["Sharpening", "When the 3D view is drawn below screen size to hold the frame rate, a sharpening pass brings the detail back. Turn off if you prefer a softer picture.", "sharp", on_off, "1" if sharpen_on else "0"],
 				["Scenery distance", "How far away trackside props are drawn.", "scenery", [["0", "Near"], ["1", "Normal"], ["2", "Far"]], str(scenery)],
 				["Frame rate", "Auto runs at your monitor's full rate. 60 fps caps the game at a steady 60 for slower computers.", "fps", [["0", "Auto"], ["60", "60 fps"], ["120", "120 fps"]], str(fps_cap)],
-				["Resolution", "Draw the 3D view smaller and scale it up, for a higher frame rate on slower graphics cards.", "res", [["1.0", "100%"], ["0.85", "85%"], ["0.67", "67%"]], str(snappedf(res_scale, 0.01)) if res_scale < 0.99 else "1.0"],
+				["Resolution", "Draw the 3D view smaller and scale it up, for a higher frame rate on slower graphics cards.", "res", {"lo": 50, "hi": 100, "step": 5, "fmt": "%d%%", "mul": 0.01}, res_scale],
 				["Full screen", "F11 switches too.", "fs", on_off, "1" if DisplayServer.window_get_mode() in [DisplayServer.WINDOW_MODE_FULLSCREEN, DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN] else "0"],
 				["Frame counter", "Show frames per second during a race.", "fpsc", on_off, "1" if fps_counter else "0"],
 			]))
@@ -2400,9 +2449,9 @@ func _settings_panel() -> Control:
 			c.add_child(menu.section_label("Sound"))
 			c.add_child(_set_rows([
 				["Sound", "Engine, effects and music cues.", "snd", on_off, "1" if sfx_vol > 0.01 else "0"],
-				["Volume", "How loud everything plays.", "vol", [["0.25", "25%"], ["0.5", "50%"], ["0.75", "75%"], ["1.0", "100%"]], str(snappedf(snd_level, 0.25))],
+				["Volume", "How loud everything plays.", "vol", {"lo": 0, "hi": 100, "step": 5, "fmt": "%d%%", "mul": 0.01}, snd_level],
 				["Music", "A different soundtrack on every track, four that take turns on the menus.", "music", on_off, "1" if music_on else "0"],
-				["Music volume", "How loud the soundtrack sits under the engine and effects.", "mvol", [["0.25", "25%"], ["0.45", "45%"], ["0.7", "70%"], ["1.0", "100%"]], str(music_level)],
+				["Music volume", "How loud the soundtrack sits under the engine and effects.", "mvol", {"lo": 0, "hi": 100, "step": 5, "fmt": "%d%%", "mul": 0.01}, music_level],
 			]))
 		"gameplay":
 			c.add_child(menu.section_label("Gameplay"))
@@ -2410,7 +2459,7 @@ func _settings_panel() -> Control:
 				["Kart stats", "Off makes every part cosmetic, so all karts drive the same. Applies from the next race.", "stats", on_off, "1" if KartBuilder.stats_on else "0"],
 				["Speed units", "", "units", [["mph", "mph"], ["kmh", "km/h"]], "kmh" if hud.kmh else "mph"],
 				["Camera", "Close sits right behind your driver.", "cam", [["close", "Close"], ["far", "Far"]], "far" if cam_far else "close"],
-				["Camera distance", "How far behind your kart the camera sits.", "camd", [["80", "80%"], ["90", "90%"], ["100", "100%"], ["110", "110%"], ["120", "120%"]], str(cam_d)],
+				["Camera distance", "How far behind your kart the camera sits.", "camd", {"lo": 75, "hi": 150, "step": 5, "fmt": "%d%%", "mul": 1.0}, cam_d],
 				["Camera shake", "Shake on bumps, boosts and hits.", "shake", on_off, "1" if shake_on else "0"],
 				["Best-run ghost", "Race a see-through copy of your personal best.", "ghost", on_off, "1" if ghost_on else "0"],
 			]))
@@ -2724,6 +2773,7 @@ var snd_level := 1.0
 var cam_far := false
 var cam_d := 100
 var shake_on := true
+var fs_on := true         # full screen (saved; F11 switches too)
 
 
 var sfx_vol := 1.0
@@ -2739,7 +2789,14 @@ func _set_rows(rows: Array) -> Control:
 		tv.add_child(menu.para(String(r[1]), 13.0, Color("#c2a58c"), 420.0))
 		h.add_child(tv)
 		var key: String = r[2]
-		var sg := menu.seg("set_" + key, r[3], String(r[4]), func(val): _apply_setting(key, String(val)), 15.0, 8.0)
+		var sg: Control
+		if r[3] is Dictionary:
+			# a slider, as on the web (volume, music volume, camera distance, resolution)
+			var sp: Dictionary = r[3]
+			var mul := float(sp["mul"])
+			sg = menu.slider(float(sp["lo"]), float(sp["hi"]), float(sp["step"]), roundf(float(r[4]) / mul), String(sp["fmt"]), func(v): _apply_setting(key, str(float(v) * mul)))
+		else:
+			sg = menu.seg("set_" + key, r[3], String(r[4]), func(val): _apply_setting(key, String(val)), 15.0, 8.0)
 		sg.custom_minimum_size.x = menu.z(330)
 		sg.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		h.add_child(sg)
@@ -2767,6 +2824,8 @@ func _apply_setting(key: String, val: String) -> void:
 			var is_fs := DisplayServer.window_get_mode() in [DisplayServer.WINDOW_MODE_FULLSCREEN, DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN]
 			if want != is_fs:
 				_toggle_fullscreen()
+			else:
+				_fit_window(false)
 		"snd":
 			sfx_vol = snd_level if val == "1" else 0.0
 			_apply_volume()
@@ -2803,7 +2862,7 @@ func _apply_setting(key: String, val: String) -> void:
 		"cam":
 			cam_far = val == "far"
 		"camd":
-			cam_d = int(val)
+			cam_d = int(round(float(val)))
 		"shake":
 			shake_on = val == "1"
 		"ghost":
@@ -2875,7 +2934,7 @@ func _save_settings() -> void:
 	cf.set_value("gfx", "res", res_scale)
 	cf.set_value("snd", "vol", sfx_vol)
 	cf.set_value("snd", "level", snd_level)
-	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on"]:
 		cf.set_value("opt", k2, get(k2))
 	cf.set_value("opt", "stats_on", KartBuilder.stats_on)
 	Keys.save_to(cf)
@@ -2902,7 +2961,7 @@ func _load_settings() -> void:
 	res_scale = float(cf.get_value("gfx", "res", res_scale))
 	sfx_vol = float(cf.get_value("snd", "vol", 1.0))
 	snd_level = float(cf.get_value("snd", "level", 1.0))
-	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on"]:
 		var vv = cf.get_value("opt", k2, get(k2))
 		if typeof(vv) == typeof(get(k2)):
 			set(k2, vv)

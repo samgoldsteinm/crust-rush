@@ -49,6 +49,8 @@ var _grad := 8.0
 var _gcy := 3.0
 var _gasp := 0.0
 var _gdrag := false
+var _gzoom := 1.0             # garage zoom (1 = the web's framing)
+var _gtilt := 0.22            # garage camera height (radians above the floor)
 var map_id := "bay"
 var cup := 0
 var maps: Array = []           # from main.maps: {id, name, mi, theme, cup}
@@ -71,10 +73,18 @@ func _input(ev: InputEvent) -> void:
 		return
 	if ev is InputEventMouseButton or ev is InputEventMouseMotion:
 		return
-	var nav := ev.is_action_pressed("ui_up") or ev.is_action_pressed("ui_down") or ev.is_action_pressed("ui_left") or ev.is_action_pressed("ui_right") or ev.is_action_pressed("ui_accept")
-	if nav and get_viewport().gui_get_focus_owner() == null and default_focus != null and is_instance_valid(default_focus):
-		default_focus.grab_focus()
-		get_viewport().set_input_as_handled()
+	var nav := ev.is_action_pressed("ui_up") or ev.is_action_pressed("ui_down") or ev.is_action_pressed("ui_left") or ev.is_action_pressed("ui_right")
+	var acc := ev.is_action_pressed("ui_accept")
+	var fo := get_viewport().gui_get_focus_owner()
+	# nothing (or something no longer on screen) has the focus: give it to this screen's main button. A move only
+	# shows where the focus is; A (or Enter) then goes on to press that button, so A is never swallowed
+	var lost := fo == null or not fo.is_visible_in_tree() or (modal != null and not modal.is_ancestor_of(fo))
+	if (nav or acc) and lost:
+		var tgt := default_focus if default_focus != null and is_instance_valid(default_focus) and default_focus.is_visible_in_tree() else _first_focusable(modal if modal != null else screens.get(cur))
+		if tgt != null:
+			tgt.grab_focus()
+			if nav:
+				get_viewport().set_input_as_handled()
 	if ev.is_action_pressed("ui_cancel"):
 		if modal != null:
 			close_modal()
@@ -86,6 +96,19 @@ func _input(ev: InputEvent) -> void:
 			open("garage" if KartBuilder.ready() else "driver")
 		get_viewport().set_input_as_handled()
 var _seg_groups := {}
+
+
+## the first button (or other control that takes the focus) showing under a node, in reading order
+static func _first_focusable(n: Node) -> Control:
+	if n == null or not is_instance_valid(n):
+		return null
+	if n is Control and (n as Control).focus_mode == Control.FOCUS_ALL and (n as Control).is_visible_in_tree() and not (n is Button and (n as Button).disabled):
+		return n as Control
+	for c in n.get_children():
+		var f := _first_focusable(c)
+		if f != null:
+			return f
+	return null
 
 
 func _ready() -> void:
@@ -245,9 +268,9 @@ func button(text: String, kind: String, size_css := 15.0, pad := Vector4(16, 12,
 			font = f_disp
 			# linear-gradient(135deg,#ff9a2a 0%,#e0452c 55%,#c4300f 100%); 0 5px 0 sauce-dark, 0 12px 30px rgba(224,69,44,.35)
 			normal = box([[0.0, Color("#ff9a2a")], [0.55, Color("#e0452c")], [1.0, Color("#c4300f")]], 135.0, 14.0, Color(0, 0, 0, 0), 0.0, pad)
-			normal.shadow(Vector2(0, 12), 30.0, Color(0.88, 0.27, 0.17, 0.3)).shadow(Vector2(0, 5), 0.0, SAUCE_DARK)
+			normal.shadow(Vector2(0, 10), 26.0, Color(0.88, 0.27, 0.17, 0.24)).shadow(Vector2(0, 5), 0.0, SAUCE_DARK)
 			hover = box([[0.0, Color("#ffab45")], [0.55, Color("#ec5537")], [1.0, Color("#d03a16")]], 135.0, 14.0, Color(0, 0, 0, 0), 0.0, pad)
-			hover.shadow(Vector2(0, 12), 30.0, Color(0.88, 0.27, 0.17, 0.4)).shadow(Vector2(0, 5), 0.0, SAUCE_DARK)
+			hover.shadow(Vector2(0, 10), 26.0, Color(0.88, 0.27, 0.17, 0.32)).shadow(Vector2(0, 5), 0.0, SAUCE_DARK)
 			pressed = box([[0.0, Color("#ff9a2a")], [0.55, Color("#e0452c")], [1.0, Color("#c4300f")]], 135.0, 14.0, Color(0, 0, 0, 0), 0.0, pad + Vector4(0, 3, 0, -3))
 			pressed.shadow(Vector2(0, 2), 0.0, SAUCE_DARK)
 		"ghost":
@@ -264,7 +287,7 @@ func button(text: String, kind: String, size_css := 15.0, pad := Vector4(16, 12,
 			pressed = normal
 		"seg_on":
 			normal = box([Color("#ff8a1f"), Color("#e0452c")], 135.0, 9.0, Color(0, 0, 0, 0), 0.0, pad)
-			normal.shadow(Vector2(0, 4), 14.0, Color(0.88, 0.27, 0.17, 0.4))
+			normal.shadow(Vector2(0, 4), 12.0, Color(0.88, 0.27, 0.17, 0.32))
 			hover = normal
 			pressed = normal
 		_:   # seg_off
@@ -285,6 +308,80 @@ func button(text: String, kind: String, size_css := 15.0, pad := Vector4(16, 12,
 	if kind == "cta":
 		b.add_theme_constant_override("outline_size", 0)
 	return b
+
+
+## a slider (the web's input[type=range] in .vol): a sauce-orange filled track, a round cream knob and the value
+## beside it, e.g. "75%". Calls on_change(value) as it moves.
+func slider(lo: float, hi: float, step: float, val: float, fmt: String, on_change: Callable) -> HBoxContainer:
+	var row := hbox(12)
+	var sl := HSlider.new()
+	sl.min_value = lo
+	sl.max_value = hi
+	sl.step = step
+	sl.value = val
+	sl.focus_mode = Control.FOCUS_ALL
+	sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	sl.custom_minimum_size = Vector2(z(200), z(28))
+	sl.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var trk := StyleBoxFlat.new()
+	trk.bg_color = Color(1, 0.957, 0.863, 0.14)
+	trk.set_corner_radius_all(zi(4))
+	trk.content_margin_top = z(4)
+	trk.content_margin_bottom = z(4)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color("#ff7a24")
+	fill.set_corner_radius_all(zi(4))
+	fill.content_margin_top = z(4)
+	fill.content_margin_bottom = z(4)
+	var fill_hi := fill.duplicate() as StyleBoxFlat
+	fill_hi.bg_color = Color("#ff9a3a")
+	sl.add_theme_stylebox_override("slider", trk)
+	sl.add_theme_stylebox_override("grabber_area", fill)
+	sl.add_theme_stylebox_override("grabber_area_highlight", fill_hi)
+	sl.add_theme_icon_override("grabber", _knob(false))
+	sl.add_theme_icon_override("grabber_highlight", _knob(true))
+	sl.add_theme_icon_override("grabber_disabled", _knob(false))
+	var foc := StyleBoxFlat.new()
+	foc.draw_center = false
+	foc.border_color = CHEESE
+	foc.set_border_width_all(zi(2))
+	foc.set_corner_radius_all(zi(8))
+	foc.expand_margin_left = z(6)
+	foc.expand_margin_right = z(6)
+	foc.expand_margin_top = z(2)
+	foc.expand_margin_bottom = z(2)
+	sl.add_theme_stylebox_override("focus", foc)
+	row.add_child(sl)
+	var out := label(fmt % val, f_bold, 15.0, CREAM)
+	out.custom_minimum_size.x = z(56)
+	out.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(out)
+	sl.value_changed.connect(func(v):
+		out.text = fmt % v
+		on_change.call(v))
+	return row
+
+
+var _knobs := {}
+func _knob(hi: bool) -> Texture2D:
+	if _knobs.has(hi):
+		return _knobs[hi]
+	var n := zi(22) * 2
+	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+	var c := Vector2(n, n) / 2.0 - Vector2(0.5, 0.5)
+	for y in n:
+		for x in n:
+			var d := Vector2(x, y).distance_to(c)
+			var r := n * 0.5 - 2.0
+			var a := clampf(r - d + 0.5, 0.0, 1.0)
+			var col := Color("#fff4dc") if d < r - 3.0 else (Color("#ff9a3a") if hi else Color("#e0452c"))
+			col.a = a
+			img.set_pixel(x, y, col)
+	img.resize(zi(22), zi(22), Image.INTERPOLATE_LANCZOS)
+	var t := ImageTexture.create_from_image(img)
+	_knobs[hi] = t
+	return t
 
 
 func icon_tex(name_: String) -> Texture2D:
@@ -551,9 +648,12 @@ func _driver() -> Control:
 		rt.add_theme_color_override("default_color", MUTED)
 		rt.text = "[b][color=#fff4dc]%s[/color][/b] %s" % [String(info.get("ability", "")), String(info.get("ability_desc", ""))]
 		ab.add_child(rt)
+		# the colour dot sits in the box's left padding, level with the first line (the box lays its children over
+		# the text area, so the dot is drawn back out to the left of it)
 		var dot := _Dot.new()
 		dot.col = Color(String(info.get("ability_col", "#ff5a2a")))
-		dot.position = Vector2(z(10), z(30))
+		dot.at = Vector2(-z(14), z(9))
+		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		ab.add_child(dot)
 		dv.add_child(ab)
 		dv.add_child(label(String(info.get("name", "Racer")).to_upper(), f_disp, 24.0, CHEESE, SAUCE_DARK, Vector2(0, 3)))
@@ -606,11 +706,31 @@ class _Portrait extends Control:
 			uvs.append(Vector2((src.position.x + p.x / size.x * src.size.x) / tex.get_width(), (src.position.y + p.y / size.y * src.size.y) / tex.get_height()))
 		draw_colored_polygon(pts, Color.WHITE, uvs, tex)
 		if fade:
-			var n := 12
-			for i in n:
+			# one smooth darkening over the lower part, following the rounded bottom corners (strips laid edge to
+			# edge, never overlapping: overlapping see-through strips showed as lines)
+			var n := 24
+			var rr := (Vector4.ONE * radius if corners.x < 0.0 else corners)
+			var fp := PackedVector2Array()
+			var cols := PackedColorArray()
+			for i in n + 1:
 				var f := float(i) / n
-				var y0 := size.y * (0.72 + 0.28 * f)
-				draw_rect(Rect2(radius * 0.3 * f, y0, size.x - radius * 0.6 * f, size.y * 0.28 / n + 1.0), Color(0.06, 0.03, 0.02, 0.15 + 0.6 * f))
+				var y := size.y * (0.6 + 0.4 * f)
+				var dl := 0.0
+				var dr := 0.0
+				var yb := size.y - y
+				if yb < rr.w:
+					dl = rr.w - sqrt(maxf(0.0, rr.w * rr.w - (rr.w - yb) * (rr.w - yb)))
+				if yb < rr.z:
+					dr = rr.z - sqrt(maxf(0.0, rr.z * rr.z - (rr.z - yb) * (rr.z - yb)))
+				fp.append(Vector2(dl, y))
+				fp.append(Vector2(size.x - dr, y))
+				var a := 0.78 * f * f * (3.0 - 2.0 * f)
+				cols.append(Color(0.06, 0.03, 0.02, a))
+				cols.append(Color(0.06, 0.03, 0.02, a))
+			var idx := PackedInt32Array()
+			for i in n:
+				idx.append_array([i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2])
+			RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), idx, fp, cols)
 		if label != "" and font != null:
 			draw_string(font, Vector2(font_px * 0.5, size.y - font_px * 0.55) + Vector2(0, 1), label, HORIZONTAL_ALIGNMENT_LEFT, size.x - font_px, int(font_px), Color(0, 0, 0, 0.8))
 			draw_string(font, Vector2(font_px * 0.5, size.y - font_px * 0.55), label, HORIZONTAL_ALIGNMENT_LEFT, size.x - font_px, int(font_px), Color("#fff4dc"))
@@ -618,9 +738,10 @@ class _Portrait extends Control:
 
 class _Dot extends Control:
 	var col := Color.RED
+	var at := Vector2.ZERO
 	func _draw() -> void:
-		draw_circle(Vector2.ZERO, 6.0 * 1.18, col)
-		draw_circle(Vector2.ZERO, 9.0 * 1.18, Color(col.r, col.g, col.b, 0.25))
+		draw_circle(at, 9.0 * 1.18, Color(col.r, col.g, col.b, 0.25), true, -1.0, true)
+		draw_circle(at, 5.0 * 1.18, col, true, -1.0, true)
 
 
 func _driver_card(i: int, info: Dictionary) -> Button:
@@ -935,6 +1056,12 @@ func _part_card(name_: String, st: Array, on: bool, dense: bool) -> Button:
 	l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	v.add_child(l)
 	v.add_child(_chips(st))
+	# the card grows to fit when its chips wrap onto a second row (they ran into the card below)
+	var base_h := z(48 if dense else 74)
+	v.minimum_size_changed.connect(func():
+		var need := maxf(base_h, v.get_combined_minimum_size().y + z(14))
+		if absf(b.custom_minimum_size.y - need) > 0.5:
+			b.custom_minimum_size.y = need)
 	return b
 
 
@@ -991,21 +1118,65 @@ func _garage() -> Control:
 		vsm.set_shader_parameter("size_px", vbg.size)
 		vsm.set_shader_parameter("radius_px", z(17.0)))
 	view.add_child(vbg)
-	var svc := SubViewportContainer.new()
-	svc.stretch = true
+	# the 3D preview is drawn at the screen's own pixels (a SubViewportContainer draws at the menu's 1280-wide
+	# layout size, which a 1440p screen then doubled: a soft, blocky car)
+	var svc := TextureRect.new()
+	svc.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	svc.stretch_mode = TextureRect.STRETCH_SCALE
+	svc.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	svc.mouse_filter = Control.MOUSE_FILTER_STOP
+	svc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	view.add_child(svc)
 	_gview = SubViewport.new()
 	_gview.own_world_3d = true
 	_gview.transparent_bg = true
-	_gview.msaa_3d = Viewport.MSAA_4X
+	_gview.msaa_3d = Viewport.MSAA_8X
+	_gview.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+	_gview.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_gview.size = Vector2i(16, 16)
 	svc.add_child(_gview)
+	svc.texture = _gview.get_texture()
+	svc.resized.connect(func():
+		var px := _px_scale()
+		_gview.size = Vector2i(maxi(16, int(svc.size.x * px)), maxi(16, int(svc.size.y * px))))
 	_garage_scene()
+	# drag to turn it (and tilt), the wheel or the right stick to zoom, double-click to reset
 	svc.gui_input.connect(func(ev):
 		if ev is InputEventMouseButton:
-			_gdrag = (ev as InputEventMouseButton).pressed and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT
+			var mb := ev as InputEventMouseButton
+			if mb.button_index == MOUSE_BUTTON_LEFT:
+				_gdrag = mb.pressed
+				if mb.double_click:
+					_gzoom = 1.0
+					_gtilt = 0.22
+					_frame_garage_cam()
+			elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+				_zoom_garage(1.12)
+			elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+				_zoom_garage(1.0 / 1.12)
+		elif ev is InputEventMagnifyGesture:
+			_zoom_garage((ev as InputEventMagnifyGesture).factor)
 		elif ev is InputEventMouseMotion and _gdrag:
-			_grot += (ev as InputEventMouseMotion).relative.x * 0.01)
+			var mm := ev as InputEventMouseMotion
+			_grot += mm.relative.x * 0.01
+			_gtilt = clampf(_gtilt + mm.relative.y * 0.004, 0.04, 0.95)
+			_frame_garage_cam())
+	# zoom buttons in the top-right corner (in a free layer: the panel would stretch them over the whole view)
+	var zl := Control.new()
+	zl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	view.add_child(zl)
+	var zb := hbox(6)
+	zl.add_child(zb)
+	zb.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE)
+	zb.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	zb.position = Vector2(-z(12) - z(82), z(10))
+	for spec in [["−", 1.0 / 1.25], ["+", 1.25]]:
+		var b := button(String(spec[0]), "icon", 18.0, Vector4(12, 4, 12, 4))
+		b.custom_minimum_size = Vector2(z(38), z(34))
+		b.tooltip_text = "Zoom (mouse wheel, right stick)"
+		var f: float = spec[1]
+		b.pressed.connect(func(): _zoom_garage(f))
+		zb.add_child(b)
 	var over := vbox(0)
 	over.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	over.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1252,18 +1423,18 @@ func _garage_scene() -> void:
 	var e := Environment.new()
 	e.background_mode = Environment.BG_CLEAR_COLOR
 	var sky := Sky.new()
+	# a warm studio with soft-box lights, for clean reflections in the paint, glass and chrome
 	var skm := ShaderMaterial.new()
-	skm.shader = load("res://shaders/sky.gdshader")
+	skm.shader = load("res://shaders/studio_sky.gdshader")
 	skm.set_shader_parameter("top_col", Color("#fff1d6"))
 	skm.set_shader_parameter("hor_col", Color("#ffd9a8"))
 	skm.set_shader_parameter("bot_col", Color("#6b3a1e"))
-	skm.set_shader_parameter("sun_col", Color("#ff8a2a"))
 	sky.sky_material = skm
-	sky.radiance_size = Sky.RADIANCE_SIZE_64
+	sky.radiance_size = Sky.RADIANCE_SIZE_256
 	e.sky = sky
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	e.ambient_light_sky_contribution = 1.0
-	e.ambient_light_energy = 0.75
+	e.ambient_light_energy = 0.55
 	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
 	e.tonemap_white = 16.0
@@ -1344,6 +1515,18 @@ static func _rel_xf(n: Node3D, top: Node3D) -> Transform3D:
 
 
 ## web frameGarageCam (no glider unfolded, normal zoom): fit the kart's bounding sphere in a 30 degree view, raised .22 rad
+func _zoom_garage(f: float) -> void:
+	_gzoom = clampf(_gzoom * f, 0.75, 3.2)
+	_frame_garage_cam()
+
+
+## screen pixels for one unit of the menus' layout (2 on a 1440p screen)
+func _px_scale() -> float:
+	var vr := get_viewport().get_visible_rect().size
+	var ws := Vector2(DisplayServer.window_get_size()) if DisplayServer.get_name() != "headless" else vr
+	return clampf(ws.y / maxf(1.0, vr.y), 1.0, 4.0)
+
+
 func _frame_garage_cam() -> void:
 	if _gcam == null or not is_instance_valid(_gcam):
 		return
@@ -1353,9 +1536,10 @@ func _frame_garage_cam() -> void:
 	var vh := deg_to_rad(15.0)
 	var hh := atan(tan(vh) * asp)
 	var d := _grad / sin(minf(vh, hh)) * 0.84
-	var el := 0.22
+	var el := _gtilt
+	d /= _gzoom
 	var hz := cos(el) * d
-	var sh := _grad * 0.34 * minf(1.0, asp / 1.3)
+	var sh := _grad * 0.34 * minf(1.0, asp / 1.3) / _gzoom
 	_gcam.near = maxf(0.5, minf(d - _grad * 1.6, d * 0.25))
 	_gcam.far = maxf(200.0, d * 8.0)
 	_gcam.look_at_from_position(Vector3(hz * 0.756 - sh * 0.654, _gcy + sin(el) * d, hz * 0.654 + sh * 0.756), Vector3(-sh * 0.654, _gcy - _grad * 0.16, sh * 0.756), Vector3.UP)
@@ -1364,7 +1548,16 @@ func _frame_garage_cam() -> void:
 func _process(dt: float) -> void:
 	if _gturn != null and is_instance_valid(_gturn) and cur == "garage":
 		if not _gdrag:
-			_grot += dt * 0.4
+			_grot += dt * 0.4 / _gzoom
+		# the right stick turns and zooms it on a controller
+		var pads := Input.get_connected_joypads()
+		if pads.size() > 0:
+			var rx := Input.get_joy_axis(pads[0], JOY_AXIS_RIGHT_X)
+			var ry := Input.get_joy_axis(pads[0], JOY_AXIS_RIGHT_Y)
+			if absf(rx) > 0.2:
+				_grot += rx * dt * 2.5
+			if absf(ry) > 0.2:
+				_zoom_garage(1.0 - ry * dt * 1.6)
 		_gturn.rotation.y = _grot
 		var a := float(_gview.size.x) / maxf(1.0, float(_gview.size.y))
 		if absf(a - _gasp) > 0.01:
@@ -1374,7 +1567,9 @@ func _process(dt: float) -> void:
 
 # ---------------------------------------------------------------- overlays
 
-func close_modal(keep_keys := false) -> void:
+## `swap`: another sheet takes its place straight away (Settings rebuilding itself after a change), so nobody is told
+## it closed: told, a race's pause menu would hide the menu under the new sheet
+func close_modal(keep_keys := false, swap := false) -> void:
 	if not keep_keys:
 		Keys.wait = []     # a key box left waiting stops waiting when its screen closes
 	if modal != null:
@@ -1382,11 +1577,12 @@ func close_modal(keep_keys := false) -> void:
 		modal = null
 		for k in screens:
 			(screens[k] as Control).visible = true
-		modal_closed.emit()
+		if not swap:
+			modal_closed.emit()
 
 
 func show_modal(kind: String) -> void:
-	close_modal(kind == "set")
+	close_modal(kind == "set", true)
 	var m := Control.new()
 	m.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	m.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -1445,7 +1641,9 @@ func show_modal(kind: String) -> void:
 	add_child(m)
 	for k in screens:
 		(screens[k] as Control).visible = false
-	default_focus = done
+	default_focus = _first_focusable(content)
+	if default_focus == null:
+		default_focus = done
 
 
 var netlog_back := ""      # the sheet the network log was opened from ("set"), so Done returns there

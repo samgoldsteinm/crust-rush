@@ -82,6 +82,54 @@ static func outline(r: Rect2, rad: Vector4, seg := 6) -> PackedVector2Array:
 	return pts
 
 
+## a blurred box-shadow as smooth gradient rings (full strength inside, fading to nothing over the blur), so it
+## never shows the steps of stacked layers
+static func _soft(ci: RID, r0: Rect2, rad: Vector4, blur: float, col: Color) -> void:
+	var e0 := minf(blur * 0.5, minf(r0.size.x, r0.size.y) * 0.5 - 1.0)
+	var rings := [[-e0, 1.0], [0.0, 0.5], [blur * 0.45, 0.16], [blur, 0.0]]
+	var prev := outline_n(r0.grow(-e0), rad - Vector4.ONE * e0)
+	var pa := col.a
+	RenderingServer.canvas_item_add_polygon(ci, prev, PackedColorArray([Color(col.r, col.g, col.b, pa)]))
+	for j in range(1, rings.size()):
+		var g: float = rings[j][0]
+		var a: float = col.a * float(rings[j][1])
+		var cur := outline_n(r0.grow(g), rad + Vector4.ONE * g)
+		var pts := PackedVector2Array()
+		var cols := PackedColorArray()
+		var idx := PackedInt32Array()
+		var n := prev.size()
+		var ci0 := Color(col.r, col.g, col.b, pa)
+		var co0 := Color(col.r, col.g, col.b, a)
+		for i in n:
+			pts.append(prev[i])
+			pts.append(cur[i])
+			cols.append(ci0)
+			cols.append(co0)
+		for i in n:
+			var i2 := (i + 1) % n
+			idx.append_array([i * 2, i2 * 2, i * 2 + 1, i * 2 + 1, i2 * 2, i2 * 2 + 1])
+		RenderingServer.canvas_item_add_triangle_array(ci, idx, pts, cols)
+		prev = cur
+		pa = a
+
+
+## as outline(), with the same number of points whatever the size (each corner an arc of 8 steps)
+static func outline_n(r: Rect2, rad: Vector4) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	var rr := [rad.x, rad.y, rad.z, rad.w]
+	var lim := maxf(0.3, minf(r.size.x, r.size.y) / 2.0)
+	for i in 4:
+		rr[i] = clampf(rr[i], 0.3, lim)
+	var centres := [r.position + Vector2(rr[0], rr[0]), Vector2(r.end.x - rr[1], r.position.y + rr[1]), r.end - Vector2(rr[2], rr[2]), Vector2(r.position.x + rr[3], r.end.y - rr[3])]
+	var a0 := [PI, PI * 1.5, 0.0, PI * 0.5]
+	for i in 4:
+		var c: Vector2 = centres[i]
+		for k in 9:
+			var a: float = a0[i] + PI * 0.5 * float(k) / 8.0
+			pts.append(c + Vector2(cos(a), sin(a)) * float(rr[i]))
+	return pts
+
+
 func _fill(ci: RID, r: Rect2, rad: Vector4) -> void:
 	var pts := outline(r, rad)
 	if pts.size() < 3:
@@ -131,12 +179,7 @@ func _draw(ci: RID, rect: Rect2) -> void:
 			var p0 := outline(r0, rad + Vector4.ONE * spread)
 			RenderingServer.canvas_item_add_polygon(ci, p0, PackedColorArray([col]))
 			continue
-		var steps := 6
-		for k in steps:
-			var g := blur * (1.0 - float(k) / steps) * 0.9
-			var a := col.a / steps * 1.15
-			var p1 := outline(r0.grow(g - blur * 0.35), rad + Vector4.ONE * maxf(0.0, spread + g))
-			RenderingServer.canvas_item_add_polygon(ci, p1, PackedColorArray([Color(col.r, col.g, col.b, a)]))
+		_soft(ci, r0, rad + Vector4.ONE * spread, blur, col)
 	_fill(ci, rect, rad)
 	if inset_bottom.a > 0.0:
 		var h := minf(inset_bottom_h * s, rect.size.y * 0.5)

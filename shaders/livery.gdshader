@@ -240,12 +240,13 @@ void fragment() {
     vec3 lvV=normalize(vViewPosition);float fres=1.-clamp(abs(dot(normalize(vNormal),lvV)),0.,1.);fres*=fres;
     lc=mix(lc,lc*lc*1.55,fres*.55)*(1.-.12*fres);
     float lvE=clamp(length(fwidth(lc))*1.6,0.,1.)*(1.-smoothstep(60.,220.,length(vViewPosition)));lc*=1.-.2*lvE;
-    if(uLQ>1.5){vec3 fq=lp*30.;vec3 ci=floor(fq);vec3 fr=fract(sin(vec3(dot(ci,vec3(127.1,311.7,74.7)),dot(ci,vec3(269.5,183.3,246.1)),dot(ci,vec3(113.5,271.9,124.6))))*43758.5453);
-      float ffw=length(fwidth(fq)),fk=uLFl*(1.-smoothstep(.9,2.2,ffw)),on=smoothstep(.85,.9,fr.z);lvFN=(fr*2.-1.)*fk*(.22+1.45*on);lc*=1.+on*fk*.18;lc=mix(lc,lc*lc*1.5,fres*.25);
+    if(uLQ>1.5){vec3 fq=lp*85.;vec3 ci=floor(fq);vec3 fr=fract(sin(vec3(dot(ci,vec3(127.1,311.7,74.7)),dot(ci,vec3(269.5,183.3,246.1)),dot(ci,vec3(113.5,271.9,124.6))))*43758.5453);
+      float ffw=length(fwidth(fq)),fk=uLFl*(1.-smoothstep(.9,2.2,ffw)),on=smoothstep(.85,.9,fr.z);lvFN=(fr*2.-1.)*fk*(.22+1.45*on);lc*=1.+on*fk*.07;lc=mix(lc,lc*lc*1.5,fres*.25);
       float hh=dot(lc,vec3(.299,.587,.114));lvFN.xy+=vec2(dFdx(hh),dFdy(hh))*-1.6*(1.-smoothstep(25.,90.,length(vViewPosition)));}}
   ALBEDO=COLOR.rgb*lc;
   ROUGHNESS=livR>=0.0?livR:rough;
-  if(uLQ>1.5)NORMAL=normalize(NORMAL+lvFN*0.32);
+  // (the PC's flake is finer and gentler than the web's: at full resolution the web's read as grain)
+  if(uLQ>1.5)NORMAL=normalize(NORMAL+lvFN*0.12);
 
 	METALLIC = metal;
 	CLEARCOAT = coat;

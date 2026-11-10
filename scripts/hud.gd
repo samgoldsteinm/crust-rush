@@ -671,10 +671,7 @@ func _draw_items(btn: float, top: float) -> void:
 			draw_texture_rect(icons[it], Rect2(_p(c - Vector2(isz, isz) / 2.0), Vector2(isz, isz) * s), false, Color(1, 1, 1, ia * a))
 			if st["held"]:
 				_text(f_bold, "HELD", c.x - 30.0, y + size + 5.0, 10.0, Color(1, 0.957, 0.863, 0.75), HORIZONTAL_ALIGNMENT_CENTER, 60.0, Color(0, 0, 0, 0.8), Vector2(0, 1), 1.2)
-		else:
-			# empty: a faint dashed rounded square
-			var e := size * 0.6
-			_dashed_box(c - Vector2(e, e) / 2.0, e, 10.0, Color(1, 0.957, 0.863, (0.35 if sl == 1 else 0.3) * a))
+		# (empty: just the round slot; the web's faint dashed square inside is left out)
 		if pad_mode:
 			_badge(Vector2(x + size - 6.0, y + size - 6.0), "A" if sl == 1 else "B", Color("#2f9a3e") if sl == 1 else Color("#d63a26"))
 
