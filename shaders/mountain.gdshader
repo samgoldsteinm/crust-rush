@@ -11,6 +11,14 @@ uniform vec2 ax;          // this copy's x, z change for one whole u
 uniform vec2 az;          // ...and for one whole v
 uniform float hs;         // its height change for a slope of 1 in the model, over one whole u or v
 uniform float snow = 0.0;
+uniform float y_lo = 0.0;       // the model's foot and top (local), for the snow line
+uniform float y_hi = 1.0;
+
+varying float ly;
+
+void vertex() {
+	ly = VERTEX.y;
+}
 
 void fragment() {
 	vec3 n0 = texture(nrm, UV).rgb * 2.0 - 1.0;
@@ -25,7 +33,12 @@ void fragment() {
 	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
 	vec3 c = texture(col, UV).rgb * tint;
 	if (snow > 0.0) {
-		c = mix(c, vec3(0.93, 0.96, 1.0), smoothstep(0.55, 0.8, nw.y) * snow);
+		// snow lies on the flatter faces, and on steeper ones the higher up the mountain; bare rock in the cracks
+		float y01 = clamp((ly - y_lo) / max(y_hi - y_lo, 1.0), 0.0, 1.0);
+		float th = mix(0.74, 0.5, y01);
+		float lum = dot(c, vec3(0.299, 0.587, 0.114));
+		float s = smoothstep(th - 0.1, th + 0.08, nw.y) * smoothstep(0.015, 0.06, lum);
+		c = mix(c, vec3(0.86, 0.88, 0.9) * (0.92 + 0.6 * lum), clamp(s * snow, 0.0, 1.0));
 	}
 	ALBEDO = c;
 	ROUGHNESS = 0.95;

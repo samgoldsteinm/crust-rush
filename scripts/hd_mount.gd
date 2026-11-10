@@ -39,7 +39,7 @@ static func upgrade(root: Node, level: int, theme: String) -> Dictionary:
 				var C = arr[Mesh.ARRAY_COLOR]
 				var U = arr[Mesh.ARRAY_TEX_UV]
 				if C is PackedColorArray and (C as PackedColorArray).size() == V.size() and V.size() >= 5000:
-					nm = _ring(V, C, mat, level)
+					nm = _ring(V, C, mat, level, theme)
 					if nm != null:
 						st["rings"] += 1
 				if nm == null and U is PackedVector2Array and (U as PackedVector2Array).size() == V.size() and V.size() <= 12000 and mat is StandardMaterial3D and (mat as StandardMaterial3D).albedo_texture != null:
@@ -65,7 +65,7 @@ static func upgrade(root: Node, level: int, theme: String) -> Dictionary:
 # ---------------------------------------------------------------- the far ranges
 
 ## the web ring's heights and colours back on their grid (angle k of AS, row i of RS), then rebuilt finely
-static func _ring(V: PackedVector3Array, C: PackedColorArray, mat: Material, level: int) -> ArrayMesh:
+static func _ring(V: PackedVector3Array, C: PackedColorArray, mat: Material, level: int, theme: String) -> ArrayMesh:
 	var n := V.size()
 	var r0 := 1e9
 	var r1 := 0.0
@@ -195,7 +195,18 @@ static func _ring(V: PackedVector3Array, C: PackedColorArray, mat: Material, lev
 	arr[Mesh.ARRAY_INDEX] = idx
 	var am := ArrayMesh.new()
 	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
-	am.surface_set_material(0, _ring_mat(mat))
+	# the web colours its distant and frozen ranges blue: those are coloured as real mountains instead
+	var avg := Color(0, 0, 0)
+	for c in C:
+		avg += c
+	avg /= float(maxi(C.size(), 1))
+	var blue := avg.b > avg.r + 0.04 and avg.b > avg.g
+	var ylo := 1e9
+	var yhi := -1e9
+	for p in pos:
+		ylo = minf(ylo, p.y)
+		yhi = maxf(yhi, p.y)
+	am.surface_set_material(0, _ring_mat(mat, theme if blue else "", ylo, yhi))
 	return am
 
 
@@ -237,9 +248,19 @@ static func _tex(path: String) -> Texture2D:
 	return load(path) if ResourceLoader.exists(path) else null
 
 
-## the ring's own vertex colours, with crags and rock from a CC0 cliff texture laid over the world
-static func _ring_mat(orig: Material) -> Material:
-	var key := "ring|%d" % (orig.get_instance_id() if orig != null else 0)
+## natural colours for a range the web paints blue, by the track's setting: [snow line, snow on the flats below it,
+## scrub low down, scrub colour, dark rock, light rock, snow]
+const NATURAL := {
+	"freezer": [0.25, 1.0, 0.0, "#56603f", "#5a5149", "#93877a", "#f4f4f3"],
+	"night": [0.78, 0.0, 0.5, "#33402f", "#34312e", "#55504a", "#e6e9ec"],
+	"default": [0.6, 0.0, 0.7, "#56603f", "#5b544c", "#938a7e", "#f3f3f2"],
+}
+
+
+## the ring's own vertex colours (or natural ones, `nat` the track's setting), with crags and rock from a CC0 cliff
+## texture laid over the world
+static func _ring_mat(orig: Material, nat: String, ylo: float, yhi: float) -> Material:
+	var key := "ring|%d|%s|%d|%d" % [orig.get_instance_id() if orig != null else 0, nat, int(ylo), int(yhi)]
 	if _mats.has(key):
 		return _mats[key]
 	var m := ShaderMaterial.new()
@@ -253,6 +274,19 @@ static func _ring_mat(orig: Material) -> Material:
 	m.set_shader_parameter("rock", rc)
 	m.set_shader_parameter("rock_n", _tex(CC0 + cc + "_nrm.jpg"))
 	m.set_shader_parameter("has_rock", rc != null)
+	if nat != "":
+		var P: Array = NATURAL.get(nat, NATURAL["default"])
+		m.set_shader_parameter("natural", true)
+		m.set_shader_parameter("tint", Vector3.ONE)
+		m.set_shader_parameter("y_lo", ylo)
+		m.set_shader_parameter("y_hi", yhi)
+		m.set_shader_parameter("snow_line", float(P[0]))
+		m.set_shader_parameter("snow_cover", float(P[1]))
+		m.set_shader_parameter("veg_amt", float(P[2]))
+		m.set_shader_parameter("veg", Color(P[3]))
+		m.set_shader_parameter("rock_dk", Color(P[4]))
+		m.set_shader_parameter("rock_lt", Color(P[5]))
+		m.set_shader_parameter("snow_col", Color(P[6]))
 	_mats[key] = m
 	return m
 
@@ -403,7 +437,12 @@ static func _mount(V: PackedVector3Array, U: PackedVector2Array, om: StandardMat
 	var col := _tex(C_MAP)
 	m.set_shader_parameter("col", col if col != null else om.albedo_texture)
 	m.set_shader_parameter("nrm", _tex(N_MAP))
-	m.set_shader_parameter("tint", Vector3(om.albedo_color.r, om.albedo_color.g, om.albedo_color.b))
+	# (the web's frozen tracks tint these blue-white: kept as a brightness only, the model's own colours stay)
+	var tc := om.albedo_color
+	var tl := tc.r * 0.299 + tc.g * 0.587 + tc.b * 0.114
+	m.set_shader_parameter("tint", Vector3(tl, tl, tl) if theme == "freezer" else Vector3(tc.r, tc.g, tc.b))
+	m.set_shader_parameter("y_lo", y0)
+	m.set_shader_parameter("y_hi", A + y0)
 	m.set_shader_parameter("ax", au)
 	m.set_shader_parameter("az", av)
 	m.set_shader_parameter("hs", A * 2000.0 / TOP)

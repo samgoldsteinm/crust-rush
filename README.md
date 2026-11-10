@@ -20,6 +20,8 @@ to the `maps` release; the PC build downloads them from there.
 - Keyboard keys you can change in Settings > Controls; cheat codes in Settings > More (UNLOCK, TESTING), as on the web.
 - Online races between PCs: one hosts, the others join with the host's address. Settings > More > Network log keeps a
   second-by-second record of your last 6 online races (round trip, lost packets, snapshot flow), with Copy.
+- Cross-play with the browser version: Play with friends > **Race with browser friends** joins a room made on a phone
+  or browser with its 4-character code, or hosts one they can join, through the same public relay the web game uses.
 
 ## Graphics
 The picture is matched to the web game's Ultra (lighting, tone mapping, colour grade, bloom, ambient occlusion,
@@ -36,8 +38,11 @@ drawn, so nothing changes in the distance. Off draws the web game's shapes every
 
 The background mountains are part of it too. The far mountain ranges keep the web game's skyline but are rebuilt with
 nine times the points, with finer ridges and gullies cut into the high ground and crags from a CC0 cliff texture on
-their faces. The sculpted mountains (your own mountain model, which the web game uses at 3,500 points) are rebuilt
-from the full model's height field with about twenty times the triangles and lit from a detailed map of its surface.
+their faces. The ranges the web game paints blue (its stand-in for distance and ice) get real mountain colours
+instead: grey-brown rock, snow lying on the flatter faces above a snow line (everywhere on the frozen tracks), a little
+scrub low down, with the distance left to the fog. The sculpted mountains (your own mountain model, which the web game
+uses at 3,500 points) are rebuilt from the full model's height field with about twenty times the triangles and lit from
+a detailed map of its surface; on the frozen tracks they keep their own rock colour under the snow.
 
 ## Controls
 - Keyboard: arrows/A D steer · Space/Down/S drift, brake · X/Enter first item · Z/Q second item · Shift/B keep behind ·
@@ -54,6 +59,8 @@ from the full model's height field with about twenty times the triangles and lit
 - `scripts/kart_builder.gd` — builds a kart from garage parts and paints its livery.
 - `scripts/ach.gd`, `scripts/ghost.gd` — achievements, records, the best-run ghost.
 - `scripts/netlog.gd` — the network log of online races.
+- `scripts/webnet.gd`, `scripts/mqtt.gd` — cross-play with the browser version: the web game's room codes, relay and
+  race messages (version 97), as guest or host.
 - `scripts/music.gd`, `scripts/sfx.gd` — the soundtrack and the sound effects (engines from real recordings in `assets/sfx/`,
   one per kind of kart body, pitched through the gears like the web's).
 - `scripts/track.gd` — track data exported from the web game.
@@ -64,17 +71,16 @@ from the full model's height field with about twenty times the triangles and lit
   (the leaf, frond, bough and bark pictures), `hd_ground.py` (the ground's relief and gloss maps, made in the build),
   `hd_fetch.py` (downloads the CC0 textures), `hd_mount.py` (the mountain's height field, surface and colour from the
   original mountain model).
-- `tests/` — headless race (`smoke`), every track (`allmaps`), two-copy online race (`net`), screenshots matched step
+- `tests/` — headless race (`smoke`), every track (`allmaps`), two-copy online race (`net`), a race against the
+  published web game in a browser (`xplay`, both ways round, through `tools/mqtt_broker.py`), screenshots matched step
   for step with the web game's (`shots`), menu screenshots (`menushots`).
 - `.github/workflows/pc.yml` — checks, tests and builds on every push. `[quick]` in a commit message skips screenshots and export.
 - `.github/workflows/maps.yml` — exports the tracks, garage and soundtrack from the web game (run by hand, or on changes to the tools).
+- `.github/workflows/xplay.yml` — the cross-play race, browser hosting and PC hosting, on changes to the cross-play code.
 - `.github/workflows/hd.yml` — downloads the CC0 textures from Poly Haven into the `maps` release (`hd.zip`).
 - `.github/workflows/trailer.yml` — films a gameplay clip on three tracks with Godot's Movie Maker (`tests/trailer.gd`),
   joins it (`tools/trailer_cut.py`) and attaches `trailer.mp4`, `poster.jpg` and stills to the `pc` release.
 - `.github/workflows/ios.yml` — iPhone build, manual only (paused).
-
-## Not ported yet
-Cross-play with the browser version.
 
 ## Credits
 The web game's credits all carry over. The finished models' bark and stone surfaces are CC0 textures from
