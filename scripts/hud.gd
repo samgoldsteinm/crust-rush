@@ -39,6 +39,19 @@ var pad_mode := false
 var wrong_t := 0.0
 var toast_text := ""
 var toast_t := 0.0
+# "you got them" (web hitToast): the item you used, an arrow and the portraits of whoever it hit, bottom centre
+var ht_key := ""
+var ht_t := 0.0
+var ht_in := 0.0
+var ht_who: Array = []          # [portrait texture or null, ring colour]
+var ht_icon: Texture2D = null
+var ht_col := Color.WHITE       # an ability's colour when it has no icon
+# an item heading your way (web #incoming): its icon in a pulsing ring, an arrow toward it
+var inc_icon: Texture2D = null
+var inc_col := Color.WHITE
+var inc_ang := 0.0
+var inc_near := 0.0
+var inc_on := false
 var hitfx_t := 0.0
 var abfx_t := 0.0
 var abfx_col := Color.WHITE
@@ -144,6 +157,22 @@ func banner(text: String, dur: float, kind := "") -> void:
 	banner_kind = kind
 
 
+func hit_toast(key: String, icon: Texture2D, col: Color, portrait: Texture2D, ring: Color) -> void:
+	var same := ht_t > 0.4 and key == ht_key
+	ht_key = key
+	ht_icon = icon
+	ht_col = col
+	if not same:
+		ht_who.clear()
+		ht_in = 0.22
+	for w in ht_who:
+		if w[0] == portrait and w[1] == ring:
+			ht_t = 1.9
+			return
+	ht_who.append([portrait, ring])
+	ht_t = 1.9
+
+
 func toast(text: String, dur := 1.2) -> void:
 	toast_text = text
 	toast_t = dur
@@ -201,6 +230,10 @@ func tick(dt: float) -> void:
 			banner_text = ""
 	if toast_t > 0.0:
 		toast_t -= dt
+	if ht_t > 0.0:
+		ht_t -= dt
+	if ht_in > 0.0:
+		ht_in -= dt
 	if hitfx_t > 0.0:
 		hitfx_t -= dt
 	if abfx_t > 0.0:
@@ -481,6 +514,8 @@ func _draw() -> void:
 		var tw := f_disp.get_string_size("WRONG WAY", HORIZONTAL_ALIGNMENT_LEFT, -1, int(ws * s)).x / s
 		_rbox(W / 2.0 - tw / 2.0 - 18.0, 0.52 * H - 6.0, tw + 36.0, ws + 12.0, Color("#d63a1e"), Color(0, 0, 0, 0), 0.0, 12.0, 12.0, Color(224.0 / 255, 69.0 / 255, 44.0 / 255, 0.45))
 		_text(f_disp, "WRONG WAY", W / 2.0 - tw / 2.0, 0.52 * H, ws, CREAM)
+	_draw_incoming(vmin)
+	_draw_hit_toast(btn)
 	# toast (bottom centre)
 	if toast_t > 0.0 and toast_text != "":
 		var ts := 18.0
@@ -489,6 +524,83 @@ func _draw() -> void:
 		var y2 := H - 14.0 - (btn * 0.35 + 12.0) - 46.0
 		_rbox(W / 2.0 - tw2 / 2.0 - 20.0, y2, tw2 + 40.0, 46.0, Color(14.0 / 255, 7.0 / 255, 4.0 / 255, 0.55 * a2), Color(1, 0.957, 0.863, 0.3 * a2), 1.0, 23.0)
 		_text(f_bold, toast_text, W / 2.0 - tw2 / 2.0, y2 + 12.0, ts, Color(CREAM.r, CREAM.g, CREAM.b, a2))
+
+
+## web .hittoast (the pointer-fine size): a dark pill, the item, a cheese arrow, round portraits ringed in each
+## victim's colour; it slides up in and stays 1.9 s
+func _draw_hit_toast(btn: float) -> void:
+	if ht_t <= 0.0 or ht_who.is_empty():
+		return
+	var a := clampf(ht_t / 0.2, 0.0, 1.0)
+	var slide := clampf(ht_in / 0.22, 0.0, 1.0)
+	a *= 1.0 - slide
+	var isz := 54.0
+	var psz := 50.0
+	var gap := 12.0
+	var aw := 22.0
+	var w := 20.0 + isz + gap + aw + gap + ht_who.size() * psz + (ht_who.size() - 1) * 4.0 + 20.0
+	var h := 10.0 + isz + 10.0
+	var x0 := W / 2.0 - w / 2.0
+	var y0 := H - (btn * 0.35 + 12.0) - h + slide * 14.0
+	_rbox(x0, y0, w, h, Color(14.0 / 255, 7.0 / 255, 4.0 / 255, 0.55 * a), Color(1, 0.957, 0.863, 0.3 * a), 1.0, h / 2.0)
+	var cx := x0 + 20.0
+	var cy := y0 + h / 2.0
+	if ht_icon != null:
+		draw_texture_rect(ht_icon, Rect2(_p(Vector2(cx, cy - isz / 2.0)), Vector2(isz, isz) * s), false, Color(1, 1, 1, a))
+	else:
+		draw_circle(_p(Vector2(cx + isz / 2.0, cy)), isz * 0.35 * s, Color(ht_col.r, ht_col.g, ht_col.b, a), true, -1.0, true)
+	cx += isz + gap
+	_text(f_bold, "▶", cx, cy - 13.0, aw, Color(CHEESE.r, CHEESE.g, CHEESE.b, a))
+	cx += aw + gap
+	for wv in ht_who:
+		var c := _p(Vector2(cx + psz / 2.0, cy))
+		var rc: Color = wv[1]
+		draw_circle(c, (psz / 2.0 + 2.0) * s, Color(rc.r, rc.g, rc.b, a), true, -1.0, true)
+		draw_circle(c, psz / 2.0 * s, Color(42.0 / 255, 24.0 / 255, 16.0 / 255, a), true, -1.0, true)
+		var pt: Texture2D = wv[0]
+		if pt != null:
+			# background-size 230%, position 50% 26%: the face, cropped into the circle
+			var tw := float(pt.get_width())
+			var th := float(pt.get_height())
+			var src_w := tw / 2.3
+			var src := Rect2((tw - src_w) * 0.5, (th - src_w * th / tw) * 0.26, src_w, src_w * th / tw)
+			var pts := PackedVector2Array()
+			var uvs := PackedVector2Array()
+			for k in 28:
+				var an := TAU * k / 28.0
+				var d := Vector2(cos(an), sin(an))
+				pts.append(c + d * psz / 2.0 * s)
+				var u := Vector2(0.5, 0.5) + d * 0.5
+				uvs.append(Vector2((src.position.x + u.x * src.size.x) / tw, (src.position.y + u.y * src.size.y) / th))
+			draw_colored_polygon(pts, Color(1, 1, 1, a), uvs, pt)
+		cx += psz + 4.0
+
+
+## web #incoming: bottom 26% of the screen, 13vmin across (56-84 px); a cream disc ringed in the item's colour, its
+## icon, and an arrow pointing where it is coming from (straight down: right behind you); it pulses faster as it closes
+func _draw_incoming(vmin: float) -> void:
+	if not inc_on or inc_icon == null:
+		return
+	var sz := clampf(13.0 * vmin, 56.0, 84.0)
+	var per := 0.6 - 0.45 * inc_near
+	var ph := 0.5 + 0.5 * sin(t * TAU / maxf(0.15, per * 2.0))
+	var sc := lerpf(0.92, 1.1, ph)
+	var c := Vector2(W / 2.0, H - H * 0.26 - sz / 2.0)
+	var r := sz / 2.0 * sc
+	var pc := _p(c)
+	draw_circle(pc, (r + 7.0) * s, Color(20.0 / 255, 10.0 / 255, 6.0 / 255, 0.55), true, -1.0, true)
+	draw_circle(pc, (r + 4.0) * s, inc_col, true, -1.0, true)
+	for i in 6:
+		var f := float(i) / 6.0
+		draw_circle(pc, r * (1.0 - f * 0.28) * s, Color(1, 0.957 + 0.043 * f, 0.863 + 0.137 * f, 0.85 + 0.1 * f), true, -1.0, true)
+	var isz := r * 2.0 * 0.72
+	draw_texture_rect(inc_icon, Rect2(_p(c - Vector2(isz, isz) / 2.0), Vector2(isz, isz) * s), false)
+	# the arrow on the rim, pointing out toward the threat
+	var dir := Vector2(cos(inc_ang), sin(inc_ang))
+	var tip := c + dir * (r + 22.0)
+	var base := c + dir * (r + 8.0)
+	var side := Vector2(-dir.y, dir.x) * 10.0
+	draw_colored_polygon(PackedVector2Array([_p(tip), _p(base + side), _p(base - side)]), inc_col)
 
 
 func _draw_top_bar() -> void:

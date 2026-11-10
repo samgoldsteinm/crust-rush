@@ -604,6 +604,7 @@ func update(dt: float, player_inp: Dictionary) -> void:
 
 	_projectiles(dt)
 	_hazards(dt)
+	cur_p = {}
 
 	if mode == "lss":
 		if state == "race":
@@ -1453,6 +1454,10 @@ func _absorb(k: Kart) -> bool:
 
 
 ## web spinOut: world hazards (world=true) also hit karts in the air
+## the projectile or trap being worked on (web CURP): who threw it is told when it spins someone out
+var cur_p: Dictionary = {}
+
+
 func spin_out(k: Kart, kind: String, world := false, force := false) -> bool:
 	if force:
 		if not k.loop.is_empty():
@@ -1489,6 +1494,11 @@ func spin_out(k: Kart, kind: String, world := false, force := false) -> bool:
 		k.air_t = 0.0
 		k.wvy = k.g_rate + 40.0
 	fx.append({"t": "spin", "k": k, "kind": kind})
+	if not cur_p.is_empty():
+		var ow = cur_p.get("owner")
+		if ow is Kart and ow != k:
+			var ty := "oil" if cur_p.get("olive", false) else String(cur_p.get("type", cur_p.get("kind", kind)))
+			fx.append({"t": "hit_toast", "by": ow, "k": k, "type": ty})
 	return true
 
 
@@ -1583,6 +1593,8 @@ func blast(x: float, y: float, r: float, owner: Kart, kind: String, force := fal
 			continue
 		if (k.x - x) ** 2 + (k.y - y) ** 2 < r * r:
 			var hit := spin_out(k, kind, force, force)
+			if hit and owner != null and owner != k:
+				fx.append({"t": "hit_toast", "by": owner, "k": k, "type": "pineapple" if force else ("bomb" if kind == "self" else kind)})
 			if hit and k.air and k.loop.is_empty():
 				k.big = true
 				k.wvy = maxf(k.wvy, 55.0 * maxf(1.0, r / 130.0))
@@ -1645,6 +1657,7 @@ func _mega_crush(a: Kart, b: Kart) -> bool:
 		return false
 	b.flat_t = FLAT_T
 	b.flat_imm = FLAT_T + 0.6
+	fx.append({"t": "hit_toast", "by": a, "k": b, "type": "shroom"})
 	b.inv = maxf(b.inv, FLAT_T + 3.0)
 	b.air = false
 	b.wvy = 0.0
@@ -1781,6 +1794,7 @@ func _projectiles(dt: float) -> void:
 	var i := projectiles.size() - 1
 	while i >= 0:
 		var p: Dictionary = projectiles[i]
+		cur_p = p
 		p["px"] = p["x"]
 		p["py"] = p["y"]
 		if p.get("dead", false):
@@ -2040,6 +2054,7 @@ func _hazards(dt: float) -> void:
 	var i := hazards.size() - 1
 	while i >= 0:
 		var h: Dictionary = hazards[i]
+		cur_p = h
 		h["t"] = float(h["t"]) - dt
 		h["born"] = float(h["born"]) + dt
 		var o: Kart = h["owner"]

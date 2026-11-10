@@ -1274,6 +1274,19 @@ func _drain_events() -> void:
 			elif ed.get("by") == kart:
 				_shake(0.3)
 			sfx.play("bump", maxf(_near(kf), 0.4))
+		elif t == "hit_toast":
+			# you got them (web hitToast): the item, an arrow, their portrait
+			if ed.get("by") == kart and ed.get("k") is Kart and ed["k"] != kart and state == "race":
+				var vk: Kart = ed["k"]
+				var ty := String(ed.get("type", ""))
+				var key: String = {"pep": "pepperoni", "meat": "meatball", "meat2": "meatball", "lob": "bomb", "olive": "oil", "torp": "torpedo", "twist": "twister", "shroom": "shroom"}.get(ty, ty)
+				var acol := Color("#ffe066")
+				if Race.ABIL.has(key):
+					acol = Color(String(Race.ABIL[key][2]))
+				var rc := Color.WHITE
+				if vk.ri < T.racers.size():
+					rc = Color.html(String((T.racers[vk.ri] as Dictionary)["color"]))
+				hud.hit_toast(key, icons.get(key), acol, portraits.get(vk.ri), rc)
 		elif t == "blast":
 			var bsc := maxf(1.0, float(ed["r"]) / 130.0)
 			var bp := Vector2(float(ed["x"]), float(ed["y"]))
@@ -2069,9 +2082,64 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 	sun.global_position = sc
 
 
+## web incomingTick: the nearest item closing on you, shown at the bottom with an arrow toward it and a beep that
+## quickens as it comes
+const PROJ_ITEM := {"pep": "pepperoni", "dough": "dough", "lob": "oil", "flour": "flour", "wheel": "wheel", "meat2": "meatball", "torp": "torpedo", "bomb": "bomb", "twist": "twister"}
+const PROJ_COL := {"pep": "#ff5a2a", "dough": "#ffe2a0", "lob": "#e8b23a", "flour": "#ffffff", "wheel": "#ff3b1a", "meat2": "#b8743e", "torp": "#8fd8ff", "bomb": "#ff3030", "twist": "#c99aff"}
+const PROJ_TONE := {"pep": 880.0, "dough": 520.0, "lob": 420.0, "flour": 1250.0, "wheel": 300.0, "meat2": 220.0, "torp": 1500.0, "bomb": 660.0, "twist": 980.0}
+var inc_beep := 0.0
+
+
+func _incoming(dt: float) -> void:
+	var k := kart
+	hud.inc_on = false
+	if k == null or race == null or state != "race" or paused:
+		inc_beep = 0.0
+		return
+	var best: Dictionary = {}
+	var bd := 1e9
+	var ca := cos(k.ma)
+	var sa := sin(k.ma)
+	for p in race.projectiles:
+		var pd: Dictionary = p
+		var ty := String(pd.get("type", ""))
+		if pd.get("dead", false) or not PROJ_ITEM.has(ty) or (pd.get("owner") == k and float(pd.get("safe", 0.0)) > 0.0):
+			continue
+		var dx := k.x - float(pd["x"])
+		var dy := k.y - float(pd["y"])
+		var d := sqrt(dx * dx + dy * dy)
+		if d > 260.0 or d < 4.0:
+			continue
+		var vx := float(pd.get("vx", 0.0)) - ca * k.speed
+		var vy := float(pd.get("vy", 0.0)) - sa * k.speed
+		var closing := (vx * dx + vy * dy) / d
+		if pd.get("target") != k and closing < 25.0 and not (ty == "bomb" and d < 60.0):
+			continue
+		if d < bd:
+			bd = d
+			best = pd
+	if best.is_empty():
+		inc_beep = 0.0
+		return
+	var ty2 := String(best["type"])
+	var near := clampf(1.0 - bd / 260.0, 0.0, 1.0)
+	hud.inc_on = true
+	hud.inc_icon = icons.get(PROJ_ITEM[ty2])
+	hud.inc_col = Color(String(PROJ_COL.get(ty2, "#ffe066")))
+	hud.inc_near = near
+	# on screen: ahead is up, behind is down, your right is right
+	var rel := atan2(float(best["y"]) - k.y, float(best["x"]) - k.x) - k.ma
+	hud.inc_ang = atan2(-cos(rel), sin(rel))
+	inc_beep -= dt
+	if inc_beep <= 0.0:
+		sfx.play("beep", 0.25 + 0.45 * near, float(PROJ_TONE.get(ty2, 800.0)) / 440.0 * (1.0 + near * 0.35))
+		inc_beep = 0.55 - 0.42 * near
+
+
 func _hud(dt: float) -> void:
 	var k := kart
 	hud.fps_on = fps_counter
+	_incoming(dt)
 	lbl_info.text = "%d fps · %s · %dk tris · %d draws" % [Engine.get_frames_per_second(), RenderingServer.get_current_rendering_driver_name(), int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)) / 1000, int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))]
 	sfx.drive(absf(k.speed) / k.base_max, true, k.boost > 0.0, k.drift != 0 and not k.air, k.tier, state != "countdown" and state != "results" and state != "menu" and not paused)
 	if k.roll > 0.0 and not paused:
