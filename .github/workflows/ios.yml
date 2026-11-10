@@ -1,0 +1,68 @@
+# Builds an unsigned iPhone app (.ipa) on a GitHub macOS machine, so no Mac is needed.
+# Sign and install it from Windows with a sideloading tool (e.g. Sideloadly) and your Apple ID.
+name: iPhone build
+
+on:
+  push:
+    branches: [godot]
+  workflow_dispatch:
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      GODOT_VERSION: "4.7.2"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Godot and its export templates
+        run: |
+          set -euo pipefail
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          curl -fsSL -o godot.zip "$base/Godot_v${GODOT_VERSION}-stable_macos.universal.zip"
+          unzip -q godot.zip
+          curl -fsSL -o templates.tpz "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q templates.tpz
+          dest="$HOME/Library/Application Support/Godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$dest"
+          mv templates/* "$dest/"
+          ls "$dest" | head
+
+      - name: Import the project's assets
+        run: ./Godot.app/Contents/MacOS/Godot --headless --path . --import 2>&1 | tail -30 || true
+
+      - name: Export the Xcode project
+        run: |
+          set -euo pipefail
+          mkdir -p build/ios
+          ./Godot.app/Contents/MacOS/Godot --headless --path . --export-release "iOS" build/ios/CrustRush.ipa 2>&1 | tail -40
+          ls -la build/ios
+
+      - name: Mark it as a game and allow 120 Hz
+        run: |
+          set -euo pipefail
+          plist=$(find build/ios -maxdepth 2 -name "*-Info.plist" | head -1)
+          echo "Patching $plist"
+          /usr/libexec/PlistBuddy -c "Add :LSApplicationCategoryType string public.app-category.games" "$plist" || /usr/libexec/PlistBuddy -c "Set :LSApplicationCategoryType public.app-category.games" "$plist"
+          /usr/libexec/PlistBuddy -c "Add :GCSupportsGameMode bool true" "$plist" || true
+          /usr/libexec/PlistBuddy -c "Add :CADisableMinimumFrameDurationOnPhone bool true" "$plist" || true
+
+      - name: Build the app (unsigned, Release)
+        run: |
+          set -euo pipefail
+          cd build/ios
+          xcodebuild -project CrustRush.xcodeproj -scheme CrustRush -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            CONFIGURATION_BUILD_DIR="$PWD/out" build 2>&1 | tail -40
+          mkdir -p Payload
+          cp -R out/CrustRush.app Payload/
+          zip -qry "$GITHUB_WORKSPACE/CrustRush.ipa" Payload
+          ls -la "$GITHUB_WORKSPACE/CrustRush.ipa"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CrustRush-iPhone
+          path: CrustRush.ipa
+          retention-days: 30
