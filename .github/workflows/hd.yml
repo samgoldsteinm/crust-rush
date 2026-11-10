@@ -3,6 +3,9 @@
 name: HD scenery
 
 on:
+  push:
+    branches: [godot]
+    paths: [tools/hdlist.py, tools/hdbuild.py, tools/hd_*.py, .github/workflows/hd.yml]
   workflow_dispatch:
     inputs:
       step:
@@ -14,7 +17,7 @@ permissions:
 
 jobs:
   list:
-    if: github.event.inputs.step == 'list'
+    if: github.event_name == 'push' || github.event.inputs.step == 'list'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
