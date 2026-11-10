@@ -1931,7 +1931,8 @@ function buildKart(spec){HQB=spec.hq!==0;
   if(cfg.car&&lv&&M.paintMesh){const old=M.paintMesh.material;M.paintMesh.material=liveryMaterial(lv,carDims(cfg.car),cfg.belt||1.5,idx,cfg.numPos||[0,1]);old.dispose();}
   else if(lv&&!cfg.car&&!lv.tex){S.traverse(o=>{if(o.isMesh&&o.material===paint){const a=o.geometry.attributes.position.array;let x0=1e9,x1=-1e9,zw=0,yt=-1e9,y0=1e9;for(let i=0;i<a.length;i+=3){x0=Math.min(x0,a[i]);x1=Math.max(x1,a[i]);zw=Math.max(zw,Math.abs(a[i+2]));yt=Math.max(yt,a[i+1]);y0=Math.min(y0,a[i+1]);}
       const belt=y0+(yt-y0)*.5;o.material=liveryMaterial(lv,[x0,x1,zw,yt],belt,idx,[(x0+x1)/2,belt]);}});paint.dispose();}
-  const L=cfg.hover||cfg.rw[2]*(wt.r-1),wz=(cfg.wz||1)*wt.wz;B.position.y=L;
+  /* big tyres on a car body: lift the body an extra ~1.2x the radius gain, like a lift kit, so the wheels sit under the arches instead of in them */
+  const L=cfg.hover||cfg.rw[2]*(wt.r-1)*(cfg.car&&wt.r>1.15?2.2:1),wz=(cfg.wz||1)*wt.wz;B.position.y=L;
   if(cfg.hover){const hg=hoverGlowFor(cfg.car),gm=new THREE.MeshBasicMaterial({map:hg?hg.t:hoverGlowT(),color:'#7fd8ff',transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}),pl=new THREE.Mesh(new THREE.PlaneGeometry(hg?hg.w:14,hg?hg.h:5.5),gm);pl.rotation.x=-Math.PI/2;pl.position.set(hg?hg.cx:0,.25,hg?hg.cz:0);pl.renderOrder=2;g.add(pl);cfg.glow=pl;}
   /* oversized or wider wheels are pushed out past the bodywork so they never cut into it */
   const bodyPts=[];B.traverse(o=>{if(o.isMesh&&o.geometry&&o.material!==SH.carGlass)bodyPts.push(o.geometry.attributes.position.array);});
