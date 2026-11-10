@@ -199,7 +199,9 @@ func _run() -> void:
 
 func _both(name: String) -> void:
 	main.cam_snap = true
-	await _web_frames(3)
+	# the web page keeps drawing while its screenshot is taken, so its camera has turned all the way round to
+	# the kart's new heading: give the camera's turn the same time here
+	await _web_frames(8)
 	await _shot("g_" + name)
 	main.pc_plus = true
 	main._apply_quality()
