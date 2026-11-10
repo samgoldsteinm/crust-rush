@@ -357,13 +357,16 @@ func _build_world() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.ambient_light_sky_contribution = 0.25
 	env.ambient_light_color = _hex(L.get("hemiSky"), Color(1, 0.89, 0.77))
-	env.ambient_light_energy = float(L.get("hemiI", 0.52)) * 0.7
+	# Settings > Look: Vivid (a darker base, a stronger sun, more contrast and colour) or Classic (web applyLook)
+	var night := T.theme == "night"
+	var vivid := look != "classic"
+	env.ambient_light_energy = float(L.get("hemiI", 0.52)) * ((0.88 if night else 0.7) if vivid else 1.0)
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	# Godot's ACES pre-scales by 1.8 and normalises to its white point; three.js pre-scales by 1/0.6 and
 	# doesn't normalise. A high white point and exposure x(1.667/1.8) make the two curves match.
 	env.tonemap_white = 16.0
-	env.tonemap_exposure = float(L.get("exposure", 0.92)) * 0.96 * (1.0 / 0.6) / 1.8
+	env.tonemap_exposure = float(L.get("exposure", 0.92)) * ((1.0 if night else 0.96) if vivid else 1.0) * (1.0 / 0.6) / 1.8
 	# Ultra's screen-space ambient occlusion (radius 7, strong) and its bloom (threshold .94, strength .3)
 	env.ssao_enabled = not is_phone
 	env.ssao_radius = 2.5
@@ -405,7 +408,7 @@ func _build_world() -> void:
 	world.add_child(sun)
 	sun.look_at_from_position(to_sun * 100.0, Vector3.ZERO, Vector3.UP)
 	sun.light_color = _hex(L.get("sunColor"), Color(1, 0.84, 0.66))
-	sun.light_energy = float(L.get("sunI", 3.25)) * 1.25
+	sun.light_energy = float(L.get("sunI", 3.25)) * (((1.12 if T.theme == "night" else 1.25)) if look != "classic" else 1.0)
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 300.0
@@ -431,8 +434,11 @@ func _build_world() -> void:
 	var G: Dictionary = T.grade
 	if post_mat != null:
 		var tn: Array = G.get("tint", [1.0, 1.0, 1.0])
-		post_mat.set_shader_parameter("sat", float(G.get("sat", 1.07)))
-		post_mat.set_shader_parameter("con", float(G.get("con", 1.04)))
+		# the exported grade is the Vivid one; Classic takes its extra contrast and colour back out
+		var nt := T.theme == "night"
+		var cl := look == "classic"
+		post_mat.set_shader_parameter("sat", float(G.get("sat", 1.07)) - ((0.02 if nt else 0.035) if cl else 0.0))
+		post_mat.set_shader_parameter("con", float(G.get("con", 1.04)) - ((0.03 if nt else 0.06) if cl else 0.0))
 		post_mat.set_shader_parameter("tint", Vector3(float(tn[0]), float(tn[1]), float(tn[2])))
 		post_mat.set_shader_parameter("vig", float(G.get("vig", 0.16)))
 	env.glow_intensity = float(G.get("bloom", 0.3))
@@ -1966,6 +1972,7 @@ func _settings_panel() -> Control:
 			c.add_child(_set_rows([
 				["Quality", "Ultra: every racer and building in high detail, ambient occlusion, shadows across the whole view, 4x anti-aliasing and bloom. Balanced: lighter shadows and no ambient occlusion. Fast: the lightest, for older laptops.", "q", [["0", "Fast"], ["1", "Balanced"], ["2", "Ultra"]], str(quality)],
 				["Shadows", "Real-time shadows from karts and scenery.", "shadows", on_off, "1" if shadows_on else "0"],
+				["Look", "Vivid: a darker base tone with a stronger sun, deeper shadows and richer colour, so lit faces and light sources stand out. Classic: the softer, brighter balance. Applies from the next race.", "look", [["vivid", "Vivid"], ["classic", "Classic"]], look],
 				["Ambient occlusion", "Soft contact shading in corners and crevices, computed every frame. The single most expensive effect: turn it off to run Ultra's detail at a higher frame rate.", "ao", on_off, "1" if ao_on else "0"],
 				["Sharpening", "When the 3D view is drawn below screen size to hold the frame rate, a sharpening pass brings the detail back. Turn off if you prefer a softer picture.", "sharp", on_off, "1" if sharpen_on else "0"],
 				["Scenery distance", "How far away trackside props are drawn.", "scenery", [["0", "Near"], ["1", "Normal"], ["2", "Far"]], str(scenery)],
@@ -2122,6 +2129,7 @@ func _item_grid() -> Control:
 func _reset_settings() -> void:
 	quality = 2
 	shadows_on = true
+	look = "vivid"
 	ao_on = true
 	sharpen_on = true
 	scenery = 1
@@ -2153,6 +2161,7 @@ var music: Music
 var music_on := true
 var music_level := 0.45
 var shadows_on := true
+var look := "vivid"
 var ao_on := true
 var sharpen_on := true
 var scenery := 1          # 0 near, 1 normal, 2 far
@@ -2223,6 +2232,8 @@ func _apply_setting(key: String, val: String) -> void:
 			_apply_res()
 		"scenery":
 			scenery = int(val)
+		"look":
+			look = val
 		"fpsc":
 			fps_counter = val == "1"
 		"stats":
@@ -2270,7 +2281,7 @@ func _save_settings() -> void:
 	cf.set_value("gfx", "res", res_scale)
 	cf.set_value("snd", "vol", sfx_vol)
 	cf.set_value("snd", "level", snd_level)
-	for k2 in ["shadows_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "item_set", "music_on", "music_level"]:
+	for k2 in ["shadows_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "item_set", "music_on", "music_level", "look"]:
 		cf.set_value("opt", k2, get(k2))
 	cf.set_value("opt", "stats_on", KartBuilder.stats_on)
 	cf.set_value("opt", "kmh", hud.kmh if hud != null else false)
@@ -2294,7 +2305,7 @@ func _load_settings() -> void:
 	res_scale = float(cf.get_value("gfx", "res", res_scale))
 	sfx_vol = float(cf.get_value("snd", "vol", 1.0))
 	snd_level = float(cf.get_value("snd", "level", 1.0))
-	for k2 in ["shadows_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "item_set", "music_on", "music_level"]:
+	for k2 in ["shadows_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "item_set", "music_on", "music_level", "look"]:
 		var vv = cf.get_value("opt", k2, get(k2))
 		if typeof(vv) == typeof(get(k2)):
 			set(k2, vv)
