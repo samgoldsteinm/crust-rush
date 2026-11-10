@@ -47,8 +47,7 @@ func _process(dt: float) -> void:
 		var k: Kart = main.kart
 		var ok: bool = k.prog > 150 and web.ack_rx > 1500 and web.seq > 1500
 		print("XPLAY PC %s my kart prog %d, controls sent %d, acknowledged %d, last snapshot %d, place %d, race time %.1f" % ["PASS" if ok else "FAIL", k.prog, web.seq, web.ack_rx, web.last_sn, k.place, main.race.race_time])
-		web.leave()
-		await get_tree().create_timer(1.0).timeout
+		await _linger(web)
 		get_tree().quit(0 if ok else 1)
 	if t > 2700.0:
 		done = true
@@ -82,12 +81,25 @@ func _host(web: WebNet, dt: float) -> void:
 	if int(t * 2) % 10 == 0 and int((t - dt) * 2) % 10 != 0:
 		print("XPLAY pc t=%.0f state %s go %s race_time %.1f their prog %d acks %s queue %s my prog %d" % [t, main.state, web.go, main.race.race_time, their.prog if their else -1,
 			str(web.acks), str(web.in_q.get(1, []).size()), main.kart.prog])
-	if main.race.race_time > 34.0 and not done:
+	if main.race.race_time > 30.0 and not done:
 		done = true
 		var ack := int(web.acks.get(1, 0))
 		var ok: bool = their != null and their.prog > 150 and ack > 1500
 		print("XPLAY PC %s their kart prog %d, controls played %d, race time %.1f" % ["PASS" if ok else "FAIL", their.prog if their else -1, ack, main.race.race_time])
-		await get_tree().create_timer(4.0).timeout
-		web.leave()
-		await get_tree().create_timer(1.0).timeout
+		await _linger(web)
 		get_tree().quit(0 if ok else 1)
+
+
+## Our check is done a little before the browser's (race time 30 against its 32): stay in the race until the browser
+## has made its own check and gone (a slow software GPU takes a while to get there), then leave.
+func _linger(web: WebNet) -> void:
+	var t0 := t
+	while t - t0 < 300.0:
+		if web.role == "" and not web.hosting():
+			break
+		if web.hosting() and web.chans.is_empty():
+			break
+		await get_tree().create_timer(0.5).timeout
+	print("XPLAY pc: the browser has %s; leaving" % ("gone" if t - t0 < 300.0 else "not gone after 5 minutes"))
+	web.leave()
+	await get_tree().create_timer(1.0).timeout

@@ -660,7 +660,8 @@ func _snap(d: Dictionary) -> void:
 			var r: Array = q
 			if r.size() < 10 or int(r[9]) == 0:
 				continue
-			var hd := {"id": int(r[0]), "x": float(r[13]) if r.size() > 14 else float(r[2]), "y": float(r[14]) if r.size() > 14 else float(r[4]), "t": 9.0, "born": 1.0}
+			var hd := {"id": int(r[0]), "x": float(r[13]) if r.size() > 14 else float(r[2]), "y": float(r[14]) if r.size() > 14 else float(r[4]), "t": 9.0, "born": 1.0,
+				"armed": r.size() <= 14 or int(r[12]) != 0, "owner": race.karts[int(r[11])] if r.size() > 14 and r[11] != null and int(r[11]) >= 0 and int(r[11]) < race.karts.size() else null}
 			var hk := String(r[10]) if r.size() > 10 and r[10] is String else "oil"
 			if hk == "olive":
 				hd["olive"] = true
