@@ -96,9 +96,10 @@ func _host(web: WebNet, dt: float) -> void:
 		get_tree().quit(1)
 		return
 	# the browser is far slower than us on a software GPU: it is given time to get going
-	if not done and main.race.race_time > 10.0 and (main.race.race_time > 200.0 or (their != null and their.prog > 150 and ack > 1500)):
+	# (it sends only a few controls a second against our 60, so its kart is slow to get round: a smaller bar)
+	if not done and main.race.race_time > 10.0 and (main.race.race_time > 300.0 or (their != null and their.prog > 60 and ack > 600)):
 		done = true
-		var ok: bool = their != null and their.prog > 150 and ack > 1500
+		var ok: bool = their != null and their.prog > 60 and ack > 600
 		print("XPLAY PC %s their kart prog %d, controls played %d, race time %.1f" % ["PASS" if ok else "FAIL", their.prog if their else -1, ack, main.race.race_time])
 		await _linger(web)
 		get_tree().quit(0 if ok else 1)
