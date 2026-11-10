@@ -231,13 +231,13 @@ func kerb_h(la: float) -> float:
 
 ## a point s track-points along the centre line (fractions allowed), lat to the side (web trackAt)
 func track_at(s: float, lat: float) -> Vector3:
-	var i := int(floor(fposmod(s, float(N))))
-	var f := s - floor(s)
+	var i := int(floorf(fposmod(s, float(N))))
+	var f: float = s - floorf(s)
 	var q := (i + 1) % N
-	var xx := px[i] + (px[q] - px[i]) * f
-	var yy := py[i] + (py[q] - py[i]) * f
-	var nxx := nx[i] + (nx[q] - nx[i]) * f
-	var nyy := ny[i] + (ny[q] - ny[i]) * f
+	var xx: float = px[i] + (px[q] - px[i]) * f
+	var yy: float = py[i] + (py[q] - py[i]) * f
+	var nxx: float = nx[i] + (nx[q] - nx[i]) * f
+	var nyy: float = ny[i] + (ny[q] - ny[i]) * f
 	return Vector3(xx + nxx * lat, yy + nyy * lat, float(i))
 
 
