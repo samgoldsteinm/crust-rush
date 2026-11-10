@@ -5,3 +5,7 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+# large exported track geometry: regenerate with tools/runexport.py (see README)
+assets/track/*.bin
+assets/track/*.gltf
+assets/track/*_tex/
