@@ -447,6 +447,9 @@ func _build_world() -> void:
 		var mt0 := Time.get_ticks_msec()
 		var mst := HdMount.upgrade(track, 2 if quality >= 2 else 1, T.theme)
 		print("mountains: %d ranges, %d sculpted (%d ms)" % [mst["rings"], mst["mounts"], Time.get_ticks_msec() - mt0])
+		# the kitchen tracks' room: a tiled kitchen wall, wall cabinets, and the things along the counter
+		if T.theme == "kitchen":
+			print("kitchen: %d pieces" % HdKitchen.upgrade(track))
 	# trees, palms, bushes and rocks: finished models on PC (the web game's own shapes far away, and when off)
 	if not T.props.is_empty():
 		var pr := Props.new()
