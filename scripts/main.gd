@@ -92,6 +92,12 @@ var is_phone := false
 var quality := 2             # 0 Low (the web look), 1 High, 2 Ultra
 var hud_race: Control
 var panel_menu: PanelContainer
+var menu: Menu
+var loading: Control
+var sel := {"mode": "gp", "cls": "medium", "ri": 1, "cup": 0}   # the menu's choices
+var gp := {}                 # Grand Prix in progress: {cup, race, pts: [8], tracks: [ids]}
+const CLASS_MUL := {"small": 0.86, "medium": 1.0, "large": 1.14, "reverse": 1.14}
+const CLASS_AI := {"small": "easy", "medium": "normal", "large": "hard", "reverse": "hard"}
 var lbl_menu: Label
 var ip_edit: LineEdit
 var btn_start_net: Button
@@ -122,6 +128,8 @@ func _ready() -> void:
 	is_phone = OS.has_feature("mobile") or DisplayServer.is_touchscreen_available() and OS.get_name() in ["iOS", "Android"]
 	quality = 0 if is_phone else 2
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	if not auto_drive and not skip_menu:
+		_load_settings()
 	scan_maps()
 	if map_id == "":
 		map_id = OS.get_environment("CR_MAP")
@@ -143,6 +151,9 @@ func _ready() -> void:
 	add_child(sfx)
 	_build_hud()
 	_apply_display()
+	if sfx_vol < 0.99:
+		AudioServer.set_bus_volume_db(0, linear_to_db(maxf(0.0001, sfx_vol)))
+		AudioServer.set_bus_mute(0, sfx_vol < 0.01)
 	multiplayer.peer_connected.connect(_on_peer_in)
 	multiplayer.peer_disconnected.connect(_on_peer_out)
 	multiplayer.connected_to_server.connect(_on_connected)
@@ -195,7 +206,7 @@ func scan_maps() -> void:
 			seen[sub] = true
 			maps.append(info)
 	if not seen.has("bay") and FileAccess.file_exists(BUILTIN_DIR + "/bay.json"):
-		maps.append({"id": "bay", "name": "Hawaiian Bay", "mi": 1, "theme": "bay", "dir": BUILTIN_DIR, "builtin": true})
+		maps.append({"id": "bay", "name": "Hawaiian Bay", "mi": 1, "theme": "bay", "cup": 0, "dir": BUILTIN_DIR, "builtin": true})
 	maps.sort_custom(func(a, b): return int(a["mi"]) < int(b["mi"]))
 
 
@@ -215,7 +226,18 @@ func _load_gltf(path: String) -> Node3D:
 		return null
 	var doc := GLTFDocument.new()
 	var st := GLTFState.new()
-	if doc.append_from_file(path, st) != OK:
+	var err := OK
+	if path.ends_with(".gltf"):
+		# tell the loader which images are JPEGs (older exports left the type out, so it tried them as PNGs first)
+		var txt := FileAccess.get_file_as_string(path)
+		if txt.find("\"mimeType\"") < 0:
+			var re := RegEx.new()
+			re.compile("\"uri\":\"([^\"]+\\.(jpg|png))\"")
+			txt = re.sub(txt, "\"uri\":\"$1\",\"mimeType\":\"image/$2\"", true).replace("image/jpg", "image/jpeg")
+		err = doc.append_from_buffer(txt.to_utf8_buffer(), path.get_base_dir() + "/", st)
+	else:
+		err = doc.append_from_file(path, st)
+	if err != OK:
 		push_error("Could not read %s" % path)
 		return null
 	var n := doc.generate_scene(st) as Node3D
@@ -371,6 +393,7 @@ func _build_world() -> void:
 		post_mat.set_shader_parameter("vig", float(G.get("vig", 0.16)))
 	env.glow_intensity = float(G.get("bloom", 0.3))
 	env.glow_hdr_threshold = 1.6 * float(G.get("thr", 0.94)) / 0.94
+	_apply_quality()
 
 
 func _build_post() -> void:
@@ -608,15 +631,33 @@ func _build_hud() -> void:
 	panel_menu.visible = false
 	root.add_child(panel_menu)
 	race_btn.grab_focus.call_deferred()
+	# the web's menus, over the live track
+	var ml := CanvasLayer.new()
+	ml.layer = 5
+	add_child(ml)
+	menu = Menu.new()
+	menu.visible = false
+	ml.add_child(menu)
+	menu.go.connect(_menu_go)
+	menu.setting_changed.connect(func(k, v):
+		sel[k] = v
+		if k == "map" and String(v) != map_id:
+			_menu_preview_map(String(v)))
+	menu.modal_builders["mp"] = _mp_panel
+	menu.modal_builders["set"] = _settings_panel
+	loading = _loading_screen()
+	loading.visible = false
+	ml.add_child(loading)
 
 
 func _apply_display() -> void:
-	fps_cap = 60 if is_phone else 0
-	res_scale = 0.67 if is_phone else 1.0
+	if not settings_loaded:
+		fps_cap = 60 if is_phone else 0
+		res_scale = 0.67 if is_phone else 1.0
 	_apply_fps()
 	_apply_res()
 	var vp := get_viewport()
-	vp.msaa_3d = Viewport.MSAA_4X if not is_phone else Viewport.MSAA_DISABLED   # web Ultra: 4x anti-aliasing
+	_apply_quality()
 	vp.use_debanding = true
 	vp.anisotropic_filtering_level = Viewport.ANISOTROPY_8X
 
@@ -679,6 +720,9 @@ func _restart() -> void:
 
 ## builds the grid: a one-player race, or (online) the configuration the host sent
 func _start_race(cfg: Dictionary) -> void:
+	if menu != null:
+		menu.visible = false
+		menu.close_modal()
 	paused = false
 	panel_pause.visible = false
 	panel_results.visible = false
@@ -690,9 +734,9 @@ func _start_race(cfg: Dictionary) -> void:
 			_to_menu("This race is on %s, which isn't in your maps folder." % String(cfg["map"]))
 			return
 	race = Race.new()
-	var pri := int((roster.get("player", {}) as Dictionary).get("ri", 1))
+	var pri := int(sel["ri"])
 	if cfg.is_empty():
-		race.setup(T, roster, pri)
+		race.setup(T, roster, pri, 0, String(sel["cls"]))
 	else:
 		race.setup_cfg(T, roster, cfg, multiplayer.get_unique_id())
 	kart = race.player
@@ -703,6 +747,7 @@ func _start_race(cfg: Dictionary) -> void:
 		view.add_kart(k, _kart_scene)
 	view.build_boxes()
 	view.build_world_haz(haz_lib)
+	view.build_pads()
 	hud.race = race
 	hud.me = kart
 	hud.T = T
@@ -1397,23 +1442,280 @@ func _fmt(t: float) -> String:
 
 func _to_menu(note: String) -> void:
 	_net_close()
+	gp = {}
 	_start_race({})
 	state = "menu"
 	hud_race.visible = false
 	hud.banner("", 0.0)
-	panel_menu.visible = true
-	_menu_refresh(note)
+	panel_menu.visible = false
+	panel_results.visible = false
+	panel_pause.visible = false
+	_menu_sync()
+	menu.open("home")
+	if note != "":
+		menu.show_modal("mp")
+		_menu_refresh(note)
+
+
+## hand the menu what it shows: tracks, drivers, portraits, the current choices
+func _menu_sync() -> void:
+	menu.maps = maps
+	menu.roster = roster
+	menu.portraits = portraits
+	var rj := FileAccess.get_file_as_string("res://assets/racers.json")
+	var ra = JSON.parse_string(rj) if rj != "" else null
+	menu.racers_info = ra if ra is Array else T.racers
+	menu.mode = String(sel["mode"])
+	menu.cls = String(sel["cls"])
+	menu.ri = int(sel["ri"])
+	menu.cup = int(sel["cup"])
+	menu.map_id = map_id
+
+
+## the track menu: show the chosen track behind the menu
+func _menu_preview_map(id: String) -> void:
+	if state != "menu":
+		return
+	await _with_loading("Loading " + String(_map_info(id).get("name", id)) + "…")
+	if load_map(id):
+		_start_race({})
+		state = "menu"
+		hud_race.visible = false
+	loading.visible = false
+
+
+## the menu's Start: a single race, Last Slice, or a whole Grand Prix cup
+func _menu_go(o: Dictionary) -> void:
+	sel.merge(o, true)
+	var id := String(o.get("map", map_id))
+	if String(o["mode"]) == "gp":
+		var ts: Array = []
+		for m in maps:
+			if int(m.get("cup", -1)) == int(o.get("cup", 0)):
+				ts.append(String(m["id"]))
+		if ts.is_empty():
+			ts = [map_id]
+		gp = {"cup": int(o.get("cup", 0)), "race": 0, "pts": [0, 0, 0, 0, 0, 0, 0, 0], "tracks": ts}
+		id = ts[0]
+	else:
+		gp = {}
+	menu.visible = false
+	await _race_on(id)
+
+
+func _race_on(id: String) -> void:
+	if id != map_id:
+		await _with_loading("Loading " + String(_map_info(id).get("name", id)) + "…")
+		if not load_map(id):
+			loading.visible = false
+			_to_menu("Couldn't load that track.")
+			return
+	loading.visible = false
+	if net_role == "host":
+		_net_start()
+	else:
+		_start_race({})
+
+
+func _with_loading(text: String) -> void:
+	(loading.get_meta("txt") as Label).text = text
+	loading.visible = true
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+## the web's loading screen: logo, spinning pizza, the oven bar
+func _loading_screen() -> Control:
+	var c := ColorRect.new()
+	c.color = Color("#1a0d08")
+	c.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var v := VBoxContainer.new()
+	v.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.add_theme_constant_override("separation", 18)
+	v.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	v.grow_vertical = Control.GROW_DIRECTION_BOTH
+	c.add_child(v)
+	var lg := menu.logo("CRUST RUSH", 62.0)
+	lg.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(lg)
+	var t := menu.label("Firing up the oven…", menu.f_med, 13.0, Color("#c2a58c"))
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(t)
+	c.set_meta("txt", t)
+	return c
+
+
+## Play with friends (PC to PC): host or join, the address, who has joined, start
+func _mp_panel() -> Control:
+	var v := menu.vbox(12)
+	var card := menu.panel(menu.glass(18.0, Vector4(18, 16, 18, 16)))
+	v.add_child(card)
+	var cv := menu.vbox(12)
+	card.add_child(cv)
+	cv.add_child(menu.section_label("Online race, PC to PC"))
+	lbl_menu = menu.para("Everyone plays on the PC version. One player hosts; the others type the host's address and join. The host picks the track and starts the race.", 15.0, Color("#c2a58c"), 640.0)
+	cv.add_child(lbl_menu)
+	var row := menu.hbox(10)
+	var hb := menu.button("Host a race", "cta", 19.0, Vector4(20, 12, 20, 12))
+	hb.pressed.connect(_menu_host)
+	row.add_child(hb)
+	ip_edit = LineEdit.new()
+	ip_edit.placeholder_text = "Host's address, e.g. 192.168.1.20"
+	ip_edit.add_theme_font_override("font", menu.f_semi)
+	ip_edit.add_theme_font_size_override("font_size", menu.zi(16))
+	ip_edit.add_theme_stylebox_override("normal", menu.glass(12.0, Vector4(12, 10, 12, 10)))
+	ip_edit.add_theme_stylebox_override("focus", menu.box([Color(1, 0.957, 0.863, 0.08)], 180.0, 12.0, Color("#f7c948"), 2.0, Vector4(12, 10, 12, 10)))
+	ip_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ip_edit.text = net_addr_last
+	row.add_child(ip_edit)
+	var jb := menu.button("Join", "ghost", 16.0, Vector4(22, 12, 22, 12))
+	jb.pressed.connect(_menu_join)
+	row.add_child(jb)
+	cv.add_child(row)
+	var row2 := menu.hbox(10)
+	btn_start_net = menu.button("Start the online race", "cta", 19.0, Vector4(20, 12, 20, 12))
+	btn_start_net.pressed.connect(func():
+		menu.close_modal()
+		menu.visible = false
+		_net_start())
+	row2.add_child(btn_start_net)
+	btn_leave_net = menu.button("Leave", "ghost", 16.0, Vector4(20, 12, 20, 12))
+	btn_leave_net.pressed.connect(_menu_leave)
+	row2.add_child(btn_leave_net)
+	cv.add_child(row2)
+	_menu_refresh("")
+	return v
+
+
+var net_addr_last := ""
+
+
+## Settings: the PC version's options, laid out like the web's (tabs, a title and a note per row)
+func _settings_panel() -> Control:
+	var sc := ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var card := menu.panel(menu.glass(18.0, Vector4(16, 16, 16, 16)))
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(card)
+	var v := menu.vbox(12)
+	card.add_child(v)
+	v.add_child(menu.section_label("Graphics"))
+	var rows := [
+		["Quality", "Ultra: every effect on, shadows across the whole view, ambient occlusion and bloom. High: lighter shadows and no ambient occlusion. Low: the lightest, for older laptops.", "q", [["0", "Low"], ["1", "High"], ["2", "Ultra"]], str(quality)],
+		["Frame rate", "Auto runs at your monitor's full rate. 60 holds a steady 60 frames a second.", "fps", [["0", "Auto"], ["60", "60 fps"], ["120", "120 fps"]], str(fps_cap)],
+		["Resolution", "Draw the 3D view smaller and scale it up, for a higher frame rate on slower graphics cards.", "res", [["1.0", "100%"], ["0.85", "85%"], ["0.67", "67%"]], str(snappedf(res_scale, 0.01)) if res_scale < 0.99 else "1.0"],
+		["Full screen", "F11 switches too.", "fs", [["1", "On"], ["0", "Off"]], "1" if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN or DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN else "0"],
+	]
+	v.add_child(_set_rows(rows))
+	v.add_child(menu.section_label("Sound"))
+	v.add_child(_set_rows([["Sound effects", "Engines, drifts, items and the crowd.", "vol", [["1.0", "On"], ["0.5", "Quiet"], ["0.0", "Off"]], str(snappedf(sfx_vol, 0.1)) if sfx_vol > 0.05 and sfx_vol < 0.95 else ("1.0" if sfx_vol >= 0.95 else "0.0")]]))
+	return sc
+
+
+var sfx_vol := 1.0
+
+
+func _set_rows(rows: Array) -> Control:
+	var v := menu.vbox(0)
+	for r in rows:
+		var h := menu.hbox(20)
+		var tv := menu.vbox(2)
+		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tv.add_child(menu.label(String(r[0]), menu.f_bold, 16.0, Color("#fff4dc")))
+		tv.add_child(menu.para(String(r[1]), 13.0, Color("#c2a58c"), 420.0))
+		h.add_child(tv)
+		var key: String = r[2]
+		var sg := menu.seg("set_" + key, r[3], String(r[4]), func(val): _apply_setting(key, String(val)), 15.0, 8.0)
+		sg.custom_minimum_size.x = menu.z(330)
+		sg.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		h.add_child(sg)
+		var mg := MarginContainer.new()
+		mg.add_theme_constant_override("margin_top", menu.zi(10))
+		mg.add_theme_constant_override("margin_bottom", menu.zi(10))
+		mg.add_child(h)
+		v.add_child(mg)
+	return v
+
+
+func _apply_setting(key: String, val: String) -> void:
+	match key:
+		"q":
+			quality = int(val)
+			_apply_quality()
+		"fps":
+			fps_cap = int(val)
+			_apply_fps()
+		"res":
+			res_scale = float(val)
+			_apply_res()
+		"fs":
+			var want := val == "1"
+			var is_fs := DisplayServer.window_get_mode() in [DisplayServer.WINDOW_MODE_FULLSCREEN, DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN]
+			if want != is_fs:
+				_toggle_fullscreen()
+		"vol":
+			sfx_vol = float(val)
+			AudioServer.set_bus_volume_db(0, linear_to_db(maxf(0.0001, sfx_vol)))
+			AudioServer.set_bus_mute(0, sfx_vol < 0.01)
+	_save_settings()
+
+
+## Ultra: everything; High: no ambient occlusion, shorter shadows; Low: no shadows, glow or ambient occlusion
+func _apply_quality() -> void:
+	if env == null or sun == null:
+		return
+	env.ssao_enabled = quality >= 2 and not is_phone
+	env.glow_enabled = quality >= 1 or not is_phone
+	sun.shadow_enabled = quality >= 1
+	sun.directional_shadow_max_distance = 300.0 if quality >= 2 else 200.0
+	get_viewport().msaa_3d = Viewport.MSAA_4X if quality >= 2 else (Viewport.MSAA_2X if quality >= 1 else Viewport.MSAA_DISABLED)   # web Ultra: 4x
+
+
+func _save_settings() -> void:
+	var cf := ConfigFile.new()
+	cf.set_value("gfx", "quality", quality)
+	cf.set_value("gfx", "fps", fps_cap)
+	cf.set_value("gfx", "res", res_scale)
+	cf.set_value("snd", "vol", sfx_vol)
+	for k in sel:
+		cf.set_value("menu", k, sel[k])
+	cf.set_value("menu", "map", map_id)
+	cf.save("user://settings.cfg")
+
+
+var settings_loaded := false
+
+
+func _load_settings() -> void:
+	var cf := ConfigFile.new()
+	if cf.load("user://settings.cfg") != OK:
+		return
+	settings_loaded = true
+	quality = int(cf.get_value("gfx", "quality", quality))
+	fps_cap = int(cf.get_value("gfx", "fps", fps_cap))
+	res_scale = float(cf.get_value("gfx", "res", res_scale))
+	sfx_vol = float(cf.get_value("snd", "vol", 1.0))
+	for k in ["mode", "cls", "ri", "cup"]:
+		sel[k] = cf.get_value("menu", k, sel[k])
+	var mid := String(cf.get_value("menu", "map", ""))
+	if mid != "" and map_id == "" and OS.get_environment("CR_MAP") == "":
+		map_id = mid
 
 
 func _menu_refresh(note := "") -> void:
-	btn_start_net.visible = net_role == "host"
-	btn_leave_net.visible = net_role != ""
-	var t := "Hawaiian Bay  ·  3 laps  ·  8 racers"
-	if net_role == "host":
-		t = "Hosting. Friends on the PC version join with your address%s\n%d joined so far" % [net_addr, net_peers.size()]
+	if btn_start_net != null and is_instance_valid(btn_start_net):
+		btn_start_net.visible = net_role == "host"
 		btn_start_net.text = "Start the online race (%d player%s)" % [net_peers.size() + 1, "" if net_peers.is_empty() else "s"]
+	if btn_leave_net != null and is_instance_valid(btn_leave_net):
+		btn_leave_net.visible = net_role != ""
+	if lbl_menu == null or not is_instance_valid(lbl_menu):
+		return
+	var t := "Everyone plays on the PC version. One player hosts; the others type the host's address and join. The host picks the track (Choose driver, then the track) and starts the race here."
+	if net_role == "host":
+		t = "Hosting on %s. Friends on the PC version join with your address%s\n%d joined so far." % [String(_map_info(map_id).get("name", map_id)), net_addr, net_peers.size()]
 	elif net_role == "client":
-		t = "Connecting..."
+		t = "Connected. Waiting for the host to start the race." if net_ready else "Connecting..."
 	if note != "":
 		t = note
 	lbl_menu.text = t
@@ -1486,6 +1788,7 @@ func _menu_join() -> void:
 		return
 	multiplayer.multiplayer_peer = peer
 	net_role = "client"
+	net_addr_last = ip
 	_menu_refresh("Connecting to %s..." % ip)
 
 
@@ -1542,8 +1845,8 @@ func _net_start() -> void:
 		return
 	var peers: Array = [1]
 	peers.append_array(net_peers)
-	var pri := int((roster.get("player", {}) as Dictionary).get("ri", 1))
-	var cfg := Race.new().make_cfg(roster, pri, peers, int(randi() & 0x7fffffff) + 1)
+	var pri := int(sel["ri"])
+	var cfg := Race.new().make_cfg(roster, pri, peers, int(randi() & 0x7fffffff) + 1, String(sel["cls"]))
 	cfg["map"] = map_id
 	_net_begin.rpc(cfg)
 	_start_race(cfg)
@@ -1738,6 +2041,9 @@ func _net_client_tick() -> void:
 
 
 func _exit_tree() -> void:
+	if haz_lib != null:
+		haz_lib.free()
+		haz_lib = null
 	if upnp_thread != null:
 		upnp_thread.wait_to_finish()
 

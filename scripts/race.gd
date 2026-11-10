@@ -40,18 +40,23 @@ var _bump_t := {}
 
 
 ## One-player race: the player in the middle of the grid, seven computer drivers.
-func setup(track: TrackData, roster: Dictionary, player_ri: int, seed_: int = 0) -> void:
+func setup(track: TrackData, roster: Dictionary, player_ri: int, seed_: int = 0, cls := "medium") -> void:
 	T = track
 	var sd := seed_
 	if sd == 0:
 		rng.randomize()
 		sd = int(rng.randi() & 0x7fffffff) + 1
-	setup_cfg(track, roster, make_cfg(roster, player_ri, [1], sd), 1)
+	setup_cfg(track, roster, make_cfg(roster, player_ri, [1], sd, cls), 1)
+
+
+## the web's speed classes: top speed and how sharp the computer drivers are
+const CLASS_MUL := {"small": 0.86, "medium": 1.0, "large": 1.14, "reverse": 1.14}
+const CLASS_AI := {"small": "easy", "medium": "normal", "large": "hard", "reverse": "hard"}
 
 
 ## Who sits where: humans (the host first) take the middle of the grid, computer drivers the rest.
 ## peers: the people racing, the host's id (1) first.
-func make_cfg(roster: Dictionary, host_ri: int, peers: Array, seed_: int) -> Dictionary:
+func make_cfg(roster: Dictionary, host_ri: int, peers: Array, seed_: int, cls := "medium") -> Dictionary:
 	var r := RandomNumberGenerator.new()
 	r.seed = seed_
 	var free: Array[int] = []
@@ -77,14 +82,17 @@ func make_cfg(roster: Dictionary, host_ri: int, peers: Array, seed_: int) -> Dic
 	for s3 in 8:
 		if int(slots[s3]["ri"]) < 0 and not free.is_empty():
 			slots[s3] = {"ri": free.pop_front(), "peer": 0, "own": false}
-	return {"seed": seed_, "slots": slots}
+	return {"seed": seed_, "slots": slots, "cls": cls}
 
 
 ## Builds the grid from a configuration (the same on every machine in an online race).
 func setup_cfg(track: TrackData, roster: Dictionary, cfg: Dictionary, my_peer: int) -> void:
 	T = track
 	rng.seed = int(cfg["seed"])
-	diff = T.diffs.get("normal", DEF_DIFF) if not T.diffs.is_empty() else DEF_DIFF
+	var cls := String(cfg.get("cls", "medium"))
+	T.class_mul = float(CLASS_MUL.get(cls, 1.0))
+	var dk := String(CLASS_AI.get(cls, "normal"))
+	diff = T.diffs.get(dk, T.diffs.get("normal", DEF_DIFF)) if not T.diffs.is_empty() else DEF_DIFF
 	var racers: Array = roster.get("racers", [])
 	karts.clear()
 	player = null
@@ -95,7 +103,8 @@ func setup_cfg(track: TrackData, roster: Dictionary, cfg: Dictionary, my_peer: i
 		if ri < 0:
 			continue
 		var pid := int(sl["peer"])
-		var info: Dictionary = roster.get("player", {}) if bool(sl["own"]) else _racer(racers, ri)
+		var pl: Dictionary = roster.get("player", {})
+		var info: Dictionary = pl if bool(sl["own"]) and int(pl.get("ri", -1)) == ri else _racer(racers, ri)
 		var k := _make_kart(ri, s, pid != 0 and pid == my_peer, info)
 		k.peer = pid
 		k.human = pid != 0

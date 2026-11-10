@@ -28,6 +28,7 @@ var proj_nodes := {}     # id -> {n, age, sp, roll, halo, type}
 var pops: Array = []     # {n, t, s}
 var haz_nodes := {}      # id -> {n, ring, warn}
 var whaz := {"traffic": [], "rollers": [], "walk": [], "wagons": []}   # the world's moving hazards
+var pad_nodes: Array = []
 var time := 0.0
 var KS := 1.76
 
@@ -894,6 +895,71 @@ func kart_event(k: Kart, e: String) -> void:
 
 
 # ---------------------------------------------------------------- traffic, walkers, rolling meatballs, the train (web renderHazards)
+
+## the boost pads: holographic strips laid on the road (web strip() + holoPadMat), which the track export can't carry
+func build_pads() -> void:
+	for n in pad_nodes:
+		(n as Node).queue_free()
+	pad_nodes.clear()
+	var sh: Shader = load("res://shaders/holopad.gdshader")
+	var mats: Array = []
+	for v in 3:
+		var m := ShaderMaterial.new()
+		m.shader = sh
+		m.set_shader_parameter("uV", float(v))
+		mats.append(m)
+	var pi := 0
+	for pd in T.pads:
+		var p: Dictionary = pd
+		var j := int(p["j"])
+		var w := float(p.get("w", 16.0))
+		var lat := float(p.get("lat", 0.0))
+		var loop_pad := w > 30.0
+		var j0 := j - 2 if not loop_pad else j - 2
+		var j1 := j + 2
+		var mat: ShaderMaterial = mats[0] if loop_pad else mats[pi % 3]
+		if not loop_pad:
+			pi += 1
+		var mesh := _strip(j0, j1, lat - w, lat + w, 0.12 if not loop_pad else 0.1, 32.0)
+		var mi := MeshInstance3D.new()
+		mi.mesh = mesh
+		mi.material_override = mat
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+		pad_nodes.append(mi)
+
+
+## web strip(): a ribbon along the track from point j0 to j1, o0..o1 to the side, y above the ground
+func _strip(j0: int, j1: int, o0: float, o1: float, y: float, v_len: float) -> ArrayMesh:
+	var cnt := j1 - j0
+	var M := maxi(1, int(round(absf(o1 - o0) / 9.0)))
+	var W := M + 1
+	var verts := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var idx := PackedInt32Array()
+	for k in cnt + 1:
+		var j := posmod(j0 + k, T.N)
+		var v := (k * T.L / T.N) / v_len
+		var pe: float = T.ey[j] if T.multi else 0.0
+		for m in M + 1:
+			var o := o0 + (o1 - o0) * m / M
+			var x: float = T.px[j] + T.nx[j] * o
+			var z: float = T.py[j] + T.ny[j] * o
+			verts.append(Vector3(x, y + T.ground(x, z) + pe, z))
+			uvs.append(Vector2(float(m) / M, v))
+		if k < cnt:
+			for m in M:
+				var a := k * W + m
+				idx.append_array([a, a + W, a + 1, a + 1, a + W, a + W + 1])
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_TEX_UV] = uvs
+	arr[Mesh.ARRAY_INDEX] = idx
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return am
+
 
 ## copies the hazard models (from <map>_haz.glb) once per race
 func build_world_haz(lib: Node3D) -> void:

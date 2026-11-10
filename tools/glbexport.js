@@ -27,7 +27,7 @@ class GLB{
     if(role==='color'&&t.encoding!==SRGB){const id=g.getImageData(0,0,W,H),d=id.data;for(let i=0;i<d.length;i+=4){d[i]=Math.round(l2s(d[i]/255)*255);d[i+1]=Math.round(l2s(d[i+1]/255)*255);d[i+2]=Math.round(l2s(d[i+2]/255)*255);if(d[i+3]<250)hasA=true;}g.putImageData(id,0,0);}
     else if(role==='color'){const d=g.getImageData(0,0,W,H).data;for(let i=3;i<d.length;i+=16)if(d[i]<250){hasA=true;break;}}
     const png=hasA||alpha||role==='normal'||role==='rough',url=c.toDataURL(png?'image/png':'image/jpeg',.9),bytes=b64ToU8(url);this.stats.texBytes+=bytes.length;
-    if(this.extDir){const fn='t'+this.j.images.length+(png?'.png':'.jpg');(this.files=this.files||[]).push({name:fn,b64:url.slice(url.indexOf(',')+1)});this.j.images.push({uri:this.extDir+'/'+fn,name:(t.name||'tex')+'_'+role});}
+    if(this.extDir){const fn='t'+this.j.images.length+(png?'.png':'.jpg');(this.files=this.files||[]).push({name:fn,b64:url.slice(url.indexOf(',')+1)});this.j.images.push({uri:this.extDir+'/'+fn,mimeType:png?'image/png':'image/jpeg',name:(t.name||'tex')+'_'+role});}
     else this.j.images.push({bufferView:this.view(bytes),mimeType:png?'image/png':'image/jpeg',name:(t.name||'tex')+'_'+role});
     this.j.textures.push({source:this.j.images.length-1,sampler:this.sampler(t)});const ti=this.j.textures.length-1;this.texs.set(key,ti);return ti;}
   material(m,vc){const key=m.uuid+(vc?'|vc':'');if(this.mats.has(key))return this.mats.get(key);

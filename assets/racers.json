@@ -1,0 +1,82 @@
+[
+ {
+  "name": "Pep",
+  "color": "#d63a26",
+  "stripe": "#fff4dc",
+  "bio": "The fiery leader of the pack. Loves a tight racing line and a crispy edge.",
+  "prop": "Pizza peel",
+  "ability": "Pepperoni Storm",
+  "ability_desc": "Fires a fan of six spinning pepperoni slices low along the track, ahead or, while you look back, behind you. Each slice ricochets between the track walls and off anything it hits (spinning out racers, smashing items) and vanishes on its third hit.",
+  "ability_col": "#ff5a2a"
+ },
+ {
+  "name": "Basil",
+  "color": "#2f9a3e",
+  "stripe": "#f7c948",
+  "bio": "Cool, fresh and always calm on the last lap. Never panics in a pack.",
+  "prop": "Ripe tomato",
+  "ability": "Pesto Rush",
+  "ability_desc": "The longest ability boost: nothing can hit you while it lasts, and it ignores the slow cheese.",
+  "ability_col": "#3fd06a"
+ },
+ {
+  "name": "Olive",
+  "color": "#6a4fb0",
+  "stripe": "#d8d0f0",
+  "bio": "Smooth as olive oil through every corner. A master of the long drift.",
+  "prop": "Olive oil",
+  "ability": "Slick Trail",
+  "ability_desc": "Leaves a trail of olive-oil slicks behind. Drops ten slicks, and nothing can touch you while you lay them; drive through one and your wheels get coated: no spin, but you are slowed a lot for 5 seconds.",
+  "ability_col": "#c8b23a"
+ },
+ {
+  "name": "Mozz",
+  "color": "#f3ebd8",
+  "stripe": "#e0452c",
+  "bio": "Stretchy, sunny and impossible to shake off your bumper.",
+  "prop": "Cheese wedge",
+  "ability": "Melt Shield",
+  "ability_desc": "Wraps the kart in stretchy cheese that blocks every hit for a while, with a quick burst of speed.",
+  "ability_col": "#fff4c0"
+ },
+ {
+  "name": "Chili",
+  "color": "#f07214",
+  "stripe": "#1b0f0b",
+  "bio": "Hot-headed and always flat out. Saves nothing for the finish.",
+  "prop": "Hot sauce",
+  "ability": "Fire Trail",
+  "ability_desc": "A fiery boost that leaves burning flames on the road: anyone who drives into them spins out and catches fire. Nothing can hit you while it burns.",
+  "ability_col": "#ff3a12"
+ },
+ {
+  "name": "Shroom",
+  "color": "#8a5f42",
+  "stripe": "#e3d2b0",
+  "bio": "Small, earthy and sneaky on the shortcuts. Knows every hidden trail.",
+  "prop": "Rolling pin",
+  "ability": "Mega Shroom",
+  "ability_desc": "Grows huge and unstoppable with a small surge forward, and flattens anyone it touches, front, side or back, even if they drive into you. They stay squashed and slow for 3 seconds. You can still steer and drift.",
+  "ability_col": "#c8a06a"
+ },
+ {
+  "name": "Pineapple",
+  "color": "#f2bf1e",
+  "stripe": "#2f9a3e",
+  "bio": "Divisive but fearless. Loves big jumps and bigger arguments.",
+  "prop": "Pizza boxes",
+  "ability": "Spiky Shockwave",
+  "ability_desc": "A huge spiky blast that spins out every racer anywhere near you, even in the air. The only hit in the game that goes through shields, ability boosts, Delivery Rush and the blink after a hit.",
+  "ability_col": "#ffd23a"
+ },
+ {
+  "name": "Anchovy",
+  "color": "#2a7fd8",
+  "stripe": "#fff4dc",
+  "bio": "Slippery, salty and fast in a straight line. Swims through traffic.",
+  "prop": "Pizza cutter",
+  "ability": "School of Fish",
+  "ability_desc": "Launches three anchovies that hunt down the next three racers ahead, or the three behind you if you launch them looking back. They always reach their target, but a well-timed hop dodges one.",
+  "ability_col": "#8fc8e8"
+ }
+]
