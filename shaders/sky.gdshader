@@ -19,5 +19,6 @@ void sky() {
 		float s = max(dot(EYEDIR, LIGHT0_DIRECTION), 0.0);
 		c += sun_col * (pow(s, sun_disc) * 4.0 + pow(s, 16.0) * 0.22);
 	}
-	COLOR = c;
+	// the web sky is drawn without tone mapping; this keeps it as bright after Godot's
+	COLOR = c * 1.2;
 }

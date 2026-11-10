@@ -101,12 +101,15 @@ func _build_world() -> void:
 	# a touch more contrast and saturation. Its fill is a warm cream from above, so the ambient is that colour,
 	# with a little of the sky gradient (teal below) for the hemisphere's falloff.
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_sky_contribution = 0.3
+	env.ambient_light_sky_contribution = 0.25
 	env.ambient_light_color = _hex(L.get("hemiSky"), Color(1, 0.89, 0.77))
-	env.ambient_light_energy = float(L.get("hemiI", 0.52)) * 0.7 * 1.6
+	env.ambient_light_energy = float(L.get("hemiI", 0.52)) * 0.7
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = float(L.get("exposure", 0.92)) * 0.96
+	# Godot's ACES pre-scales by 1.8 and normalises to its white point; the web game's (three.js) pre-scales by
+	# 1/0.6 and doesn't normalise. A high white point and exposure x(1.667/1.8) make the two curves match.
+	env.tonemap_white = 16.0
+	env.tonemap_exposure = float(L.get("exposure", 0.92)) * 0.96 * (1.0 / 0.6) / 1.8
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.07
 	env.adjustment_saturation = 1.06
