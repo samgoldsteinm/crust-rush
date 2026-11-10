@@ -10,6 +10,7 @@ var started := false
 var begun_at := -1.0
 var steer_seen := 0.0
 var done := false
+var theirs: Kart
 
 
 func _ready() -> void:
@@ -45,7 +46,9 @@ func _process(dt: float) -> void:
 			main._net_start()
 			print("NET host: %d joined, race started" % main.net_peers.size())
 		if started:
-			var k := _their_kart()
+			if theirs == null:
+				theirs = _their_kart()
+			var k := theirs
 			if k != null:
 				steer_seen = maxf(steer_seen, absf(float(k.net_inp["steer"])))
 			if main.race.race_time > 22.0:

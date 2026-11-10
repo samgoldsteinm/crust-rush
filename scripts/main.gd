@@ -109,6 +109,7 @@ var net_snap_dt := 1.0 / 30.0
 var net_fresh := true
 var net_out: Array = []
 var net_addr := ""
+var net_ready := false       # client: the connection to the host is up
 var upnp_thread: Thread
 var btn_quality: Button
 var stats := {"used": {}, "spins": 0, "boxes": 0, "player_spins": 0}
@@ -1122,7 +1123,8 @@ func _input_state() -> Dictionary:
 			it2 = "fwd"
 	if it2 != "" and kart != null:
 		if net_role == "client":
-			_net_item.rpc_id(1, it2)
+			if net_ready:
+				_net_item.rpc_id(1, it2)
 		else:
 			race.item_intent(kart, it2, o)
 	if bool(o["use"]) and kart.item != "" and look and not kart.item in Race.NOBACK:
@@ -1606,6 +1608,7 @@ func _net_close() -> void:
 			mp.close()
 		multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	net_role = ""
+	net_ready = false
 	net_peers.clear()
 	net_out.clear()
 
@@ -1632,6 +1635,7 @@ func _on_peer_out(id: int) -> void:
 
 
 func _on_connected() -> void:
+	net_ready = true
 	if state == "menu":
 		_menu_refresh("Connected. Waiting for the host to start the race.")
 
@@ -1830,7 +1834,7 @@ func _net_snap(s: Array) -> void:
 ## everyone but the host: send the controls sixty times a second, and play what the host reported
 func _net_client_tick() -> void:
 	net_tick += 1
-	if kart == null:
+	if kart == null or not net_ready:
 		return
 	var o := _input_state()
 	if net_tick % 2 == 0 and state != "results":
