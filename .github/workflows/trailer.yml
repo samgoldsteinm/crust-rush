@@ -1,0 +1,123 @@
+# Records the gameplay clip for the download page: Godot's Movie Maker films the computer driving the
+# player's kart on three tracks (Ultra, PC extras on), software Vulkan under xvfb. The clips are joined
+# with cross-fades (tools/trailer_cut.py) and attached to the "pc" release as trailer.mp4, poster.jpg
+# and shot-N.jpg, next to the Windows download.
+name: Trailer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [godot]
+    paths: [tests/trailer.gd, tests/trailer.tscn, tools/trailer_cut.py, .github/workflows/trailer.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  clip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {n: 1, map: bay, skip: 0, secs: 7.5}
+          - {n: 2, map: frosty, skip: 32, secs: 6}
+          - {n: 3, map: lagoon, skip: 44, secs: 6}
+    env:
+      GODOT_VERSION: "4.7.2"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Godot
+        run: |
+          set -euo pipefail
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          curl -fsSL -o godot.zip "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot
+          chmod +x godot
+
+      - name: Fetch the tracks and the garage (the "maps" release, made by the Export tracks workflow)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p maps && touch maps/.gdignore
+          if gh release view maps -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release download maps -R "$GITHUB_REPOSITORY" -p 'map-*.zip' -D "$RUNNER_TEMP/maps_zip" || true
+            for z in "$RUNNER_TEMP"/maps_zip/*.zip; do [ -f "$z" ] && unzip -q -o "$z" -d maps; done
+          fi
+          ls maps; du -sh maps
+          # the garage's bodies, wheels, gliders and drivers (imported with the project)
+          if gh release download maps -R "$GITHUB_REPOSITORY" -p 'garage.zip' -D "$RUNNER_TEMP/garage_zip"; then
+            mkdir -p assets && unzip -q -o "$RUNNER_TEMP/garage_zip/garage.zip" -d assets
+          fi
+          ls assets/garage | wc -l || true
+          # the soundtrack, rendered from the web game's music (tools/cimusic.py)
+          if gh release download maps -R "$GITHUB_REPOSITORY" -p 'music.zip' -D "$RUNNER_TEMP/music_zip"; then
+            mkdir -p assets && unzip -q -o "$RUNNER_TEMP/music_zip/music.zip" -d assets
+          fi
+          ls assets/music | wc -l || true
+          # the CC0 textures for the finished scenery (tools/hd_fetch.py)
+          if gh release download maps -R "$GITHUB_REPOSITORY" -p 'hd.zip' -D "$RUNNER_TEMP/hd_zip"; then
+            mkdir -p assets/hd/cc0 && unzip -q -o -j "$RUNNER_TEMP/hd_zip/hd.zip" -d assets/hd/cc0
+          fi
+          ls assets/hd/cc0 | wc -l || true
+          # the finished ground: relief and gloss maps made from each track's own ground picture (tools/hd_ground.py)
+          python3 -c "import numpy, PIL" 2> /dev/null || pip install -q --break-system-packages numpy pillow || pip install -q numpy pillow || true
+          python3 tools/hd_ground.py maps || echo "::warning::ground maps not made"
+
+      - name: Import the project
+        run: |
+          ./godot --headless --path . --import 2>&1 | tail -20
+
+      - name: Film the race (Movie Maker, software Vulkan)
+        env:
+          CR_MAP: ${{ matrix.map }}
+          TR_SKIP: ${{ matrix.skip }}
+          TR_SECS: ${{ matrix.secs }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mesa-vulkan-drivers xvfb ffmpeg > /dev/null
+          mkdir -p build/clip
+          timeout 6000 xvfb-run -a -s "-screen 0 1280x720x24" ./godot --path . --rendering-driver vulkan --resolution 1280x720 --fixed-fps 30 --write-movie build/clip/frame.png res://tests/trailer.tscn > trailer.log 2>&1 || true
+          grep -E "^TRAILER|SCRIPT ERROR|Parse Error|   at: " trailer.log | head -60
+          ls build/clip | wc -l
+          python3 tools/trailer_cut.py one build/clip ${{ matrix.secs }} clip-${{ matrix.n }}.mp4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clip-${{ matrix.n }}
+          path: clip-${{ matrix.n }}.mp4
+          retention-days: 7
+
+  join:
+    needs: clip
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: clip-*
+          merge-multiple: true
+          path: clips
+      - name: Join the clips
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          ls -la clips
+          python3 tools/trailer_cut.py join out $(ls clips/clip-*.mp4 | sort)
+          ls -la out
+      - name: Attach to the "pc" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view pc -R "$GITHUB_REPOSITORY" > /dev/null 2>&1 || \
+            gh release create pc -R "$GITHUB_REPOSITORY" --target godot --title "Crust Rush for Windows" \
+              --notes "The PC version of Crust Rush. Download CrustRush-Windows.zip, unzip it anywhere and run CrustRush.exe. Updated automatically from the godot branch."
+          gh release upload pc -R "$GITHUB_REPOSITORY" --clobber out/trailer.mp4 out/poster.jpg out/shot-*.jpg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trailer
+          path: out/
+          retention-days: 14

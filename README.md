@@ -1,7 +1,8 @@
 # Crust Rush — native PC build (Godot 4.7)
 
 The Windows version of Crust Rush, on its own branch. Nothing here affects the web game on `main`.
-Every push builds `CrustRush.exe` (Actions → PC build → Artifacts → CrustRush-Windows).
+Every push builds `CrustRush.exe` (Actions → PC build → Artifacts → CrustRush-Windows) and replaces the public
+download, `CrustRush-Windows.zip` on the [`pc` release](https://github.com/samgoldsteinm/crust-rush/releases/tag/pc).
 
 The PC build is a copy of the web game: same tracks, karts, items, menus, look and rules. The tracks, the garage
 parts and the soundtrack are exported from the published web game by the **Export tracks** workflow and attached
@@ -58,6 +59,8 @@ drawn, so nothing changes in the distance. Off draws the web game's shapes every
 - `.github/workflows/pc.yml` — checks, tests and builds on every push. `[quick]` in a commit message skips screenshots and export.
 - `.github/workflows/maps.yml` — exports the tracks, garage and soundtrack from the web game (run by hand, or on changes to the tools).
 - `.github/workflows/hd.yml` — downloads the CC0 textures from Poly Haven into the `maps` release (`hd.zip`).
+- `.github/workflows/trailer.yml` — films a gameplay clip on three tracks with Godot's Movie Maker (`tests/trailer.gd`),
+  joins it (`tools/trailer_cut.py`) and attaches `trailer.mp4`, `poster.jpg` and stills to the `pc` release.
 - `.github/workflows/ios.yml` — iPhone build, manual only (paused).
 
 ## Not ported yet

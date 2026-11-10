@@ -8,6 +8,9 @@ on:
     paths-ignore: [tools/hd_fetch.py, tools/hdlist.py, tools/hd_textures.py, .github/workflows/hd.yml, .github/workflows/maps.yml, README.md]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   pc:
     runs-on: ubuntu-latest
@@ -115,6 +118,24 @@ jobs:
           # the tracks go in a "maps" folder next to the game
           if ls maps/*/ > /dev/null 2>&1; then cp -r maps build/windows/maps; rm -f build/windows/maps/.gdignore; fi
           ls -la build/windows; du -sh build/windows
+
+      # the public download (the "pc" release, linked from the download page): replaced on every full build
+      - name: Publish the download
+        if: ${{ github.ref == 'refs/heads/godot' && !contains(github.event.head_commit.message, '[quick]') }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          (cd build && mv windows CrustRush && zip -q -r -6 ../CrustRush-Windows.zip CrustRush && mv CrustRush windows)
+          size=$(stat -c %s CrustRush-Windows.zip); echo "zip: $((size / 1048576)) MB"
+          if [ "$size" -gt 2040109465 ]; then echo "::error::the zip is over GitHub's 2 GB release limit"; exit 1; fi
+          gh release view pc -R "$GITHUB_REPOSITORY" > /dev/null 2>&1 || \
+            gh release create pc -R "$GITHUB_REPOSITORY" --target godot --title "Crust Rush for Windows" \
+              --notes "The PC version of Crust Rush. Download CrustRush-Windows.zip, unzip it anywhere and run CrustRush.exe. Updated automatically from the godot branch."
+          gh release upload pc -R "$GITHUB_REPOSITORY" --clobber CrustRush-Windows.zip
+          echo "{\"build\": \"${GITHUB_SHA::8}\", \"date\": \"$(date -u +%Y-%m-%d)\", \"bytes\": $size}" > pc-build.json
+          gh release upload pc -R "$GITHUB_REPOSITORY" --clobber pc-build.json
 
       - uses: actions/upload-artifact@v4
         if: ${{ !contains(github.event.head_commit.message, '[quick]') }}
