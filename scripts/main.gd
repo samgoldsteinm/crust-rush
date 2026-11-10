@@ -97,13 +97,27 @@ func _build_world() -> void:
 	sky.sky_material = sm
 	sky.radiance_size = Sky.RADIANCE_SIZE_64
 	env.sky = sky
+	# the web game's lighting with its default "Vivid" look: hemisphere fill x0.7, sun x1.25, exposure x0.96,
+	# a touch more contrast and saturation. Its fill is a warm cream from above, so the ambient is that colour,
+	# with a little of the sky gradient (teal below) for the hemisphere's falloff.
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_sky_contribution = 0.55
+	env.ambient_light_sky_contribution = 0.3
 	env.ambient_light_color = _hex(L.get("hemiSky"), Color(1, 0.89, 0.77))
-	env.ambient_light_energy = maxf(0.35, float(L.get("hemiI", 0.5)))
+	env.ambient_light_energy = float(L.get("hemiI", 0.52)) * 0.7 * 1.6
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = float(L.get("exposure", 0.92)) * 1.05
+	env.tonemap_exposure = float(L.get("exposure", 0.92)) * 0.96
+	env.adjustment_enabled = true
+	env.adjustment_contrast = 1.07
+	env.adjustment_saturation = 1.06
+	if not is_phone:
+		env.ssao_enabled = true
+		env.ssao_radius = 2.5
+		env.ssao_intensity = 1.6
+		env.glow_enabled = true
+		env.glow_intensity = 0.35
+		env.glow_bloom = 0.04
+		env.glow_hdr_threshold = 1.1
 	var fog = L.get("fog")
 	if typeof(fog) == TYPE_DICTIONARY:
 		env.fog_enabled = true
@@ -125,7 +139,7 @@ func _build_world() -> void:
 	add_child(sun)
 	sun.look_at_from_position(to_sun * 100.0, Vector3.ZERO, Vector3.UP)
 	sun.light_color = _hex(L.get("sunColor"), Color(1, 0.84, 0.66))
-	sun.light_energy = float(L.get("sunI", 3.0)) * 0.42
+	sun.light_energy = float(L.get("sunI", 3.25)) * 1.25
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	sun.directional_shadow_max_distance = 700.0
