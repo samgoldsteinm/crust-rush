@@ -61,8 +61,8 @@ a detailed map of its surface; on the frozen tracks they keep their own rock col
 - `scripts/netlog.gd` — the network log of online races.
 - `scripts/webnet.gd`, `scripts/mqtt.gd` — cross-play with the browser version: the web game's room codes, relay and
   race messages (version 97), as guest or host.
-- `scripts/music.gd`, `scripts/sfx.gd` — the soundtrack and the sound effects (engines from real recordings in `assets/sfx/`,
-  one per kind of kart body, pitched through the gears like the web's).
+- `scripts/music.gd`, `scripts/sfx.gd` — the soundtrack and the sound effects (an engine voice per kind of kart body,
+  pitched through the gears like the web's: louder when you work it, a soft hum at a steady speed).
 - `scripts/track.gd` — track data exported from the web game.
 - `scripts/props.gd`, `scripts/hd_ground.gd`, `scripts/hd_mount.gd`, `shaders/foliage.gdshader`, `shaders/mountain*.gdshader`
   — the finished trees, bushes, rocks, ground and background mountains.
@@ -86,5 +86,4 @@ a detailed map of its surface; on the frozen tracks they keep their own rock col
 The web game's credits all carry over. The finished models' bark and stone surfaces are CC0 textures from
 [Poly Haven](https://polyhaven.com) (bark_brown_02, bark_willow, rock_boulder_dry and others listed in
 `assets/hd/cc0/credits.txt` in the build), used under CC0 with thanks. The leaf, frond, bough and ground maps are
-made by this project's own tools. The background mountain is the user's own mountain model at full detail. The engine
-sounds are loops made (`tools/engine_loops.py`) from recordings on Pixabay by Dragon Studio and the Freesound community.
+made by this project's own tools. The background mountain is the user's own mountain model at full detail.

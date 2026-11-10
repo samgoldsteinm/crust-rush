@@ -1,16 +1,18 @@
 class_name Sfx
 extends Node
 ## Sound, made at start-up from simple waveforms (as the web game does with Web Audio): an
-## engine that follows the speed, a tyre squeal while drifting, and short effects. The engines of karts, bikes and cars
-## are loops made from real recordings (assets/sfx/eng_*.wav, tools/engine_loops.py), pitched with the revs through
-## the gears like the web's; jets and electric motors keep the made-up hum.
+## engine that follows the speed, a tyre squeal while drifting, and short effects. Each kind of kart body has its own
+## engine voice (a buzzy kart, a screaming race car, a burbling V8, a smooth jet or electric hum), pitched with the revs
+## through the gears like the web's. It speaks up when you work it (pulling away, each gear, a boost) and settles back
+## to a soft hum at a steady speed, so it is there without droning all race.
 
-## engine voice per kart body and its tuning (web ENG_BODY / ENG_PROF / ENG_SMP): f pitch, gears, recording, its pitch, level
+## engine voice per kart body and its tuning (web ENG_BODY / ENG_PROF): [pitch, gears, voice, unused, level]
 const ENG_BODY := {"delivery": "v8", "formula": "race", "interceptor": "race", "hyper": "race", "onyx": "race", "roadster": "race", "scissor": "race",
 	"gt": "race", "coupe": "race", "muscle": "v8", "monster": "v8", "suv": "v8", "rocket": "jet", "bike_rocket": "jet", "bike_moto": "bike", "bike_mx": "bike",
 	"bike_neutron": "bike", "bike_june": "hum", "oven": "chug", "chariot": "chug"}
-const ENG_PROF := {"std": [1.0, true, "kart", 1.0, 0.92], "race": [1.55, true, "race", 1.0, 1.3], "v8": [0.62, true, "v8", 1.0, 1.0],
-	"jet": [2.2, false, "", 1.0, 1.0], "bike": [1.25, true, "kart", 1.18, 0.92], "hum": [3.1, false, "", 1.0, 1.0], "chug": [0.8, true, "v8", 0.84, 1.0]}
+const ENG_PROF := {"std": [1.0, true, "pulse", 1.0, 1.0], "race": [1.55, true, "scream", 1.0, 0.8], "v8": [0.62, true, "v8", 1.0, 1.15],
+	"jet": [2.2, false, "hum", 1.0, 0.7], "bike": [1.25, true, "pulse", 1.0, 0.95], "hum": [3.1, false, "hum", 1.0, 0.6], "chug": [0.8, true, "v8", 1.0, 1.1]}
+const ENG_BASE := 46.0     # every voice's loop is built on this fundamental
 
 const RATE := 22050
 var bank := {}
@@ -20,6 +22,11 @@ var eng2: AudioStreamPlayer
 var rec: AudioStreamPlayer        # the recorded engine voice
 var prof: Array = ENG_PROF["std"]
 var rec_name := ""
+var voice := ""
+var prev_sp := -1.0
+var prev_gi := 0
+var kick := 0.0
+var act := 0.0
 var skid: AudioStreamPlayer
 var wind: AudioStreamPlayer
 var rng := RandomNumberGenerator.new()
@@ -144,6 +151,33 @@ func _build() -> void:
 			v *= 0.75 + 0.25 * sin(TAU * base * 0.5 * t)       # a lumpy idle
 			s[i] = tanh(v * 0.9) * 0.5
 		bank["engine" if which == 0 else "engine2"] = _wav(s, true)
+	# the voices (web engWaves): harmonic recipes on one 46 Hz fundamental, one second that loops cleanly
+	var recipes := {
+		"pulse": [[1, 1.0], [2, 0.55], [3, 0.6], [4, 0.28], [5, 0.33], [6, 0.12], [7, 0.16], [9, 0.07]],
+		"scream": [[1, 0.8], [2, 0.7], [3, 0.55], [4, 0.5], [5, 0.38], [6, 0.32], [8, 0.2], [10, 0.12], [12, 0.07]],
+		"v8": [[0.5, 0.55], [1, 1.0], [1.5, 0.35], [2, 0.5], [3, 0.3], [4, 0.14], [6, 0.06]],
+		"hum": [[1, 1.0], [2, 0.18], [3, 0.08]],
+	}
+	for vn in recipes:
+		var n2 := RATE
+		var s2 := PackedFloat32Array()
+		s2.resize(n2)
+		var rr: Array = recipes[vn]
+		var peak := 0.0
+		for i in n2:
+			var t := float(i) / RATE
+			var v := 0.0
+			for hv in rr:
+				var h: float = hv[0]
+				v += sin(TAU * 46.0 * h * t + h * 1.3) * float(hv[1])
+			# the firing pulse: a little louder on each beat (twice as lumpy on the V8)
+			var lump := 0.8 + 0.2 * sin(TAU * 46.0 * (0.25 if vn == "v8" else 0.5) * t)
+			v = tanh(v * 0.7 * lump)
+			s2[i] = v
+			peak = maxf(peak, absf(v))
+		for i in n2:
+			s2[i] = s2[i] / maxf(peak, 0.01) * 0.6
+		bank["eng_" + vn] = _wav(s2, true)
 	# tyre squeal: narrow noise around a wavering pitch
 	var sk := PackedFloat32Array()
 	sk.resize(RATE)
@@ -208,23 +242,14 @@ func play(name_: String, vol := 1.0, pitch := 1.0) -> void:
 ## the engine voice for a kart body (its id from the garage)
 func set_body(body_id: String) -> void:
 	prof = ENG_PROF.get(ENG_BODY.get(body_id, "std"), ENG_PROF["std"])
-	var want := String(prof[2])
-	if want == rec_name:
+	var want := "eng_" + String(prof[2])
+	prev_sp = -1.0
+	act = 0.0
+	if want == voice or not bank.has(want):
 		return
-	rec_name = want
-	rec.stop()
-	if want == "":
-		return
-	var path := "res://assets/sfx/eng_%s.wav" % want
-	var st: AudioStreamWAV = load(path) if ResourceLoader.exists(path) else null
-	if st == null:
-		rec_name = ""
-		return
-	st.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	st.loop_begin = 0
-	st.loop_end = int(st.get_length() * st.mix_rate)
-	rec.stream = st
-	rec.play(randf() * st.get_length() * 0.9)
+	voice = want
+	eng.stream = bank[want]
+	eng.play(randf() * 0.9)
 
 
 ## speed 0..~1.6 of top speed; gas: whether the engine is pulling
@@ -237,29 +262,35 @@ func drive(speed: float, gas: bool, boosting: bool, drifting: bool, tier: int, o
 		wind.volume_db = -60.0
 		return
 	var s := clampf(speed, 0.0, 1.7)
-	if rec_name != "" and rec.playing:
-		# revs climb through each gear and drop at the shift, like the web's
-		var GT := [0.0, 0.2, 0.42, 0.64, 0.86, 1.31]
-		var r := minf(1.3, s)
-		var gi := 0
-		while gi < 4 and r > float(GT[gi + 1]):
-			gi += 1
-		var rpm := minf(1.12, 0.3 + 0.7 * minf(1.0, (r - float(GT[gi])) / (float(GT[gi + 1]) - float(GT[gi]))) + (0.12 if boosting else 0.0))
-		var ef := (24.0 + rpm * 58.0 + gi * 4.0) * float(prof[0])
-		rec.pitch_scale = clampf(ef / (75.5 * float(prof[0])) * float(prof[3]), 0.3, 2.5)
-		rec.volume_db = linear_to_db(volume * float(prof[4]) * (0.17 + 0.16 * rpm) * (1.0 if gas else 0.7))
-		eng.volume_db = -60.0
-		eng2.volume_db = -60.0
-		skid.volume_db = linear_to_db(volume * 0.22) if drifting else -60.0
-		skid.pitch_scale = 0.9 + 0.12 * tier
-		wind.volume_db = linear_to_db(volume * clampf((s - 0.4) * 0.35, 0.001, 0.4))
-		wind.pitch_scale = 0.8 + 0.5 * s
-		return
+	var dt := maxf(get_process_delta_time(), 1e-3)
 	rec.volume_db = -60.0
-	eng.pitch_scale = 0.7 + s * 1.15 + (0.12 if boosting else 0.0)
+	# revs climb through each gear and drop at the shift, like the web's (jets and electric motors glide)
+	var GT := [0.0, 0.2, 0.42, 0.64, 0.86, 1.31]
+	var r := minf(1.3, s)
+	var gi := 0
+	while gi < 4 and r > float(GT[gi + 1]):
+		gi += 1
+	var rpm: float
+	if bool(prof[1]):
+		rpm = minf(1.12, 0.3 + 0.7 * minf(1.0, (r - float(GT[gi])) / (float(GT[gi + 1]) - float(GT[gi]))) + (0.12 if boosting else 0.0))
+	else:
+		rpm = minf(1.12, 0.25 + 0.7 * minf(1.2, r) + (0.12 if boosting else 0.0))
+	var ef := (24.0 + rpm * 58.0 + (gi * 4.0 if bool(prof[1]) else 0.0)) * float(prof[0])
+	eng.pitch_scale = clampf(ef / ENG_BASE, 0.25, 4.0)
 	eng2.pitch_scale = eng.pitch_scale
-	eng.volume_db = linear_to_db(volume * (0.2 + 0.14 * s) * (1.0 if gas else 0.6))
-	eng2.volume_db = linear_to_db(volume * maxf(0.001, (s - 0.35) * 0.2) * (1.3 if boosting else 1.0))
+	# it speaks up when you work it (pulling away, each gear, a boost) and settles to a soft hum at a steady speed
+	var a := 0.0 if prev_sp < 0.0 else (s - prev_sp) / dt
+	prev_sp = s
+	if gi != prev_gi:
+		if a > 0.0:
+			kick = 0.55
+		prev_gi = gi
+	kick = maxf(0.0, kick - dt * 1.4)
+	var tgt := maxf(maxf(clampf(a / 0.5, 0.0, 1.0), 0.9 if boosting else 0.0), maxf(kick, 0.6 if (r < 0.12 and a > 0.01 and gas) else 0.0))
+	act += (tgt - act) * (1.0 - exp(-dt / (0.1 if tgt > act else 1.2)))
+	var lv := volume * float(prof[4]) * ((0.13 + 0.09 * rpm) + act * (0.13 + 0.1 * rpm)) * (1.0 if gas else 0.75)
+	eng.volume_db = linear_to_db(maxf(0.0005, lv))
+	eng2.volume_db = linear_to_db(maxf(0.0005, lv * 0.12 * rpm))
 	skid.volume_db = linear_to_db(volume * 0.22) if drifting else -60.0
 	skid.pitch_scale = 0.9 + 0.12 * tier
 	wind.volume_db = linear_to_db(volume * clampf((s - 0.4) * 0.35, 0.001, 0.4))
