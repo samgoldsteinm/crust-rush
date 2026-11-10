@@ -267,6 +267,58 @@ func _rbox(x: float, y: float, w: float, h: float, bg: Color, border: Color, bw:
 	draw_style_box(sb, Rect2(_p(Vector2(x, y)), Vector2(w, h) * s))
 
 
+## a CSS linear-gradient(180deg, ...) box with rounded corners, drawn as thin horizontal slices
+## stops: [[offset 0..1, Color], ...]; rt/rb: top and bottom corner radii (CSS px)
+func _vgrad(x: float, y: float, w: float, h: float, rt: float, rb: float, stops: Array) -> void:
+	var rows := maxi(2, int(ceil(h * s)))
+	var dy := h / rows
+	for i in rows:
+		var yy := y + i * dy
+		var f := (i + 0.5) / rows
+		var col: Color = stops[0][1]
+		for j in range(1, stops.size()):
+			var a: Array = stops[j - 1]
+			var b: Array = stops[j]
+			if f <= float(b[0]):
+				col = (a[1] as Color).lerp(b[1], clampf((f - float(a[0])) / maxf(1e-4, float(b[0]) - float(a[0])), 0.0, 1.0))
+				break
+			col = b[1]
+		# the inset of the rounded corners at this row
+		var ins := 0.0
+		var ym := yy + dy * 0.5 - y
+		if ym < rt:
+			var d := rt - ym
+			ins = rt - sqrt(maxf(0.0, rt * rt - d * d))
+		elif ym > h - rb:
+			var d2 := ym - (h - rb)
+			ins = rb - sqrt(maxf(0.0, rb * rb - d2 * d2))
+		draw_rect(Rect2(_p(Vector2(x + ins, yy)), Vector2(w - 2.0 * ins, dy + 0.02) * s), col)
+
+
+## just the border (and outer shadow) of a rounded box
+func _rborder(x: float, y: float, w: float, h: float, border: Color, bw: float, rt: float, rb: float) -> void:
+	var sb := StyleBoxFlat.new()
+	sb.draw_center = false
+	sb.border_color = border
+	sb.set_border_width_all(maxi(1, int(round(bw * s))))
+	sb.corner_radius_top_left = int(rt * s)
+	sb.corner_radius_top_right = int(rt * s)
+	sb.corner_radius_bottom_left = int(rb * s)
+	sb.corner_radius_bottom_right = int(rb * s)
+	sb.anti_aliasing = true
+	draw_style_box(sb, Rect2(_p(Vector2(x, y)), Vector2(w, h) * s))
+
+
+## a cubic Bezier as points (for the SVG icons)
+static func _bez(p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, n := 12) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for i in n + 1:
+		var u := float(i) / n
+		var v := 1.0 - u
+		out.append(p0 * v * v * v + p1 * 3.0 * v * v * u + p2 * 3.0 * v * u * u + p3 * u * u * u)
+	return out
+
+
 func _text(font: Font, txt: String, x: float, y: float, size: float, col: Color, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0, shadow := Color(0, 0, 0, 0), sh_off := Vector2(0, 2), letter := 0.0) -> void:
 	# y is the text's top; baseline sits ~0.8em below
 	var fs := int(round(size * s))
@@ -411,7 +463,11 @@ func _draw_top_bar() -> void:
 	var lw: float = tb["lap_w"]
 	var lh: float = tb["lap_h"]
 	var ly := mid - lh / 2.0
-	_rbox(lx, ly, lw, lh, Color(29.0 / 255, 15.0 / 255, 9.0 / 255, 0.72), Color(1, 0.957, 0.863, 0.16), 1.0, 12.0, 10.0, Color(0, 0, 0, 0.28))
+	# linear-gradient(160deg, rgba(40,22,14,.78), rgba(14,7,4,.62)), 0 8px 20px rgba(0,0,0,.28)
+	_rbox(lx, ly + 2.0, lw, lh, Color(0, 0, 0, 0), Color(0, 0, 0, 0), 0.0, 12.0, 10.0, Color(0, 0, 0, 0.26))
+	_vgrad(lx, ly, lw, lh, 12.0, 12.0, [[0.0, Color(40.0 / 255, 22.0 / 255, 14.0 / 255, 0.78)], [1.0, Color(14.0 / 255, 7.0 / 255, 4.0 / 255, 0.62)]])
+	_vgrad(lx + 6.0, ly + 1.0, lw - 12.0, 1.0, 0.0, 0.0, [[0.0, Color(1, 1, 1, 0.08)], [1.0, Color(1, 1, 1, 0.08)]])
+	_rborder(lx, ly, lw, lh, Color(1, 0.957, 0.863, 0.16), 1.0, 12.0, 12.0)
 	var lb: float = tb["lap_big"]
 	var lab_w := f_bold.get_string_size("LAP", HORIZONTAL_ALIGNMENT_LEFT, -1, int(10 * s)).x / s + 4.0
 	_text(f_bold, "LAP", lx + 10.0, ly + 4.0 + (lb * 1.15 - 10.0) / 2.0, 10.0, MUTED, HORIZONTAL_ALIGNMENT_LEFT, -1.0, Color(0, 0, 0, 0), Vector2.ZERO, 1.6)
@@ -598,14 +654,23 @@ func _draw_special(btn: float, top: float) -> void:
 	var rh := btn * 0.62
 	var lb := look
 	_rbox(x, ry, size, rh, Color(140.0 / 255, 220.0 / 255, 1.0, 0.32) if lb else Color(14.0 / 255, 7.0 / 255, 4.0 / 255, 0.34), Color("#bfe9ff") if lb else Color(1, 0.957, 0.863, 0.38), 1.5, 14.0, 7.0, Color(0, 0, 0, 0.25))
-	# mirror icon: a rounded rectangle with a curved arrow
+	# the mirror (svg 48x30): blue glass in a cream frame, a reflection arc, two glints, the stem
 	var mw := size * 0.58
-	var mh := mw * 0.48
+	var k := mw / 48.0
+	var mh := 30.0 * k
 	var mx := x + (size - mw) / 2.0
-	var my := ry + rh / 2.0 - mh / 2.0 - 6.0
-	_rbox(mx, my, mw, mh, Color(0, 0, 0, 0), CREAM, 2.0, mh * 0.35)
-	draw_arc(_p(Vector2(mx + mw / 2.0, my + mh * 0.75)), mw * 0.22 * s, PI * 1.1, PI * 1.9, 12, Color(CREAM.r, CREAM.g, CREAM.b, 0.9), 2.0 * s, true)
-	_text(f_disp, "REAR", x, my + mh + 4.0, 9.0, Color(1, 0.957, 0.863, 0.8), HORIZONTAL_ALIGNMENT_CENTER, size, Color(0, 0, 0, 0), Vector2.ZERO, 1.26)
+	var my := ry + (rh - (mh + 1.0 + 9.0)) / 2.0
+	_rbox(mx + 2.0 * k, my + 3.0 * k, 44.0 * k, 22.0 * k, Color(140.0 / 255, 220.0 / 255, 1.0, 0.55), CREAM, 2.4 * k, 7.0 * k)
+	var arc := PackedVector2Array()
+	for i in 13:
+		var u := float(i) / 12.0
+		var q := Vector2(8, 20) * (1.0 - u) * (1.0 - u) + Vector2(24, 6) * 2.0 * u * (1.0 - u) + Vector2(40, 20) * u * u
+		arc.append(_p(Vector2(mx, my) + q * k))
+	draw_polyline(arc, Color(1, 1, 1, 0.7), 2.0 * k * s, true)
+	draw_line(_p(Vector2(mx, my) + Vector2(14, 8) * k), _p(Vector2(mx, my) + Vector2(8, 18) * k), Color(1, 1, 1, 0.55), 2.0 * k * s, true)
+	draw_line(_p(Vector2(mx, my) + Vector2(20, 8) * k), _p(Vector2(mx, my) + Vector2(11, 23) * k), Color(1, 1, 1, 0.55), 2.0 * k * s, true)
+	_rbox(mx + 20.0 * k, my + 25.0 * k, 8.0 * k, 4.0 * k, CREAM, Color(0, 0, 0, 0), 0.0, 1.5 * k)
+	_text(f_disp, "REAR", x, my + mh + 1.0, 9.0, Color(1, 0.957, 0.863, 0.8), HORIZONTAL_ALIGNMENT_CENTER, size, Color(0, 0, 0, 0), Vector2.ZERO, 1.26)
 	if pad_mode:
 		_badge(Vector2(x + size - 6.0, ry + rh - 6.0), "X", Color("#2a7fd8"))
 
@@ -646,7 +711,7 @@ func _draw_gauge(btn: float) -> void:
 	var nw := f_disp.get_string_size(num, HORIZONTAL_ALIGNMENT_LEFT, -1, int(ns * s)).x / s
 	_rbox(c.x - maxf(nw, ns * 0.7) / 2.0 - 6.0, top - 2.0, maxf(nw, ns * 0.7) + 12.0, ns + 2.0, Color(20.0 / 255, 10.0 / 255, 6.0 / 255, 0.55), Color(0, 0, 0, 0), 0.0, 6.0)
 	_text(f_disp, num, gx, top, ns, CREAM, HORIZONTAL_ALIGNMENT_CENTER, gw, Color(0, 0, 0, 0.7), Vector2(0, 2))
-	_text(f_bold, "MPH", gx, top + ns + 2.0, 9.0, MUTED, HORIZONTAL_ALIGNMENT_CENTER, gw, Color(0, 0, 0, 0), Vector2.ZERO, 1.8)
+	_text(f_bold, "MPH", gx, top + ns + 2.0, 9.0, Color(1, 0.957, 0.863, 0.85), HORIZONTAL_ALIGNMENT_CENTER, gw, Color(0, 0, 0, 0.9), Vector2(0, 1), 1.8)
 
 
 static func _gauge_col(f: float) -> Color:
@@ -656,41 +721,71 @@ static func _gauge_col(f: float) -> Color:
 
 
 func _draw_pedals(btn: float) -> void:
+	# CSS: .brk (wide translucent pedal, 16px/10px corners), .brk.on (pressed), .brk.drifting (orange, glowing)
 	var pw := btn * 1.85
 	var ph := btn * 0.92
 	var y := H - 14.0 + 6.0 - ph
 	var drifting := me.drift != 0 or me.d_latch
 	for side in [0, 1]:
 		var x := 16.0 + 4.0 if side == 0 else W - 16.0 - 4.0 - pw
-		var bg := Color(30.0 / 255, 15.0 / 255, 9.0 / 255, 0.34)
+		var yy := y
+		var stops: Array = [[0.0, Color(1, 1, 1, 0.1)], [0.4, Color(30.0 / 255, 15.0 / 255, 9.0 / 255, 0.34)], [1.0, Color(14.0 / 255, 7.0 / 255, 4.0 / 255, 0.42)]]
 		var bd := Color(1, 0.957, 0.863, 0.34)
 		if drifting:
-			bg = Color("#ff8a1f")
+			stops = [[0.0, Color("#ffe39a")], [0.48, Color("#ff8a1f")], [1.0, Color("#c4300f")]]
 			bd = CREAM
+			# box-shadow: 0 0 0 3px rgba(255,154,31,.3), 0 0 24px rgba(255,122,26,.5); ::before glow pulsing (.55 s)
+			var pulse := 0.25 + 0.75 * (0.5 + 0.5 * sin(t * PI / 0.55))
+			_draw_glow_rect(x, yy, pw, ph, Color(1, 0.48, 0.1), 0.5 + 0.35 * pulse)
+			_rborder(x - 3.0, yy - 3.0, pw + 6.0, ph + 6.0, Color(1, 154.0 / 255, 31.0 / 255, 0.3), 3.0, 19.0, 13.0)
 		elif braking:
-			bg = Color(224.0 / 255, 69.0 / 255, 44.0 / 255, 0.5)
-		if drifting:
-			_draw_glow_rect(x, y, pw, ph, Color(1, 0.48, 0.1), 0.5)
-		_rbox(x, y, pw, ph, bg, bd, 1.5, 16.0, 8.0, Color(0, 0, 0, 0.3), 10.0)
-		# a soft top sheen
-		_rbox(x + 1.5, y + 1.5, pw - 3.0, ph * 0.35, Color(1, 1, 1, 0.07), Color(0, 0, 0, 0), 0.0, 14.0, 0.0, Color(0, 0, 0, 0), 2.0)
-		var cy := y + ph / 2.0
-		var dw := f_disp.get_string_size("DRIFT", HORIZONTAL_ALIGNMENT_LEFT, -1, int(15 * s)).x / s
-		var bw := f_bold.get_string_size("BRAKE", HORIZONTAL_ALIGNMENT_LEFT, -1, int(9 * s)).x / s + 9.0 * 0.14 * 5.0
-		var icon := 22.0
-		var total := icon + 6.0 + dw + 6.0 + bw
+			stops = [[0.0, Color(1, 1, 1, 0.14)], [0.4, Color(224.0 / 255, 69.0 / 255, 44.0 / 255, 0.5)], [1.0, Color(160.0 / 255, 40.0 / 255, 20.0 / 255, 0.6)]]
+			yy += 2.0
+		else:
+			# 0 6px 16px rgba(0,0,0,.25)
+			_rbox(x, yy + 2.0, pw, ph, Color(0, 0, 0, 0), Color(0, 0, 0, 0), 0.0, 16.0, 8.0, Color(0, 0, 0, 0.22), 10.0)
+		_vgrad(x, yy, pw, ph, 16.0, 10.0, stops)
+		# inset 0 -6px 12px rgba(0,0,0,.25): darker towards the bottom edge
+		_vgrad(x, yy + ph - 14.0, pw, 14.0, 0.0, 10.0, [[0.0, Color(0, 0, 0, 0)], [1.0, Color(0, 0, 0, 0.22)]])
+		# ::after: a soft sheen across the top
+		_vgrad(x + pw * 0.14, yy + ph * 0.07, pw * 0.72, ph * 0.1, ph * 0.04, ph * 0.04, [[0.0, Color(1, 1, 1, 0.22)], [1.0, Color(1, 1, 1, 0)]])
+		_rborder(x, yy, pw, ph, bd, 1.5, 16.0, 10.0)
+		# contents in a row, centred: icon (26), 8, DRIFT, 8, BRAKE
+		var cy := yy + ph / 2.0
+		var fs := clampf(2.4 * _vmin(), 11.0, 15.0)
+		var dw := _str_w(f_disp, "DRIFT", fs, fs * 0.04)
+		var bw := _str_w(f_bold, "BRAKE", 9.0, 9.0 * 0.14)
+		var icon := clampf(3.8 * _vmin(), 16.0, 26.0)
+		var total := icon + 8.0 + dw + 8.0 + bw
 		var tx := x + (pw - total) / 2.0
-		# drift icon: a curved arrow
-		var ic := Vector2(tx + icon / 2.0, cy)
 		var icol := Color.WHITE if drifting else CHEESE
-		draw_arc(_p(ic + Vector2(icon * 0.1, icon * 0.3)), icon * 0.42 * s, PI * 1.0, PI * 1.6, 10, icol, 2.6 * s, true)
-		var tip := ic + Vector2(icon * 0.1, icon * 0.3) + Vector2(cos(PI * 1.6), sin(PI * 1.6)) * icon * 0.42
-		draw_line(_p(tip), _p(tip + Vector2(-5, -1)), icol, 2.6 * s, true)
-		draw_line(_p(tip), _p(tip + Vector2(-1, 5)), icol, 2.6 * s, true)
-		_text(f_disp, "DRIFT", tx + icon + 6.0, cy - 15.0 * 0.45, 15.0, Color.WHITE if drifting else CREAM, HORIZONTAL_ALIGNMENT_LEFT, -1.0, Color(0, 0, 0, 0.6), Vector2(0, 2), 0.6)
-		_text(f_bold, "BRAKE", tx + icon + 6.0 + dw + 6.0, cy - 9.0 * 0.45, 9.0, Color("#5a2206") if drifting else MUTED, HORIZONTAL_ALIGNMENT_LEFT, -1.0, Color(0, 0, 0, 0.6), Vector2(0, 1), 1.26)
+		_drift_icon(tx, cy - icon / 2.0, icon, side == 1, icol)
+		_text(f_disp, "DRIFT", tx + icon + 8.0, cy - fs * 0.5, fs, Color.WHITE if drifting else CREAM, HORIZONTAL_ALIGNMENT_LEFT, -1.0, Color(0, 0, 0, 0.6), Vector2(0, 2), fs * 0.04)
+		_text(f_bold, "BRAKE", tx + icon + 8.0 + dw + 8.0, cy - 9.0 * 0.5, 9.0, Color("#5a2206") if drifting else MUTED, HORIZONTAL_ALIGNMENT_LEFT, -1.0, Color(0, 0, 0, 0.0 if drifting else 0.6), Vector2(0, 1), 9.0 * 0.14)
 		if pad_mode:
-			_badge(Vector2(x + pw - 16.0, y + ph - 16.0), "LT", Color("#555555"))
+			_badge(Vector2(x + pw - 16.0, yy + ph - 16.0), "LT", Color("#555555"))
+
+
+func _str_w(font: Font, txt: String, size: float, letter := 0.0) -> float:
+	return font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, int(round(size * s))).x / s + letter * txt.length()
+
+
+## the drift pedal's arrow (svg 24x24: M4 17c5 0 8-3 10-9 / M11 7l3.5 1 1-3.5), mirrored on the right pedal
+func _drift_icon(x: float, y: float, size: float, mirror: bool, col: Color) -> void:
+	var k := size / 24.0
+	var curve := _bez(Vector2(4, 17), Vector2(9, 17), Vector2(12, 14), Vector2(14, 8))
+	var head := PackedVector2Array([Vector2(11, 7), Vector2(14.5, 8), Vector2(15.5, 4.5)])
+	for pts in [curve, head]:
+		var out := PackedVector2Array()
+		var sh := PackedVector2Array()
+		for p in pts:
+			var q := Vector2(24.0 - p.x if mirror else p.x, p.y)
+			out.append(_p(Vector2(x, y) + q * k))
+			sh.append(_p(Vector2(x, y) + q * k + Vector2(0, 2)))
+		draw_polyline(sh, Color(0, 0, 0, 0.35), 2.6 * k * s, true)
+		draw_polyline(out, col, 2.6 * k * s, true)
+		for e in [0, out.size() - 1]:
+			draw_circle(out[e], 1.3 * k * s, col)
 
 
 func _draw_glow_rect(x: float, y: float, w: float, h: float, col: Color, a: float) -> void:
