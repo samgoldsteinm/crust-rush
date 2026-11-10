@@ -17,6 +17,8 @@ var was_loop := false
 var items_held := 0
 var max_proj := 0
 var max_haz := 0
+var sc_runs := 0
+var was_sc := {}
 
 
 func _ready() -> void:
@@ -45,6 +47,11 @@ func _physics_process(dt: float) -> void:
 		loops += 1
 	was_loop = in_loop
 	max_air = maxf(max_air, k.z)
+	for q in race.karts:
+		var on_sc := q.sc >= 0
+		if on_sc and not bool(was_sc.get(q, false)):
+			sc_runs += 1
+		was_sc[q] = on_sc
 	max_proj = maxi(max_proj, race.projectiles.size())
 	max_haz = maxi(max_haz, race.hazards.size())
 	if t >= next_print:
@@ -64,6 +71,7 @@ func _physics_process(dt: float) -> void:
 		print("SMOKE results: " + line)
 		print("SMOKE items used %s, spin-outs %d (player %d), boxes taken %d, most thrown at once %d, most slicks %d" % [str(main.stats["used"]), main.stats["spins"], main.stats["player_spins"], main.stats["boxes"], max_proj, max_haz])
 		print("SMOKE abilities used %s" % str(main.stats.get("abilities", {})))
+		print("SMOKE shortcut runs (all karts) %d of %d on this track" % [sc_runs, main.T.shorts.size()])
 		var ok: bool = slow == 0 and int(main.stats["boxes"]) > 10 and main.stats["used"].size() >= 4 and loops >= 3 and main.stats.get("abilities", {}).size() >= 3
 		print("SMOKE %s player %s in %.2f s, respawns %d, ramp jumps %d, glides %d, loops %d, highest %.1f, karts stuck on lap 1: %d" % ["PASS" if ok else "FAIL", main._ordinal(k.place), k.finish_time, respawns, jumps, glides, loops, max_air, slow])
 		get_tree().quit(0 if ok else 1)

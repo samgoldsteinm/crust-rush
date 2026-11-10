@@ -44,6 +44,7 @@ var obstacles: Array = []  # {x, y, r, h}
 var grid: Array = []       # {x, y, a, wy, player}
 var grid_prog: Array = []
 var glide := {}            # {j0, j1, rj, long} or empty
+var shorts: Array = []     # shortcuts: {a, b, s, route, w, n, x, y, tx, ty, nx, ny}
 var stat_mods := {}        # the player's kart multipliers: spd, acc, hnd, wgt, off
 var light := {}
 var sky := {}
@@ -85,6 +86,19 @@ static func load_from(path: String) -> TrackData:
 
 
 func _read(d: Dictionary) -> void:
+	# shortcuts and side routes: their own path (web SHORTS), when the export has it
+	shorts.clear()
+	for c in d.get("shortsD", []):
+		var cd: Dictionary = c
+		if not cd.has("pts"):
+			continue
+		var sc := {"a": int(cd["a"]), "b": int(cd["b"]), "s": int(cd["s"]), "route": bool(cd.get("route", false)), "w": float(cd.get("w", 19.0)),
+			"x": PackedFloat32Array(), "y": PackedFloat32Array(), "tx": PackedFloat32Array(), "ty": PackedFloat32Array(), "nx": PackedFloat32Array(), "ny": PackedFloat32Array()}
+		for q in cd["pts"]:
+			for k in 6:
+				(sc[["x", "y", "tx", "ty", "nx", "ny"][k]] as PackedFloat32Array).append(float(q[k]))
+		sc["n"] = (sc["x"] as PackedFloat32Array).size()
+		shorts.append(sc)
 	id = d["map"]
 	title = d["name"]
 	N = int(d["N"])

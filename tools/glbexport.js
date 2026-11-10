@@ -240,7 +240,7 @@ window.__exportData=function(step){step=step||10;const def=MAPS[mapIdx];const R=
     glide:(typeof GLIDE!=='undefined'&&GLIDE)?{j0:GLIDE.j0,j1:GLIDE.j1,rj:GLIDE.rj,long:!!GLIDE.long,gy:(()=>{const n=Math.ceil(2*R/step)+1,A=new Int16Array(n*n);for(let j=0;j<n;j++)for(let i=0;i<n;i++){let v=-32768;try{const g=glideY(-R+i*step,-R+j*step);if(isFinite(g))v=Math.max(-32767,Math.min(32767,Math.round(g*20)));}catch(e){}A[j*n+i]=v;}return u8ToB64(new Uint8Array(A.buffer));})()}:null,
     pit:(typeof PITS!=='undefined'&&PITS.length)?(()=>{const n=Math.ceil(2*R/step)+1,A=new Int16Array(n*n);for(let j=0;j<n;j++)for(let i=0;i<n;i++)A[j*n+i]=Math.max(0,Math.min(32767,Math.round(pitAt(-R+i*step,-R+j*step)*20)));return u8ToB64(new Uint8Array(A.buffer));})():null,
     loopsD:(typeof LOOPS!=='undefined'?LOOPS:[]).map(L=>({j:L.j,full:!!L.full,lat0:L.lat0,W:L.W,S:L.S})),
-    shortsD:(typeof SHORTS!=='undefined'?SHORTS:[]).map(c=>({a:c.a,s:c.s,route:!!c.route})),
+    shortsD:(typeof SHORTS!=='undefined'?SHORTS:[]).map(c=>({a:c.a,b:c.b,s:c.s,route:!!c.route,n:c.n,w:c.w||SCW,pts:c.pts.map(p=>[+p.x.toFixed(2),+p.y.toFixed(2),+p.tx.toFixed(4),+p.ty.toFixed(4),+p.nx.toFixed(4),+p.ny.toFixed(4)])})),
     pondLim:(typeof POND!=='undefined'&&POND)?CURB+2*POND.GR*POND.SZ+30:null,
     statMods:(()=>{try{return statMods({ri:1,b:BODIES.findIndex(b=>b.id==='hyper'),w:0,g:0,p:0,t:''});}catch(e){return null;}})(),
     hasGlide:typeof GLIDE!=='undefined'&&!!GLIDE,loops:typeof LOOPS!=='undefined'?LOOPS.length:0,shorts:typeof SHORTS!=='undefined'?SHORTS.length:0,multi:typeof MULTI!=='undefined'?!!MULTI:false,relief:typeof RELIEF!=='undefined'&&!!RELIEF,pits:typeof PITS!=='undefined'?PITS.length:0};};

@@ -4,7 +4,7 @@ extends RefCounted
 ## Field names follow the web code (x, y on the ground plane; wy = height) so the two can
 ## be compared line by line. Items, spin-outs and the loop-the-loop are here; the race
 ## (other karts, item boxes, thrown items, the computer drivers) is in race.gd.
-## Not yet ported: special abilities, shortcuts.
+## Special abilities and shortcuts (each with its own path) are here too.
 
 const TRICK_T := 0.55
 
@@ -119,6 +119,8 @@ var cut_a := 0.0
 var ghost_t := 0.0        # Ghost Pepper: untouchable, see-through
 var sauce_t := 0.0        # Sauce Splat: slower, smeared view
 var shrink_t := 0.0       # Heat Wave: shrunk and slower
+var sc := -1              # on a shortcut (index into T.shorts), and where along it
+var sc_i := 0
 var cannon_t := 0.0       # Pizza Cannon: fired down the track
 var auto_t := 0.0         # ...steering itself
 var wall_hit := false
@@ -249,6 +251,8 @@ func step(inp: Dictionary, dt: float) -> void:
 		tp = clampf(0.58 + 0.06 * sm_off, 0.4, 0.82)
 	if glide:
 		tp = 1.0
+	if sc >= 0:
+		tp = 1.0 if bool(T.shorts[sc]["route"]) else 0.96
 	if boost > 0.0:
 		tp = maxf(tp, 0.93)
 	pen += (tp - pen) * minf(1.0, dt * (3.5 if tp < pen else 6.0))
@@ -326,6 +330,7 @@ func step(inp: Dictionary, dt: float) -> void:
 	acc += ((speed - v0) / dt - acc) * minf(1.0, dt * 6.0)
 	x += cos(ma) * speed * dt
 	y += sin(ma) * speed * dt
+	_sc_step()
 
 	_walls()
 	if wall_t > 0.0:
@@ -360,9 +365,9 @@ func step(inp: Dictionary, dt: float) -> void:
 				race.after_roll(self)
 			events.append("ready")
 
-	# progress round the lap
+	# progress round the lap (on a shortcut, its own path keeps the count)
 	var o_idx := idx
-	var best := T.nearest(idx, x, y)
+	var best := T.nearest(idx, x, y) if sc < 0 else idx
 	var di := best - idx
 	if di > T.N / 2:
 		di -= T.N
@@ -658,7 +663,7 @@ func _walls() -> void:
 		lim = T.pond_lim
 	else:
 		lim = T.WALLD - 3.5
-	if T.open[j] == 0 and not glide and lt * sg > lim:
+	if T.open[j] == 0 and not glide and sc < 0 and lt * sg > lim and not _sc_mouth(sg, lt) and not (air and _sc_over(8.0)[0] >= 0):
 		var ov := lt * sg - lim
 		var nx_ := T.nx[j] * sg
 		var ny_ := T.ny[j] * sg
@@ -681,6 +686,127 @@ func _walls() -> void:
 			x -= nx2 * ov2
 			y -= ny2 * ov2
 			_slide(nx2, ny2, 0.15, 0.5)
+
+
+## near a shortcut's mouth on this side the main wall is open (web: SHORTS.some(...) in the wall check)
+func _sc_mouth(sg: int, lt: float) -> bool:
+	for c in T.shorts:
+		if int(c["s"]) != sg:
+			continue
+		var rt := bool(c["route"])
+		if lt * sg >= T.WALLD + (70.0 if rt else 30.0):
+			continue
+		var d := absi(idx - int(c["a"])) % T.N
+		if mini(d, T.N - d) <= (8 if rt else 3):
+			return true
+	return false
+
+
+## which shortcut point the kart is over: [shortcut, point] or [-1, -1] (web scOver)
+func _sc_over(pad: float) -> Array:
+	for ci in T.shorts.size():
+		var c: Dictionary = T.shorts[ci]
+		var sw := float(c["w"]) + pad
+		for i in range(1, int(c["n"]) - 1):
+			var px_: float = c["x"][i]
+			var py_: float = c["y"][i]
+			var off := (x - px_) * float(c["nx"][i]) + (y - py_) * float(c["ny"][i])
+			if absf(off) > sw:
+				continue
+			var al := (x - px_) * float(c["tx"][i]) + (y - py_) * float(c["ty"][i])
+			if absf(al) < 10.0:
+				return [ci, i]
+	return [-1, -1]
+
+
+## karts on a shortcut follow its own path for progress and walls; others may turn into one (web scStep)
+func _sc_step() -> void:
+	if T.shorts.is_empty():
+		return
+	if sc >= 0:
+		var c: Dictionary = T.shorts[sc]
+		var n := int(c["n"])
+		var bi := sc_i
+		var bd := 1e18
+		for i in range(maxi(0, sc_i - 3), mini(n - 1, sc_i + 6) + 1):
+			var dd := (float(c["x"][i]) - x) ** 2 + (float(c["y"][i]) - y) ** 2
+			if dd < bd:
+				bd = dd
+				bi = i
+		sc_i = bi
+		var px_: float = c["x"][bi]
+		var py_: float = c["y"][bi]
+		var along := (x - px_) * float(c["tx"][bi]) + (y - py_) * float(c["ty"][bi])
+		var off := (x - px_) * float(c["nx"][bi]) + (y - py_) * float(c["ny"][bi])
+		var span := (int(c["b"]) - int(c["a"]) + T.N) % T.N
+		var nidx := (int(c["a"]) + int(round(float(bi) / float(n - 1) * span))) % T.N
+		var di := nidx - idx
+		if di > T.N / 2:
+			di -= T.N
+		if di < -T.N / 2:
+			di += T.N
+		prog += di
+		idx = nidx
+		var w := float(c["w"])
+		if (bi >= n - 1 and along > 0.0) or (bi >= n - 3 and absf(off) > w - 4.0):
+			sc = -1
+			idx = int(c["b"])
+			return
+		if bi <= 2 and (along < -2.0 or absf(off) > w + 2.0):
+			sc = -1
+			idx = int(c["a"])
+			return
+		var lim := w - 3.5
+		if absf(off) > lim and bi > 2 and bi < n - 3:
+			var sg := signf(off)
+			var ov := absf(off) - lim
+			var nx_ := float(c["nx"][bi]) * sg
+			var ny_ := float(c["ny"][bi]) * sg
+			x -= nx_ * ov
+			y -= ny_ * ov
+			var vx := cos(ma)
+			var vy := sin(ma)
+			var dot := vx * nx_ + vy * ny_
+			if dot > 0.0:
+				speed *= 1.0 - 0.2 * dot
+				var tx_ := vx - dot * nx_
+				var ty_ := vy - dot * ny_
+				if Vector2(tx_, ty_).length() > 0.05:
+					var na := atan2(ty_, tx_)
+					ma = na
+					a += ang_diff(na, a) * 0.5
+		return
+	for ci in T.shorts.size():
+		var c2: Dictionary = T.shorts[ci]
+		var dj := idx - int(c2["a"])
+		if dj > T.N / 2:
+			dj -= T.N
+		if dj < -T.N / 2:
+			dj += T.N
+		if absi(dj) > 9:
+			continue
+		var rt := bool(c2["route"])
+		var lat := T.lateral(idx, x, y) * int(c2["s"])
+		var mouth := absi(dj) <= (8 if rt else 4) and lat > T.WALLD - (40.0 if rt else 16.0)
+		var w2 := float(c2["w"])
+		for i in mini(8, int(c2["n"])):
+			var px2: float = c2["x"][i]
+			var py2: float = c2["y"][i]
+			var off2 := (x - px2) * float(c2["nx"][i]) + (y - py2) * float(c2["ny"][i])
+			var al2 := (x - px2) * float(c2["tx"][i]) + (y - py2) * float(c2["ty"][i])
+			if ((absf(off2) < w2 - 1.0 and absf(al2) < 9.0) or (mouth and absf(off2) < w2 + 4.0 and absf(al2) < 12.0)) and cos(ma) * float(c2["tx"][i]) + sin(ma) * float(c2["ty"][i]) > -0.1:
+				sc = ci
+				sc_i = i
+				events.append("sc" if rt else "sc_new")
+				return
+	# a jump that comes down on a shortcut (past its mouth) joins it there
+	var lt3 := absf(T.lateral(idx, x, y))
+	if lt3 > T.WALLD - 8.0 or air:
+		var h := _sc_over(-1.0)
+		if int(h[0]) >= 0 and int(h[1]) > 2:
+			sc = int(h[0])
+			sc_i = int(h[1])
+			events.append("sc" if bool(T.shorts[sc]["route"]) else "sc_new")
 
 
 func _rim() -> void:
@@ -876,6 +1002,7 @@ func _obstacles() -> void:
 
 ## back to the start of the glide after falling into the gap
 func respawn() -> void:
+	sc = -1
 	var j := (int(T.glide["rj"]) - 24 + T.N) % T.N
 	var di := j - idx
 	if di > T.N / 2:

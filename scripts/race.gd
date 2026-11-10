@@ -136,7 +136,8 @@ func setup_cfg(track: TrackData, roster: Dictionary, cfg: Dictionary, my_peer: i
 	var cls := String(cfg.get("cls", "medium"))
 	T.class_mul = float(CLASS_MUL.get(cls, 1.0))
 	var dk := String(CLASS_AI.get(cls, "normal"))
-	diff = T.diffs.get(dk, T.diffs.get("normal", DEF_DIFF)) if not T.diffs.is_empty() else DEF_DIFF
+	diff = (T.diffs.get(dk, T.diffs.get("normal", DEF_DIFF)) if not T.diffs.is_empty() else DEF_DIFF).duplicate()
+	diff["key"] = dk
 	var racers: Array = roster.get("racers", [])
 	karts.clear()
 	player = null
@@ -661,6 +662,29 @@ func ai_input(k: Kart, dt: float) -> Dictionary:
 			break
 	var lane: float = ai["lane"]
 	var des := atan2(ty + tny * lane - k.y, tx + tnx * lane - k.x)
+	if k.sc >= 0:
+		var c: Dictionary = T.shorts[k.sc]
+		var qi := mini(int(c["n"]) - 1, k.sc_i + 4)
+		des = atan2(float(c["y"][qi]) - k.y, float(c["x"][qi]) - k.x)
+	else:
+		for ci in T.shorts.size():
+			var c2: Dictionary = T.shorts[ci]
+			var dj := k.idx - int(c2["a"])
+			if dj > T.N / 2:
+				dj -= T.N
+			if dj < -T.N / 2:
+				dj += T.N
+			if dj > -62 and dj < -48 and int(ai.get("sc_seen", -1)) != ci:
+				ai["sc_seen"] = ci
+				var pk := 0.5 if bool(c2["route"]) else float({"easy": 0.25, "normal": 0.5, "hard": 0.8}.get(String(diff.get("key", "normal")), 0.5))
+				ai["sc_pick"] = ci if rng.randf() < pk else -1
+			if int(ai.get("sc_pick", -1)) == ci:
+				if dj > -16 and dj < 6:
+					des = atan2(float(c2["y"][2]) - k.y, float(c2["x"][2]) - k.x)
+				elif dj >= -40 and dj <= -16:
+					ai["lane"] = float(ai["lane"]) + (int(c2["s"]) * 48.0 - float(ai["lane"])) * minf(1.0, dt * 2.0)
+				elif dj >= 6:
+					ai["sc_pick"] = -1
 	var steer := clampf(Kart.ang_diff(des, k.a) * 2.6, -1.0, 1.0)
 	var bend := absf(Kart.ang_diff(T.ang[(k.idx + 18) % T.N], T.ang[k.idx]))
 	var mul: float = 0.97 if k.is_player else float(ai["skill"])

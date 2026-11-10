@@ -24,6 +24,7 @@ var net_prefs := {}       # host: each joined player's chosen driver and kart
 var item_set := {}        # Settings > Items: {name: false} for items switched off
 var last_run := {}        # the player's last finished run against their best: {t, old, pb}
 var was_last := false     # dropped to last place this race (for Comeback Kid)
+var found_sc := {}        # hidden shortcuts found this race
 var kart: Kart               # the player's kart (kept for the tests)
 var kart_scenes := {}        # file -> PackedScene
 var view: View
@@ -824,6 +825,7 @@ func _start_race(cfg: Dictionary) -> void:
 	shown_finish = false
 	was_last = false
 	last_run = {}
+	found_sc = {}
 	net_fresh = true
 	net_out.clear()
 	cam_a = kart.ma
@@ -1005,6 +1007,14 @@ func _drain_events() -> void:
 				if mine:
 					_shake(0.25)
 					sfx.play("boost", 0.7)
+			elif e == "sc" or e == "sc_new":
+				if mine and not auto_drive and state == "race":
+					Ach.add("routes")
+				if mine and e == "sc_new" and not found_sc.has(k.sc):
+					# a hidden shortcut found for the first time this race
+					found_sc[k.sc] = true
+					sfx.play("tier", 0.9, 1.3)
+					_edge(Color("#7dff8a"), true)
 			elif e == "loopout":
 				if mine and not auto_drive and state == "race":
 					Ach.add("loops")
