@@ -623,9 +623,16 @@ func _snap(d: Dictionary) -> void:
 			k._save_prev()
 	fresh = false
 	# item boxes, thrown items and traps
+	# the web counts the boxes on train wagons too; the PC's own list leaves them out
 	var bx: Array = d.get("b", [])
-	for i in mini(bx.size(), race.boxes.size()):
-		race.boxes[i]["r"] = float(bx[i]) / 20.0
+	var T0: TrackData = main.T
+	var bi := 0
+	for i in mini(bx.size(), T0.boxes.size()):
+		if bool((T0.boxes[i] as Dictionary).get("train", false)):
+			continue
+		if bi < race.boxes.size():
+			race.boxes[bi]["r"] = float(bx[i]) / 20.0
+		bi += 1
 	var old := {}
 	for p in race.projectiles:
 		old[p["id"]] = p
@@ -1207,8 +1214,14 @@ func _snapshot() -> void:
 		pp.append([int(pd["id"]), String(pd["type"]), snappedf(x, 0.01), snappedf(T.ground(x, y) + 4.0, 0.01), snappedf(y, 0.01), 0, 0, 0, 1, 1, String(pd["type"]),
 			snappedf(float(pd.get("vx", 0.0)), 0.01), snappedf(float(pd.get("vy", 0.0)), 0.01), race.karts.find(tg) if tg != null else -1, race.karts.find(ow) if ow != null else -1, snappedf(x, 0.01), snappedf(y, 0.01)])
 	var bx: Array = []
-	for b in race.boxes:
-		bx.append(roundi(float(b["r"]) * 20.0) if float(b["r"]) > 0.0 else 0)
+	var bi := 0
+	for tb in T.boxes:
+		if bool((tb as Dictionary).get("train", false)):
+			bx.append(0)
+			continue
+		var r := float(race.boxes[bi]["r"]) if bi < race.boxes.size() else 0.0
+		bx.append(roundi(r * 20.0) if r > 0.0 else 0)
+		bi += 1
 	var base := {"t": "s", "n": sn, "rk": rk, "st": snappedf(race.sim_time, 0.01), "rt": snappedf(race.race_time, 0.01), "gs": gs, "kc": kc, "p": pp, "b": bx, "fx": []}
 	var ids := PackedStringArray()
 	for h in race.hazards:

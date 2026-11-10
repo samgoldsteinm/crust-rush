@@ -32,7 +32,7 @@ async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(args=['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--no-sandbox',
                                           '--autoplay-policy=no-user-gesture-required'])
-        ctx = await b.new_context(viewport={'width': 960, 'height': 540}, service_workers='block')
+        ctx = await b.new_context(viewport={'width': 640, 'height': 360}, service_workers='block')
         await ctx.add_init_script('window.CR_BROKERS=%s;' % json.dumps([BROKER]))
         pg = await ctx.new_page()
         errs = []
@@ -52,7 +52,16 @@ async def main():
                 await r.abort()   # nothing from the internet: fonts, the WebRTC library and TURN list fail, as when offline
         await pg.route('**/*', route)
         await pg.goto('http://127.0.0.1:%d/index.html' % PORT, wait_until='domcontentloaded', timeout=300000)
-        await pg.wait_for_function("document.getElementById('menu')&&!document.getElementById('menu').hidden&&window.__ev", timeout=900000)
+        # polled by hand: waiting on animation frames stalls while the software GPU is busy compiling the menu
+        while True:
+            okm = await pg.evaluate("!!(document.getElementById('menu')&&!document.getElementById('menu').hidden&&window.__ev)")
+            if okm:
+                break
+            if time.time() - t0 > 900:
+                print('XPLAY WEB FAIL the game did not start', errs[:3], flush=True)
+                await b.close()
+                return False
+            await asyncio.sleep(2)
         print('XPLAY web: booted in %ds' % (time.time() - t0), flush=True)
         await pg.evaluate("__ev(`qKey='fast';store.set('crust-q',qKey);applyQuality();introSkip=true;1`)")
         if ROLE == 'join':
@@ -61,7 +70,18 @@ async def main():
                 print('XPLAY web page errors:', errs[:5], flush=True)
             await b.close()
             return ok
-        code = await pg.evaluate("__ev('netHost()').then(()=>__ev('NET.code'))")
+        code = None
+        for attempt in range(4):
+            try:
+                code = await pg.evaluate("__ev('netHost()').then(()=>__ev('NET.code'))")
+                break
+            except Exception as e:     # a busy software GPU can hold the page past the relay's 9 s connect limit
+                print('XPLAY web: hosting failed (%s), trying again' % str(e)[:120], flush=True)
+                await asyncio.sleep(3)
+        if not code:
+            print('XPLAY WEB FAIL could not host', flush=True)
+            await b.close()
+            return False
         open(ROOM, 'w').write(code)
         print('XPLAY web: hosting room', code, flush=True)
         t1 = time.time()
@@ -114,7 +134,13 @@ async def join(pg):
         await asyncio.sleep(1)
     code = open(ROOM).read().strip()
     print('XPLAY web: joining the PC room', code, flush=True)
-    await pg.evaluate("__ev(`netJoin('%s')`).then(()=>__ev('netSendPick(true);1'))" % code)
+    for attempt in range(4):
+        try:
+            await pg.evaluate("__ev(`netJoin('%s')`).then(()=>__ev('netSendPick(true);1'))" % code)
+            break
+        except Exception as e:
+            print('XPLAY web: joining failed (%s), trying again' % str(e)[:120], flush=True)
+            await asyncio.sleep(3)
     print('XPLAY web: in the room', flush=True)
     t2 = time.time()
     last = 0
