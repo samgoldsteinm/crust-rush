@@ -29,6 +29,11 @@ func _ready() -> void:
 		[6, func(): main.menu.show_modal("rec"), "p_rec"],
 		[6, func(): main.menu.show_modal("ach"), "p_ach"],
 		[6, func():
+			main._apply_cheat("UNLOCK")
+			main.set_tab = "more"
+			main.menu.show_modal("set"), "p_set_more"],
+		[6, func(): main.menu.show_modal("ach"), "p_ach_cheat"],
+		[6, func():
 			main.menu.close_modal()
 			main.menu.open("driver"), "p_driver"],
 		[14, func():

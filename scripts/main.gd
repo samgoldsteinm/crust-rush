@@ -816,7 +816,7 @@ func _start_race(cfg: Dictionary) -> void:
 	else:
 		race.setup_cfg(T, roster, cfg, multiplayer.get_unique_id())
 	kart = race.player
-	if auto_drive and net_role != "client":
+	if (auto_drive or test_drive) and net_role != "client":
 		kart.ai["auto"] = true
 	race.items_off = items_off()
 	var lss := String(cfg.get("mode", "")) == "lss" if not cfg.is_empty() else (String(sel.get("mode", "")) == "lss" and gp.is_empty())
@@ -2066,7 +2066,61 @@ func _settings_panel() -> Control:
 				menu.show_modal("set"))
 			rr.add_child(rb)
 			c.add_child(rr)
+			# web .cheat: codes for testing that last until the game closes
+			c.add_child(menu.section_label("Cheat code"))
+			var cr := menu.hbox(20)
+			var cv2 := menu.vbox(2)
+			cv2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			cv2.add_child(menu.label("Enter a code", menu.f_bold, 16.0, Color("#fff4dc")))
+			cv2.add_child(menu.para("For testing only. A cheat lasts until you close the game and never touches your real achievements or progress.", 13.0, Color("#c2a58c"), 420.0))
+			cr.add_child(cv2)
+			var ce := LineEdit.new()
+			ce.placeholder_text = "Code"
+			ce.max_length = 24
+			ce.custom_minimum_size.x = menu.z(170)
+			ce.add_theme_font_override("font", menu.f_semi)
+			ce.add_theme_font_size_override("font_size", menu.zi(15))
+			ce.add_theme_stylebox_override("normal", menu.glass(12.0, Vector4(12, 8, 12, 8)))
+			ce.add_theme_stylebox_override("focus", menu.box([Color(1, 0.957, 0.863, 0.08)], 180.0, 12.0, Color("#f7c948"), 2.0, Vector4(12, 8, 12, 8)))
+			ce.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			cr.add_child(ce)
+			var cb := menu.button("Enter", "cta", 14.0, Vector4(16, 8, 16, 8))
+			cb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			cr.add_child(cb)
+			c.add_child(cr)
+			var cm := menu.para(cheat_msg, 13.0, Color("#7fe07a") if cheat_ok else Color("#ff8a6a"), 720.0)
+			c.add_child(cm)
+			var go := func(_t = ""):
+				_apply_cheat(ce.text)
+				menu.show_modal("set")
+			cb.pressed.connect(go)
+			ce.text_submitted.connect(go)
 	return v
+
+
+var cheat_msg := ""
+var cheat_ok := false
+var test_drive := false     # the TESTING code: your kart drives itself
+
+
+## web applyCheat
+func _apply_cheat(code: String) -> void:
+	var c := code.strip_edges().to_upper()
+	if c == "UNLOCK":
+		Ach.cheat = true
+		cheat_ok = true
+		cheat_msg = "Unlocked! Every achievement, livery, car, track and reward item is open until you close the game. Your real progress is untouched."
+		sfx.play("lap", 0.8, 1.2)
+	elif c == "TESTING":
+		test_drive = not test_drive
+		cheat_ok = true
+		cheat_msg = "Auto-drive on: your kart drives itself perfectly and steering is ignored. Enter TESTING again to turn it off." if test_drive else "Auto-drive off."
+		if kart != null and state != "menu" and net_role == "":
+			kart.ai["auto"] = test_drive
+		sfx.play("lap", 0.8, 1.2)
+	else:
+		cheat_ok = false
+		cheat_msg = "That code does nothing." if c != "" else "Type a code first."
 
 
 ## web .ctl: what does what, on the keyboard and on a controller

@@ -1560,6 +1560,11 @@ func _achievements() -> Control:
 	var top := hbox(10)
 	top.add_child(label(str(Ach.n_unlocked()), f_disp, 22.0, CHEESE))
 	top.add_child(label("of %d unlocked" % Ach.LIST.size(), f_semi, 17.0, Color("#fff4dc")))
+	if Ach.cheat:
+		var ct := panel(box([Color("#ff6a3d"), Color("#ff6a3d")], 180.0, 6.0, Color(0, 0, 0, 0), 0.0, Vector4(8, 2, 8, 2)))
+		ct.add_child(label("CHEAT ON", f_bold, 11.0, Color("#fff4dc")))
+		ct.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		top.add_child(ct)
 	var note := label("Every achievement unlocks a reward livery. The full pattern paints onto car bodies; karts take its colours.", f_med, 13.0, MUTED)
 	note.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	top.add_child(note)
@@ -1623,14 +1628,15 @@ func _achievements() -> Control:
 			rt.text = "Also unlocks the [b][color=#fff4dc]%s[/color][/b] item" % String(Ach.ITEM_NAMES.get(String(a[6]), a[6]))
 			body.add_child(rt)
 		var nd := Ach.need(a)
-		var val := minf(Ach.value(a), float(nd))
+		var val := float(nd) if Ach.cheat else minf(Ach.value(a), float(nd))
 		var bar := _Bar.new()
 		bar.f = val / maxf(1.0, float(nd))
 		bar.custom_minimum_size = Vector2(0, z(7))
 		body.add_child(bar)
 		var shown := ("%d:%02d" % [int(val) / 60, int(val) % 60]) if String(a[3]) == "glide" else str(int(val))
 		var need_s := ("%d:%02d" % [nd / 60, nd % 60]) if String(a[3]) == "glide" else str(nd)
-		body.add_child(label(("Unlocked" if won else "%s / %s" % [shown, need_s]), f_med, 12.0, Color("#7fe07a") if won else MUTED))
+		var won_txt := "Unlocked by cheat code" if Ach.cheat and not (Ach.d["u"] as Dictionary).has(String(a[0])) else "Unlocked"
+		body.add_child(label((won_txt if won else "%s / %s" % [shown, need_s]), f_med, 12.0, Color("#7fe07a") if won else MUTED))
 		g.add_child(card)
 	return v
 

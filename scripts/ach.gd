@@ -33,6 +33,7 @@ static var d := {}             # {s: counters, u: {id: unix time}, t: tracks, c:
 static var n_tracks := 17
 static var fresh: Array = []   # achievements won since the last look (for the toast)
 static var _dirty := false
+static var cheat := false      # the UNLOCK code: everything open until the game closes; real progress untouched
 
 
 static func _load() -> void:
@@ -57,7 +58,7 @@ static func save() -> void:
 
 static func unlocked(id: String) -> bool:
 	_load()
-	return (d["u"] as Dictionary).has(id)
+	return cheat or (d["u"] as Dictionary).has(id)
 
 
 ## is a livery a reward that isn't won yet (web livLocked)
@@ -84,7 +85,7 @@ static func value(a: Array) -> float:
 
 static func n_unlocked() -> int:
 	_load()
-	return (d["u"] as Dictionary).size()
+	return LIST.size() if cheat else (d["u"] as Dictionary).size()
 
 
 ## new ones reached: mark them won and remember them for the toast
@@ -92,7 +93,7 @@ static func check() -> void:
 	_load()
 	var got := false
 	for a in LIST:
-		if not (d["u"] as Dictionary).has(String(a[0])) and value(a) >= need(a):
+		if not (d["u"] as Dictionary).has(String(a[0])) and value(a) >= need(a) and not cheat:
 			d["u"][String(a[0])] = int(Time.get_unix_time_from_system())
 			fresh.append(a)
 			got = true
