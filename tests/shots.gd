@@ -56,5 +56,9 @@ func _capture(name: String) -> void:
 	var small := img.duplicate() as Image
 	small.resize(640, 360, Image.INTERPOLATE_BILINEAR)
 	var jpg := small.save_jpg_to_buffer(0.72)
-	print("SHOT_B64 %s %s" % [name, Marshalls.raw_to_base64(jpg)])
+	# GitHub drops very long log lines: send the image in short numbered pieces
+	var b64 := Marshalls.raw_to_base64(jpg)
+	var n := int(ceil(b64.length() / 3000.0))
+	for c in n:
+		print("SHOT_PART %s %d %d %s" % [name, c, n, b64.substr(c * 3000, 3000)])
 	print("SHOT %s fps %d tris %d draws %d" % [name, Engine.get_frames_per_second(), int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)), int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))])

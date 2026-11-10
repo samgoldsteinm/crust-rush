@@ -37,7 +37,7 @@ jobs:
 
       - name: Drive the race (headless)
         run: |
-          timeout 1200 ./godot --headless --path . --fixed-fps 120 res://tests/smoke.tscn 2>&1 | tee smoke.log | grep -v "^SHOT_B64" | tail -80 || true
+          timeout 1200 ./godot --headless --path . --fixed-fps 120 res://tests/smoke.tscn 2>&1 | tee smoke.log | grep -v "^SHOT_PART" | tail -80 || true
           if grep -E "SCRIPT ERROR|Parse Error" smoke.log; then echo "::error::runtime script errors"; exit 1; fi
           grep -q "SMOKE PASS" smoke.log
 
@@ -48,13 +48,13 @@ jobs:
           sudo apt-get install -y -qq mesa-vulkan-drivers xvfb > /dev/null
           mkdir -p build/shots
           timeout 1800 xvfb-run -a -s "-screen 0 1280x720x24" ./godot --path . --rendering-driver vulkan --resolution 1280x720 res://tests/shots.tscn > shots.log 2>&1 || true
-          grep -v "^SHOT_B64" shots.log | tail -40
+          grep -v "^SHOT_PART" shots.log | tail -40
           if ! ls build/shots/*.png > /dev/null 2>&1; then
             echo "Vulkan produced no shots; trying the OpenGL renderer"
             timeout 1800 xvfb-run -a -s "-screen 0 1280x720x24" ./godot --path . --rendering-method gl_compatibility --rendering-driver opengl3 --resolution 1280x720 res://tests/shots.tscn > shots.log 2>&1 || true
-            grep -v "^SHOT_B64" shots.log | tail -40
+            grep -v "^SHOT_PART" shots.log | tail -40
           fi
-          grep "^SHOT_B64" shots.log || true
+          grep "^SHOT_PART" shots.log || true
           ls -la build/shots || true
 
       - name: Export the Windows build
