@@ -1395,15 +1395,16 @@ func _input_state() -> Dictionary:
 	var nb := false
 	var mul := 1.0
 	var look := false
-	# keyboard (the web game's default keys)
-	if Input.is_key_pressed(KEY_LEFT) or Input.is_key_pressed(KEY_A):
+	# keyboard (the keys set in Settings > Controls; the web game's by default)
+	var typing := get_viewport().gui_get_focus_owner() is LineEdit
+	if Keys.held("left") and not typing:
 		steer -= 1.0
-	if Input.is_key_pressed(KEY_RIGHT) or Input.is_key_pressed(KEY_D):
+	if Keys.held("right") and not typing:
 		steer += 1.0
-	var kb_brake := Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_DOWN) or Input.is_key_pressed(KEY_S)
+	var kb_brake := Keys.held("brake") and not typing
 	if kb_brake:
 		brake = true
-	if Input.is_key_pressed(KEY_F):
+	if Keys.held("look") and not typing:
 		look = true
 	# controller, mapped as on the web: left stick (20% dead zone) or d-pad, RT gas, LT drift, A/LB and B/RB items, X look back
 	var pads := Input.get_connected_joypads()
@@ -1524,27 +1525,45 @@ func _input(ev: InputEvent) -> void:
 				item_queued = "fwd2"
 	elif ev is InputEventKey:
 		var kev := ev as InputEventKey
+		var code := kev.physical_keycode if kev.physical_keycode != KEY_NONE else kev.keycode
+		if kev.pressed and not kev.echo and not Keys.wait.is_empty():
+			# Settings > Controls is waiting for a new key
+			Keys.capture(code)
+			_save_settings()
+			get_viewport().set_input_as_handled()
+			if menu != null and menu.visible:
+				menu.show_modal("set")
+			return
 		if kev.pressed and not kev.echo:
-			match kev.keycode:
-				KEY_F3:
-					lbl_info.visible = not lbl_info.visible
-				KEY_X, KEY_E, KEY_ENTER:
-					if state == "menu" or state == "results" or paused or (ip_edit != null and is_instance_valid(ip_edit) and ip_edit.has_focus()):
-						pass
-					else:
+			if code == KEY_F3:
+				lbl_info.visible = not lbl_info.visible
+				return
+			if code == KEY_F11:
+				_toggle_fullscreen()
+				return
+			if get_viewport().gui_get_focus_owner() is LineEdit:
+				return
+			var act := Keys.action_of(code)
+			var racing := not (state == "menu" or state == "results" or paused)
+			match act:
+				"item1":
+					if racing:
 						item_queued = "fwd"
-				KEY_Z, KEY_Q, KEY_V:
-					item_queued = "fwd2"
-				KEY_SHIFT, KEY_B:
-					item_queued = "hold"
-				KEY_C, KEY_R:
+				"item2":
+					if racing:
+						item_queued = "fwd2"
+				"hold":
+					if racing:
+						item_queued = "hold"
+				"ability":
 					if state == "race":
 						item_queued = "ability"
-				KEY_P, KEY_ESCAPE:
+				"pause":
 					if not (menu != null and menu.visible):
 						_toggle_pause()
-				KEY_F11:
-					_toggle_fullscreen()
+				"":
+					if code == KEY_ESCAPE and not (menu != null and menu.visible):
+						_toggle_pause()
 	elif ev is InputEventJoypadButton:
 		var jb := ev as InputEventJoypadButton
 		if jb.pressed:
@@ -2125,10 +2144,12 @@ func _apply_cheat(code: String) -> void:
 
 ## web .ctl: what does what, on the keyboard and on a controller
 func _controls_table() -> Control:
-	var rows := [["Steer", "\u2190 \u2192 or A / D", "Left stick or D-pad"], ["Accelerate", "Automatic", "Hold RT (right trigger)"], ["Brake / reverse", "Hold Space, \u2193 or S when slow", "Hold LT (left trigger) when slow"],
-		["Drift / trick in the air", "Space, \u2193 or S", "LT (left trigger) \u00b7 GameCube R"], ["Use first item", "X or Enter", "A or LB \u00b7 GameCube A"], ["Use second item", "Z or Q", "B or RB \u00b7 GameCube B"],
-		["Keep an item behind you", "Shift or B", "Hold the item button"], ["Throw the item you're holding", "X", "Let go of the item button"], ["Drop it behind you", "Shift or B again", "Stick down as you let go"],
-		["Throw an item behind you", "Hold F, then the item key", "Pull the left stick back as you press the item, or hold X"], ["Special ability", "C or R", "Y"], ["Look back", "Hold F", "Hold X"], ["Pause", "P or Esc", "Start / Menu"]]
+	# the keyboard column shows your current keys (web kbHelp)
+	var esc := "" if Keys.action_of(KEY_ESCAPE) != "" else " or Esc"
+	var rows := [["Steer", Keys.list("left") + " / " + Keys.list("right"), "Left stick or D-pad"], ["Accelerate", "Automatic", "Hold RT (right trigger)"], ["Brake / reverse", "Hold " + Keys.list("brake") + " when slow", "Hold LT (left trigger) when slow"],
+		["Drift / trick in the air", Keys.list("brake"), "LT (left trigger) \u00b7 GameCube R"], ["Use first item", Keys.list("item1"), "A or LB \u00b7 GameCube A"], ["Use second item", Keys.list("item2"), "B or RB \u00b7 GameCube B"],
+		["Keep an item behind you", Keys.list("hold"), "Hold the item button"], ["Throw the item you're holding", Keys.list("item1"), "Let go of the item button"], ["Drop it behind you", Keys.list("hold") + " again", "Stick down as you let go"],
+		["Throw an item behind you", "Hold " + Keys.list("look") + ", then " + Keys.list("item1"), "Pull the left stick back as you press the item, or hold X"], ["Special ability", Keys.list("ability"), "Y"], ["Look back", "Hold " + Keys.list("look"), "Hold X"], ["Pause", Keys.list("pause") + esc, "Start / Menu"]]
 	var g := GridContainer.new()
 	g.columns = 3
 	g.add_theme_constant_override("h_separation", menu.zi(18))
@@ -2143,7 +2164,65 @@ func _controls_table() -> Control:
 	var v := menu.vbox(10)
 	v.add_child(g)
 	v.add_child(menu.para("Xbox, PlayStation, Backbone and GameCube controllers work. In menus the stick or D-pad moves, A selects and B goes back. F11 switches full screen.", 13.0, Color("#c2a58c"), 720.0))
+	v.add_child(_key_box())
 	return v
+
+
+## web .kb-box: every racing action's keys, up to three each; click a box, then press the new key
+func _key_box() -> Control:
+	var card := menu.panel(menu.box([Color(1, 0.957, 0.863, 0.04), Color(1, 0.957, 0.863, 0.015)], 160.0, 14.0, Color(1, 0.957, 0.863, 0.1), 1.0, Vector4(14, 12, 14, 12)))
+	var v := menu.vbox(8)
+	card.add_child(v)
+	var hd := menu.hbox(16)
+	var tv := menu.vbox(2)
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tv.add_child(menu.label("Keyboard keys", menu.f_bold, 16.0, Color("#fff4dc")))
+	tv.add_child(menu.para("Press the new key now. Esc cancels, Backspace or Delete clears this box." if not Keys.wait.is_empty() else "Click a box, then press a key. Each action can have up to three keys.", 13.0, Color("#c2a58c"), 520.0))
+	hd.add_child(tv)
+	var rb := menu.button("Reset keys", "ghost", 13.0, Vector4(12, 6, 12, 6))
+	rb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	rb.pressed.connect(func():
+		Keys.reset()
+		_save_settings()
+		menu.show_modal("set"))
+	hd.add_child(rb)
+	v.add_child(hd)
+	for a in Keys.ACTS:
+		var row := menu.hbox(12)
+		var nm := menu.label(String(a[1]), menu.f_bold, 14.0, Color("#e9d8c2"))
+		nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(nm)
+		var slots := menu.hbox(5)
+		slots.custom_minimum_size.x = menu.z(260)
+		var keys_now: Array = Keys.bind.get(String(a[0]), [])
+		for i in 3:
+			var waiting := not Keys.wait.is_empty() and String(Keys.wait[0]) == String(a[0]) and int(Keys.wait[1]) == i
+			var has := i < keys_now.size()
+			var b := Button.new()
+			b.text = "Press a key" if waiting else (Keys.name_of(int(keys_now[i])) if has else "+")
+			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			b.custom_minimum_size = Vector2(0, menu.z(38))
+			b.clip_text = true
+			b.focus_mode = Control.FOCUS_ALL
+			b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+			var bc := Color("#ffd24a") if waiting else Color("#3a2218")
+			var bg := Color(1, 0.824, 0.29, 0.14) if waiting else Color("#25150f")
+			var st := menu.box([bg], 180.0, 9.0, bc, 2.0, Vector4(6, 4, 6, 4))
+			for sn in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
+				b.add_theme_stylebox_override(sn, st if sn != "focus" else menu.box([Color(0, 0, 0, 0)], 180.0, 9.0, Color("#f7c948"), 2.0))
+			b.add_theme_font_override("font", menu.f_bold if (has or waiting) else menu.f_semi)
+			b.add_theme_font_size_override("font_size", menu.zi(11.5 if waiting else 13.0))
+			var fc := Color("#ffd24a") if waiting else (Color("#fff4dc") if has else Color("#c2a58c"))
+			for cn in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
+				b.add_theme_color_override(cn, fc)
+			var act := String(a[0])
+			b.pressed.connect(func():
+				Keys.wait = [] if waiting else [act, i]
+				menu.show_modal("set"))
+			slots.add_child(b)
+		row.add_child(slots)
+		v.add_child(row)
+	return card
 
 
 const ITEM_NAMES := {"chili": "Chili Boost", "pepperoni": "Pepperoni", "oil": "Olive Oil", "dough": "Dough Ball", "trio": "Pepperoni Trio", "garlic": "Garlic Shield", "flour": "Flour Bomb", "wheel": "Pizza Wheel", "rush": "Delivery Rush",
@@ -2401,6 +2480,7 @@ func _save_settings() -> void:
 	for k2 in ["shadows_on", "pc_plus", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look"]:
 		cf.set_value("opt", k2, get(k2))
 	cf.set_value("opt", "stats_on", KartBuilder.stats_on)
+	Keys.save_to(cf)
 	cf.set_value("opt", "kmh", hud.kmh if hud != null else false)
 	for k in sel:
 		cf.set_value("menu", k, sel[k])
@@ -2415,7 +2495,9 @@ var opt_kmh := false
 func _load_settings() -> void:
 	var cf := ConfigFile.new()
 	if cf.load("user://settings.cfg") != OK:
+		Keys.load_from(null)
 		return
+	Keys.load_from(cf)
 	settings_loaded = true
 	quality = int(cf.get_value("gfx", "quality", quality))
 	fps_cap = int(cf.get_value("gfx", "fps", fps_cap))

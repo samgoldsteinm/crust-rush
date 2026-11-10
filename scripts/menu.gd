@@ -1374,7 +1374,9 @@ func _process(dt: float) -> void:
 
 # ---------------------------------------------------------------- overlays
 
-func close_modal() -> void:
+func close_modal(keep_keys := false) -> void:
+	if not keep_keys:
+		Keys.wait = []     # a key box left waiting stops waiting when its screen closes
 	if modal != null:
 		modal.queue_free()
 		modal = null
@@ -1384,7 +1386,7 @@ func close_modal() -> void:
 
 
 func show_modal(kind: String) -> void:
-	close_modal()
+	close_modal(kind == "set")
 	var m := Control.new()
 	m.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	m.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -1690,7 +1692,7 @@ func _modal_body(kind: String) -> Control:
 	g.add_theme_constant_override("v_separation", zi(14))
 	g.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sc.add_child(g)
-	var items: Array = HOW_TO if kind == "how" else (TIPS if kind == "tips" else [["", "Coming to the PC version soon."]])
+	var items: Array = how_to() if kind == "how" else (TIPS if kind == "tips" else [["", "Coming to the PC version soon."]])
 	for it in items:
 		var card := panel(glass(16.0, Vector4(16, 14, 16, 14)))
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1710,14 +1712,16 @@ func _modal_body(kind: String) -> Control:
 	return sc
 
 
-const HOW_TO := [
-	["Driving.", "Your kart accelerates on its own. Steer with the arrow keys, A and D, or the left stick. Hold the Drift / Brake key (Space, S or Down; LT on a controller) to brake or reverse when you're slow."],
-	["Hazards.", "Some tracks have slow traffic to weave through, critters that spin you out, pools that swallow karts (you get fished out a moment later) and a train crossing. Hit the ramp before the crossing to jump the train."],
-	["Drift.", "At speed, tap Drift once to start drifting. It stays on by itself. Steer to guide the slide. Straighten out too much and the drift ends on its own, or tap Drift again to end it. Sparks go yellow, orange, then red, and ending the drift gives you a boost."],
-	["Awards.", "Achievements track your racing across every session: wins, podiums, drift boosts, loops, glide time and more."],
-	["Items.", "You can hold two, side by side. X or Enter uses the first, Z the second: traps drop onto the road behind you, everything else fires forward. Hold F (X on a controller) to look back; items fire backwards while you look."],
-	["Chili Boost.", "A burst of speed that works even on the cheese."],
-]
+## How to play (the keys named are your current ones)
+static func how_to() -> Array:
+	return [
+		["Driving.", "Your kart accelerates on its own. Steer with %s and %s, or the left stick. Hold the Drift / Brake key (%s; LT on a controller) to brake or reverse when you're slow." % [Keys.list("left"), Keys.list("right"), Keys.list("brake")]],
+		["Hazards.", "Some tracks have slow traffic to weave through, critters that spin you out, pools that swallow karts (you get fished out a moment later) and a train crossing. Hit the ramp before the crossing to jump the train."],
+		["Drift.", "At speed, tap Drift once to start drifting. It stays on by itself. Steer to guide the slide. Straighten out too much and the drift ends on its own, or tap Drift again to end it. Sparks go yellow, orange, then red, and ending the drift gives you a boost."],
+		["Awards.", "Achievements track your racing across every session: wins, podiums, drift boosts, loops, glide time and more."],
+		["Items.", "You can hold two, side by side. %s uses the first, %s the second: traps drop onto the road behind you, everything else fires forward. Hold %s (X on a controller) to look back; items fire backwards while you look." % [Keys.list("item1"), Keys.list("item2"), Keys.list("look")]],
+		["Chili Boost.", "A burst of speed that works even on the cheese."],
+	]
 
 const TIPS := [
 	["Pick a graphics preset.", "Pause, then Graphics: Ultra on a gaming PC, High on most others, Low on older laptops."],
