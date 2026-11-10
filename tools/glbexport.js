@@ -26,7 +26,7 @@ class GLB{
     const alpha=role==='color'&&t.userData&&t.userData.alpha;let hasA=false;
     if(role==='color'&&t.encoding!==SRGB){const id=g.getImageData(0,0,W,H),d=id.data;for(let i=0;i<d.length;i+=4){d[i]=Math.round(l2s(d[i]/255)*255);d[i+1]=Math.round(l2s(d[i+1]/255)*255);d[i+2]=Math.round(l2s(d[i+2]/255)*255);if(d[i+3]<250)hasA=true;}g.putImageData(id,0,0);}
     else if(role==='color'){const d=g.getImageData(0,0,W,H).data;for(let i=3;i<d.length;i+=16)if(d[i]<250){hasA=true;break;}}
-    const png=hasA||alpha||role==='normal',url=c.toDataURL(png?'image/png':'image/jpeg',.9),bytes=b64ToU8(url);this.stats.texBytes+=bytes.length;
+    const png=hasA||alpha||role==='normal'||role==='rough',url=c.toDataURL(png?'image/png':'image/jpeg',.9),bytes=b64ToU8(url);this.stats.texBytes+=bytes.length;
     if(this.extDir){const fn='t'+this.j.images.length+(png?'.png':'.jpg');(this.files=this.files||[]).push({name:fn,b64:url.slice(url.indexOf(',')+1)});this.j.images.push({uri:this.extDir+'/'+fn,name:(t.name||'tex')+'_'+role});}
     else this.j.images.push({bufferView:this.view(bytes),mimeType:png?'image/png':'image/jpeg',name:(t.name||'tex')+'_'+role});
     this.j.textures.push({source:this.j.images.length-1,sampler:this.sampler(t)});const ti=this.j.textures.length-1;this.texs.set(key,ti);return ti;}
@@ -36,6 +36,8 @@ class GLB{
     const basic=m.isMeshBasicMaterial,std=m.isMeshStandardMaterial;
     P.roughnessFactor=std?m.roughness:(m.isMeshPhongMaterial?.45:.85);P.metallicFactor=std?m.metalness:0;
     if(m.map){const ti=this.texture(m.map,'color');if(ti!=null)P.baseColorTexture={index:ti};}
+    /* three reads roughness from the map's green channel, as glTF does; metalness (blue) only matters when metalness>0 */
+    if(m.roughnessMap&&std&&!m.metalnessMap&&!(m.metalness>0)){const ti=this.texture(m.roughnessMap,'rough');if(ti!=null)P.metallicRoughnessTexture={index:ti};}
     if(m.normalMap&&!basic){const ti=this.texture(m.normalMap,'normal');if(ti!=null)M.normalTexture={index:ti,scale:m.normalScale?m.normalScale.x:1};}
     if(m.emissive&&(m.emissive.r+m.emissive.g+m.emissive.b)>0){const s=m.emissiveIntensity==null?1:m.emissiveIntensity,mx=Math.max(m.emissive.r,m.emissive.g,m.emissive.b)*s;
       if(mx>1){M.emissiveFactor=[m.emissive.r*s/mx,m.emissive.g*s/mx,m.emissive.b*s/mx];M.extensions=Object.assign(M.extensions||{},{KHR_materials_emissive_strength:{emissiveStrength:mx}});this.ext.add('KHR_materials_emissive_strength');}
@@ -75,13 +77,13 @@ function bake(o,mat4,geo,mat,group,instColor){const pa=geo.attributes.position;i
   let s=0,e=ix?ix.count:pa.count;if(group){s=group.start;e=Math.min(e,group.start+group.count);}
   const flip=mat4.determinant()<0;_n.getNormalMatrix(mat4);
   const tex=mat.map||mat.normalMap||mat.emissiveMap||mat.alphaMap||mat.roughnessMap;let uvM=null;if(tex&&ua){tex.updateMatrix();uvM=tex.matrix;}
-  const vc=!!(mat.vertexColors&&ca),useC=vc||!!instColor;
+  const la=geo.attributes.livColor;const vc=!!(mat.vertexColors&&ca),useC=vc||!!instColor||!!la;
   /* re-index the used range */const remap=new Map(),P=[],N=[],UV=[],C=[],I=[];
   const get=i=>{let r=remap.get(i);if(r!==undefined)return r;r=P.length/3;remap.set(i,r);
     _v.fromBufferAttribute(pa,i).applyMatrix4(mat4);P.push(_v.x,_v.y,_v.z);
     if(na){_v.fromBufferAttribute(na,i).applyMatrix3(_n).normalize();N.push(_v.x,_v.y,_v.z);}else N.push(0,1,0);
     if(ua){let u=ua.getX(i),v=ua.getY(i);if(uvM){const e=uvM.elements,uu=e[0]*u+e[3]*v+e[6],vv=e[1]*u+e[4]*v+e[7];u=uu;v=vv;}UV.push(u,v);}
-    if(useC){let r=1,g=1,b=1;if(vc){r=ca.getX(i);g=ca.getY(i);b=ca.getZ(i);}if(instColor){r*=instColor.r;g*=instColor.g;b*=instColor.b;}C.push(r,g,b);}return r;};
+    if(useC){let r=1,g=1,b=1;if(vc){r=ca.getX(i);g=ca.getY(i);b=ca.getZ(i);}if(instColor){r*=instColor.r;g*=instColor.g;b*=instColor.b;}if(la){r*=la.getX(i);g*=la.getY(i);b*=la.getZ(i);}C.push(r,g,b);}return r;};
   for(let t=s;t+2<e;t+=3){const a=ix?ix.getX(t):t,b=ix?ix.getX(t+1):t+1,c=ix?ix.getX(t+2):t+2;if(flip)I.push(get(a),get(c),get(b));else I.push(get(a),get(b),get(c));}
   if(!na){/* flat normals from faces */for(let t=0;t<I.length;t+=3){const ia=I[t]*3,ib=I[t+1]*3,ic=I[t+2]*3;const ux=P[ib]-P[ia],uy=P[ib+1]-P[ia+1],uz=P[ib+2]-P[ia+2],vx=P[ic]-P[ia],vy=P[ic+1]-P[ia+1],vz=P[ic+2]-P[ia+2];let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;const l=Math.hypot(nx,ny,nz)||1;for(const q of [ia,ib,ic]){N[q]=nx/l;N[q+1]=ny/l;N[q+2]=nz/l;}}}
   return {P:new Float32Array(P),N:new Float32Array(N),UV:UV.length?new Float32Array(UV):null,C:useC?new Float32Array(C):null,I:new Uint32Array(I)};}
@@ -117,8 +119,26 @@ window.__exportTrack=function(name){const G=new GLB();G.extDir=name+'_tex';
   for(const [cell,list] of cells){const ni=G.node('cell_'+cell,null,{children:list});G.j.scenes[0].nodes.push(ni);}
   const out=G.gltf(name+'.bin');return {json:out.json,bin:u8ToB64(out.bin),files:G.files||[],stats:Object.assign(G.stats,{nodes:G.j.nodes.length,materials:(G.j.materials||[]).length,images:(G.j.images||[]).length,binBytes:out.bin.length,cells:cells.size})};};
 
+/* run a livery material's shader once per vertex (one point per pixel) and read the colours back */
+function bakeLivery(mesh){const m=mesh.material;if(!m||Array.isArray(m)||!m.userData||!m.userData.livA||!m.onBeforeCompile)return false;
+  const fake={uniforms:{},vertexShader:'',fragmentShader:''};m.onBeforeCompile(fake);const U=fake.uniforms;if(!U.uLA)return false;
+  const geo=mesh.geometry,pa=geo.attributes.position,na=geo.attributes.normal,n=pa.count,W=1024,H=Math.ceil(n/W);
+  const g=new THREE.BufferGeometry();g.setAttribute('position',pa);if(na)g.setAttribute('normal',na);const vid=new Float32Array(n);for(let i=0;i<n;i++)vid[i]=i;g.setAttribute('vid',new THREE.BufferAttribute(vid,1));
+  const decl='vec3 vNormal=vec3(0.,0.,1.);\n';/* view-independent: the paint sheen is left to the renderer */
+  const mat=new THREE.ShaderMaterial({uniforms:Object.assign({rtSize:{value:new THREE.Vector2(W,H)}},U),
+    vertexShader:'attribute float vid;uniform vec2 rtSize;varying vec3 vLivP;varying vec3 vLivN;\nvoid main(){vLivP=position;vLivN=normal;float x=mod(vid,rtSize.x),y=floor(vid/rtSize.x);gl_Position=vec4((x+.5)/rtSize.x*2.-1.,(y+.5)/rtSize.y*2.-1.,0.,1.);gl_PointSize=1.;}',
+    fragmentShader:LIV_FRAG+'\n'+decl+'vec3 vViewPosition=vec3(0.,0.,-30.);\nvoid main(){vec4 diffuseColor=vec4(1.);\n'+LIV_BODY+'\ngl_FragColor=vec4(diffuseColor.rgb,1.);}',depthTest:false,depthWrite:false});
+  const pts=new THREE.Points(g,mat);pts.frustumCulled=false;const sc=new THREE.Scene();sc.add(pts);
+  const rt=new THREE.WebGLRenderTarget(W,H,{type:THREE.FloatType,minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter,depthBuffer:false});
+  const prev=renderer.getRenderTarget(),pa2=renderer.autoClear;renderer.setRenderTarget(rt);renderer.setClearColor(0xff00ff,1);renderer.clear();renderer.render(sc,new THREE.Camera());
+  const px=new Float32Array(W*H*4);renderer.readRenderTargetPixels(rt,0,0,W,H,px);renderer.setRenderTarget(prev);rt.dispose();mat.dispose();
+  const out=new Float32Array(n*3);let bad=0;for(let i=0;i<n;i++){out[i*3]=px[i*4];out[i*3+1]=px[i*4+1];out[i*3+2]=px[i*4+2];if(px[i*4]===1&&px[i*4+1]===0&&px[i*4+2]===1)bad++;}
+  geo.setAttribute('livColor',new THREE.BufferAttribute(out,3));return {n,bad};}
+
+window.__bakeLivery=bakeLivery;
 window.__exportKart=function(spec){const G=new GLB();const m=buildKart(spec);const g=m.g;g.position.set(0,0,0);g.rotation.set(0,0,0);g.scale.set(1,1,1);g.updateMatrixWorld(true);
   m.tilt.visible=true;if(m.lo)m.lo.visible=false;if(m.gl)m.gl.visible=false;if(m.bub)m.bub.visible=false;if(m.ice)m.ice.visible=false;(m.flames||[]).forEach(f=>{if(f&&f.visible!==undefined)f.visible=false;});
+  const livStats=[];g.traverse(o=>{if(o.isMesh){const r=bakeLivery(o);if(r)livStats.push(r);}});
   const wheelOf=new Map();m.wheels.forEach((w,i)=>wheelOf.set(w.spin,i));const front=new Set(m.front||[]);
   const findWheel=o=>{for(let p=o;p&&p!==g;p=p.parent)if(wheelOf.has(p))return wheelOf.get(p);return -1;};
   const top=[];
@@ -129,7 +149,7 @@ window.__exportKart=function(spec){const G=new GLB();const m=buildKart(spec);con
     const bk=collect(G,w.spin,sp,{visStop:null});const pr=[];for(const [k,b] of bk){const p=G.primitive(b.parts,b.mi,b.useUV,b.useC);if(p)pr.push(p);}
     const isF=front.has(yaw);const nm='wheel_'+(isF?'F':'R')+(ys.z<0?'L':'R');top.push(G.node(nm,pr,{translation:[ys.x,ys.y,ys.z]}));wheels.push({name:nm,front:isF,x:ys.x,y:ys.y,z:ys.z,r:w.r});});
   const root=G.node('kart',null,{children:top});G.j.scenes[0].nodes.push(root);
-  const bytes=G.glb();return {b64:u8ToB64(bytes),meta:{scale:KS*(m.sf||1),sf:m.sf||1,KS,wheels,axF:m.axF,axR:m.axR,top:m.top,bike:!!m.bike,hover:m.hover||0,drvY:m.drvY||0},stats:Object.assign(G.stats,{bytes:bytes.length})};};
+  const bytes=G.glb();return {livery:livStats,b64:u8ToB64(bytes),meta:{scale:KS*(m.sf||1),sf:m.sf||1,KS,wheels,axF:m.axF,axR:m.axR,top:m.top,bike:!!m.bike,hover:m.hover||0,drvY:m.drvY||0},stats:Object.assign(G.stats,{bytes:bytes.length})};};
 
 window.__exportData=function(step){step=step||10;const def=MAPS[mapIdx];const R=def.R;
   const tr=track.map(p=>[+p.x.toFixed(3),+p.y.toFixed(3),+p.nx.toFixed(5),+p.ny.toFixed(5),+p.tx.toFixed(5),+p.ty.toFixed(5),+p.ang.toFixed(5),p.wall|0,p.pond|0,p.open?1:0,+(p.ey||0).toFixed(3),p.flo===undefined?null:+p.flo.toFixed(2),p.fhi===undefined?null:+p.fhi.toFixed(2)]);

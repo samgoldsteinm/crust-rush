@@ -155,7 +155,24 @@ func _build_world() -> void:
 	_prepare_track(track)
 
 
+## Godot's glTF import doesn't switch vertex colours on in the materials it creates, and most of the
+## scenery (and the kart's livery) gets its colour from them, as in the web game. Turn them on.
+func _use_vertex_colours(root: Node) -> int:
+	var n := 0
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var am := (node as MeshInstance3D).mesh as ArrayMesh
+		if am == null:
+			continue
+		for si in am.get_surface_count():
+			var sm := am.surface_get_material(si) as StandardMaterial3D
+			if sm != null and (am.surface_get_format(si) & Mesh.ARRAY_FORMAT_COLOR) != 0 and not sm.vertex_color_use_as_albedo:
+				sm.vertex_color_use_as_albedo = true
+				n += 1
+	return n
+
+
 func _prepare_track(root: Node) -> void:
+	print("vertex colours switched on for %d track materials" % _use_vertex_colours(root))
 	for n in root.find_children("*", "MeshInstance3D", true, false):
 		var mi := n as MeshInstance3D
 		var nm := String(mi.name)
@@ -175,6 +192,7 @@ func _build_kart() -> void:
 	kart_node.add_child(model)
 	var sc := float(kart_meta.get("scale", 2.024))
 	kart_node.scale = Vector3.ONE * sc
+	print("vertex colours switched on for %d kart materials" % _use_vertex_colours(model))
 	body = model.find_child("body", true, false)
 	for w in kart_meta.get("wheels", []):
 		var wd: Dictionary = w

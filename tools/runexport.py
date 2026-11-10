@@ -23,6 +23,17 @@ async def main():
     print('world top-level:',len(sv['top']));[print('  ',t) for t in sorted(sv['top'],key=lambda t:-t[4])[:25]]
     print('scene types',sv['types'],'mats',sv['mats']);print('scene top (non-world)',sv['sceneTop'])
     if os.environ.get('SURVEY_ONLY'):await b.close();return
+    if os.environ.get('WEBSHOTS'):
+      await pg.set_viewport_size({'width':1280,'height':720})
+      for j,nm in [(-1,'start'),(520,'mid'),(330,'glide')]:
+        await pg.evaluate("""j=>__ev(`(()=>{fit();const k=player;if(${j}>=0){const p=track[${j}];k.x=k.px=p.x;k.y=k.py=p.y;k.a=k.ma=k.pa=k.pma=p.ang;k.idx=${j};k.wy=k.pwy=groundAt(p.x,p.y);k.speed=150;state='race';camSnap=true;}else{state='countdown';cd=2.2;}
+          for(let i=0;i<4;i++){render(performance.now()/1000,1/60);renderer.shadowMap.needsUpdate=true;postRender();}return 1;})()`)""",j)
+        await pg.screenshot(path='/tmp/claude-0/t/web_%s.png'%nm,timeout=240000);print('webshot',nm,flush=True)
+    if os.environ.get('KART_ONLY'):
+      spec=json.loads(await pg.evaluate("__ev(`JSON.stringify({ri:RACERS.findIndex(r=>r.name==='Basil'),b:BODIES.findIndex(b=>b.id==='hyper'),w:0,g:0,p:0,t:'hy_aurora',hq:0,u:0})`)"))
+      k=json.loads(await pg.evaluate("s=>__ev('JSON.stringify(__exportKart('+s+'))')",json.dumps(spec)))
+      open(OUT+'/kart/hypercar.glb','wb').write(base64.b64decode(k['b64']));json.dump(dict(k['meta'],spec=spec),open(OUT+'/kart/hypercar.json','w'),indent=1)
+      print('kart glb',k['stats'],'livery',k['livery'],flush=True);print('errs',errs[:4]);await b.close();return
     d=json.loads(await pg.evaluate("__ev(`JSON.stringify(__exportData(10))`)"))
     os.makedirs(OUT+'/track',exist_ok=True);json.dump(d,open(OUT+'/track/%s.json'%d['map'],'w'),separators=(',',':'))
     if os.environ.get('DATA_ONLY'):
