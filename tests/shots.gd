@@ -42,9 +42,12 @@ func _process(_dt: float) -> void:
 		k.last_g = NAN
 		k.air = false
 		k.glide = false
+		k.loop = {}
+		k.spin = 0.0
 		k.speed = 150.0
 		k._save_prev()
 		main.state = "race"
+		main.race.state = "race"
 		main.cam_a = k.a
 		main.cam_snap = true
 	wait = 8

@@ -175,6 +175,27 @@ window.__exportData=function(step){step=step||10;const def=MAPS[mapIdx];const R=
     statMods:(()=>{try{return statMods({ri:1,b:BODIES.findIndex(b=>b.id==='hyper'),w:0,g:0,p:0,t:''});}catch(e){return null;}})(),
     hasGlide:typeof GLIDE!=='undefined'&&!!GLIDE,loops:typeof LOOPS!=='undefined'?LOOPS.length:0,shorts:typeof SHORTS!=='undefined'?SHORTS.length:0,multi:typeof MULTI!=='undefined'?!!MULTI:false,relief:typeof RELIEF!=='undefined'&&!!RELIEF,pits:typeof PITS!=='undefined'?PITS.length:0};};
 
+
+/* ---- racers, items and icons for the native build ---- */
+window.__exportRoster=function(seed){let s=seed||20261110;const rnd=()=>{s=(Math.imul(s,1103515245)+12345)&0x7fffffff;return s/0x7fffffff;};
+  const R0=Math.random;Math.random=rnd;let builds;try{builds=RACERS.map(randomBuild);}finally{Math.random=R0;}
+  return RACERS.map((r,ri)=>{const b=builds[ri];return {ri,name:r.name,color:r.color,stripe:r.stripe,build:b,body:BODIES[b.b].id,bodyName:BODIES[b.b].name,sm:statMods(b),glider:{id:GLIDERS[b.g].id,sink:GLIDERS[b.g].sink,air:GLIDERS[b.g].air}};});};
+window.__statsFor=function(b){return {sm:statMods(b),glider:{id:GLIDERS[b.g].id,sink:GLIDERS[b.g].sink,air:GLIDERS[b.g].air}};};
+window.__exportItems=function(){const G=new GLB();const top=[],names=[];
+  const add=(name,o)=>{o.position.set(0,0,0);o.rotation.set(0,0,0);o.scale.set(1,1,1);o.updateMatrixWorld(true);const b=collect(G,o,new THREE.Matrix4(),{visStop:null});const pr=[];for(const [k,bk] of b){const p=G.primitive(bk.parts,bk.mi,bk.useUV,bk.useC);if(p)pr.push(p);}if(pr.length){top.push(G.node(name,pr));names.push(name);}};
+  for(const k of Object.keys(ITEM_BUILD)){try{const o=itemProto(k).clone();o.traverse(m=>{if(m.isMesh&&m.material&&(m.material.blending===THREE.AdditiveBlending))m.visible=false;});add(k,o);}catch(e){console.warn('item',k,e);}}
+  if(typeof IBX!=='undefined'&&IBX){const g=new THREE.Group();for(const q of IBX.parts)g.add(new THREE.Mesh(q[0],q[1]));add('itembox',g);const g2=new THREE.Group();for(const q of IBX.parts)g2.add(new THREE.Mesh(q[0],q[2]));add('itembox2',g2);}
+  const root=G.node('items',null,{children:top});G.j.scenes[0].nodes.push(root);const bytes=G.glb();return {b64:u8ToB64(bytes),names,stats:Object.assign(G.stats,{bytes:bytes.length})};};
+window.__exportIcons=function(){try{renderItemIcons();}catch(e){}const o={};for(const k of ITEM_KEYS){const m=/src="(data:image\/png;base64,[^"]+)"/.exec(SVG[k]||'');if(m)o[k]=m[1].slice(m[1].indexOf(',')+1);}return o;};
+window.__exportRace=function(){return {
+  boxes:boxes.map(b=>({x:+b.x.toFixed(2),y:+b.y.toFixed(2),gy:+(b.gy||0).toFixed(2),dbl:!!b.dbl,air:!!b.air,train:!!b.trainCar})),
+  obstacles:obstacles.filter(o=>!o.ghost&&!o.mesh?.userData?.dyn).map(o=>({x:+o.x.toFixed(2),y:+o.y.toFixed(2),r:o.r,h:o.h,j:o.j==null?null:o.j,lat:o.lat==null?null:+(+o.lat).toFixed(2)})),
+  loops:LOOPS.map(L=>({j:L.j,full:!!L.full,lat0:L.lat0,W:L.W,S:L.S,shift:L.shift,g0:L.g0,p:{x:L.p.x,y:L.p.y,tx:L.p.tx,ty:L.p.ty,nx:L.p.nx,ny:L.p.ny,ang:L.p.ang}})),
+  loopK:{DIV:LOOP_DIV,DH:LOOP_DH,TAP:LOOP_TAP,R:LOOPR},
+  haz:{traffic:(HAZ.traffic||[]).length,walk:(HAZ.walk||[]).length,rollers:(typeof rollers!=='undefined'?rollers.length:0),train:!!HAZ.train},
+  L:T.L,racers:RACERS.map(r=>({name:r.name,color:r.color,stripe:r.stripe})),
+  diffs:DIFFS,itemPower:ITEM_POWER,
+  bend:track.map(p=>p.bend==null?null:+p.bend.toFixed(4))};};
 window.__sceneSurvey=function(){const out={top:[],types:{}};world.children.forEach(c=>{let n=0,t=0;c.traverse(o=>{if(o.isMesh){n++;const g=o.geometry;t+=((g.index?g.index.count:g.attributes.position.count)/3)*(o.isInstancedMesh?o.count:1);}});out.top.push([c.type,c.name||'',Object.keys(c.userData).slice(0,3).join(','),n,Math.round(t/1000),c.visible]);});
   scene.children.forEach(c=>{out.types[c.type]=(out.types[c.type]||0)+1;});
   const mats={};world.traverse(o=>{if(o.isMesh){const ms=Array.isArray(o.material)?o.material:[o.material];for(const m of ms)mats[m.type]=(mats[m.type]||0)+1;}});out.mats=mats;out.sceneTop=scene.children.filter(c=>c!==world).map(c=>[c.type,c.name||'',Object.keys(c.userData).slice(0,3).join(',')]).slice(0,30);return out;};

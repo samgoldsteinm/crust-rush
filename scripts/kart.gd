@@ -2,8 +2,9 @@ class_name Kart
 extends RefCounted
 ## Kart physics, ported from the web game's stepKart(). Runs at a fixed 120 Hz.
 ## Field names follow the web code (x, y on the ground plane; wy = height) so the two can
-## be compared line by line. Not yet ported: items, abilities, the loop-the-loop lane,
-## shortcuts, AI. Steering, drifting, boosts, jumps, tricks and the glide section are.
+## be compared line by line. Items, spin-outs and the loop-the-loop are here; the race
+## (other karts, item boxes, thrown items, the computer drivers) is in race.gd.
+## Not yet ported: special abilities, shortcuts.
 
 const TRICK_T := 0.55
 
@@ -64,6 +65,37 @@ var b_lock := false
 var inv := 0.0
 var finished := false
 var finish_time := 0.0
+var place := 0
+var est := false
+
+# who drives it
+var ri := 0               # racer (character) index
+var racer_name := ""
+var is_player := false
+var human := false        # read the stick itself (web isHuman); computer drivers get extra steering
+var sm_wgt := 1.0
+var ai := {}              # lane, lane_target, lane_t, skill, item_delay, in_bend
+
+# items and hits
+var item := ""
+var item2 := ""
+var pend: Array[String] = []
+var roll := 0.0
+var held := {}            # {it, sl, t} while an item trails behind
+var shield := 0.0         # timed shield (old garlic)
+var sh_l := 0             # garlic layers: each blocks one hit
+var mz_h := 0
+var abs_t := 0.0
+var spin := 0.0
+var frozen := 0.0
+var rush := 0.0
+var oil_t := 0.0
+var wall_hit := false
+
+# loop-the-loop
+var loop := {}            # {th, p, lat0, shift, g0, j, full} while inside the loop
+var loop_th := 0.0
+var o_th := 0.0
 
 # previous step, for drawing between physics steps
 var ox := 0.0
@@ -71,24 +103,31 @@ var oy := 0.0
 var oa := 0.0
 var oma := 0.0
 var owy := 0.0
+var o_loop := false
 
 ## sounds and camera shakes for the scene to play: "hop", "tier1".."tier3", "boost1".."boost3",
 ## "pad", "bump", "trick", "land", "respawn"
 var events: Array[String] = []
 
 
-func setup(track: TrackData, slot: Dictionary, start_prog: int) -> void:
+func setup(track: TrackData, slot: Dictionary, start_prog: int, stats := {}) -> void:
 	T = track
 	base_max = T.BASE0 * T.class_mul
-	sm_spd = float(T.stat_mods.get("spd", 1.0))
-	sm_acc = float(T.stat_mods.get("acc", 1.0))
-	sm_hnd = float(T.stat_mods.get("hnd", 1.0))
-	sm_off = float(T.stat_mods.get("off", 0.0))
+	var sm: Dictionary = stats.get("sm", T.stat_mods)
+	sm_spd = float(sm.get("spd", 1.0))
+	sm_acc = float(sm.get("acc", 1.0))
+	sm_hnd = float(sm.get("hnd", 1.0))
+	sm_off = float(sm.get("off", 0.0))
+	sm_wgt = float(sm.get("wgt", 1.0))
+	var gl: Dictionary = stats.get("glider", {})
+	glider_sink = float(gl.get("sink", 15.0))
+	glider_air = float(gl.get("air", 1.0))
 	x = float(slot["x"])
 	y = float(slot["y"])
 	a = float(slot["a"])
 	ma = a
 	wy = float(slot["wy"])
+	last_g = T.ground(x, y)
 	idx = T.nearest_any(x, y)
 	prog = start_prog
 	_save_prev()
@@ -100,6 +139,8 @@ func _save_prev() -> void:
 	oa = a
 	oma = ma
 	owy = wy
+	o_th = loop_th
+	o_loop = not loop.is_empty()
 
 
 static func ang_diff(p: float, q: float) -> float:
@@ -124,7 +165,8 @@ static func _tier_of(c: float) -> int:
 	return 0
 
 
-## inp: steer (-1..1, right positive), brake (drift/brake button held), nb (brake disabled), mul (gas: 1 or 0)
+## inp: steer (-1..1, right positive), brake (drift/brake button held), nb (brake disabled), mul (gas: 1 or 0),
+## use / back / hold / hold_sl / release for items (see race.gd)
 func step(inp: Dictionary, dt: float) -> void:
 	_save_prev()
 	inv = maxf(0.0, inv - dt)
@@ -135,6 +177,9 @@ func step(inp: Dictionary, dt: float) -> void:
 	pd = brake_in
 	if grip_t > 0.0:
 		grip_t -= dt
+	if not loop.is_empty():
+		_loop_step(dt)
+		return
 
 	# a tap in the air is a trick (a different one each jump); in a glide every tap with room below is one
 	var trick_now := false
@@ -187,8 +232,101 @@ func step(inp: Dictionary, dt: float) -> void:
 	p_boost = boost
 	if d_want > 0.0:
 		d_want -= dt
+	if shield > 0.0:
+		shield -= dt
+		mx *= 1.08
+	if abs_t > 0.0:
+		abs_t -= dt
+	if rush > 0.0:
+		rush -= dt
+		mx *= 1.12
+		pen = maxf(pen, 0.95)
+	if oil_t > 0.0:
+		oil_t -= dt
+		mx *= 0.72
+	if frozen > 0.0:
+		frozen -= dt
+		mx *= 0.55
 
 	var v0 := speed
+	if spin > 0.0:
+		spin -= dt
+		a += 14.0 * dt
+		speed += (0.0 - speed) * minf(1.0, 2.5 * dt)
+		if spin <= 0.0:
+			spin = 0.0
+			a = ma
+		brake = 0.0
+	else:
+		_drive(inp, dt, brake_in, d_press, trick_now, mx)
+
+	acc += ((speed - v0) / dt - acc) * minf(1.0, dt * 6.0)
+	x += cos(ma) * speed * dt
+	y += sin(ma) * speed * dt
+
+	_walls()
+	if wall_t > 0.0:
+		wall_t -= dt
+	_rim()
+	if _vertical(dt):
+		return
+	_obstacles()
+
+	# items: fire, keep behind, or let go of what trails behind
+	if not held.is_empty():
+		held["t"] = float(held["t"]) + dt
+	if race != null:
+		var rel = inp.get("release")
+		if rel != null and not held.is_empty() and spin <= 0.0:
+			race.release_held(self, rel == "back")
+		elif inp.get("hold", false) and item != "" and spin <= 0.0:
+			if not race.hold_item(self, int(inp.get("hold_sl", 1))):
+				race.use_item(self, true)
+		elif inp.get("use", false) and item != "" and spin <= 0.0:
+			race.use_item(self, bool(inp.get("back", false)))
+	if roll > 0.0:
+		roll -= dt
+		if roll <= 0.0:
+			while not pend.is_empty():
+				var it: String = pend.pop_front()
+				if item == "":
+					item = it
+				elif item2 == "" and held.is_empty():
+					item2 = it
+			if race != null:
+				race.after_roll(self)
+			events.append("ready")
+
+	# progress round the lap
+	var o_idx := idx
+	var best := T.nearest(idx, x, y)
+	var di := best - idx
+	if di > T.N / 2:
+		di -= T.N
+	if di < -T.N / 2:
+		di += T.N
+	prog += di
+	idx = best
+
+	_loop_walls_and_entry(o_idx)
+
+	for p in T.pads:
+		var dj: int = idx - int(p["j"])
+		if dj > T.N / 2:
+			dj -= T.N
+		if dj < -T.N / 2:
+			dj += T.N
+		if absi(dj) <= 2 and absf(T.lateral(idx, x, y) - float(p["lat"])) < float(p["w"]) and boost < 0.9:
+			boost = maxf(boost, 1.0)
+			events.append("pad")
+
+
+var race = null   # the Race this kart is in (items need it)
+
+
+## steering, braking, accelerating and drifting: everything a kart does while it isn't spinning out
+func _drive(inp: Dictionary, dt: float, brake_in: bool, d_press: bool, trick_now: bool, mx: float) -> void:
+	var st_in: float = inp["steer"]
 	var rate := 5.0 if st_in == 0.0 else (7.0 if steer != 0.0 and signf(st_in) != signf(steer) else 3.2)
 	steer += clampf(st_in - steer, -rate * dt, rate * dt)
 	if not brake_in:
@@ -219,11 +357,13 @@ func step(inp: Dictionary, dt: float) -> void:
 	var hs := clampf((sp - 40.0) / (base_max - 40.0), 0.0, 1.0)
 	var lo := 0.0 if sp < 1.0 else minf(1.0, sp / 35.0)
 	var over := clampf((sp - base_max) / (base_max * 0.58), 0.0, 1.0)
-	var tf_n: float = lo * (1.0 - 0.52 * hs) * sm_hnd * (1.0 + 0.4 * over)
+	var tf_n: float = lo * (1.0 - 0.52 * hs) * (1.0 if human else 1.4) * sm_hnd * (1.0 + 0.4 * over)
 	var tf_d: float = lo * (1.0 - 0.38 * hs) * 1.02 * sm_hnd * (1.0 + 0.55 * over)
 
 	# drift: tap to hop and slide; let go (or straighten) to fire the mini-turbo
 	var d_rel := false
+	if spin > 0.0:
+		d_latch = false
 	if d_press and air and drift == 0:
 		if not trick_now and not (glide and g_h > 16.0):
 			d_latch = not d_latch
@@ -242,7 +382,7 @@ func step(inp: Dictionary, dt: float) -> void:
 				_start_drift(0.35)
 			elif sp < 30.0:
 				d_latch = false
-		if d_want > 0.0 and drift == 0 and not air and sp > 55.0:
+		if d_want > 0.0 and drift == 0 and not air and sp > 55.0 and not (not human and boost > 0.0 and b_age < 0.8):
 			d_want = 0.0
 			_start_drift(0.0)
 			air = true
@@ -253,11 +393,12 @@ func step(inp: Dictionary, dt: float) -> void:
 		d_time += dt
 		if brake_in:
 			d_hold += dt
-		var st_abs := absf(st_in)
-		var up := not brake_in and d_hold > 0.35 and not air
-		if d_time > (0.0 if up else 0.3) and st_abs < (0.6 if up else 0.15):
+		var sl2 := absf(ang_diff(a, ma))
+		var st_abs := absf(st_in if human else steer)
+		var up := human and not brake_in and d_hold > 0.35 and not air
+		if d_time > (0.0 if up else (0.3 if human else 0.45)) and st_abs < (0.6 if up else (0.15 if human else 0.3)) and (human or sl2 < 0.14):
 			s_t += dt
-			if s_t > (0.016 if up else (0.5 if brake_in else 0.3)):
+			if s_t > (0.016 if up else ((0.5 if brake_in else 0.3) if human else 0.3)):
 				d_rel = true
 		else:
 			s_t = 0.0
@@ -294,37 +435,121 @@ func step(inp: Dictionary, dt: float) -> void:
 	if absf(slip) > 0.5:
 		ma = a - signf(slip) * 0.5
 
-	acc += ((speed - v0) / dt - acc) * minf(1.0, dt * 6.0)
-	x += cos(ma) * speed * dt
-	y += sin(ma) * speed * dt
 
-	_walls()
-	if wall_t > 0.0:
-		wall_t -= dt
-	_rim()
-	if _vertical(dt):
-		return
-	_obstacles()
+# ---------------------------------------------------------------- loop-the-loop
 
-	# progress round the lap
-	var best := T.nearest(idx, x, y)
-	var di := best - idx
-	if di > T.N / 2:
-		di -= T.N
-	if di < -T.N / 2:
-		di += T.N
-	prog += di
-	idx = best
+const LOOPR := 56.0
 
-	for p in T.pads:
-		var dj: int = idx - int(p["j"])
+func _loop_step(dt: float) -> void:
+	var L := loop
+	speed = maxf(speed, base_max * 1.18)
+	L["th"] = float(L["th"]) + speed * dt / LOOPR
+	var th := minf(float(L["th"]), TAU)
+	var p: Dictionary = L["p"]
+	var sx := LOOPR * sin(th)
+	var hg := LOOPR * (1.0 - cos(th))
+	var lat := float(L["lat0"]) + float(L["shift"]) * th / TAU
+	x = float(p["x"]) + float(p["tx"]) * sx + float(p["nx"]) * lat
+	y = float(p["y"]) + float(p["ty"]) * sx + float(p["ny"]) * lat
+	wy = float(L["g0"]) + hg + 0.35
+	z = hg
+	loop_th = th
+	a = float(p["ang"])
+	ma = a
+	drift = 0
+	steer *= 0.9
+	air = false
+	if float(L["th"]) >= TAU:
+		if bool(L["full"]):
+			var di := int(L["j"]) - idx
+			if di > T.N / 2:
+				di -= T.N
+			if di < -T.N / 2:
+				di += T.N
+			prog += di
+			idx = int(L["j"])
+		loop = {}
+		loop_th = 0.0
+		o_th = 0.0
+		boost = maxf(boost, 1.5)
+		wvy = 0.0
+		g_rate = 0.0
+		last_g = T.ground(x, y)
+		wy = last_g
+		z = 0.0
+		events.append("loopout")
+
+
+## the divider between the way into a loop and the way out, and getting carried into the loop
+func _loop_walls_and_entry(o_idx: int) -> void:
+	for L in T.loops:
+		if not bool(L["full"]) or not loop.is_empty():
+			continue
+		var P: Dictionary = L["p"]
+		var al := (x - float(P["x"])) * float(P["tx"]) + (y - float(P["y"])) * float(P["ty"])
+		var aa := absf(al)
+		if aa > T.LOOP_DIV + T.LOOP_TAP:
+			continue
+		var hw := T.LOOP_DH if aa <= T.LOOP_DIV else T.LOOP_DH * (1.0 - (aa - T.LOOP_DIV) / T.LOOP_TAP)
+		var lim := hw + 4.0
+		var lt := (x - float(P["x"])) * float(P["nx"]) + (y - float(P["y"])) * float(P["ny"])
+		if absf(lt) >= lim:
+			continue
+		var dj := int(L["j"]) - idx
 		if dj > T.N / 2:
 			dj -= T.N
 		if dj < -T.N / 2:
 			dj += T.N
-		if absi(dj) <= 2 and absf(T.lateral(idx, x, y) - float(p["lat"])) < float(p["w"]) and boost < 0.9:
-			boost = maxf(boost, 1.0)
-			events.append("pad")
+		var sd := -1.0 if dj > 0 else 1.0
+		var push := sd * lim - lt
+		x += float(P["nx"]) * push
+		y += float(P["ny"]) * push
+		var tl := 0.0 if aa <= T.LOOP_DIV else (T.LOOP_DH / T.LOOP_TAP) * signf(al)
+		var ex := float(P["nx"]) * sd + float(P["tx"]) * tl
+		var ey_ := float(P["ny"]) * sd + float(P["ty"]) * tl
+		var el := sqrt(ex * ex + ey_ * ey_)
+		_slide(-ex / el, -ey_ / el, 0.22, 0.5)
+	for L in T.loops:
+		if not loop.is_empty() or not bool(L["full"]):
+			continue
+		var dj2 := int(L["j"]) - idx
+		if dj2 > T.N / 2:
+			dj2 -= T.N
+		if dj2 < -T.N / 2:
+			dj2 += T.N
+		if dj2 >= 1 and dj2 <= 8:
+			var P2: Dictionary = L["p"]
+			var al2 := (x - float(P2["x"])) * float(P2["tx"]) + (y - float(P2["y"])) * float(P2["ty"])
+			var lt2 := (x - float(P2["x"])) * float(P2["nx"]) + (y - float(P2["y"])) * float(P2["ny"])
+			if al2 >= -1.0:
+				var S := float(L["S"])
+				var W := float(L["W"])
+				loop = {"th": 0.0, "p": P2, "lat0": clampf(lt2, -S - W + 5.0, -S + W - 5.0), "shift": float(L["shift"]), "g0": float(L["g0"]), "j": int(L["j"]), "full": true}
+				drift = 0
+				spin = 0.0
+				air = false
+				big = false
+				glide = false
+				events.append("loopin")
+	for L in T.loops:
+		if bool(L["full"]) or air or speed <= 50.0 or spin > 0.0 or not loop.is_empty():
+			continue
+		var d0 := o_idx - int(L["j"])
+		var d1 := idx - int(L["j"])
+		if d0 > T.N / 2:
+			d0 -= T.N
+		if d0 < -T.N / 2:
+			d0 += T.N
+		if d1 > T.N / 2:
+			d1 -= T.N
+		if d1 < -T.N / 2:
+			d1 += T.N
+		if d0 < 0 and d1 >= 0:
+			var lt3 := T.lateral(idx, x, y)
+			if absf(lt3 - float(L["lat0"])) < 17.0:
+				loop = {"th": 0.0, "p": L["p"], "lat0": float(L["lat0"]), "shift": float(L["shift"]), "g0": float(L["g0"]), "j": int(L["j"]), "full": false}
+				drift = 0
+				events.append("loopin")
 
 
 func _start_drift(amt: float) -> void:
@@ -611,6 +836,7 @@ func respawn() -> void:
 	drift = 0
 	charge = 0.0
 	boost = 0.0
+	spin = 0.0
 	inv = 3.0
 	z = 0.0
 	_save_prev()

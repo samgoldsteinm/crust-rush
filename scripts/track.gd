@@ -47,6 +47,17 @@ var stat_mods := {}        # the player's kart multipliers: spd, acc, hnd, wgt, 
 var light := {}
 var sky := {}
 
+# the race: item boxes, loop-the-loops, obstacle lanes (for the computer drivers)
+var L := 0.0                 # track length
+var boxes: Array = []        # {x, y, gy, dbl, air}
+var obst_lane: Array = []    # {j, lat, r} per obstacle, for the computer drivers to steer round
+var loops: Array = []        # {j, full, lat0, W, S, shift, g0, p: {x, y, tx, ty, nx, ny, ang}}
+var LOOP_DIV := 150.0
+var LOOP_DH := 14.0
+var LOOP_TAP := 150.0
+var racers: Array = []       # {name, color, stripe}
+var diffs := {}
+
 # height maps on a square grid
 var hx0 := 0.0
 var hz0 := 0.0
@@ -101,6 +112,26 @@ func _read(d: Dictionary) -> void:
 	stat_mods = d["statMods"] if d.get("statMods") != null else {"spd": 1.0, "acc": 1.0, "hnd": 1.0, "wgt": 1.0, "off": 0.0}
 	light = d["light"]
 	sky = d["sky"] if d.get("sky") != null else {}
+	var rc = d.get("race")
+	if rc != null:
+		var r: Dictionary = rc
+		L = float(r["L"])
+		boxes = r["boxes"]
+		loops = r["loops"]
+		var lk: Dictionary = r["loopK"]
+		LOOP_DIV = float(lk["DIV"])
+		LOOP_DH = float(lk["DH"])
+		LOOP_TAP = float(lk["TAP"])
+		racers = r["racers"]
+		diffs = r["diffs"]
+		for o in r["obstacles"]:
+			var od: Dictionary = o
+			if od.get("j") != null and od.get("lat") != null:
+				obst_lane.append({"j": int(od["j"]), "lat": float(od["lat"]), "r": float(od["r"])})
+	if L <= 0.0:
+		for i in N:
+			var k := (i + 1) % N
+			L += Vector2(px[k] - px[i], py[k] - py[i]).length()
 	var h: Dictionary = d["height"]
 	hx0 = h["x0"]
 	hz0 = h["z0"]
@@ -196,6 +227,18 @@ func kerb_h(la: float) -> float:
 	if u < 6.5:
 		return KERB_H * (1.0 - 0.25 * (u - 0.6) / 5.9)
 	return KERB_H * 0.75 + (0.05 - KERB_H * 0.75) * (u - 6.5) / (CURB - RW - 6.5)
+
+
+## a point s track-points along the centre line (fractions allowed), lat to the side (web trackAt)
+func track_at(s: float, lat: float) -> Vector3:
+	var i := int(floor(fposmod(s, float(N))))
+	var f := s - floor(s)
+	var q := (i + 1) % N
+	var xx := px[i] + (px[q] - px[i]) * f
+	var yy := py[i] + (py[q] - py[i]) * f
+	var nxx := nx[i] + (nx[q] - nx[i]) * f
+	var nyy := ny[i] + (ny[q] - ny[i]) * f
+	return Vector3(xx + nxx * lat, yy + nyy * lat, float(i))
 
 
 func in_glide(j: int) -> bool:
