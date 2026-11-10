@@ -443,6 +443,8 @@ func _build_world() -> void:
 	# the ground: the same picture with depth, gloss and a fine grain up close
 	if track != null and hd:
 		print("ground: %d finished" % HdGround.upgrade(track, String(_map_info(map_id)["dir"]).path_join(map_id + "_hd.json")))
+		# the web's plain-coloured scenery: a fine surface so nothing reads as flat untextured colour
+		print("surfaces: %d finished" % HdSurface.upgrade(track))
 		# the background mountains: the far ranges and the sculpted mountains, finely rebuilt
 		var mt0 := Time.get_ticks_msec()
 		var mst := HdMount.upgrade(track, 2 if quality >= 2 else 1, T.theme)
@@ -450,6 +452,8 @@ func _build_world() -> void:
 		# the kitchen tracks' room: a tiled kitchen wall, wall cabinets, and the things along the counter
 		if T.theme == "kitchen":
 			print("kitchen: %d pieces" % HdKitchen.upgrade(track))
+	# the dough-ball walls round the bends: all of them, from the track data (the export missed many)
+	print("wall balls: %d" % WallBalls.build(world, T))
 	# trees, palms, bushes and rocks: finished models on PC (the web game's own shapes far away, and when off)
 	if not T.props.is_empty():
 		var pr := Props.new()
