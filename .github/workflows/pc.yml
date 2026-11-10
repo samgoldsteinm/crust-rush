@@ -1,0 +1,78 @@
+# Checks and builds the PC version on every push: imports the project, drives the full race
+# headless, renders screenshots with a software GPU, and exports a ready-to-run Windows build.
+name: PC build
+
+on:
+  push:
+    branches: [godot]
+  workflow_dispatch:
+
+jobs:
+  pc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      GODOT_VERSION: "4.7.2"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Godot and its export templates
+        run: |
+          set -euo pipefail
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          curl -fsSL -o godot.zip "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot
+          chmod +x godot
+          curl -fsSL -o templates.tpz "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q templates.tpz
+          dest="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$dest"
+          mv templates/* "$dest/"
+
+      - name: Import the project
+        run: |
+          ./godot --headless --path . --import 2>&1 | tee import.log | tail -60
+          if grep -E "SCRIPT ERROR|Parse Error|Failed to load script|Compile Error" import.log; then echo "::error::script errors"; exit 1; fi
+
+      - name: Drive the race (headless)
+        run: |
+          timeout 1200 ./godot --headless --path . --fixed-fps 120 res://tests/smoke.tscn 2>&1 | tee smoke.log | grep -v "^SHOT_B64" | tail -80 || true
+          if grep -E "SCRIPT ERROR|Parse Error" smoke.log; then echo "::error::runtime script errors"; exit 1; fi
+          grep -q "SMOKE PASS" smoke.log
+
+      - name: Screenshots (software Vulkan)
+        if: always()
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mesa-vulkan-drivers xvfb > /dev/null
+          mkdir -p build/shots
+          timeout 1800 xvfb-run -a -s "-screen 0 1280x720x24" ./godot --path . --rendering-driver vulkan --resolution 1280x720 res://tests/shots.tscn > shots.log 2>&1 || true
+          grep -v "^SHOT_B64" shots.log | tail -40
+          if ! ls build/shots/*.png > /dev/null 2>&1; then
+            echo "Vulkan produced no shots; trying the OpenGL renderer"
+            timeout 1800 xvfb-run -a -s "-screen 0 1280x720x24" ./godot --path . --rendering-method gl_compatibility --rendering-driver opengl3 --resolution 1280x720 res://tests/shots.tscn > shots.log 2>&1 || true
+            grep -v "^SHOT_B64" shots.log | tail -40
+          fi
+          grep "^SHOT_B64" shots.log || true
+          ls -la build/shots || true
+
+      - name: Export the Windows build
+        run: |
+          set -euo pipefail
+          mkdir -p build/windows
+          ./godot --headless --path . --export-release "Windows Desktop" build/windows/CrustRush.exe 2>&1 | tail -30
+          ls -la build/windows
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CrustRush-Windows
+          path: build/windows/CrustRush.exe
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: build/shots
+          retention-days: 14

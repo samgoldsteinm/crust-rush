@@ -3,9 +3,7 @@
 name: iPhone build
 
 on:
-  push:
-    branches: [godot]
-  workflow_dispatch:
+  workflow_dispatch:   # paused: start it by hand from the Actions tab
 
 jobs:
   ios:
