@@ -1,6 +1,6 @@
 shader_type canvas_item;
-// The web game's final pass (POST.M.final) after Godot's tone mapping: tint, saturation and contrast
-// in linear light, the vignette, the screen-edge flash, and Ultra's speed streaks while boosting.
+// The web game's final pass (POST.M.final) after Godot's tone mapping: tint and saturation in linear light,
+// contrast in display values, the vignette, the screen-edge flash, and Ultra's speed streaks while boosting.
 render_mode unshaded;
 
 uniform sampler2D screen : hint_screen_texture, filter_linear;
@@ -22,7 +22,9 @@ void fragment() {
 	c = clamp(c * tint, 0.0, 1.0);
 	float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
 	c = mix(vec3(l), c, sat);
-	c = clamp((c - 0.5) * con + 0.5, 0.0, 1.0);
+	// contrast round the screen's mid-grey in display (sRGB) values, as the web does since v144: done on the linear
+	// colour it crushed everything darker than about #474747 to black (Basil Boulevard's dark green wallpaper)
+	c = lin(clamp((srgb(clamp(c, 0.0, 1.0)) - 0.5) * con + 0.5, 0.0, 1.0));
 	float aspect = SCREEN_PIXEL_SIZE.y / SCREEN_PIXEL_SIZE.x;
 	vec2 d = (uv - 0.5) * vec2(aspect, 1.0);
 	c *= 1.0 - vig * smoothstep(0.35, 1.05, length(d));
