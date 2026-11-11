@@ -5,7 +5,7 @@ name: PC build
 on:
   push:
     branches: [godot]
-    paths-ignore: [tools/hd_fetch.py, tools/hdlist.py, tools/hd_textures.py, .github/workflows/hd.yml, .github/workflows/maps.yml, README.md]
+    paths-ignore: [tools/hd_fetch.py, tools/hdlist.py, tools/hd_textures.py, .github/workflows/hd.yml, .github/workflows/maps.yml, .github/workflows/scenery.yml, tests/scenery.txt, README.md]
   workflow_dispatch:
 
 permissions:
