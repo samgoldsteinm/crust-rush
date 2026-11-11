@@ -727,6 +727,8 @@ func _build_hud() -> void:
 			menu.visible = false)
 	menu.setting_changed.connect(func(k, v):
 		sel[k] = v
+		if k == "favs":
+			_save_settings()
 		if k == "map" and String(v) != map_id:
 			_menu_preview_map(String(v)))
 	menu.modal_builders["mp"] = _mp_panel
@@ -2277,6 +2279,8 @@ func _menu_sync() -> void:
 	menu.cup = int(sel["cup"])
 	menu.map_id = map_id
 	menu.build = _my_build() if KartBuilder.ready() else menu.build
+	if sel.get("favs") is Dictionary:
+		menu.favs = (sel["favs"] as Dictionary).duplicate(true)
 
 
 ## the player's kart build: the garage's choice, else the build the web game gave this driver
@@ -3198,6 +3202,9 @@ func _load_settings() -> void:
 	opt_kmh = bool(cf.get_value("opt", "kmh", false))
 	for k in ["mode", "cls", "ri", "cup"]:
 		sel[k] = cf.get_value("menu", k, sel[k])
+	var fv = cf.get_value("menu", "favs", {})
+	if fv is Dictionary:
+		sel["favs"] = fv
 	var bb = cf.get_value("menu", "build", {})
 	if bb is Dictionary:
 		sel["build"] = bb

@@ -318,6 +318,19 @@ static func build(spec: Dictionary, ri: int) -> Dictionary:
 	return {"node": root, "meta": meta, "sm": stat_mods(spec), "glider": {"id": gd["id"], "sink": gd["sink"], "air": gd["air"]}, "glider_node": glider}
 
 
+## a built kart repainted for another paint or livery (the garage's livery pictures): body and wheels
+static func repaint(root: Node3D, spec: Dictionary, ri: int) -> void:
+	var b := clampi(int(spec.get("b", 0)), 0, (info["bodies"] as Array).size() - 1)
+	var cols := colours(spec, ri)
+	var liv = (info.get("liv", []) as Array)[b] if b < (info.get("liv", []) as Array).size() else null
+	for c in root.get_children():
+		var nm := String(c.name)
+		if nm == "body":
+			_paint(c, cols, liv, ri)
+		elif nm.begins_with("wheel_"):
+			_paint(c, cols, null, ri)
+
+
 ## recolour the exported marker materials: paint (or the livery), dark trim, stripe
 static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false) -> void:
 	var lv: Dictionary = cols["lv"]

@@ -63,6 +63,15 @@ var _g_hide: Array = []       # what the inspect view hides: the header, the par
 var _g_hint: Control
 var _g_insp: Button
 var _g_next: Control
+var liv_cat := "all"           # the livery list's category (web livCat)
+var favs := {}                 # body id -> favourite livery ids (web isFav), saved with the settings
+var _thumbs: LivThumbs         # the livery pictures (scripts/liv_thumbs.gd), kept for the session
+var _g_list: ScrollContainer   # the garage's parts or livery list
+var _g_keep := {}              # the list's place across a rebuild: tab, category, scroll, the highlighted card
+var _liv_order := {"key": "", "ids": []}   # the All list's order for this visit (a new favourite stays put until you come back)
+## the web's livery categories (LIV_CATS)
+const LIV_CATS := [["all", "All"], ["fav", "♥ Favourites"], ["sig", "★ Signature"], ["f1", "Formula"], ["super", "Supercar"], ["endure", "Endurance"],
+	["classic", "Classic"], ["street", "Street & Truck"], ["wild", "Wild"], ["pizza", "Pizza"], ["kustom", "Kustom Shop"], ["reward", "★ Rewards"]]
 var map_id := "bay"
 var cup := 0
 var maps: Array = []           # from main.maps: {id, name, mi, theme, cup}
@@ -99,6 +108,17 @@ func _input(ev: InputEvent) -> void:
 			tgt.grab_focus()
 			if nav:
 				get_viewport().set_input_as_handled()
+	# X on a controller (or F) favourites the highlighted livery, or the one on the car (web)
+	if cur == "garage" and modal == null and g_tab == "theme" and not _gbig:
+		var xk := (ev is InputEventJoypadButton and (ev as InputEventJoypadButton).pressed and (ev as InputEventJoypadButton).button_index == JOY_BUTTON_X) \
+			or (ev is InputEventKey and (ev as InputEventKey).pressed and not (ev as InputEventKey).echo and (ev as InputEventKey).keycode == KEY_F)
+		if xk:
+			var f2 := get_viewport().gui_get_focus_owner()
+			var fid := String(f2.get_meta("liv")) if f2 != null and f2.has_meta("liv") else String(build.get("t", ""))
+			if fid != "":
+				_toggle_fav(fid)
+				get_viewport().set_input_as_handled()
+				return
 	if ev.is_action_pressed("ui_cancel"):
 		if modal != null:
 			close_modal()
@@ -519,7 +539,8 @@ func open(name_: String) -> void:
 		(screens[k] as Control).queue_free()
 	screens.clear()
 	if name_ != "garage" or cur != "garage":
-		# coming into the garage (not rebuilding it after a change): the normal view
+		# coming into the garage (not rebuilding it after a change): the normal view, the list freshly sorted
+		_liv_order = {"key": "", "ids": []}
 		_gbig = false
 		_gzoom = 1.0
 		_gpitch = 0.0
@@ -1350,6 +1371,9 @@ func _garage() -> Control:
 	var sc := ScrollContainer.new()
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sc.follow_focus = true
+	_g_list = sc
+	var above: Control = null      # the livery categories, between the description and the list
 	var grid := GridContainer.new()
 	grid.add_theme_constant_override("h_separation", zi(8))
 	grid.add_theme_constant_override("v_separation", zi(8))
@@ -1365,6 +1389,7 @@ func _garage() -> Control:
 				if cat != g_tab:
 					continue
 				var c := _part_card(String(bd["name"]), bd["st"], i == int(build["b"]), dense)
+				c.set_meta("gkey", "b:%d" % i)
 				var bi := i
 				c.pressed.connect(func():
 					build["b"] = bi
@@ -1386,6 +1411,7 @@ func _garage() -> Control:
 			for i in list.size():
 				var pd: Dictionary = list[i]
 				var c2 := _part_card(String(pd["name"]), pd["st"], i == int(build[key]), false)
+				c2.set_meta("gkey", "%s:%d" % [key, i])
 				var pi := i
 				c2.pressed.connect(func():
 					build[key] = pi
@@ -1401,6 +1427,7 @@ func _garage() -> Control:
 				var sw := Button.new()
 				sw.custom_minimum_size = Vector2(z(64), z(64))
 				sw.tooltip_text = String(pn[i])
+				sw.set_meta("gkey", "p:%d" % i)
 				var col := Color(String(paints[i])) if paints[i] != null else Color(String(I["racers"][ri]["color"]))
 				var on := i == int(build["p"]) and String(build.get("t", "")) == ""
 				var st := box([col], 180.0, 32.0, CHEESE if on else Color(1, 0.957, 0.863, 0.3), 3.0 if on else 1.5)
@@ -1414,42 +1441,99 @@ func _garage() -> Control:
 				grid.add_child(sw)
 			desc = "[b][color=#fff4dc]%s.[/color][/b] One colour all over the kart." % pn[int(build["p"])]
 		"theme":
-			grid.columns = 4
-			var none := _livery_card({"id": "", "name": "No theme", "A": "#5a4a40", "B": "#5a4a40", "C": "#5a4a40"}, String(build.get("t", "")) == "")
-			none.pressed.connect(func():
-				build["t"] = ""
-				_build_changed())
-			grid.add_child(none)
-			for l in KartBuilder.list_for(String(I["bodies"][int(build["b"])]["id"]), String(build.get("t", ""))):
-				var locked := Ach.liv_locked(l)
-				var lc := _livery_card(l, String(l["id"]) == String(build.get("t", "")))
+			grid.columns = 3
+			var bid := String(I["bodies"][int(build["b"])]["id"])
+			var cur_t := String(build.get("t", ""))
+			var all_l := KartBuilder.list_for(bid, cur_t)
+			var fl: Array = favs.get(bid, [])
+			# the categories that have something for this body (Favourites and All always)
+			var chips := HFlowContainer.new()
+			chips.add_theme_constant_override("h_separation", zi(5))
+			chips.add_theme_constant_override("v_separation", zi(5))
+			for cq in LIV_CATS:
+				var ck := String(cq[0])
+				var n := 0
+				for l in all_l:
+					if _in_cat(l, ck, fl):
+						n += 1
+				if n == 0 and ck != "all" and ck != "fav":
+					continue
+				var chip := button(String(cq[1]), "seg_on" if ck == liv_cat else "ghost", 12.0, Vector4(10, 5, 10, 5))
+				chip.set_meta("gkey", "cat:" + ck)
+				chip.pressed.connect(func():
+					liv_cat = ck
+					_g_keep = {"tab": "theme", "cat": ck, "scroll": 0, "focus": "cat:" + ck}
+					open("garage"))
+				chips.add_child(chip)
+			above = chips
+			var shown: Array = []
+			for l in all_l:
+				if _in_cat(l, liv_cat, fl):
+					shown.append(l)
+			if liv_cat == "all":
+				var okey := bid + "|all"
+				if String(_liv_order["key"]) == okey:
+					# the same visit: keep the order the list already has, so a card doesn't jump away when it's favourited
+					var pos := {}
+					var ids: Array = _liv_order["ids"]
+					for i in ids.size():
+						pos[String(ids[i])] = i
+					shown.sort_custom(func(x, y): return int(pos.get(String(x["id"]), 100000)) < int(pos.get(String(y["id"]), 100000)))
+				else:
+					# favourites first, as on the web
+					var fv: Array = []
+					var rest: Array = []
+					for l in shown:
+						(fv if fl.has(String(l["id"])) else rest).append(l)
+					shown = fv + rest
+				_liv_order = {"key": okey, "ids": shown.map(func(l): return String(l["id"]))}
+				var none := _livery_card({"id": "", "name": "No theme", "A": "#5a4a40", "B": "#5a4a40", "C": "#5a4a40"}, cur_t == "", false)
+				none.pressed.connect(func():
+					build["t"] = ""
+					_build_changed())
+				grid.add_child(none)
+			if _thumbs != null:
+				_thumbs.clear_queue()
+			for l in shown:
 				var lid := String(l["id"])
+				var locked := Ach.liv_locked(l)
+				var lc := _livery_card(l, lid == cur_t, fl.has(lid))
 				if locked:
 					# a reward livery not won yet: shown with a lock; a tap says how to win it
 					lc.modulate = Color(1, 1, 1, 0.55)
 					var lk := _Lock.new()
 					lk.custom_minimum_size = Vector2(z(16), z(16))
-					lk.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-					lk.offset_left = -z(22)
-					lk.offset_top = z(5)
-					lk.offset_right = -z(6)
-					lk.offset_bottom = z(21)
+					lk.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+					lk.offset_left = z(9)
+					lk.offset_top = z(9)
+					lk.offset_right = z(25)
+					lk.offset_bottom = z(25)
 					lk.mouse_filter = Control.MOUSE_FILTER_IGNORE
 					lc.add_child(lk)
 					var an := ""
-					for a in Ach.LIST:
-						if String(a[0]) == String(l["lock"]):
-							an = "[b][color=#fff4dc]%s[/color][/b]: %s" % [String(a[1]), String(a[2])]
+					for a2 in Ach.LIST:
+						if String(a2[0]) == String(l["lock"]):
+							an = "[b][color=#fff4dc]%s[/color][/b]: %s" % [String(a2[1]), String(a2[2])]
 					var hint := "[b][color=#fff4dc]%s[/color][/b] unlocks with %s" % [String(l["name"]), an if an != "" else "an achievement"]
 					lc.pressed.connect(func():
 						g_hint = hint
+						_g_keep = _place()
 						open("garage"))
 				else:
 					lc.pressed.connect(func():
 						build["t"] = lid
 						_build_changed())
 				grid.add_child(lc)
-			desc = "Multi-colour liveries. Some are made for one body only."
+			if shown.is_empty():
+				var bname := String(I["bodies"][int(build["b"])]["name"])
+				var em := para(("No favourites for the %s yet. Click the heart on any livery, or press X on a controller, to keep it here." % bname) if liv_cat == "fav" else "Nothing here for this body.", 13.0, MUTED, 420.0)
+				grid.add_child(em)
+			var lv := KartBuilder.livery(cur_t)
+			var bn := String(I["bodies"][int(build["b"])]["name"])
+			if not lv.is_empty():
+				desc = "[b][color=#fff4dc]%s.[/color][/b] %s Pick a colour to go back to plain paint. The heart (or X on a controller) keeps it in Favourites." % [String(lv["name"]), ("A signature theme made for the %s." % bn) if lv.get("only") != null else "A multi-colour livery."]
+			else:
+				desc = "Multi-colour liveries. Themes marked ★ are made for the %s. The heart (or X on a controller) keeps one in Favourites." % bn
 			if g_hint != "":
 				desc = g_hint
 				g_hint = ""
@@ -1464,9 +1548,96 @@ func _garage() -> Control:
 	rt.add_theme_color_override("default_color", MUTED)
 	rt.text = desc
 	side.add_child(rt)
+	if above != null:
+		side.add_child(above)
 	side.add_child(sc)
 	_apply_big()
+	if not _g_keep.is_empty() and String(_g_keep.get("tab", "")) == g_tab:
+		_restore_place.call_deferred(_g_keep)
+	_g_keep = {}
 	return root
+
+
+## does livery `l` belong in category `c` (web: fav, sig = made for this body, or its own category)
+func _in_cat(l: Dictionary, c: String, fl: Array) -> bool:
+	match c:
+		"all":
+			return true
+		"fav":
+			return fl.has(String(l["id"]))
+		"sig":
+			return l.get("only") != null
+	return String(l.get("cat", "")) == c
+
+
+## where the list is and which card is highlighted, to come back to after the garage rebuilds
+func _place() -> Dictionary:
+	var fo := get_viewport().gui_get_focus_owner()
+	var ok := _g_list != null and is_instance_valid(_g_list)
+	var o := {"tab": g_tab, "cat": liv_cat, "scroll": _g_list.scroll_vertical if ok else 0,
+		"focus": String(fo.get_meta("gkey")) if fo != null and fo.has_meta("gkey") else ""}
+	if ok and fo != null and _g_list.is_ancestor_of(fo):
+		# where the highlighted card sits in the list's window: it goes back to the same spot
+		o["off"] = fo.get_global_rect().position.y - _g_list.get_global_rect().position.y
+	return o
+
+
+func _restore_place(k: Dictionary) -> void:
+	# two frames: the new list has its size, so the scroll can go back to where it was
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if _g_list == null or not is_instance_valid(_g_list):
+		return
+	var same := String(k.get("cat", "")) == liv_cat
+	var want := int(k.get("scroll", 0))
+	if same:
+		_g_list.scroll_vertical = want
+	var key := String(k.get("focus", ""))
+	var scr: Node = screens.get("garage")
+	var target: Control = null
+	if key != "" and scr != null:
+		for c in scr.find_children("*", "Button", true, false):
+			if c.has_meta("gkey") and String(c.get_meta("gkey")) == key and (c as Control).is_visible_in_tree():
+				target = c as Control
+				break
+	if target == null:
+		return
+	# the list would scroll itself to the highlight on its own: hold that off, put the highlighted card back at
+	# the same spot in the window, and only scroll to it if it isn't on screen there (a favourite moved to the top)
+	_g_list.follow_focus = false
+	target.grab_focus()
+	await get_tree().process_frame
+	if not is_instance_valid(_g_list) or not is_instance_valid(target):
+		return
+	if same:
+		var lr := _g_list.get_global_rect()
+		if k.has("off") and _g_list.is_ancestor_of(target):
+			var cy := target.get_global_rect().position.y - lr.position.y + float(_g_list.scroll_vertical)
+			_g_list.scroll_vertical = int(round(cy - float(k["off"])))
+		else:
+			_g_list.scroll_vertical = want
+		var cr := target.get_global_rect()
+		if cr.position.y < lr.position.y - 1.0 or cr.end.y > lr.end.y + 1.0:
+			_g_list.ensure_control_visible(target)
+	await get_tree().process_frame
+	if is_instance_valid(_g_list):
+		_g_list.follow_focus = true
+
+
+## a livery in or out of this body's favourites (web toggleFav)
+func _toggle_fav(id: String) -> void:
+	if id == "":
+		return
+	var bid := String(KartBuilder.info["bodies"][int(build["b"])]["id"])
+	var arr: Array = (favs.get(bid, []) as Array).duplicate()
+	if arr.has(id):
+		arr.erase(id)
+	else:
+		arr.append(id)
+	favs[bid] = arr
+	setting_changed.emit("favs", favs.duplicate(true))
+	_g_keep = _place()
+	open("garage")
 
 
 ## the inspect view: the preview fills the screen (the header, the parts and the stats step aside), it stops
@@ -1523,30 +1694,105 @@ class _Corners extends Control:
 				draw_circle(p2, w * 0.5, col)
 
 
-## a livery swatch: the three colours in diagonal bands, the name, as on the web's theme cards
-func _livery_card(l: Dictionary, on: bool) -> Button:
+## a livery card: your kart drawn in it (scripts/liv_thumbs.gd; the web's three-colour swatch shows until the picture
+## is ready, then stays as a thin strip under it), the name (★ = made for this body) and the favourite heart
+func _livery_card(l: Dictionary, on: bool, fav: bool) -> Button:
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(z(108), z(64))
+	b.custom_minimum_size = Vector2(z(150), z(118))
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	b.focus_mode = Control.FOCUS_ALL
+	var lid := String(l["id"])
+	b.set_meta("gkey", "t:" + lid)
+	b.set_meta("liv", lid)
 	_mark_card(b, on)
-	var v := vbox(4)
+	var v := vbox(3)
 	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	v.offset_left = z(5)
 	v.offset_top = z(5)
 	v.offset_right = -z(5)
-	v.offset_bottom = -z(4)
+	v.offset_bottom = -z(5)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(v)
-	var stripe := _Bands.new()
-	stripe.cols = [Color(String(l["A"])), Color(String(l["B"])), Color(String(l["C"]))]
-	stripe.custom_minimum_size.y = z(20)
-	stripe.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(stripe)
-	var nl := label(String(l["name"]), f_bold, 11.0, CHEESE if on else CREAM)
-	nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	v.add_child(nl)
+	var pic := Control.new()
+	pic.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pic.clip_contents = true
+	v.add_child(pic)
+	var bands := _Bands.new()
+	bands.cols = [Color(String(l["A"])), Color(String(l["B"])), Color(String(l["C"]))]
+	bands.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bands.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bands.modulate.a = 0.85
+	pic.add_child(bands)
+	var tr := TextureRect.new()
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	tr.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pic.add_child(tr)
+	if KartBuilder.ready():
+		if _thumbs == null:
+			_thumbs = LivThumbs.new()
+			add_child(_thumbs)
+		_thumbs.set_px(_px_scale())
+		_thumbs.want(build, ri, lid, func(tex: Texture2D):
+			if is_instance_valid(tr) and is_instance_valid(bands):
+				tr.texture = tex
+				# the swatch steps back to a strip of the three colours under the car
+				bands.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+				bands.offset_top = -z(5)
+				bands.offset_bottom = 0.0
+				tr.modulate.a = 0.0
+				tr.create_tween().tween_property(tr, "modulate:a", 1.0, 0.18))
+	var row := hbox(4)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(row)
+	var nl := label(("★ " if l.get("only") != null else "") + String(l["name"]), f_bold, 11.0, CHEESE if on else CREAM)
+	nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nl.clip_text = true
+	nl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	row.add_child(nl)
+	if lid != "":
+		var hb := Button.new()
+		hb.flat = true
+		hb.focus_mode = Control.FOCUS_NONE
+		hb.custom_minimum_size = Vector2(z(18), z(16))
+		hb.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		hb.tooltip_text = ("Remove %s from favourites" if fav else "Add %s to favourites") % String(l["name"])
+		var ht := _Heart.new()
+		ht.on = fav
+		ht.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		ht.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hb.add_child(ht)
+		hb.pressed.connect(func(): _toggle_fav(lid))
+		row.add_child(hb)
 	return b
+
+
+## the favourite heart (web .fav): filled cheese-yellow when it's a favourite, an outline when not
+class _Heart extends Control:
+	var on := false
+	func _draw() -> void:
+		var s := minf(size.x, size.y)
+		var o := (size - Vector2(s, s)) * 0.5
+		var k := s / 24.0
+		# two lobes and a point (web path: M12 20.5 4.2 13 A4.9 4.9 0 0 1 12 6.6 A4.9 4.9 0 0 1 19.8 13 z)
+		var pts := PackedVector2Array()
+		pts.append(o + Vector2(12, 20.5) * k)
+		for i in 15:
+			var a := deg_to_rad(135.0 + 180.0 * float(i) / 14.0)
+			pts.append(o + (Vector2(8.3, 10.0) + Vector2(cos(a), sin(a)) * 4.6) * k)
+		for i in 15:
+			var a := deg_to_rad(225.0 + 180.0 * float(i) / 14.0)
+			pts.append(o + (Vector2(15.7, 10.0) + Vector2(cos(a), sin(a)) * 4.6) * k)
+		var col := Color("#f7c948") if on else Color(1, 0.957, 0.863, 0.55)
+		if on:
+			draw_colored_polygon(pts, col)
+		var closed := pts.duplicate()
+		closed.append(pts[0])
+		draw_polyline(closed, col, maxf(1.2, 1.6 * k), true)
 
 
 class _Bands extends Control:
@@ -1610,6 +1856,7 @@ class _Dots extends Control:
 
 func _build_changed() -> void:
 	setting_changed.emit("build", build.duplicate())
+	_g_keep = _place()
 	open("garage")
 
 
