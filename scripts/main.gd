@@ -849,7 +849,7 @@ func _toggle_pause() -> void:
 
 
 ## a centred sheet over a dark wash (the web: .overlay > .panel, 520 CSS px wide)
-func _sheet(host: Control, width_css := 520.0) -> VBoxContainer:
+func _sheet(host: Control, width_css := 520.0, sep_css := 14.0) -> VBoxContainer:
 	for c in host.get_children():
 		c.queue_free()
 	var bg := Menu._Backdrop.new()
@@ -857,12 +857,17 @@ func _sheet(host: Control, width_css := 520.0) -> VBoxContainer:
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	host.add_child(bg)
+	# centred; taller than the window (eight racers and a cup table), it scrolls: the wheel, the right stick,
+	# and the highlight moving down to the lower buttons all bring them into view
 	var cc := CenterContainer.new()
-	cc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	host.add_child(cc)
-	var v := menu.vbox(14)
+	host.add_child(Menu.scroll_wrap(cc))
+	var mc := MarginContainer.new()
+	for side in ["margin_top", "margin_bottom"]:
+		mc.add_theme_constant_override(side, menu.zi(10))
+	cc.add_child(mc)
+	var v := menu.vbox(sep_css)
 	v.custom_minimum_size.x = menu.z(width_css)
-	cc.add_child(v)
+	mc.add_child(v)
 	return v
 
 
@@ -1581,7 +1586,7 @@ func _show_results() -> void:
 			gp_rows.append([k, int(gp["pts"][k.ri])])
 		gp_rows.sort_custom(func(a, b): return a[1] > b[1])
 		gp_done = int(gp["race"]) >= (gp["tracks"] as Array).size() - 1
-	var v := _sheet(panel_results, 820.0 if not gp.is_empty() else 520.0)
+	var v := _sheet(panel_results, 820.0 if not gp.is_empty() else 520.0, 10.0)
 	var title := "%s place!" % _ordinal(me_place)
 	if gp_done:
 		var cp := 1
@@ -1607,7 +1612,7 @@ func _show_results() -> void:
 		v.add_child(menu.label(pbt, menu.f_bold, 15.0, Color("#7fe07a") if bool(lr["pb"]) else Color("#c2a58c")))
 	var cols := menu.hbox(14)
 	v.add_child(cols)
-	var c1 := menu.vbox(6)
+	var c1 := menu.vbox(5)
 	c1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cols.add_child(c1)
 	c1.add_child(menu.section_label("Race"))
@@ -1618,7 +1623,7 @@ func _show_results() -> void:
 			rtxt = ("out on lap %d" % k.elim_lap) if k.elim else ("last slice" if k.place == 1 else _fmt(k.finish_time))
 		c1.add_child(_result_row(i + 1, k, rtxt, "+%d" % (Race.PTS[i] if i < Race.PTS.size() else 0) if not gp.is_empty() else ""))
 	if not gp.is_empty():
-		var c2 := menu.vbox(6)
+		var c2 := menu.vbox(5)
 		c2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		cols.add_child(c2)
 		c2.add_child(menu.section_label("Cup standings"))
@@ -1645,6 +1650,8 @@ func _show_results() -> void:
 	mb.pressed.connect(_to_menu.bind(""))
 	row.add_child(mb)
 	v.add_child(row)
+	# down from the big button goes to the first of the two under it
+	again.focus_neighbor_bottom = again.get_path_to(tb)
 	if net_role != "" or web.racing():
 		var nb := menu.button("Network log", "ghost", 14.0, Vector4(12, 8, 12, 8))
 		nb.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -1660,9 +1667,9 @@ func _show_results() -> void:
 ## one line of a results table: place, the racer's colour, name, time or points
 func _result_row(place: int, k: Kart, right: String, add: String) -> Control:
 	var me := k == kart
-	var st := menu.glass(10.0, Vector4(12, 7, 12, 7))
+	var st := menu.glass(10.0, Vector4(12, 5, 12, 5))
 	if me:
-		st = menu.box([Color(0.97, 0.79, 0.28, 0.2), Color(0.88, 0.27, 0.17, 0.14)], 135.0, 10.0, Color("#f7c948"), 1.0, Vector4(12, 7, 12, 7))
+		st = menu.box([Color(0.97, 0.79, 0.28, 0.2), Color(0.88, 0.27, 0.17, 0.14)], 135.0, 10.0, Color("#f7c948"), 1.0, Vector4(12, 5, 12, 5))
 	var p := menu.panel(st)
 	var h := menu.hbox(10)
 	p.add_child(h)
@@ -1948,6 +1955,11 @@ func _process(dt: float) -> void:
 		web.poll()
 	if music != null and not auto_drive:
 		music.want(map_id, "loading" if (loading != null and loading.visible) else state, paused, dt)
+	if not (menu != null and menu.visible):
+		if panel_results != null and panel_results.visible:
+			Menu.stick_scroll(panel_results, dt)
+		elif panel_pause != null and panel_pause.visible:
+			Menu.stick_scroll(panel_pause, dt)
 	if T == null or race == null:
 		return
 	if not paused:

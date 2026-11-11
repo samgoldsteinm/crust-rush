@@ -520,9 +520,74 @@ func open(name_: String) -> void:
 			s = _garage()
 		_:
 			s = _home()
-	screens[name_] = s
-	add_child(s)
+	# a screen taller than the window scrolls: wheel, right stick, and the controller's focus pulls it along
+	var wrap := scroll_wrap(s)
+	screens[name_] = wrap
+	add_child(wrap)
 	visible = true
+
+
+## `content` in a scroll area filling its parent: when it fits it fills the area exactly as before; when it
+## is taller (a small window, a long list) the mouse wheel and the right stick scroll it, and moving the
+## highlight with the d-pad or the left stick scrolls the highlighted button into view
+static func scroll_wrap(content: Control) -> ScrollContainer:
+	var sc := ScrollContainer.new()
+	sc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.follow_focus = true
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sc.add_child(content)
+	return sc
+
+
+static var _stick_acc := 0.0
+
+## the right stick scrolls the list or page under the highlight (or the biggest one showing), as on the web
+static func stick_scroll(root: Node, dt: float) -> void:
+	var ry := 0.0
+	for p in Input.get_connected_joypads():
+		var a := Input.get_joy_axis(p, JOY_AXIS_RIGHT_Y)
+		if absf(a) > absf(ry):
+			ry = a
+	if absf(ry) < 0.25 or root == null or not is_instance_valid(root):
+		_stick_acc = 0.0
+		return
+	var sc := _scroll_target(root)
+	if sc == null:
+		return
+	_stick_acc += signf(ry) * (absf(ry) - 0.25) / 0.75 * dt * 1500.0
+	var step := int(_stick_acc)
+	if step != 0:
+		sc.scroll_vertical += step
+		_stick_acc -= step
+
+
+static func _can_scroll(sc: ScrollContainer) -> bool:
+	var bar := sc.get_v_scroll_bar()
+	return sc.is_visible_in_tree() and sc.vertical_scroll_mode != ScrollContainer.SCROLL_MODE_DISABLED and bar.max_value - bar.page > 1.0
+
+
+static func _scroll_target(root: Node) -> ScrollContainer:
+	var f: Control = (root as Control).get_viewport().gui_get_focus_owner() if root is Control else null
+	if f != null and root.is_ancestor_of(f):
+		var n: Node = f.get_parent()
+		while n != null and n != root.get_parent():
+			if n is ScrollContainer and _can_scroll(n as ScrollContainer):
+				return n as ScrollContainer
+			n = n.get_parent()
+	var best: ScrollContainer = null
+	var best_a := 0.0
+	var stack: Array = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is ScrollContainer and _can_scroll(n as ScrollContainer):
+			var a := (n as Control).size.x * (n as Control).size.y
+			if a > best_a:
+				best_a = a
+				best = n
+		stack.append_array(n.get_children())
+	return best
 
 
 func _screen_root() -> MarginContainer:
@@ -1576,6 +1641,8 @@ func _frame_garage_cam() -> void:
 
 
 func _process(dt: float) -> void:
+	if visible and not (cur == "garage" and modal == null):
+		stick_scroll(modal if modal != null else self, dt)
 	if _gturn != null and is_instance_valid(_gturn) and cur == "garage":
 		if not _gdrag:
 			_grot += dt * 0.4 / _gzoom
@@ -1623,7 +1690,7 @@ func show_modal(kind: String) -> void:
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	m.add_child(dim)
 	var root := _screen_root()
-	m.add_child(root)
+	m.add_child(scroll_wrap(root))
 	# centred column: the web's sheets are 760 CSS px wide (Records and Awards use the whole width)
 	var widths := {"how": 760.0, "set": 760.0, "tips": 760.0, "mp": 560.0, "netlog": 760.0}
 	var row := HBoxContainer.new()
