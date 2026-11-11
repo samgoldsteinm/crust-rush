@@ -7,3 +7,8 @@ lagoon canyon -670,70,-626,-620,-38,-870
 bay shore -2400,40,0,-1800,-14,-300
 peaks arcade 0,600,-2600,0,0,0
 margherita canyon -946,60,-54,-1055,-45,-237
+napoli pagoda 1857,160,1270,2269,200,1552
+peak chalet 575,100,2071,682,40,2457
+peak chaletback 800,100,2850,682,40,2457
+tour ferris 851,200,2190,1177,250,3029
+calzone hall -1622,120,1486,-1917,60,1756
