@@ -4,6 +4,9 @@ A 3D kart racer on giant pizzas, made as an installable web app. Sixteen tracks 
 
 **Play:** https://samgoldsteinm.github.io/crust-rush/
 
+**Windows PC version:** https://samgoldsteinm.github.io/crust-rush/pc.html (a native download with the same tracks,
+karts and online play, plus finished scenery, real water and longer shadows; it races against this web version online)
+
 ## Controls
 
 - Touch the left or right half of the screen to steer.
