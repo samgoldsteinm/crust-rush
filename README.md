@@ -1,6 +1,8 @@
 # Crust Rush — native PC build (Godot 4.7)
 
 The Windows version of Crust Rush, on its own branch. Nothing here affects the web game on `main`.
+
+**Download page:** https://samgoldsteinm.github.io/crust-rush/pc.html (trailer, pictures and the latest download).
 Every push builds `CrustRush.exe` (Actions → PC build → Artifacts → CrustRush-Windows) and replaces the public
 download, `CrustRush-Windows.zip` on the [`pc` release](https://github.com/samgoldsteinm/crust-rush/releases/tag/pc).
 
