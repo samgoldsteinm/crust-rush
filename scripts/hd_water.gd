@@ -46,7 +46,10 @@ static func upgrade(root: Node, theme: String, T: TrackData = null) -> int:
 					shallow = 24.0
 			var key := [m, shallow]
 			if not done.has(key):
-				done[key] = _water(_avg(m), theme, bb.size.x * bb.size.z > 4.0e6, shallow)
+				var sea := bb.size.x * bb.size.z > 4.0e6
+				done[key] = _water(_avg(m), theme, sea, shallow)
+				if sea and T != null:
+					(done[key] as ShaderMaterial).set_shader_parameter("shelf_r", T.R)
 			mi.set_surface_override_material(si, done[key])
 			n += 1
 	return n
@@ -100,7 +103,7 @@ static func _water(col: Color, theme: String, sea: bool, shallow := 0.0) -> Shad
 	if lum > 0.55:
 		c = c.darkened(0.35)
 	var sh := c.lerp(Color(0.2, 0.74, 0.72), 0.3)
-	var dp := Color(sh.r * 0.04, sh.g * 0.4, sh.b * 0.6)
+	var dp := Color(sh.r * 0.04, sh.g * 0.48, sh.b * 0.64)
 	if theme == "night":
 		sh = sh.darkened(0.35)
 		dp = Color(dp.r * 0.6 + 0.02, dp.g * 0.5, dp.b * 0.7 + 0.04)
