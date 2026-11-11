@@ -41,6 +41,11 @@ static func _lagoon(root: Node3D, T: TrackData) -> int:
 	for i in 5:
 		_hut(g, huts[i], Color(cols[i]), i)
 	_pier(g, pier)
+	# the lighthouse on its rock (atA(1.1, R+900)): only the web's lighthouse colours are taken out there
+	var la := 1.1
+	var lh := _facing(Vector3(cos(la) * (T.R + 900.0), -14.0, sin(la) * (T.R + 900.0)))
+	cut += cut_boxes(root, [[lh, Vector3(0, 380, 0), Vector3(300, 470, 300), {"cyl": true, "cols": ["#7a7068", "#f4f4f2", "#c8261b", "#fff6c8", "#2a2a2a"]}]])
+	_lighthouse(g, lh)
 	return cut
 
 
@@ -242,10 +247,187 @@ static func _pier(parent: Node3D, xf: Transform3D) -> void:
 	k.build(parent, xf, mats, 5000.0)
 
 
+static func _lighthouse(parent: Node3D, xf: Transform3D) -> void:
+	var k := Kit.new()
+	# the rock: a weathered mound rising out of the water, flattened on top for the tower
+	var fnl := FastNoiseLite.new()
+	fnl.seed = 41
+	fnl.frequency = 0.012
+	fnl.fractal_octaves = 4
+	fnl.fractal_type = FastNoiseLite.FRACTAL_RIDGED
+	var rings := 22
+	var segs := 72
+	var grid: Array = []
+	for i in rings + 1:
+		var r := 300.0 * float(i) / rings
+		var row: Array = []
+		for j in segs:
+			var a := TAU * j / segs
+			var x := cos(a) * r
+			var z := sin(a) * r
+			var t := clampf(1.0 - pow(r / 262.0, 2.0), 0.0, 1.0)
+			var h := 205.0 * pow(t, 0.7) - 36.0 * pow(r / 300.0, 3.0)
+			h += fnl.get_noise_2d(x, z) * 34.0 * smoothstep(-20.0, 60.0, h) * smoothstep(60.0, 120.0, r)
+			h = lerpf(196.0, h, smoothstep(92.0, 120.0, r))
+			row.append(Vector3(x, h, z))
+		grid.append(row)
+	# normals from the neighbours round each point
+	var nrm: Array = []
+	for i in rings + 1:
+		var row: Array = []
+		for j in segs:
+			var p: Vector3 = grid[i][j]
+			var pr: Vector3 = grid[mini(i + 1, rings)][j]
+			var pl: Vector3 = grid[maxi(i - 1, 0)][j]
+			var pa: Vector3 = grid[i][(j + 1) % segs]
+			var pb: Vector3 = grid[i][(j - 1 + segs) % segs]
+			var n := (pr - pl).cross(pa - pb)
+			if i == 0 or n.length() < 1e-4:
+				n = Vector3.UP
+			n = n.normalized()
+			if n.y < 0.0 and i > 0:
+				n = -n
+			if n.dot(Vector3(p.x, 0, p.z).normalized() + Vector3.UP * 0.3) < -0.5:
+				n = -n
+			row.append(n)
+		nrm.append(row)
+	for i in rings:
+		for j in segs:
+			var j2 := (j + 1) % segs
+			var a: Vector3 = grid[i][j]
+			var b: Vector3 = grid[i][j2]
+			var c: Vector3 = grid[i + 1][j2]
+			var d: Vector3 = grid[i + 1][j]
+			k.tri_n("rock", a, b, c, nrm[i][j], nrm[i][j2], nrm[i + 1][j2])
+			k.tri_n("rock", a, c, d, nrm[i][j], nrm[i + 1][j2], nrm[i + 1][j])
+	# boulders at the waterline
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77
+	for i in 14:
+		var a := rng.randf() * TAU
+		var r := 240.0 + rng.randf() * 60.0
+		k.sphere("rock", Vector3(cos(a) * r, -6.0 + rng.randf() * 8.0, sin(a) * r), 14.0 + rng.randf() * 18.0, 10)
+	# a plinth, then the tower in red and white bands, tapering
+	k.lathe("stone", [[0.0, 192.0], [96.0, 192.0], [96.0, 204.0], [90.0, 208.0], [0.0, 208.0]], 64)
+	var y0 := 206.0
+	var y1 := 640.0
+	var bands := 6
+	for b in bands:
+		var ya := lerpf(y0, y1, float(b) / bands)
+		var yb := lerpf(y0, y1, float(b + 1) / bands)
+		var ra := lerpf(80.0, 52.0, (ya - y0) / (y1 - y0))
+		var rb := lerpf(80.0, 52.0, (yb - y0) / (y1 - y0))
+		k.lathe("t_red" if b % 2 == 0 else "t_white", [[ra, ya], [rb, yb]], 64, false)
+	# small windows up the tower, a door at its foot facing the track
+	for w in 5:
+		var y := 280.0 + w * 72.0
+		var a := 0.6 + w * 1.9
+		var rr := lerpf(80.0, 52.0, (y - y0) / (y1 - y0))
+		var o := Vector3(cos(a), 0, sin(a))
+		var r := Vector3(-sin(a), 0, cos(a))
+		k.box_on("glass", o * (rr - 1.0) + Vector3(0, y, 0), r, o, Vector3(8, 16, 3))
+		k.box_on("trim", o * (rr - 0.5) + Vector3(0, y + 9.5, 0), r, o, Vector3(12, 2.4, 4))
+		k.box_on("trim", o * (rr - 0.5) + Vector3(0, y - 9.5, 0), r, o, Vector3(12, 2.4, 5))
+	var dz := Vector3(0, 0, 1)
+	k.box_on("trim", dz * 79.0 + Vector3(0, 236, 0), Vector3.RIGHT, dz, Vector3(30, 52, 6))
+	k.box_on("door", dz * 81.5 + Vector3(0, 232, 0), Vector3.RIGHT, dz, Vector3(22, 44, 2))
+	k.sphere("brass", dz * 83.0 + Vector3(7, 230, 0), 1.6)
+	for s in 4:
+		k.box("stone", Vector3(0, 199.0 - s * 4.0, 100.0 + s * 7.0), Vector3(34, 4, 8))
+	# the gallery: a corbelled cornice, the walkway and a railing
+	k.lathe("t_white", [[52.0, 640.0], [60.0, 648.0], [66.0, 654.0], [72.0, 656.0], [72.0, 660.0], [0.0, 660.0]], 64)
+	k.lathe("iron", [[0.0, 640.0], [52.0, 640.0]], 64)
+	for i in 36:
+		var a := TAU * i / 36
+		k.cyl("iron", Vector3(cos(a) * 70, 660, sin(a) * 70), Vector3(cos(a) * 70, 678, sin(a) * 70), 0.8, 6)
+	for y in [669.0, 678.0]:
+		var pts := PackedVector3Array()
+		for i in 73:
+			var a := TAU * i / 72
+			pts.append(Vector3(cos(a) * 70, y, sin(a) * 70))
+		k.tube("iron", pts, 0.9 if y > 670.0 else 0.6, 6)
+	# the lantern room: a low wall, twelve glazed panes between mullions, the lamp inside, a domed roof
+	k.lathe("t_red", [[46.0, 660.0], [46.0, 674.0], [48.0, 676.0], [0.0, 676.0]], 48)
+	var n := 12
+	for i in n:
+		var a0 := TAU * i / n
+		var a1 := TAU * (i + 1) / n
+		var p0 := Vector3(cos(a0) * 42, 676, sin(a0) * 42)
+		var p1 := Vector3(cos(a1) * 42, 676, sin(a1) * 42)
+		k.quad("lens", p0, p1, p1 + Vector3(0, 44, 0), p0 + Vector3(0, 44, 0))
+		k.quad("lens", p1, p0, p0 + Vector3(0, 44, 0), p1 + Vector3(0, 44, 0))
+		k.cyl("iron", p0, p0 + Vector3(0, 44, 0), 1.3, 6)
+	k.sphere("lamp", Vector3(0, 698, 0), 15.0, 20)
+	k.lathe("iron", [[0.0, 674.0], [10.0, 674.0], [6.0, 684.0], [0.0, 684.0]], 24)
+	var dome: Array = [[0.0, 720.0], [50.0, 720.0], [50.0, 723.0]]
+	for i in 9:
+		var t := float(i + 1) / 9.0
+		dome.append([lerpf(48.0, 0.0, t) * (1.0 - 0.25 * sin(PI * t)), 723.0 + 36.0 * sin(t * PI * 0.5)])
+	k.lathe("roof", dome, 48)
+	k.sphere("roof", Vector3(0, 763, 0), 6.5, 16)
+	k.cyl("iron", Vector3(0, 768, 0), Vector3(0, 800, 0), 1.0, 8)
+	var rock := _rock_mat()
+	var mats := {
+		"rock": rock,
+		"stone": _wood(Color("#b9b0a2"), Color("#8e8578"), 4, 8.0, 0.0, 0.85),
+		"t_red": _wood(Color("#c8261b"), Color("#b9b0a2"), 4, 9.0, 0.0, 0.6, true),
+		"t_white": _wood(Color("#f4f4f2"), Color("#b9b0a2"), 4, 9.0, 0.0, 0.6, true),
+		"trim": _wood(Color("#f6f0e2"), Color("#b8a58c"), 3, 4.0, 0.1, 0.55),
+		"door": _wood(Color("#2f5d46"), Color("#9b7f62"), 3, 4.0, 0.15, 0.55),
+		"glass": _glass(),
+		"brass": _std(Color("#c9a24a"), 0.28, 1.0),
+		"iron": _std(Color("#262a2c"), 0.45, 0.6),
+		"roof": _std(Color("#1f3029"), 0.72, 0.0),
+		"lamp": _std(Color("#fff6c8"), 0.2, 0.0, Color("#ffe080"), 2.2),
+		"lens": _lens(),
+	}
+	k.build(parent, xf, mats, 16000.0)
+
+
+static func _rock_mat() -> StandardMaterial3D:
+	if _mats.has("rock"):
+		return _mats["rock"]
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color("#a49a8e")
+	m.roughness = 0.92
+	var cc := "res://assets/hd/cc0/rock_face_"
+	if ResourceLoader.exists(cc + "col.jpg"):
+		m.albedo_texture = load(cc + "col.jpg")
+		m.albedo_color = Color("#c4bab0")
+		if ResourceLoader.exists(cc + "nrm.jpg"):
+			m.normal_enabled = true
+			m.normal_texture = load(cc + "nrm.jpg")
+			m.normal_scale = 1.2
+		if ResourceLoader.exists(cc + "rgh.jpg"):
+			m.roughness_texture = load(cc + "rgh.jpg")
+			m.roughness = 1.0
+		m.uv1_triplanar = true
+		m.uv1_world_triplanar = true
+		m.uv1_scale = Vector3(0.008, 0.008, 0.008)
+		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	_mats["rock"] = m
+	return m
+
+
+static func _lens() -> StandardMaterial3D:
+	if _mats.has("lens"):
+		return _mats["lens"]
+	var m := StandardMaterial3D.new()
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = Color(0.85, 0.92, 0.95, 0.28)
+	m.roughness = 0.02
+	m.metallic_specular = 1.0
+	m.emission_enabled = true
+	m.emission = Color("#ffe6a0")
+	m.emission_energy_multiplier = 0.35
+	_mats["lens"] = m
+	return m
+
+
 # ---------------------------------------------------------------- materials
 
-static func _wood(paint: Color, under: Color, mode: int, board: float, wear: float, rough: float) -> ShaderMaterial:
-	var key := "w|%s|%s|%d|%.2f|%.2f|%.2f" % [paint.to_html(), under.to_html(), mode, board, wear, rough]
+static func _wood(paint: Color, under: Color, mode: int, board: float, wear: float, rough: float, round_u := false) -> ShaderMaterial:
+	var key := "w|%s|%s|%d|%.2f|%.2f|%.2f|%s" % [paint.to_html(), under.to_html(), mode, board, wear, rough, str(round_u)]
 	if _mats.has(key):
 		return _mats[key]
 	if _wood_sh == null:
@@ -259,6 +441,7 @@ static func _wood(paint: Color, under: Color, mode: int, board: float, wear: flo
 	m.set_shader_parameter("wear", wear)
 	m.set_shader_parameter("rough", rough)
 	m.set_shader_parameter("noise", _noise_tex())
+	m.set_shader_parameter("round_u", round_u)
 	_mats[key] = m
 	return m
 
@@ -322,10 +505,16 @@ static func _noise_tex() -> NoiseTexture2D:
 static func cut_boxes(root: Node, boxes: Array) -> int:
 	var inv: Array = []
 	var aabbs: Array = []
+	var opts: Array = []
 	for b in boxes:
 		var xf: Transform3D = b[0]
 		var c: Vector3 = b[1]
 		var h: Vector3 = b[2]
+		var opt: Dictionary = b[3] if b.size() > 3 else {}
+		var cols: Array = []
+		for hx in opt.get("cols", []):
+			cols.append(Color(hx))
+		opts.append({"cyl": bool(opt.get("cyl", false)), "cols": cols})
 		inv.append(xf.affine_inverse())
 		var bb := AABB(c - h, h * 2.0)
 		aabbs.append(xf * bb)
@@ -350,7 +539,23 @@ static func cut_boxes(root: Node, boxes: Array) -> int:
 			overrides.append(mi.get_surface_override_material(si))
 			var arr := am.surface_get_arrays(si)
 			var sm := am.surface_get_material(si)
-			if sm != null and String(sm.resource_name).begins_with("terrain"):
+			# which of the boxes may cut this surface (never the ground; a box with colours only those colours)
+			var here: Array = []
+			if sm == null or not String(sm.resource_name).begins_with("terrain"):
+				for i in hit:
+					var cl: Array = opts[i]["cols"]
+					if cl.is_empty():
+						here.append(i)
+						continue
+					var bm := sm as BaseMaterial3D
+					if bm == null:
+						continue
+					for cc in cl:
+						var d4: Color = bm.albedo_color - cc
+						if absf(d4.r) < 0.04 and absf(d4.g) < 0.04 and absf(d4.b) < 0.04:
+							here.append(i)
+							break
+			if here.is_empty():
 				out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 				out.surface_set_material(out.get_surface_count() - 1, sm)
 				continue
@@ -366,12 +571,16 @@ static func cut_boxes(root: Node, boxes: Array) -> int:
 			for t in range(0, idx.size() - 2, 3):
 				var m := gx * ((v[idx[t]] + v[idx[t + 1]] + v[idx[t + 2]]) / 3.0)
 				var inside := false
-				for i in hit:
+				for i in here:
 					var lp: Vector3 = inv[i] * m
 					var c: Vector3 = boxes[i][1]
 					var h: Vector3 = boxes[i][2]
 					var d := (lp - c).abs()
-					if d.x <= h.x and d.y <= h.y and d.z <= h.z:
+					if opts[i]["cyl"]:
+						if d.y <= h.y and Vector2(lp.x - c.x, lp.z - c.z).length() <= h.x:
+							inside = true
+							break
+					elif d.x <= h.x and d.y <= h.y and d.z <= h.z:
 						inside = true
 						break
 				if inside:
@@ -595,9 +804,48 @@ class Kit:
 				var ns := (xf.basis * Vector3(sx, 0, 0)).normalized()
 				_face(st, xf * Vector3(sx * a[1], a[0], t * 0.5), xf * Vector3(sx * a[1], a[0], -t * 0.5), xf * Vector3(sx * b[1], b[0], -t * 0.5), xf * Vector3(sx * b[1], b[0], t * 0.5), ns)
 
+	## a triangle with its own normals at each corner
+	func tri_n(key: String, a: Vector3, b: Vector3, c: Vector3, na: Vector3, nb: Vector3, nc: Vector3) -> void:
+		_t(_st(key), a, b, c, na, nb, nc)
+
+	var smooth := {}
+
+	## a triangle whose normals are worked out at the end, smoothed with its neighbours; `out` is roughly outward
+	func smooth_tri(key: String, a: Vector3, b: Vector3, c: Vector3, out: Vector3) -> void:
+		smooth[key] = true
+		_t(_st(key), a, b, c, out, out, out)
+
+	## a surface turned round the y axis from a profile of [radius, height] points (bottom to top)
+	func lathe(key: String, prof: Array, segs := 48, _cap := true) -> void:
+		var st := _st(key)
+		for i in prof.size() - 1:
+			var r0: float = prof[i][0]
+			var y0: float = prof[i][1]
+			var r1: float = prof[i + 1][0]
+			var y1: float = prof[i + 1][1]
+			var nn := Vector2(y1 - y0, -(r1 - r0)).normalized()
+			for j in segs:
+				var a0 := TAU * j / segs
+				var a1 := TAU * (j + 1) / segs
+				var d0 := Vector3(cos(a0), 0, sin(a0))
+				var d1 := Vector3(cos(a1), 0, sin(a1))
+				var n0 := (d0 * nn.x + Vector3.UP * nn.y).normalized()
+				var n1 := (d1 * nn.x + Vector3.UP * nn.y).normalized()
+				var p00 := d0 * r0 + Vector3(0, y0, 0)
+				var p01 := d1 * r0 + Vector3(0, y0, 0)
+				var p10 := d0 * r1 + Vector3(0, y1, 0)
+				var p11 := d1 * r1 + Vector3(0, y1, 0)
+				if r0 > 0.001:
+					_t(st, p00, p01, p11, n0, n1, n1)
+				if r1 > 0.001:
+					_t(st, p00, p11, p10, n0, n1, n0)
+
 	func build(parent: Node3D, xf: Transform3D, mats: Dictionary, vis_end: float) -> void:
 		for key in parts:
 			var st: SurfaceTool = parts[key]
+			if smooth.has(key):
+				st.index()
+				st.generate_normals()
 			var mesh := st.commit()
 			var mi := MeshInstance3D.new()
 			mi.mesh = mesh

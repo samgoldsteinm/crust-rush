@@ -5,6 +5,7 @@ shader_type spatial;
 //   mode 1  deck planks: boards along x on the floor, with gaps and staggered end joints
 //   mode 2  shingles: staggered rows of shakes, each its own shade, lifted at the bottom edge
 //   mode 3  trim: plain painted timber with a fine grain
+//   mode 4  painted masonry: courses of dressed stone under limewash, mottled and weathered
 // Every board gets its own tint, a run of grain, and paint worn back to the wood at the edges.
 render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_schlick_ggx;
 
@@ -15,6 +16,7 @@ uniform float board = 6.0;
 uniform float wear = 0.25;
 uniform float rough = 0.72;
 uniform float tint = 0.06;
+uniform bool round_u = false;   // a round tower: run the courses round it
 uniform sampler2D noise : filter_linear_mipmap_anisotropic, repeat_enable;
 
 varying vec3 op;
@@ -43,7 +45,7 @@ void fragment() {
 			u = an.x > an.z ? op.z : op.x;
 			v = op.y;
 		}
-	} else if (mode == 3) {
+	} else if (mode == 3 || mode == 4) {
 		if (an.y > 0.7) {
 			u = op.x;
 			v = op.z;
@@ -54,6 +56,9 @@ void fragment() {
 	} else {
 		u = an.x > an.z ? op.z : op.x;
 		v = op.y;
+	}
+	if (round_u && an.y < 0.7) {
+		u = atan(op.z, op.x) * length(op.xz);
 	}
 	float bw = board;
 	float row = floor(v / bw);
@@ -103,6 +108,19 @@ void fragment() {
 		float gap = smoothstep(0.0, 0.04, cf) * smoothstep(1.0, 0.96, cf);
 		shade = mix(0.4, 1.0, gap) * mix(1.0, 0.6, smoothstep(0.82, 1.0, f)) * (0.9 + 0.2 * (1.0 - f));
 		bend = vec3(0.0, -0.25 * (1.0 - f), 0.0) + vec3(hash(rnd * 9.0) - 0.5, 0.0, hash(rnd * 5.0) - 0.5) * 0.12;
+	}
+	if (mode == 4) {
+		// courses and staggered joints of the stone under the paint, faint; the limewash mottled and streaked
+		float sw = bw * 2.2;
+		float uu = u + mod(row, 2.0) * sw * 0.5;
+		float jf = fract(uu / sw);
+		float joint4 = smoothstep(0.0, 0.012, jf) * smoothstep(1.0, 0.988, jf);
+		float course = smoothstep(0.0, 0.03, f) * smoothstep(1.0, 0.97, f);
+		shade = mix(0.82, 1.0, course * joint4);
+		float m = texture(noise, vec2(u * 0.006, v * 0.012)).r;
+		float streak = texture(noise, vec2(u * 0.05, v * 0.004)).r;
+		c = paint * (0.9 + m * 0.16) * (1.0 - smoothstep(0.55, 0.85, streak) * 0.12);
+		worn = 0.0;
 	}
 	c *= shade;
 	vec3 n2 = normalize(n + bend * (1.0 - an.y) + (vec3(g2, 0.0, g1) - 0.5) * 0.06);
