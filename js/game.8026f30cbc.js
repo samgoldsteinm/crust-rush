@@ -2520,10 +2520,16 @@ function glowSprite(col,size,op,parent,x,y,z){const s=new THREE.Sprite(new THREE
 function vLathe(pts,seg){return faceOut(new THREE.LatheGeometry(pts.map(([x,y])=>new THREE.Vector2(x,y)),seg||32));}
 function texCanvas(w,h,f){const c=cnv(w,h);f(c.getContext('2d'),w,h);return c;}
 /* a window in a room wall that looks out onto one of the sky panoramas */
-function roomWindow(parent,a,Rw,y,w,h,sky,frameCol){const g=new THREE.Group();const [x,z]=atA(a,Rw-8);g.position.set(x,y,z);g.lookAt(0,y,0);parent.add(g);
-  const base=propTex(sky),t=new THREE.Texture(base.image);t.encoding=THREE.sRGBEncoding;{const up=()=>t.needsUpdate=true;if(base.image.complete&&base.image.naturalWidth)up();else base.image.addEventListener('load',up);}t.repeat.set(.18,.42);t.offset.set((a/(Math.PI*2))%1,.3);t.wrapS=THREE.RepeatWrapping;
+function roomWindow(parent,a,Rw,y,w,h,sky,frameCol,o){/* o (optional): a big window: rep/off pick the part of the sky picture it shows,
+  and it sits in from the curved wall (a flat pane that wide would poke through it), with deep rails and a sill closing the gap */
+  const sag=o?Rw-Math.sqrt(Rw*Rw-(w/2+30)*(w/2+30)):0;const g=new THREE.Group();const [x,z]=atA(a,Rw-8-sag);g.position.set(x,y,z);g.lookAt(0,y,0);parent.add(g);
+  const base=propTex(sky),t=new THREE.Texture(base.image);t.encoding=THREE.sRGBEncoding;{const up=()=>t.needsUpdate=true;if(base.image.complete&&base.image.naturalWidth)up();else base.image.addEventListener('load',up);}t.repeat.set(...(o?o.rep:[.18,.42]));t.offset.set((a/(Math.PI*2))%1,o?o.off:.3);t.wrapS=THREE.RepeatWrapping;
   put(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:t,toneMapped:false,fog:false}),0,0,0,g,false);
-  const fm=wm(frameCol||'#f3ead8',{roughness:.5});for(const yy of [-h/2,0,h/2])put(new THREE.BoxGeometry(w+40,20,30),fm,0,yy,10,g,false);for(const xx of [-w/2,0,w/2])put(new THREE.BoxGeometry(20,h+20,30),fm,xx,0,10,g,false);return g;}
+  const fm=wm(frameCol||'#f3ead8',{roughness:.5});
+  if(o){const d=sag+45;for(const yy of [-h/2,h/2])put(new THREE.BoxGeometry(w+50,26,d),fm,0,yy,25-d/2,g,false);put(new THREE.BoxGeometry(w,18,24),fm,0,0,12,g,false);
+    for(const xx of [-w/2,w/2])put(new THREE.BoxGeometry(26,h+26,45),fm,xx,0,2,g,false);put(new THREE.BoxGeometry(18,h,24),fm,0,0,12,g,false);
+    put(new THREE.BoxGeometry(w+160,34,110),fm,0,-h/2-28,40,g,false);return g;}
+  for(const yy of [-h/2,0,h/2])put(new THREE.BoxGeometry(w+40,20,30),fm,0,yy,10,g,false);for(const xx of [-w/2,0,w/2])put(new THREE.BoxGeometry(20,h+20,30),fm,xx,0,10,g,false);return g;}
 function roomShell(R,o){const Rw=o.Rw||R+1700,fy=o.floorY??-60,H=o.H||2200,g=VG();
   const fl=put(new THREE.PlaneGeometry(Rw*2.4,Rw*2.4),o.floor,0,fy,0,g,false);fl.rotation.x=-Math.PI/2;fl.receiveShadow=true;
   put(new THREE.CylinderGeometry(Rw,Rw,H,120,1,true),o.wall,0,fy+H/2,0,g,false);
@@ -2563,8 +2569,9 @@ function roomDining(R,L1,L2){/* the pizza is served on a long dining table: the 
   safeBake(T);
   const CH=new THREE.Group();CH.position.y=1900;S.add(CH);put(new THREE.TorusGeometry(520,26,12,64),gold,0,0,0,CH,false).rotation.x=Math.PI/2;put(new THREE.CylinderGeometry(8,8,600,8),gold,0,300,0,CH,false);
   for(let i=0;i<14;i++){const a=i/14*Math.PI*2;put(new THREE.SphereGeometry(30,14,10),new THREE.MeshBasicMaterial({color:'#fff1c4',toneMapped:false}),Math.cos(a)*520,40,Math.sin(a)*520,CH,false);glowSprite('#ffd890',220,.45,CH,Math.cos(a)*520,40,Math.sin(a)*520);}
-  for(const a of [.3,1.9,3.5,5.1])roomWindow(S,a,R+2700,900,820,1100,'sky_anime','#e8dcc0');
-  const curt=wm('#7a1a1a',{roughness:.85,side:THREE.DoubleSide});for(const a of [.3,1.9,3.5,5.1])for(const sd of [-1,1]){const [x,z]=atA(a+sd*.19,R+2680);const c=put(new THREE.PlaneGeometry(300,1500),curt,x,900,z,S,false);c.lookAt(0,900,0);}
+  /* big windows (1600 x 1800): the sky picture's upper part, so they show mostly sky with the hills along the bottom */
+  const WW=1600,WH=1800,WY=1000;for(const a of [.3,1.9,3.5,5.1])roomWindow(S,a,R+2700,WY,WW,WH,'sky_anime','#e8dcc0',{rep:[.27,.6],off:.38});
+  const curt=wm('#7a1a1a',{roughness:.85,side:THREE.DoubleSide}),ca=(WW/2+230)/(R+2680);for(const a of [.3,1.9,3.5,5.1])for(const sd of [-1,1]){const [x,z]=atA(a+sd*ca,R+2680);const c=put(new THREE.PlaneGeometry(320,WH+300),curt,x,WY,z,S,false);c.lookAt(0,WY,0);}
   for(const a of [1.1,2.7,4.3,5.9]){const [x,z]=atA(a,R+2690),f=new THREE.Group();f.position.set(x,1000,z);f.lookAt(0,1000,0);S.add(f);put(new THREE.BoxGeometry(600,440,20),gold,0,0,0,f,false);
     put(new THREE.PlaneGeometry(540,380),new THREE.MeshStandardMaterial({map:T2(texCanvas(256,180,(g,w,h)=>{g.fillStyle=['#2a4a6a','#6a3a2a','#3a5a3a','#5a4a2a'][Math.floor(a)%4];g.fillRect(0,0,w,h);g.fillStyle='#e2b06a';g.beginPath();g.arc(w/2,h/2,60,0,7);g.fill();g.fillStyle='#c8261b';for(let i=0;i<7;i++){g.beginPath();g.arc(w/2+Math.cos(i)*34,h/2+Math.sin(i*1.7)*30,10,0,7);g.fill();}})),roughness:.6}),0,0,12,f,false);}
   safeBake(S);
