@@ -1,0 +1,69 @@
+# Scenery pictures from a free camera on the PC renderer (Forward+, software Vulkan), for checking the finished
+# scenery as players see it: the spots are in tests/scenery.txt. Pictures come back as SHOT_PART lines in the log
+# and as the "scenery" artifact. Run by hand, or on pushes that change the list or the script.
+name: Scenery shots
+
+on:
+  push:
+    branches: [godot]
+    paths: [tests/scenery.txt, tests/scenery.gd, .github/workflows/scenery.yml]
+  workflow_dispatch:
+    inputs:
+      maps:
+        description: "Tracks to shoot (space separated; empty = every track in tests/scenery.txt)"
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GODOT_VERSION: "4.7.2"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Godot
+        run: |
+          set -euo pipefail
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          curl -fsSL -o godot.zip "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot
+          chmod +x godot
+      - name: Fetch the tracks and the CC0 textures
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p maps && touch maps/.gdignore
+          maps="${{ github.event.inputs.maps }}"
+          [ -z "$maps" ] && maps=$(awk 'NF>=3{print $1}' tests/scenery.txt | sort -u | tr '\n' ' ')
+          echo "MAPS=$maps" >> "$GITHUB_ENV"
+          for m in $maps; do gh release download maps -R "$GITHUB_REPOSITORY" -p "map-$m.zip" -D "$RUNNER_TEMP/maps_zip"; done
+          for z in "$RUNNER_TEMP"/maps_zip/*.zip; do unzip -q -o "$z" -d maps; done
+          if gh release download maps -R "$GITHUB_REPOSITORY" -p 'garage.zip' -D "$RUNNER_TEMP/garage_zip"; then
+            mkdir -p assets && unzip -q -o "$RUNNER_TEMP/garage_zip/garage.zip" -d assets
+          fi
+          if gh release download maps -R "$GITHUB_REPOSITORY" -p 'hd.zip' -D "$RUNNER_TEMP/hd_zip"; then
+            mkdir -p assets/hd/cc0 && unzip -q -o -j "$RUNNER_TEMP/hd_zip/hd.zip" -d assets/hd/cc0
+          fi
+          python3 -c "import numpy, PIL" 2> /dev/null || pip install -q --break-system-packages numpy pillow || true
+          python3 tools/hd_ground.py maps || echo "::warning::ground maps not made"
+      - name: Import the project
+        run: ./godot --headless --path . --import > import.log 2>&1 || true
+      - name: Shots (software Vulkan)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mesa-vulkan-drivers xvfb > /dev/null
+          for m in $MAPS; do
+            CR_MAP=$m timeout 1500 xvfb-run -a -s "-screen 0 1280x720x24" ./godot --path . --rendering-driver vulkan --resolution 1280x720 res://tests/scenery.tscn > "scenery_$m.log" 2>&1 || true
+            grep -E "SCENERY|SCRIPT ERROR|SHADER ERROR" "scenery_$m.log" || true
+            grep "^SHOT_PART" "scenery_$m.log" || true
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scenery
+          path: build/scenery
+          retention-days: 14

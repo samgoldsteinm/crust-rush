@@ -1,0 +1,9 @@
+lagoon sea 0,40,2250,300,-14,3600
+lagoon huts -1950,70,420,-2205,40,560
+lagoon hutclose -2110,18,520,-2205,45,543
+lagoon pier -1700,120,1000,-2016,20,1208
+lagoon lighthouse 600,60,1500,1250,300,2449
+lagoon canyon -670,70,-626,-620,-38,-870
+bay shore -2400,40,0,-1800,-14,-300
+peaks arcade 0,600,-2600,0,0,0
+margherita canyon -946,60,-54,-1055,-45,-237
