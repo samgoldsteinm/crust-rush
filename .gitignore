@@ -18,3 +18,6 @@ assets/hd/cc0/
 
 # the waterfall's pictures, pulled out of its .glb by the importer
 assets/hd/waterfall/*.jpg
+
+# the WebRTC add-on (godotengine/webrtc-native), fetched by the PC build
+addons/webrtc_native/

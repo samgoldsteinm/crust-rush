@@ -134,7 +134,7 @@ static func tick(mp: MultiplayerPeer, peers: Array, web := {}) -> void:
 		if snap_at > 0 and now - snap_at > 1000 and not quiet:
 			quiet = true
 			ev("host-quiet", now - snap_at)
-		row = [t, fps, "relay", int(web.get("rtt", 0)), int(web.get("fixes", 0)), 0, snaps, late, roundi(int(web.get("out", 0)) / 1024.0), roundi(int(web.get("in", 0)) / 1024.0)]
+		row = [t, fps, String(web.get("route", "relay")), int(web.get("rtt", 0)), int(web.get("fixes", 0)), 0, snaps, late, roundi(int(web.get("out", 0)) / 1024.0), roundi(int(web.get("in", 0)) / 1024.0)]
 		snaps = 0
 		late = 0
 	elif role == "client":

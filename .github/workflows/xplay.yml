@@ -45,6 +45,10 @@ jobs:
           mkdir -p maps && touch maps/.gdignore
           gh release download maps -R "$GITHUB_REPOSITORY" -p 'map-bay.zip' -D "$RUNNER_TEMP/m" && unzip -q -o "$RUNNER_TEMP/m/map-bay.zip" -d maps
           gh release download maps -R "$GITHUB_REPOSITORY" -p 'garage.zip' -D "$RUNNER_TEMP/g" && mkdir -p assets && unzip -q -o "$RUNNER_TEMP/g/garage.zip" -d assets
+          # the WebRTC add-on, as the PC build fetches it: the two copies then race over a direct link
+          curl -fsSL -o "$RUNNER_TEMP/webrtc.zip" "https://github.com/godotengine/webrtc-native/releases/download/1.2.2-stable/godot-extension-webrtc_native.zip" \
+            && echo "98e9446921740d995bd9ca1be48798dc3c2ceed51e044a25ce18b3cff11f56e5  $RUNNER_TEMP/webrtc.zip" | sha256sum -c - \
+            && unzip -q -o "$RUNNER_TEMP/webrtc.zip" -d . || echo "::warning::WebRTC add-on not fetched"
           ./godot --headless --path . --import > import.log 2>&1 || true
           if grep -E "SCRIPT ERROR|Parse Error" import.log; then exit 1; fi
       - name: Race (${{ matrix.dir }})
@@ -58,7 +62,7 @@ jobs:
           CR_MAP=bay CR_XDUMP=xdump.jsonl CR_BROKERS=ws://127.0.0.1:8765/mqtt CR_ROOM_FILE=room.txt CR_XROLE=$XROLE timeout 3000 ./godot --headless --path . res://tests/xplay.tscn > pc.log 2>&1 || true
           for i in $(seq 1 120); do grep -q "web exit" web.log && break; sleep 2; done
           echo "---- browser"; grep -E "XPLAY|Error|Traceback|exit" web.log | tail -60
-          echo "---- PC"; grep -E "^XPLAY|SCRIPT ERROR|   at: " pc.log | tail -60
+          echo "---- PC"; grep -E "^XPLAY|^WEBNET direct|SCRIPT ERROR|   at: " pc.log | tail -60
           grep -q "XPLAY WEB PASS" web.log && grep -q "XPLAY PC PASS" pc.log
       - name: Keep the logs
         if: always()

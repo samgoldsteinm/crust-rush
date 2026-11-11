@@ -347,7 +347,11 @@ static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false) -> v
 			if sm == null:
 				continue
 			var nm := _marker(sm)
-			if (mesh.surface_get_format(si) & Mesh.ARRAY_FORMAT_COLOR) != 0 and not sm.vertex_color_use_as_albedo and not nm.begins_with("g_"):
+			var fmt: int = mesh.surface_get_format(si)
+			if not nm.begins_with("g_") and _is_car_vc(sm, fmt):
+				m3.set_surface_override_material(si, car_vc_mat())
+				continue
+			if (fmt & Mesh.ARRAY_FORMAT_COLOR) != 0 and not sm.vertex_color_use_as_albedo and not nm.begins_with("g_"):
 				var c0 := sm.duplicate() as BaseMaterial3D
 				c0.vertex_color_use_as_albedo = true
 				m3.set_surface_override_material(si, c0)
@@ -391,6 +395,58 @@ static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false) -> v
 				m3.set_surface_override_material(si, dm)
 			elif cloth and sm.albedo_texture != null:
 				m3.set_surface_override_material(si, _cloth(sm, cols))
+
+
+## The imported cars, bikes and wheels draw every part but the paint with one material (the web's SH.carVC): the part's
+## colour is in the vertex colours, and its finish (clear coat, roughness, metalness) comes from a 32 x 1 lookup picture,
+## one pixel per kind of part, picked by the vertex's u coordinate. That picture isn't in the exported models, which then
+## read as fully metal and fully rough everywhere: dark, flat metal all over. The table is the web's CAR_PBR.
+const CAR_CLS := ["paint", "dark", "stripe", "tail", "light", "glass", "carbon", "metal", "rubber", "seat", "chrome", "rim",
+	"disc", "caliper", "blue", "gunmetal", "green", "red", "bluem", "bronze", "white"]
+const CAR_PBR := {"paint": [0.36, 0.5, 1.0], "dark": [0.36, 0.25, 1.0], "stripe": [0.36, 0.5, 1.0], "tail": [0.4, 0.0, 0.0],
+	"light": [0.2, 0.0, 0.0], "glass": [0.05, 0.0, 1.0], "carbon": [0.36, 0.25, 1.0], "metal": [0.32, 0.9, 0.0],
+	"rubber": [0.9, 0.0, 0.0], "seat": [0.8, 0.0, 0.0], "chrome": [0.1, 1.0, 0.0], "rim": [0.24, 0.95, 0.0],
+	"disc": [0.45, 0.85, 0.0], "caliper": [0.35, 0.2, 0.8], "blue": [0.3, 0.0, 0.0], "gunmetal": [0.26, 0.9, 0.4],
+	"green": [0.34, 0.6, 0.8], "red": [0.3, 0.5, 0.9], "bluem": [0.22, 0.85, 0.6], "bronze": [0.3, 0.95, 0.3], "white": [0.3, 0.0, 0.9]}
+static var _car_vc: StandardMaterial3D = null
+
+
+static func _is_car_vc(sm: BaseMaterial3D, fmt: int) -> bool:
+	return sm.metallic > 0.99 and sm.roughness > 0.99 and sm.albedo_texture == null \
+		and (fmt & Mesh.ARRAY_FORMAT_TEX_UV) != 0 and (fmt & Mesh.ARRAY_FORMAT_COLOR) != 0
+
+
+## the parts' material: vertex colour, with roughness and metalness read from the lookup (green and blue, as the web's
+## roughnessMap and metalnessMap) and the clear coat from a second one (its red)
+static func car_vc_mat() -> StandardMaterial3D:
+	if _car_vc != null:
+		return _car_vc
+	var rm := Image.create(32, 1, false, Image.FORMAT_RGBA8)
+	var cc := Image.create(32, 1, false, Image.FORMAT_RGBA8)
+	rm.fill(Color(1, 1, 0, 1))
+	cc.fill(Color(0, 1, 0, 1))
+	for i in CAR_CLS.size():
+		var p: Array = CAR_PBR[CAR_CLS[i]]
+		rm.set_pixel(i, 0, Color(1, float(p[0]), float(p[1]), 1))
+		cc.set_pixel(i, 0, Color(float(p[2]), 1, 0, 1))
+	var m := StandardMaterial3D.new()
+	m.resource_name = "car_vc"
+	m.vertex_color_use_as_albedo = true
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	var rt := ImageTexture.create_from_image(rm)
+	m.roughness = 1.0
+	m.roughness_texture = rt
+	m.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_GREEN
+	m.metallic = 1.0
+	m.metallic_texture = rt
+	m.metallic_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_BLUE
+	m.metallic_specular = 0.5
+	m.clearcoat_enabled = true
+	m.clearcoat = 1.0
+	m.clearcoat_roughness = 0.08
+	m.clearcoat_texture = ImageTexture.create_from_image(cc)
+	_car_vc = m
+	return m
 
 
 ## which marker a material is: kart bodies name theirs (g_paint, g_dark, g_stripe); the imported cars carry the marker colour

@@ -63,6 +63,17 @@ jobs:
           python3 -c "import numpy, PIL" 2> /dev/null || pip install -q --break-system-packages numpy pillow || pip install -q numpy pillow || true
           python3 tools/hd_ground.py maps || echo "::warning::ground maps not made"
 
+      - name: The WebRTC add-on (direct links to the browser game; without it online play stays on the relay)
+        run: |
+          # godotengine/webrtc-native (MIT), on libdatachannel (MPL-2.0); checked against its known checksum
+          url="https://github.com/godotengine/webrtc-native/releases/download/1.2.2-stable/godot-extension-webrtc_native.zip"
+          if curl -fsSL -o "$RUNNER_TEMP/webrtc.zip" "$url" \
+            && echo "98e9446921740d995bd9ca1be48798dc3c2ceed51e044a25ce18b3cff11f56e5  $RUNNER_TEMP/webrtc.zip" | sha256sum -c -; then
+            unzip -q -o "$RUNNER_TEMP/webrtc.zip" -d . && ls addons/webrtc_native
+          else
+            echo "::warning::WebRTC add-on not fetched: online play will use the relay only"
+          fi
+
       - name: Import the project
         run: |
           ./godot --headless --path . --import 2>&1 | tee import.log | tail -60
@@ -117,6 +128,10 @@ jobs:
           ./godot --headless --path . --export-release "Windows Desktop" build/windows/CrustRush.exe 2>&1 | tail -30
           # the tracks go in a "maps" folder next to the game
           if ls maps/*/ > /dev/null 2>&1; then cp -r maps build/windows/maps; rm -f build/windows/maps/.gdignore; fi
+          # the WebRTC add-on's licences go with its library
+          if ls addons/webrtc_native/LICENSE.* > /dev/null 2>&1; then
+            mkdir -p build/windows/licenses && cp addons/webrtc_native/LICENSE.* build/windows/licenses/
+          fi
           ls -la build/windows; du -sh build/windows
 
       # the public download (the "pc" release, linked from the download page): replaced on every full build

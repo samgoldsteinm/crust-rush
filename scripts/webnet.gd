@@ -126,6 +126,10 @@ func _send(m: Dictionary, dup := false) -> void:
 func _send_to(ch: Dictionary, m: Dictionary, dup := false, raw := false) -> void:
 	if ch.is_empty():
 		return
+	# a direct link (WebRTC) carries everything once it's open: race pictures, controls and hits on the fast channel
+	# (a lost packet is skipped, the next one has fresh data), the rest on the ordered one; the relay is the fallback
+	if not raw and _rtc_send(ch, m):
+		return
 	var s := JSON.stringify(m if raw else {"f": my_id, "d": m})
 	bytes_out += s.length()
 	ch["last_out"] = _now()
@@ -183,6 +187,7 @@ func poll() -> void:
 	for q in mqs:
 		(q as Mqtt).poll()
 	var now := _now()
+	_rtc_poll(now)
 	if role == "host":
 		_poll_host(now)
 		return
@@ -206,6 +211,7 @@ func poll() -> void:
 		return
 	if chan.is_empty():
 		return
+	_rtc_guest_tick(now)
 	if now - int(chan.get("last_out", 0)) > 1500:
 		_send({"t": "hb"})
 	# 20 s of silence ends a race in progress; while anyone is still loading the track (a browser can go quiet for a
@@ -237,6 +243,9 @@ func join(room: String, nm: String) -> void:
 	name_ = nm.substr(0, 14)
 	role = "guest"
 	_start_relay()
+	_rtc_turn()
+	rtc_n = 0
+	rtc_next = 0
 	knock_room = TOP + "r/" + code
 	knock_until = _now() + 40000
 	knock_next = 0
@@ -278,6 +287,9 @@ func leave(tell := true) -> void:
 	if role == "host" and tell:
 		for f in chans:
 			_send_to(chans[f], {"f": my_id, "c": "bye"}, false, true)
+	for f in chans:
+		_rtc_close(chans[f])
+	_rtc_close(chan)
 	chans = {}
 	gone = {}
 	for q in mqs:
@@ -338,6 +350,8 @@ func _recv(d: Dictionary) -> void:
 				ack_rx = int(d.get("ack", 0))
 				_reconcile(d["me"], ack_rx)
 				NetLog.ev("hit", 0)
+		"rtc":
+			_rtc_answer(d)
 		"po":
 			var r := float(_now() - int(d.get("ts", _now())))
 			ping_ms = r if ping_ms < 0.0 else ping_ms * 0.6 + r * 0.4
@@ -723,7 +737,12 @@ func quit_race() -> void:
 
 ## for the network log's rows
 func stats() -> Dictionary:
-	var o := {"rtt": roundi(maxf(0.0, ping_ms)), "out": bytes_out, "in": bytes_in, "fixes": fixes}
+	# the route: "peer" when every link is direct (a host with browser friends counts each), "relay" otherwise
+	var direct := _dc_open(chan.get("dc")) if role == "guest" else not chans.is_empty()
+	if role == "host":
+		for f in chans:
+			direct = direct and _dc_open((chans[f] as Dictionary).get("dc"))
+	var o := {"rtt": roundi(maxf(0.0, ping_ms)), "out": bytes_out, "in": bytes_in, "fixes": fixes, "route": "peer" if direct else "relay"}
 	bytes_out = 0
 	bytes_in = 0
 	fixes = 0
@@ -761,6 +780,7 @@ const SCAL := ["x", "y", "a", "ma", "speed", "steer", "drift", "charge", "boost"
 
 ## make a room browsers (and other PCs on the browser route) can join with its code
 func host(nm: String) -> void:
+	_rtc_turn()
 	leave(false)
 	role = "host"
 	name_ = nm.substr(0, 14)
@@ -827,6 +847,7 @@ func _drop(ch: Dictionary) -> void:
 	var f := String(ch["peer"])
 	if not chans.has(f):
 		return
+	_rtc_close(ch)
 	chans.erase(f)
 	gone[f] = true
 	var pid := int(ch.get("pid", 0))
@@ -908,6 +929,8 @@ func _recv_host(ch: Dictionary, d: Dictionary) -> void:
 			_drop(ch)
 		"pg":
 			_send_to(ch, {"t": "po", "ts": d.get("ts", 0)})
+		"rtc":
+			_rtc_host(ch, d)
 
 
 func _poll_host(now: int) -> void:
@@ -1287,3 +1310,289 @@ func _snapshot() -> void:
 		if mine != null:
 			o["me"] = _scal(mine)
 		_send_to(ch, o)
+
+
+# ---------------------------------------------------------------- direct links (the web's rtc*: WebRTC data channels)
+
+## As the browser game does: once two players are in a room through the relay, the guest offers a direct WebRTC link
+## (two data channels: "race", ordered, and "fast", unordered with no resends), set up through the relay itself in
+## one message each way with every route already in it. On the same network the two talk straight to each other;
+## across the internet the STUN servers find a route, and where none exists (carrier NAT on phones) a TURN server
+## relays the link. When it opens, everything goes over it; if it never opens, the race runs on the relay as before.
+## Needs the WebRTC add-on (addons/webrtc_native, fetched by the PC build); without it this stays switched off.
+const RTC_STUN := [{"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]}, {"urls": ["stun:stun.cloudflare.com:3478"]}]
+## Metered's credential-scoped key, meant for front-end use: it only fetches the TURN server list (web TURN_URL)
+const TURN_URL := "https://crustrush.metered.live/api/v1/turn/credentials?apiKey=78d3e88ec5b76283810039412758f32e2c5a"
+static var _turn: Array = []
+static var _turn_at := -100000000
+static var _rtc_avail := -1
+var _turn_req: HTTPRequest = null
+var rtc_n := 0
+var rtc_next := 0
+
+
+static func rtc_available() -> bool:
+	if _rtc_avail < 0:
+		_rtc_avail = 0
+		if OS.get_environment("CR_NO_RTC") == "" and ClassDB.class_exists("WebRTCPeerConnection"):
+			var p := WebRTCPeerConnection.new()
+			if p.initialize({}) == OK:
+				_rtc_avail = 1
+			p.close()
+	return _rtc_avail == 1
+
+
+static func _dc_open(dc) -> bool:
+	return dc is WebRTCDataChannel and (dc as WebRTCDataChannel).get_ready_state() == WebRTCDataChannel.STATE_OPEN
+
+
+func _rtc_ice() -> Array:
+	var a: Array = RTC_STUN.duplicate(true)
+	for t in _turn:
+		a.append(t)
+	return a
+
+
+## the TURN server list (kept 20 minutes), fetched as soon as a room opens so it's there when the offer is made
+func _rtc_turn() -> void:
+	if not rtc_available() or _turn_req != null or Time.get_ticks_msec() - _turn_at < 20 * 60000:
+		return
+	_turn_req = HTTPRequest.new()
+	_turn_req.timeout = 4.0
+	add_child(_turn_req)
+	_turn_req.request_completed.connect(_turn_done)
+	if _turn_req.request(TURN_URL) != OK:
+		_turn_req.queue_free()
+		_turn_req = null
+
+
+func _turn_done(res: int, code_: int, _h: PackedStringArray, body: PackedByteArray) -> void:
+	if res == HTTPRequest.RESULT_SUCCESS and code_ == 200:
+		var j = JSON.parse_string(body.get_string_from_utf8())
+		if j is Array:
+			var out: Array = []
+			for x in j:
+				if x is Dictionary and str(x.get("urls", "")).find("turn") >= 0:
+					var u = x["urls"]
+					out.append({"urls": u if u is Array else [str(u)], "username": str(x.get("username", "")), "credential": str(x.get("credential", ""))})
+			_turn = out
+			_turn_at = Time.get_ticks_msec()
+	if _turn_req != null:
+		_turn_req.queue_free()
+		_turn_req = null
+
+
+## a fresh peer connection for a link; its description and routes are collected for the one setup message
+func _rtc_new(ch: Dictionary, id) -> Dictionary:
+	_rtc_close(ch)
+	var pc := WebRTCPeerConnection.new()
+	if pc.initialize({"iceServers": _rtc_ice()}) != OK:
+		return {}
+	var st := {"pc": pc, "id": id, "desc": "", "dtype": "", "cands": [], "t0": _now(), "sent": false, "t_sent": 0, "srflx": 0, "relay": 0, "answered": false}
+	pc.session_description_created.connect(func(tp: String, sdp: String):
+		pc.set_local_description(tp, sdp)
+		st["desc"] = sdp
+		st["dtype"] = tp)
+	pc.ice_candidate_created.connect(func(mid: String, _i: int, cand: String):
+		(st["cands"] as Array).append([mid, cand])
+		if cand.find(" typ srflx") >= 0 and int(st["srflx"]) == 0:
+			st["srflx"] = _now()
+		if cand.find(" typ relay") >= 0 and int(st["relay"]) == 0:
+			st["relay"] = _now())
+	pc.data_channel_received.connect(func(dc: WebRTCDataChannel): _rtc_dc(ch, dc))
+	ch["rtc"] = st
+	return st
+
+
+func _rtc_dc(ch: Dictionary, dc: WebRTCDataChannel) -> void:
+	dc.write_mode = WebRTCDataChannel.WRITE_MODE_TEXT
+	ch["dcF" if dc.get_label() == "fast" else "dc"] = dc
+
+
+func _rtc_close(ch: Dictionary) -> void:
+	if ch.is_empty():
+		return
+	for key in ["dc", "dcF"]:
+		var dc = ch.get(key)
+		if dc is WebRTCDataChannel:
+			(dc as WebRTCDataChannel).close()
+		ch.erase(key)
+	var st = ch.get("rtc")
+	if st is Dictionary and (st as Dictionary).get("pc") is WebRTCPeerConnection:
+		var pc := (st as Dictionary)["pc"] as WebRTCPeerConnection
+		pc.close()
+		# the handlers hold the connection, and a connection never let go keeps the game from closing
+		for sig in ["session_description_created", "ice_candidate_created", "data_channel_received"]:
+			for c in pc.get_signal_connection_list(sig):
+				pc.disconnect(sig, c["callable"])
+		(st as Dictionary).erase("pc")
+	ch.erase("rtc")
+	for key in ["dc_up", "dcF_up"]:
+		ch.erase(key)
+
+
+func _exit_tree() -> void:
+	for f in chans:
+		_rtc_close(chans[f])
+	_rtc_close(chan)
+
+
+## the description with every route gathered so far written into it (the web sends one complete message each way)
+static func _sdp_with(desc: String, cands: Array) -> String:
+	var lines := desc.replace("\r\n", "\n").split("\n", false)
+	var out := PackedStringArray()
+	var mid := ""
+	var in_media := false
+	var flush := func(m: String) -> void:
+		for c in cands:
+			if String(c[0]) == m or m == "":
+				var line := String(c[1])
+				out.append(line if line.begins_with("a=") else "a=" + line)
+		out.append("a=end-of-candidates")
+	for ln in lines:
+		if ln.begins_with("a=end-of-candidates") or ln.begins_with("a=candidate:"):
+			continue
+		if ln.begins_with("m="):
+			if in_media:
+				flush.call(mid)
+			in_media = true
+			mid = ""
+		elif ln.begins_with("a=mid:"):
+			mid = ln.substr(6)
+		out.append(ln)
+	if in_media:
+		flush.call(mid)
+	return "\r\n".join(out) + "\r\n"
+
+
+## like the web's rtcGather: a public-address route is always waited for; both it and a TURN route, half a second more
+static func _rtc_ready(st: Dictionary, now: int) -> bool:
+	if String(st["desc"]) == "":
+		return false
+	var el := now - int(st["t0"])
+	var pc: WebRTCPeerConnection = st["pc"]
+	if pc.get_gathering_state() == WebRTCPeerConnection.GATHERING_STATE_COMPLETE:
+		return true
+	var sx := int(st["srflx"])
+	var rl := int(st["relay"])
+	if sx > 0 and rl > 0:
+		return now - maxi(sx, rl) > 500 or el > 4000
+	if sx > 0:
+		return el > 1600
+	if rl > 0:
+		return el > 1800
+	return el > (4000 if not _turn.is_empty() else 2500)
+
+
+func _rtc_send(ch: Dictionary, m: Dictionary) -> bool:
+	var t := String(m.get("t", ""))
+	var dc = ch.get("dcF") if (t == "s" or t == "in" or t == "hit") and _dc_open(ch.get("dcF")) else ch.get("dc")
+	if not _dc_open(dc):
+		return false
+	var s := JSON.stringify(m)
+	if (dc as WebRTCDataChannel).put_packet(s.to_utf8_buffer()) != OK:
+		return false
+	bytes_out += s.length()
+	ch["last_out"] = _now()
+	return true
+
+
+## every frame: the peer connections, the setup message when its routes are in, and what came over the links
+func _rtc_poll(now: int) -> void:
+	if _rtc_avail != 1:
+		return
+	var links: Array = chans.values() if role == "host" else ([chan] if not chan.is_empty() else [])
+	for ch in links:
+		var st = (ch as Dictionary).get("rtc")
+		if not (st is Dictionary) or not ((st as Dictionary).get("pc") is WebRTCPeerConnection):
+			continue
+		var pc: WebRTCPeerConnection = st["pc"]
+		pc.poll()
+		if not bool(st["sent"]) and _rtc_ready(st, now):
+			st["sent"] = true
+			st["t_sent"] = now
+			_send_to(ch, {"t": "rtc", "id": st["id"], "nat": "?", "sdp": {"type": String(st["dtype"]), "sdp": _sdp_with(String(st["desc"]), st["cands"])}})
+		for key in ["dc", "dcF"]:
+			var dc = (ch as Dictionary).get(key)
+			if not (dc is WebRTCDataChannel):
+				continue
+			var d2 := dc as WebRTCDataChannel
+			d2.poll()
+			if d2.get_ready_state() == WebRTCDataChannel.STATE_OPEN and not bool((ch as Dictionary).get(key + "_up", false)):
+				(ch as Dictionary)[key + "_up"] = true
+				if key == "dc":
+					NetLog.ev("direct-up", int((ch as Dictionary).get("pid", 0)))
+					print("WEBNET direct link up (%s)" % role)
+			while d2.get_available_packet_count() > 0:
+				var pk := d2.get_packet()
+				var j = JSON.parse_string(pk.get_string_from_utf8())
+				if not (j is Dictionary):
+					continue
+				bytes_in += pk.size()
+				(ch as Dictionary)["last_in"] = now
+				if role == "host":
+					if chans.has(String((ch as Dictionary)["peer"])):
+						_recv_host(ch, j)
+				else:
+					_recv(j)
+				if (role == "host" and not chans.has(String((ch as Dictionary)["peer"]))) or (role == "guest" and chan.is_empty()):
+					return
+
+
+## guest: offer a direct link, again every few seconds until one opens (up to 12 tries, as the web's rtcGuestStart)
+func _rtc_guest_tick(now: int) -> void:
+	if not rtc_available() or chan.is_empty() or _dc_open(chan.get("dc")):
+		return
+	var st = chan.get("rtc")
+	if st is Dictionary:
+		var pc: WebRTCPeerConnection = st["pc"]
+		var cs := pc.get_connection_state()
+		if cs == WebRTCPeerConnection.STATE_CONNECTED:
+			return
+		if bool(st["answered"]) and now - int(st["t_sent"]) < 14000:
+			return     # answered and still finding a route: give it time
+		if bool(st["sent"]) and not bool(st["answered"]) and now - int(st["t_sent"]) < 9000:
+			return     # the answer is on its way over the relay (the host gathers its routes too)
+		if not bool(st["sent"]) and now - int(st["t0"]) < 9000:
+			return     # still gathering routes for this offer
+	if now < rtc_next or rtc_n >= 12:
+		return
+	rtc_n += 1
+	rtc_next = now + 3000
+	var st2 := _rtc_new(chan, rtc_n)
+	if st2.is_empty():
+		return
+	var pc2: WebRTCPeerConnection = st2["pc"]
+	var dc := pc2.create_data_channel("race", {"ordered": true})
+	var dcf := pc2.create_data_channel("fast", {"ordered": false, "maxRetransmits": 0})
+	if dc != null:
+		_rtc_dc(chan, dc)
+	if dcf != null:
+		_rtc_dc(chan, dcf)
+	pc2.create_offer()
+
+
+## guest: the host's answer to our offer
+func _rtc_answer(d: Dictionary) -> void:
+	var st = chan.get("rtc")
+	if not (st is Dictionary) or d.get("id") == null or int(d["id"]) != int(st["id"]) or bool(st["answered"]):
+		return
+	var sdp = d.get("sdp")
+	if not (sdp is Dictionary) or String(sdp.get("type", "")) != "answer":
+		return
+	st["answered"] = true
+	st["t_sent"] = _now()
+	(st["pc"] as WebRTCPeerConnection).set_remote_description("answer", String(sdp.get("sdp", "")))
+
+
+## host: a browser guest offers a direct link; answer it (the answer is made as the offer is set)
+func _rtc_host(ch: Dictionary, d: Dictionary) -> void:
+	if not rtc_available() or _dc_open(ch.get("dc")):
+		return
+	var sdp = d.get("sdp")
+	if not (sdp is Dictionary) or String(sdp.get("type", "")) != "offer":
+		return
+	var st := _rtc_new(ch, d.get("id"))
+	if st.is_empty():
+		return
+	(st["pc"] as WebRTCPeerConnection).set_remote_description("offer", String(sdp.get("sdp", "")))

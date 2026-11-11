@@ -24,6 +24,8 @@ to the `maps` release; the PC build downloads them from there.
   second-by-second record of your last 6 online races (round trip, lost packets, snapshot flow), with Copy.
 - Cross-play with the browser version: Play with friends > **Race with browser friends** joins a room made on a phone
   or browser with its 4-character code, or hosts one they can join, through the same public relay the web game uses.
+  Once in the room, the PC and the browser open a direct WebRTC link between them, as two browsers do (STUN finds a
+  route, and a TURN server carries it where none exists); the relay stays as the fallback if no link opens.
 
 ## Graphics
 The picture is matched to the web game's Ultra (lighting, tone mapping, colour grade, bloom, ambient occlusion,
@@ -103,3 +105,7 @@ made by this project's own tools. The background mountain is the user's own moun
 The waterfall on Hawaiian Bay and Calzone Coast is "WATERFALL MOUNTAIN River" by Nikitos & 3130
 ([Sketchfab](https://sketchfab.com/3d-models/waterfall-mountain-river-446f36f2ccb54cf1bc090cd5bc25dce1)), CC BY 4.0,
 drawn at full detail on PC (turned into the game's frame, lit, pictures halved to 2K by `tools/hd_waterfall.py`).
+Direct links use [webrtc-native](https://github.com/godotengine/webrtc-native) by the Godot Engine contributors (MIT),
+built on [libdatachannel](https://github.com/paullouisageneau/libdatachannel) (MPL-2.0) with libjuice, usrsctp,
+libsrtp, mbedTLS and plog; their licences ship with the add-on in `addons/webrtc_native/`, which the PC build
+downloads (it isn't kept in the repository).
