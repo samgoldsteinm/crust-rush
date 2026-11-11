@@ -484,6 +484,9 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .detail .abil{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:rgba(255,244,220,.06);border:1px solid rgba(255,244,220,.12)}
 .detail .abil i{flex:0 0 auto;width:12px;height:12px;border-radius:50%;box-shadow:0 0 10px currentColor}
 .detail .abil b{font-size:13px;white-space:nowrap}.detail .abil span{font-size:11.5px;color:rgba(255,244,220,.75);line-height:1.25}
+/* driver panel: the portrait always keeps at least 45% of the panel and shows the whole character; a long ability description scrolls under it instead of squashing it */
+#drvDetail .hero{flex:1 1 auto;min-height:45%;object-fit:contain;object-position:50% 55%}
+#drvDetail .dtx{display:flex;flex-direction:column;gap:inherit;flex:0 1 auto;min-height:0;overflow-y:auto;scrollbar-width:thin;overscroll-behavior:contain}
 
 .hud-tl{left:50%;top:0;transform:translateX(-50%);flex-direction:row;align-items:center;gap:12px;width:min(66vw,680px,100vw - var(--btn)*2.4 - 60px)}
 .hud-tl .pos-n{font-size:clamp(30px,9vmin,58px)}.hud-tl .pos-side{padding-top:.2em;gap:2px}.hud-tl .pos-s{font-size:clamp(13px,3.2vmin,22px)}.hud-tl .pos-of{font-size:9.5px}

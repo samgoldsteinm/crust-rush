@@ -3344,7 +3344,7 @@ function hallHQ_(th,j,K,H,wI,wO,P,gy,roofM){const trim=wm({kitchen:'#e9cfa6',bay
       add(new THREE.BoxGeometry(8.4,6+(g0-gb),wO-wI+11),dark,p,0,gb+(6+(g0-gb))/2-1,lz);add(new THREE.BoxGeometry(7.6,1.4,wO-wI+9.6),trim,p,0,g0+5.4,lz);
       add(new THREE.BoxGeometry(7.8,3,wO-wI+9.8),trim,p,0,g0+34.4,lz);add(new THREE.BoxGeometry(6.6,1.2,wO-wI+8.4),dark,p,0,g0+32.4,lz);
       for(const fz of [-1,1]){add(new THREE.CylinderGeometry(.35,.35,3,10),dark,p,e*3.1,g0+24,lz+fz*(wO-wI)/2.6,false);const l=add(new THREE.SphereGeometry(1.3,16,12),glow,p,e*3.1,g0+26.2,lz+fz*(wO-wI)/2.6,false);l.castShadow=false;}}}}
-function buildHalls(def,ctx){if(def.arena)return;const {used,straight,farFrom}=ctx,K=11,cd=(a,b)=>{const d=Math.abs(a-b)%N;return Math.min(d,N-d);};let made=0;
+function buildHalls(def,ctx){window.__hallJ=[];if(def.arena)return;const {used,straight,farFrom}=ctx,K=11,cd=(a,b)=>{const d=Math.abs(a-b)%N;return Math.min(d,N-d);};let made=0;
   for(const tf of [.32,.74]){let best=null,bd=1e9;for(let j=40;j<N-40;j++){if(!straight(j,K+2,.34)||!farFrom(j,K+6))continue;let ok=true;
       for(let o=-K-4;o<=K+4;o++){const p=track[(j+o)%N];if(p.pond||p.open||p.cut||isDeck(j+o)){ok=false;break;}}if(!ok)continue;
       if(loopNear(j,K+30))continue;if(TUN_RANGE&&cd(j,TUN_RANGE[0]+(TUN_RANGE[1]>>1))<(TUN_RANGE[1]>>1)+K+20)continue;if(CAUSE&&cd(j,(CAUSE.j0+CAUSE.j1)>>1)<K+30)continue;
@@ -4967,6 +4967,8 @@ function chevronTex(dir,night){const c=cnv(256,96),g=c.getContext('2d');g.fillSt
   g.fillStyle=night?'#ffe36b':'#fff4dc';for(let i=0;i<3;i++){const x=50+i*72;g.beginPath();if(dir>0){g.moveTo(x-22,16);g.lineTo(x+16,48);g.lineTo(x-22,80);g.lineTo(x-8,80);g.lineTo(x+30,48);g.lineTo(x-8,16);}else{g.moveTo(x+22,16);g.lineTo(x-16,48);g.lineTo(x+22,80);g.lineTo(x+8,80);g.lineTo(x-30,48);g.lineTo(x+8,16);}g.closePath();g.fill();}
   const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=maxAniso;return t;}
 let SIGN_INFO=null,SIGN_POS=[];
+/* is track point j within d points of a hall (the covered PIZZERIA / PAVILION / ARCADE / ICE HALL stretch)? signs there stood in its walls */
+function nearHall(j,d){return (window.__hallJ||[]).some(h=>{const e=Math.abs(h-j)%N;return Math.min(e,N-e)<d;});}
 function arrowTex(dir,night){const c=cnv(320,128),g=c.getContext('2d');g.fillStyle=night?'#1a1030':'#f7c948';g.fillRect(0,0,320,128);g.strokeStyle=night?'#ffe36b':'#1a0c06';g.lineWidth=8;g.strokeRect(6,6,308,116);
   g.save();if(dir<0){g.translate(320,0);g.scale(-1,1);}const ink=night?'#ffe36b':'#1a0c06';g.strokeStyle=ink;g.fillStyle=ink;g.lineWidth=22;g.lineCap='round';
   g.beginPath();g.moveTo(70,104);g.lineTo(70,74);g.quadraticCurveTo(70,46,104,46);g.lineTo(196,46);g.stroke();
@@ -4982,17 +4984,17 @@ function buildDressing(def,ctx){const {pick,straight,farFrom,used}=ctx,night=def
   const post=wm('#3a3a44',{metalness:.6,roughness:.4}),texL=chevronTex(-1,night),texR=chevronTex(1,night);
   const signM=d=>new THREE.MeshStandardMaterial({map:d>0?texR:texL,roughness:.5,emissive:'#ffffff',emissiveMap:d>0?texR:texL,emissiveIntensity:night?.9:.12});const mR=signM(1),mL=signM(-1);
   let last=-99;for(let j=0;j<N;j+=2){if(MULTI&&isDeck(j))continue;const p=track[j];if(Math.abs(p.bend)<.45||j-last<30||segBad(j))continue;const sd=-Math.sign(p.bend),q=track[(j-10+N)%N];
-    if(SHORTS.some(sc=>[sc.a,sc.b].some(e=>Math.min(Math.abs(e-j),N-Math.abs(e-j))<14)))continue;last=j;
+    if(SHORTS.some(sc=>[sc.a,sc.b].some(e=>Math.min(Math.abs(e-j),N-Math.abs(e-j))<14)))continue;if(nearHall(j,20))continue;last=j;
     for(let n=0;n<2;n++){const r=track[(j-4+n*6+N)%N],o=(WALLD+10)*sd,x=r.x+r.nx*o,z=r.y+r.ny*o;if(nearTrack(x,z,WALLD-2))continue;const g=new THREE.Group();g.position.set(x,groundAt(x,z),z);g.rotation.y=-q.ang-Math.PI/2;G.add(g);
-      put(new THREE.BoxGeometry(1.4,22,1.4),post,-12,11,0,g);put(new THREE.BoxGeometry(1.4,22,1.4),post,12,11,0,g);const b=put(new THREE.BoxGeometry(34,13,1),[post,post,post,post,sd>0?mL:mR,post],0,20,0,g);hqFrame(g,34,13,20,1,post);}}
+      put(new THREE.BoxGeometry(1.4,22,1.4),post,-12,11,-1.2,g);put(new THREE.BoxGeometry(1.4,22,1.4),post,12,11,-1.2,g);const b=put(new THREE.BoxGeometry(34,13,1),[post,post,post,post,sd>0?mL:mR,post],0,20,0,g);hqFrame(g,34,13,20,1,post);}}
   /* advance turn warnings: big arrow boards 1-2 s before every real bend, raised above the walls, item boxes and party balloons, angled at the approaching driver; an extra one before any ramp that lands into a bend */
   {SIGN_POS=[];const arrM={},arrMat=d=>arrM[d]||(arrM[d]=(()=>{const t=arrowTex(d,night);return new THREE.MeshStandardMaterial({map:t,roughness:.45,emissive:'#ffffff',emissiveMap:t,emissiveIntensity:night?.95:.28});})());
    const apex=[];for(let j=0;j<N;j++){const b=Math.abs(track[j].bend);if(b<.32)continue;if(b>=Math.abs(track[(j-1+N)%N].bend)&&b>Math.abs(track[(j+1)%N].bend)){const l=apex[apex.length-1];if(l!=null&&j-l<30){if(b>Math.abs(track[l].bend))apex[apex.length-1]=j;}else apex.push(j);}}
    if(apex.length>1&&apex[0]+N-apex[apex.length-1]<30)apex.pop();
-   const okJ=j=>{j=((j%N)+N)%N;if(MULTI&&isDeck(j))return false;if(segBad(j))return false;if(GLIDE&&j>GLIDE.rj-25&&j<GLIDE.j1+25)return false;if(typeof loopNear==='function'&&loopNear(j,24))return false;if(SHORTS.some(sc=>[sc.a,sc.b].some(e=>Math.min(Math.abs(e-j),N-Math.abs(e-j))<10)))return false;return !ramps.some(r=>{const d=Math.min(Math.abs(r.j-j),N-Math.abs(r.j-j));return d<7;});};
+   const okJ=j=>{j=((j%N)+N)%N;if(MULTI&&isDeck(j))return false;if(segBad(j))return false;if(nearHall(j,20))return false;if(GLIDE&&j>GLIDE.rj-25&&j<GLIDE.j1+25)return false;if(typeof loopNear==='function'&&loopNear(j,24))return false;if(SHORTS.some(sc=>[sc.a,sc.b].some(e=>Math.min(Math.abs(e-j),N-Math.abs(e-j))<10)))return false;return !ramps.some(r=>{const d=Math.min(Math.abs(r.j-j),N-Math.abs(r.j-j));return d<7;});};
    const board=(j,dir,big)=>{j=((j%N)+N)%N;if(!okJ(j))return false;const p=track[j],tg=track[(j-26+N)%N];for(const sd of [-dir,dir]){const o=(WALLD+7)*sd,x=p.x+p.nx*o,z=p.y+p.ny*o;if(nearTrack(x,z,WALLD-2))continue;
        const g=new THREE.Group(),y=groundAt(x,z)+(MULTI?(p.ey||0):0);g.position.set(x,y,z);G.add(g);g.lookAt(tg.x,y,tg.y);SIGN_POS.push(j);const W=big?46:40,H=big?19:16,top=big?36:32;
-       put(new THREE.BoxGeometry(1.6,top,1.6),post,-W*.36,top/2,0,g);put(new THREE.BoxGeometry(1.6,top,1.6),post,W*.36,top/2,0,g);put(new THREE.BoxGeometry(W,H,1.2),[post,post,post,post,arrMat(dir),post],0,top-H/2+1,0,g);hqFrame(g,W,H,top-H/2+1,1.2,post);return true;}return false;};
+       put(new THREE.BoxGeometry(1.6,top,1.6),post,-W*.36,top/2,-1.4,g);put(new THREE.BoxGeometry(1.6,top,1.6),post,W*.36,top/2,-1.4,g);put(new THREE.BoxGeometry(W,H,1.2),[post,post,post,post,arrMat(dir),post],0,top-H/2+1,0,g);hqFrame(g,W,H,top-H/2+1,1.2,post);return true;}return false;};
    let nAdv=0;for(const a of apex){const dir=track[a].bend>0?1:-1;
      /* first warning about 2 s out, second about 1 s out (whichever spots are clear) */
      for(const back of [40,24]){let k=0;while(k<8&&!board(a-back-k,dir,back===24))k+=2;if(k<8)nAdv++;}
@@ -5856,7 +5858,7 @@ function buildRoster(){const r=$('roster');
   renderer.setClearColor(0x000000,1);penv.dispose();renderer.shadowMap.autoUpdate=false;}
 function fitLogo(){document.querySelectorAll('.home-brand .logo').forEach(el=>{el.style.fontSize='';const p=el.parentElement;if(!p||!p.clientWidth)return;const w=el.scrollWidth,a=p.clientWidth-4;if(w>a){const fs=parseFloat(getComputedStyle(el).fontSize);el.style.fontSize=Math.floor(fs*a/w)+'px';}});}
 addEventListener('resize',()=>setTimeout(fitLogo,60));
-function updateDriverDetail(){const el=$('drvDetail');if(!el||!PORTRAITS[selected])return;const B=BIOS[selected];el.innerHTML='<img class="hero" alt="" src="'+PORTRAITS[selected]+'"><span class="sub">Favourite prop · '+B[2]+'</span>'+(ABIL[RACERS[selected].name.toLowerCase()]?'<div class="abil"><i style="background:'+ABIL[RACERS[selected].name.toLowerCase()][2]+';color:'+ABIL[RACERS[selected].name.toLowerCase()][2]+'"></i><div><b>'+ABIL[RACERS[selected].name.toLowerCase()][0]+'</b> <span>'+ABIL[RACERS[selected].name.toLowerCase()][1]+'</span></div></div>':'')+'<h3>'+B[0]+'</h3><p>'+B[1]+'</p>';}
+function updateDriverDetail(){const el=$('drvDetail');if(!el||!PORTRAITS[selected])return;const B=BIOS[selected];el.innerHTML='<img class="hero" alt="" src="'+PORTRAITS[selected]+'"><div class="dtx"><h3>'+B[0]+'</h3><span class="sub">Favourite prop · '+B[2]+'</span>'+(ABIL[RACERS[selected].name.toLowerCase()]?'<div class="abil"><i style="background:'+ABIL[RACERS[selected].name.toLowerCase()][2]+';color:'+ABIL[RACERS[selected].name.toLowerCase()][2]+'"></i><div><b>'+ABIL[RACERS[selected].name.toLowerCase()][0]+'</b> <span>'+ABIL[RACERS[selected].name.toLowerCase()][1]+'</span></div></div>':'')+'<p>'+B[1]+'</p></div>';}
 
 /* ================= GARAGE ================= */
 const garage=$('garage');let gR=null,gS=null,gC=null,gModel=null,garageOpen=false,gRot=.6,gDrag=null,gW=0,gH=0;
