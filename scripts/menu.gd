@@ -1420,7 +1420,7 @@ func _garage() -> Control:
 				build["t"] = ""
 				_build_changed())
 			grid.add_child(none)
-			for l in KartBuilder.liveries_for(String(I["bodies"][int(build["b"])]["id"])):
+			for l in KartBuilder.list_for(String(I["bodies"][int(build["b"])]["id"]), String(build.get("t", ""))):
 				var locked := Ach.liv_locked(l)
 				var lc := _livery_card(l, String(l["id"]) == String(build.get("t", "")))
 				var lid := String(l["id"])

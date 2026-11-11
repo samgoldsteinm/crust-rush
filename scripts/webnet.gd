@@ -269,7 +269,7 @@ func all_ready() -> bool:
 func _send_pick() -> void:
 	if role != "guest" or chan.is_empty() or main == null:
 		return
-	_send({"t": "pick", "ri": int(main.sel["ri"]), "build": main._my_build(), "ready": ready_})
+	_send({"t": "pick", "ri": int(main.sel["ri"]), "build": KartBuilder.web_build(main._my_build()), "ready": ready_})
 
 
 func leave(tell := true) -> void:
@@ -394,7 +394,10 @@ func pc_cfg(c: Dictionary) -> Dictionary:
 		if s < 0 or s > 7:
 			continue
 		var who := int(kd.get("who", -1))
-		slots[s] = {"ri": int(kd.get("ri", 0)), "peer": who + 1 if who >= 0 else 0, "own": who == me, "build": kd.get("build", {}), "name": String(kd.get("name", ""))}
+		var bd = kd.get("build", {})
+		if who == me and role == "guest":
+			bd = main._my_build()   # the host was sent the web stand-in for a PC-only livery: this PC draws its own
+		slots[s] = {"ri": int(kd.get("ri", 0)), "peer": who + 1 if who >= 0 else 0, "own": who == me, "build": bd, "name": String(kd.get("name", ""))}
 	return {"seed": 1, "slots": slots, "cls": String(c.get("cls", "medium"))}
 
 
@@ -925,7 +928,16 @@ func _poll_host(now: int) -> void:
 		if not cfg.is_empty() and not go:
 			for ch2 in guests_open():
 				if not loaded_ids.has(int(ch2["pid"])):
-					_send_to(ch2, {"t": "load", "cfg": cfg})
+					_send_to(ch2, {"t": "load", "cfg": _wire_cfg(cfg)})
+
+
+## the race set-up as the browsers get it: the PC's own liveries swapped for their nearest web ones
+func _wire_cfg(c: Dictionary) -> Dictionary:
+	var o := c.duplicate(true)
+	for kq in o.get("karts", []):
+		if kq is Dictionary and (kq as Dictionary).has("build"):
+			(kq as Dictionary)["build"] = KartBuilder.web_build((kq as Dictionary)["build"])
+	return o
 
 
 ## the grid: you in slot 4, friends next to you, the computer in the rest (web netBuildCfg)
@@ -987,7 +999,7 @@ func host_start() -> String:
 	tick_n = 0
 	go = false
 	for ch in guests_open():
-		_send_to(ch, {"t": "load", "cfg": cfg})
+		_send_to(ch, {"t": "load", "cfg": _wire_cfg(cfg)})
 	var err: String = main._web_host_load(pc_cfg(cfg))
 	if err != "":
 		cfg = {}

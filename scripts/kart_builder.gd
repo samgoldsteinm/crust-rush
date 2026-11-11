@@ -23,7 +23,65 @@ static func ready() -> bool:
 	if typeof(j) != TYPE_DICTIONARY:
 		return false
 	info = j
+	_merge_pc()
 	return true
+
+
+## web liveries the PC's garage list leaves out (still drawn when a browser player or an old save uses one)
+static var hidden := {}
+## PC-only livery -> the web livery a browser player sees in its place
+static var web_of := {}
+
+
+## assets/liveries_pc.json: the PC's own liveries (patterns 67 on in shaders/livery.gdshader) and the plain web
+## ones it leaves out of the list. The web's list has one id twice; the first wins, as the web's own lookup does.
+static func _merge_pc() -> void:
+	var seen := {}
+	var out: Array = []
+	for l in info.get("liveries", []):
+		var id := String((l as Dictionary).get("id", ""))
+		if seen.has(id):
+			continue
+		seen[id] = true
+		out.append(l)
+	var p := "res://assets/liveries_pc.json"
+	if FileAccess.file_exists(p):
+		var pj = JSON.parse_string(FileAccess.get_file_as_string(p))
+		if pj is Dictionary:
+			for id in (pj as Dictionary).get("hide", []):
+				hidden[String(id)] = true
+			for l in (pj as Dictionary).get("add", []):
+				var d: Dictionary = (l as Dictionary).duplicate()
+				var id2 := String(d.get("id", ""))
+				if id2 == "" or seen.has(id2):
+					continue
+				seen[id2] = true
+				d["pc"] = true
+				web_of[id2] = String(d.get("web", ""))
+				out.append(d)
+	info["liveries"] = out
+
+
+## the garage's list for a body: everything it can wear except the left-out web ones (the one on the car stays)
+static func list_for(body_id: String, current := "") -> Array:
+	var out: Array = []
+	for l in liveries_for(body_id):
+		var id := String(l["id"])
+		if hidden.has(id) and id != current:
+			continue
+		out.append(l)
+	return out
+
+
+## a build as a browser sees it: a PC-only livery becomes its nearest web one (online rooms with web players)
+static func web_build(b) -> Dictionary:
+	if not (b is Dictionary):
+		return {}
+	var d: Dictionary = (b as Dictionary).duplicate()
+	var t := String(d.get("t", ""))
+	if web_of.has(t):
+		d["t"] = String(web_of[t])
+	return d
 
 
 static func _scene(file: String) -> Node3D:
@@ -74,7 +132,7 @@ static func random_build() -> Dictionary:
 	var nb := (info["bodies"] as Array).size()
 	var b := randi() % nb
 	var lv: Array = []
-	for l in liveries_for(String(info["bodies"][b]["id"])):
+	for l in list_for(String(info["bodies"][b]["id"])):
 		if l.get("lock") == null or not l.get("lock"):
 			lv.append(l)
 	var np := (info.get("paints", []) as Array).size()
@@ -298,7 +356,11 @@ static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false) -> v
 					m3.set_surface_override_material(si, _livery_mat(lv, liv, ri))
 				else:
 					var pm := StandardMaterial3D.new()
-					pm.albedo_color = cols["paint"]
+					var pcol: Color = cols["paint"]
+					# bright white paint keeps a little room so the clear coat's reflections show on it (as the liveries)
+					pcol = pcol * (1.0 - 0.24 * smoothstep(0.6, 1.0, pcol.get_luminance()))
+					pcol.a = 1.0
+					pm.albedo_color = pcol
 					pm.vertex_color_use_as_albedo = true
 					pm.roughness = float(lv.get("r", 0.38)) if not lv.is_empty() else 0.38
 					pm.metallic = minf(float(lv.get("m", 0.12)), 0.62) if not lv.is_empty() else 0.12
@@ -348,6 +410,14 @@ static func _livery_mat(lv: Dictionary, liv: Dictionary, ri: int) -> ShaderMater
 	m.set_shader_parameter("uLBox", Vector4(box[0], box[1], box[2], box[3]))
 	m.set_shader_parameter("uLBelt", float(liv["belt"]))
 	m.set_shader_parameter("uLNum", float(ri) if bool(lv.get("num", false)) else -1.0)
+	if bool(lv.get("num", false)):
+		# PC: each livery its own number (digits 1 to 8, one or two) and number design, unless the list sets them
+		var hn := _hash(String(lv["id"]) + "#n")
+		var nv := 1 + hn % 8
+		if (hn >> 4) % 3 != 0:
+			nv = nv * 10 + 1 + (hn >> 8) % 8
+		m.set_shader_parameter("uLNumV", float(lv.get("nv", nv)))
+		m.set_shader_parameter("uLNumS", float(lv.get("ns", (hn >> 12) % 6)))
 	var np: Array = liv["numPos"]
 	m.set_shader_parameter("uLNumPos", Vector2(np[0], np[1]))
 	m.set_shader_parameter("uLNumTex", _texture("liv_num.png"))

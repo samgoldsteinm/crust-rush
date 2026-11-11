@@ -1,0 +1,33 @@
+{
+  "_about": "PC-only livery list changes, merged into garage.json's list by KartBuilder. 'hide': web liveries left out of the PC's garage list (still drawn when a web player or an old save uses them). 'add': PC-only liveries drawn by the PC's livery patterns 67 on; 'web' is the web livery a browser player sees instead.",
+  "hide": ["mozz", "french", "papaya", "retro", "diag", "desert", "verdant", "silver", "pinkblue", "mantis", "giallo", "blunotte", "hybrid", "nightracer", "lemansgold", "raid", "candy", "hawaiian", "fourcheese", "arctic", "racingred", "teal", "lowrider", "calzone", "veggie", "aurora", "skyorange"],
+  "add": [
+    {"id": "pc_powder", "cat": "endure", "name": "Powder & Orange", "pat": 67, "A": "#8cc3e6", "B": "#f47a20", "C": "#17284a", "m": 0.35, "r": 0.26, "num": true, "ns": 0, "nv": 6, "web": "skyorange"},
+    {"id": "pc_tricolore", "cat": "endure", "name": "Riviera Tricolore", "pat": 68, "A": "#ecebe6", "B": "#10265a", "C": "#d32a1e", "m": 0.35, "r": 0.24, "num": true, "ns": 1, "nv": 4, "web": "riviera"},
+    {"id": "pc_royal", "cat": "endure", "name": "Royal Rally", "pat": 69, "A": "#ecebe6", "B": "#13245a", "C": "#c9a24a", "m": 0.4, "r": 0.24, "num": true, "ns": 4, "nv": 14, "web": "raid"},
+    {"id": "pc_argyle", "cat": "endure", "name": "Argyle Le Mans", "pat": 70, "A": "#f26a1b", "B": "#1a8f4a", "C": "#efece4", "m": 0.3, "r": 0.28, "num": true, "ns": 2, "nv": 55, "web": "skyorange"},
+    {"id": "pc_shards", "cat": "classic", "name": "Tricolore Shards", "pat": 71, "A": "#eceae4", "B": "#23964a", "C": "#d6301e", "m": 0.3, "r": 0.26, "web": "check"},
+    {"id": "pc_blocks", "cat": "f1", "name": "Colour Block", "pat": 72, "A": "#2fa64a", "B": "#f6c91e", "C": "#1f5bd8", "m": 0.3, "r": 0.26, "num": true, "ns": 3, "nv": 27, "web": "rosso"},
+    {"id": "pc_pleiades", "cat": "street", "name": "Pleiades Blue", "pat": 73, "A": "#163a9a", "B": "#f4f4f2", "C": "#d9b04a", "m": 0.5, "r": 0.22, "web": "bull"},
+    {"id": "pc_butcher", "cat": "wild", "name": "Butcher Chart", "pat": 74, "A": "#f2a2b6", "B": "#7a1a2c", "C": "#7a1a2c", "m": 0.2, "r": 0.34, "web": "pinkblue"},
+    {"id": "pc_flower", "cat": "wild", "name": "Flower Power", "pat": 75, "A": "#b58ce0", "B": "#4cc25a", "C": "#ff8a2a", "m": 0.2, "r": 0.3, "web": "neon"},
+    {"id": "pc_graph", "cat": "classic", "name": "Graph Paper", "pat": 76, "A": "#e9e6dc", "B": "#16171b", "C": "#d6301e", "m": 0.15, "r": 0.4, "web": "check"},
+    {"id": "pc_synth", "cat": "wild", "name": "Synthwave", "pat": 77, "A": "#2a0f4a", "B": "#ffd23a", "C": "#ff2f8f", "m": 0.45, "r": 0.22, "web": "sunset"},
+    {"id": "pc_tartan", "cat": "classic", "name": "Highland Tartan", "pat": 78, "A": "#a8161c", "B": "#1c4a2a", "C": "#1a2140", "m": 0.05, "r": 0.62, "web": "check"},
+    {"id": "pc_hound", "cat": "classic", "name": "Houndstooth", "pat": 79, "A": "#e6e1d4", "B": "#141416", "C": "#141416", "m": 0.05, "r": 0.55, "web": "check"},
+    {"id": "pc_leopard", "cat": "wild", "name": "Leopard", "pat": 80, "A": "#d99a3a", "B": "#a8641e", "C": "#1a120c", "m": 0.15, "r": 0.42, "web": "tiger"},
+    {"id": "pc_zebra", "cat": "wild", "name": "Zebra", "pat": 81, "A": "#e6e2d8", "B": "#121214", "C": "#121214", "m": 0.15, "r": 0.4, "web": "tiger"},
+    {"id": "pc_tiedye", "cat": "wild", "name": "Tie-Dye", "pat": 82, "A": "#ff6a9a", "B": "#3ad0ff", "C": "#ffd23a", "m": 0.1, "r": 0.5, "web": "sunset"},
+    {"id": "pc_woodie", "cat": "classic", "name": "Woodie Wagon", "pat": 83, "A": "#e9dcbc", "B": "#8a5228", "C": "#d6b07a", "m": 0.25, "r": 0.3, "web": "retro"},
+    {"id": "pc_dissolve", "cat": "street", "name": "Pixel Dissolve", "pat": 84, "A": "#d6261c", "B": "#ecebe6", "C": "#141416", "m": 0.35, "r": 0.28, "web": "check"},
+    {"id": "pc_splinter", "cat": "street", "name": "Splinter Camo", "pat": 85, "A": "#a89a6a", "B": "#5a6a3a", "C": "#3a2e22", "m": 0.05, "r": 0.62, "web": "camo"},
+    {"id": "pc_wave", "cat": "wild", "name": "Great Wave", "pat": 86, "A": "#1f4f8a", "B": "#c9b48a", "C": "#0f2440", "m": 0.2, "r": 0.35, "web": "wave"},
+    {"id": "pc_kintsugi", "cat": "kustom", "name": "Kintsugi", "pat": 87, "A": "#16161a", "B": "#e0b04a", "C": "#e0b04a", "m": 0.55, "r": 0.4, "web": "blackgold"},
+    {"id": "pc_damascus", "cat": "kustom", "name": "Damascus Steel", "pat": 88, "A": "#4a4e56", "B": "#a9afb8", "C": "#d8dde4", "m": 0.9, "r": 0.2, "web": "chrome"},
+    {"id": "pc_aurora", "cat": "wild", "name": "Northern Lights", "pat": 89, "A": "#0b1430", "B": "#3dffa0", "C": "#9a4bff", "m": 0.45, "r": 0.24, "web": "aurora"},
+    {"id": "pc_sakura", "cat": "kustom", "name": "Cherry Blossom", "pat": 90, "A": "#3a1430", "B": "#ffa6c6", "C": "#24140f", "m": 0.5, "r": 0.24, "web": "neon"},
+    {"id": "pc_halftone", "cat": "super", "name": "Halftone Fade", "pat": 91, "A": "#ff5a1a", "B": "#1a1c24", "C": "#f6c91e", "m": 0.45, "r": 0.24, "web": "halftone"},
+    {"id": "pc_pastel", "cat": "super", "name": "Pastel Drift", "pat": 92, "A": "#b8e6dc", "B": "#f6b6d0", "C": "#5a4a7a", "m": 0.35, "r": 0.26, "web": "sunset"},
+    {"id": "pc_speed", "cat": "f1", "name": "Speed Lines", "pat": 93, "A": "#14161c", "B": "#ff2d6a", "C": "#2fd8ff", "m": 0.45, "r": 0.24, "num": true, "ns": 5, "nv": 16, "web": "rosso"}
+  ]
+}
