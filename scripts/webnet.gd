@@ -1125,7 +1125,14 @@ func _steps(pid: int) -> int:
 	if int(st["ok"]) > 600 and int(st["T"]) > lo:
 		st["T"] = int(st["T"]) - 1
 		st["ok"] = 0
-	return 4 if q.size() > 120 else (3 if q.size() > 40 else (2 if q.size() > int(st["T"]) * 2 + 4 else 1))
+	var n := 4 if q.size() > 120 else (3 if q.size() > 40 else (2 if q.size() > int(st["T"]) * 2 + 4 else 1))
+	# more waiting than the buffer needs (left over from a slow moment, a burst over the relay): play it down gently, an
+	# extra control every sixth step, so a friend's controls don't stay a quarter second late for the rest of the race
+	if n == 1 and q.size() > int(st["T"]) + 3:
+		st["dr"] = int(st.get("dr", 0)) + 1
+		if int(st["dr"]) % 6 == 0:
+			return 2
+	return n
 
 
 ## before each race step: queue every friend's controls for their kart
@@ -1329,6 +1336,7 @@ static var _rtc_avail := -1
 var _turn_req: HTTPRequest = null
 var rtc_n := 0
 var rtc_next := 0
+var _mdns: Array = []      # lookups of a browser's hidden local address (Mdns): the direct route on the same Wi-Fi
 
 
 static func rtc_available() -> bool:
@@ -1432,6 +1440,10 @@ func _rtc_close(ch: Dictionary) -> void:
 
 
 func _exit_tree() -> void:
+	for q in _mdns:
+		for sk in q["socks"]:
+			(sk[0] as PacketPeerUDP).close()
+	_mdns.clear()
 	for f in chans:
 		_rtc_close(chans[f])
 	_rtc_close(chan)
@@ -1501,6 +1513,8 @@ func _rtc_send(ch: Dictionary, m: Dictionary) -> bool:
 func _rtc_poll(now: int) -> void:
 	if _rtc_avail != 1:
 		return
+	if not _mdns.is_empty():
+		_mdns_poll(now)
 	var links: Array = chans.values() if role == "host" else ([chan] if not chan.is_empty() else [])
 	for ch in links:
 		var st = (ch as Dictionary).get("rtc")
@@ -1583,6 +1597,7 @@ func _rtc_answer(d: Dictionary) -> void:
 	st["answered"] = true
 	st["t_sent"] = _now()
 	(st["pc"] as WebRTCPeerConnection).set_remote_description("answer", String(sdp.get("sdp", "")))
+	_mdns_start(st, String(sdp.get("sdp", "")))
 
 
 ## host: a browser guest offers a direct link; answer it (the answer is made as the offer is set)
@@ -1596,3 +1611,70 @@ func _rtc_host(ch: Dictionary, d: Dictionary) -> void:
 	if st.is_empty():
 		return
 	(st["pc"] as WebRTCPeerConnection).set_remote_description("offer", String(sdp.get("sdp", "")))
+	_mdns_start(st, String(sdp.get("sdp", "")))
+
+
+## the browser's local address is hidden behind a made-up name (xxxx.local) that libdatachannel can't look up on
+## Windows, so on the same Wi-Fi only the TURN relay was left: ask the local network for each name (Mdns) and give
+## the link the real address. Nothing else changes: the relay and TURN routes are still there if this finds nothing.
+func _mdns_start(st: Dictionary, sdp: String) -> void:
+	var by := {}
+	for h in Mdns.hidden(sdp):
+		var hn := String(h[3]).to_lower()
+		if not by.has(hn):
+			by[hn] = []
+		(by[hn] as Array).append(h)
+	if by.is_empty():
+		return
+	var addrs := Mdns.local_ipv4()
+	for hn in by:
+		# one socket per local network (a PC with a VPN or a virtual adapter has several; the question has to go out on
+		# the Wi-Fi or Ethernet one): each sends the multicast question and, as a fallback, the same to its /24 broadcast
+		var socks: Array = []
+		for la in (addrs if not addrs.is_empty() else ["0.0.0.0"]):
+			var udp := PacketPeerUDP.new()
+			if udp.bind(0, String(la)) != OK:
+				continue
+			udp.set_broadcast_enabled(true)
+			socks.append([udp, String(la)])
+		if not socks.is_empty():
+			_mdns.append({"st": st, "pc": st["pc"], "name": hn, "cands": by[hn], "socks": socks, "t0": _now(), "next": 0, "qid": randi() & 0xFFFF})
+	NetLog.ev("mdns-ask", by.size())
+
+
+func _mdns_poll(now: int) -> void:
+	for i in range(_mdns.size() - 1, -1, -1):
+		var q: Dictionary = _mdns[i]
+		var st: Dictionary = q["st"]
+		var live: bool = st.get("pc") == q["pc"]
+		var ip := ""
+		for sk in q["socks"]:
+			var udp: PacketPeerUDP = sk[0]
+			while udp.get_available_packet_count() > 0:
+				var a := Mdns.parse_a(udp.get_packet(), String(q["name"]))
+				if a != "" and not a.begins_with("0.") and not a.begins_with("127."):
+					ip = a
+		if ip != "" and live:
+			var pc: WebRTCPeerConnection = q["pc"]
+			for c in q["cands"]:
+				pc.add_ice_candidate(String(c[0]), int(c[1]), Mdns.with_ip(String(c[2]), ip))
+			NetLog.ev("mdns-found", (q["cands"] as Array).size())
+			print("WEBNET local address found for a direct link (%s)" % role)
+		if ip != "" or not live or now - int(q["t0"]) > 3500:
+			if ip == "" and live:
+				NetLog.ev("mdns-none", 1)
+			for sk in q["socks"]:
+				(sk[0] as PacketPeerUDP).close()
+			_mdns.remove_at(i)
+			continue
+		if now >= int(q["next"]):
+			q["next"] = now + 500
+			var pk := Mdns.query(String(q["name"]), int(q["qid"]))
+			for sk in q["socks"]:
+				var udp: PacketPeerUDP = sk[0]
+				udp.set_dest_address(Mdns.GROUP, Mdns.PORT)
+				udp.put_packet(pk)
+				var bc := Mdns.broadcast_of(String(sk[1]))
+				if bc != "":
+					udp.set_dest_address(bc, Mdns.PORT)
+					udp.put_packet(pk)

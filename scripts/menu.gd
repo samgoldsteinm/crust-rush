@@ -103,7 +103,7 @@ func _input(ev: InputEvent) -> void:
 	# shows where the focus is; A (or Enter) then goes on to press that button, so A is never swallowed
 	# up or down with nothing further that way to move the border to (a long page of text, the bottom of a list):
 	# the page scrolls instead, as on the web, so the d-pad and the left stick can reach everything
-	var vdir := 1 if ev.is_action_pressed("ui_down") else (-1 if ev.is_action_pressed("ui_up") else 0)
+	var vdir := fresh_vdir(ev)
 	if vdir != 0:
 		nav_scroll.call_deferred(modal if modal != null else screens.get(cur), get_viewport().gui_get_focus_owner(), vdir)
 	if ev is InputEventJoypadButton or ev is InputEventJoypadMotion:
@@ -717,7 +717,28 @@ static func stick_scroll(root: Node, dt: float) -> void:
 		_stick_acc -= step
 
 
-## after an up/down press: if the highlight didn't move, scroll the page under it (or the biggest one showing) a step
+static var _axis_dir := {}
+
+## an up or down that is a new push: the d-pad, a key, or the left stick crossing into up or down. A stick held over
+## sends a stream of motion events that all read as "down"; only the first moves the highlight, and the rest mustn't
+## each scroll the page (that made the stick move the highlight and slide the page at the same time)
+static func fresh_vdir(ev: InputEvent) -> int:
+	var vdir := 1 if ev.is_action_pressed("ui_down") else (-1 if ev.is_action_pressed("ui_up") else 0)
+	if ev is InputEventJoypadMotion:
+		var jm := ev as InputEventJoypadMotion
+		var key := "%d:%d" % [jm.device, jm.axis]
+		var dz := InputMap.action_get_deadzone("ui_down") if InputMap.has_action("ui_down") else 0.5
+		var d := (1 if jm.axis_value > 0.0 else -1) if absf(jm.axis_value) >= dz else 0
+		var was: int = _axis_dir.get(key, 0)
+		_axis_dir[key] = d
+		if d == 0 or d == was:
+			return 0
+	return vdir
+
+
+## after an up/down press: if the highlight didn't move (the end of a list, a page of text), scroll the page under it
+## (or the biggest one showing) a step. While the highlight moves, its scroll area keeps it in view (follow_focus), so
+## the page slides along with it as it reaches the bottom or the top
 static func nav_scroll(root: Node, before: Control, dir: int) -> void:
 	if root == null or not is_instance_valid(root) or not (root is Control) or not (root as Control).is_inside_tree():
 		return
@@ -852,7 +873,66 @@ func _home() -> Control:
 		layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		layer.add_child(stamp)
 		root.add_child(layer)
+		# a newer build on the download page: say so here (an old copy still running, or a zip unpacked while the
+		# game was open so Windows kept the old CrustRush.exe, otherwise looks like the game going back a version)
+		var up := button("A newer version is out  ·  Download page", "ghost", 13.0, Vector4(12, 6, 12, 6))
+		up.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+		up.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+		up.grow_vertical = Control.GROW_DIRECTION_BEGIN
+		up.offset_right = -z(6)
+		up.offset_bottom = -z(18)
+		up.focus_mode = Control.FOCUS_NONE
+		up.pressed.connect(func(): OS.shell_open(PC_PAGE))
+		up.visible = _behind()
+		layer.add_child(up)
+		_upd_btn = up
+		_check_update()
 	return root
+
+
+const PC_PAGE := "https://samgoldsteinm.github.io/crust-rush/pc.html"
+const PC_BUILD_URL := "https://github.com/samgoldsteinm/crust-rush/releases/download/pc/pc-build.json"
+static var _latest := ""          # the build on the download page, once known
+var _upd_req: HTTPRequest = null
+var _upd_btn: Button = null
+
+
+static func _own_build() -> String:
+	var t := FileAccess.get_file_as_string("res://assets/build.json")
+	var d = JSON.parse_string(t) if t != "" else null
+	return String((d as Dictionary).get("build", "")) if d is Dictionary else ""
+
+
+static func _behind() -> bool:
+	var me := _own_build()
+	return me != "" and _latest != "" and _latest != me
+
+
+## once a session: which build the download page has (a small file the PC build publishes with the zip)
+func _check_update() -> void:
+	if _latest != "" or _upd_req != null or _own_build() == "":
+		return
+	_upd_req = HTTPRequest.new()
+	_upd_req.timeout = 8.0
+	add_child(_upd_req)
+	# a computer that reaches the web through a proxy says so in HTTPS_PROXY ("http://host:port")
+	var px := OS.get_environment("HTTPS_PROXY")
+	if px.begins_with("http://") and px.count(":") == 2:
+		var hp := px.trim_prefix("http://").trim_suffix("/").split(":")
+		if hp[0].find("@") < 0:
+			_upd_req.set_https_proxy(hp[0], int(hp[1]))
+	_upd_req.request_completed.connect(func(res: int, code_: int, _h: PackedStringArray, body: PackedByteArray):
+		if res == HTTPRequest.RESULT_SUCCESS and code_ == 200:
+			var d = JSON.parse_string(body.get_string_from_utf8())
+			if d is Dictionary:
+				_latest = String((d as Dictionary).get("build", ""))
+		_upd_req.queue_free()
+		_upd_req = null
+		if _upd_btn != null and is_instance_valid(_upd_btn):
+			_upd_btn.visible = _behind())
+	if _upd_req.request(PC_BUILD_URL) != OK:
+		_upd_req.queue_free()
+		_upd_req = null
 
 
 ## "PC build 1a2b3c4d · 2026-11-11" from assets/build.json (written by the PC build), or "" in the editor

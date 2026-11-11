@@ -1724,7 +1724,9 @@ func _show_results() -> void:
 		var nb := menu.button("Network log", "ghost", 14.0, Vector4(12, 8, 12, 8))
 		nb.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		nb.pressed.connect(func():
+			# the sheet lives in the menu layer, which is hidden during a race: show it (closing the sheet hides it again)
 			menu.netlog_back = ""
+			menu.visible = true
 			menu.show_modal("netlog"))
 		v.add_child(nb)
 	panel_results.visible = true
@@ -1912,7 +1914,7 @@ func _input(ev: InputEvent) -> void:
 		var acc := ev.is_action_pressed("ui_accept")
 		var nav := ev.is_action_pressed("ui_up") or ev.is_action_pressed("ui_down") or ev.is_action_pressed("ui_left") or ev.is_action_pressed("ui_right")
 		var host: Control = panel_pause if panel_pause != null and panel_pause.visible else (panel_results if panel_results != null and panel_results.visible else null)
-		var vdir := 1 if ev.is_action_pressed("ui_down") else (-1 if ev.is_action_pressed("ui_up") else 0)
+		var vdir := Menu.fresh_vdir(ev)
 		if host != null and vdir != 0:
 			Menu.nav_scroll.call_deferred(host, get_viewport().gui_get_focus_owner(), vdir)
 		if host != null and (acc or nav):
