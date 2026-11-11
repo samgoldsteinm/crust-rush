@@ -44,6 +44,14 @@ scrub low down, with the distance left to the fog. The sculpted mountains (your 
 uses at 3,500 points) are rebuilt from the full model's height field with about twenty times the triangles and lit from
 a detailed map of its surface; on the frozen tracks they keep their own rock colour under the snow.
 
+Water and buildings are part of it as well. The sea, the lakes, the pools under the glide gaps and the ponds become
+real water: waves that calm into the distance, colour that deepens with the depth, the bottom showing through the
+shallows with light playing on it, the sky and sun reflected, foam where it meets the shore. Pineapple Lagoon's beach
+huts, pier and lighthouse are built again properly (stilts, lap boarding, shingled roofs, porches and railings,
+shuttered windows; a braced timber pier with rope rails and lamps; a banded tower on a weathered rock with a gallery
+and a glazed lantern room). The glide canyons end in clean crust cliffs. Signs, lit windows and neon glow from the web
+game's own pictures.
+
 ## Controls
 - Keyboard: arrows/A D steer · Space/Down/S drift, brake · X/Enter first item · Z/Q second item · Shift/B keep behind ·
   hold F to look back (and throw backwards) · C/R special · P/Esc pause · F11 full screen.
@@ -66,6 +74,9 @@ a detailed map of its surface; on the frozen tracks they keep their own rock col
 - `scripts/track.gd` — track data exported from the web game.
 - `scripts/props.gd`, `scripts/hd_ground.gd`, `scripts/hd_mount.gd`, `shaders/foliage.gdshader`, `shaders/mountain*.gdshader`
   — the finished trees, bushes, rocks, ground and background mountains.
+- `scripts/hd_water.gd`, `shaders/water.gdshader` — the water. `scripts/hd_set.gd`, `shaders/hd_wood.gdshader` — the
+  rebuilt set pieces and the glide canyons' ends. `scripts/hd_surface.gd`, `shaders/relief.gdshader` — the finish on
+  plain and pictured scenery. `scripts/hd_kitchen.gd` — the kitchen tracks' room.
 - `shaders/` — sky, post grade, livery, bubbles, particles and menu backgrounds.
 - `tools/` — the exporters (tracks, garage, soundtrack), run in a browser against the web game; `hd_textures.py`
   (the leaf, frond, bough and bark pictures), `hd_ground.py` (the ground's relief and gloss maps, made in the build),
