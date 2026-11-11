@@ -49,6 +49,7 @@ async def main():
         await pg.route('**/*', route)
         await pg.goto(f'http://127.0.0.1:{PORT}/index.html', wait_until='domcontentloaded', timeout=300000)
         await pg.wait_for_function("document.getElementById('menu')&&!document.getElementById('menu').hidden", timeout=900000)
+        await pg.evaluate("__ev('window.CR_GLB_EMISSIVE=1')")
         await pg.evaluate('src=>__ev(src)', EXP)
         print('booted', round(time.time() - t0), 's', flush=True)
         await pg.evaluate("__ev(`qKey='%s';store.set('crust-q',qKey);applyQuality();applyLad(0,false);clsKey='medium';mode='single';introSkip=true;goRace(%d)`)" % (Q, MI))

@@ -61,6 +61,8 @@ class GLB{
     /* three reads roughness from the map's green channel, as glTF does; metalness (blue) only matters when metalness>0 */
     if(m.roughnessMap&&std&&!m.metalnessMap&&!(m.metalness>0)){const ti=this.texture(m.roughnessMap,'rough');if(ti!=null)P.metallicRoughnessTexture={index:ti};}
     if(m.normalMap&&!basic){const ti=this.texture(m.normalMap,'normal');if(ti!=null)M.normalTexture={index:ti,scale:m.normalScale?m.normalScale.x:1};}
+    /* the glow's own picture (lit windows, signs, neon seams): without it the whole surface glows evenly. Tracks only (window.CR_GLB_EMISSIVE) */
+    if(window.CR_GLB_EMISSIVE&&m.emissiveMap&&!basic&&m.emissive&&(m.emissive.r+m.emissive.g+m.emissive.b)>0){const ti=this.texture(m.emissiveMap,'color');if(ti!=null)M.emissiveTexture={index:ti};}
     if(m.emissive&&(m.emissive.r+m.emissive.g+m.emissive.b)>0){const s=m.emissiveIntensity==null?1:m.emissiveIntensity,mx=Math.max(m.emissive.r,m.emissive.g,m.emissive.b)*s;
       if(mx>1){M.emissiveFactor=[m.emissive.r*s/mx,m.emissive.g*s/mx,m.emissive.b*s/mx];M.extensions=Object.assign(M.extensions||{},{KHR_materials_emissive_strength:{emissiveStrength:mx}});this.ext.add('KHR_materials_emissive_strength');}
       else M.emissiveFactor=[m.emissive.r*s,m.emissive.g*s,m.emissive.b*s];}

@@ -443,8 +443,13 @@ func _build_world() -> void:
 	# the ground: the same picture with depth, gloss and a fine grain up close
 	if track != null and hd:
 		print("ground: %d finished" % HdGround.upgrade(track, String(_map_info(map_id)["dir"]).path_join(map_id + "_hd.json")))
+		# the sea, lakes and pools as real water (first, so the surface finish below leaves them alone)
+		print("water: %d surfaces" % HdWater.upgrade(track, T.theme))
 		# the web's plain-coloured scenery: a fine surface so nothing reads as flat untextured colour
 		print("surfaces: %d finished" % HdSurface.upgrade(track))
+		# the web's hand-built set pieces that read as painted boxes, built again properly (after the finish above)
+		var st0 := Time.get_ticks_msec()
+		print("set pieces: %d triangles replaced (%d ms)" % [HdSet.upgrade(track, T), Time.get_ticks_msec() - st0])
 		# the background mountains: the far ranges and the sculpted mountains, finely rebuilt
 		var mt0 := Time.get_ticks_msec()
 		var mst := HdMount.upgrade(track, 2 if quality >= 2 else 1, T.theme)

@@ -12,6 +12,7 @@ static var _mask: ImageTexture
 
 static func upgrade(root: Node) -> int:
 	_make()
+	_relief_cache.clear()
 	var done := {}
 	var n := 0
 	for node in root.find_children("*", "MeshInstance3D", true, false):
@@ -23,11 +24,55 @@ static func upgrade(root: Node) -> int:
 			if m == null or done.has(m):
 				continue
 			done[m] = true
-			if not _plain(m):
-				continue
-			_finish(m)
-			n += 1
+			if _plain(m):
+				_finish(m)
+				n += 1
+			elif _pictured(m):
+				_relief_cache[m] = _relief(m)
+				n += 1
+		# pictured materials become the relief shader (a new material, so swap it in on every surface using it)
+		for si2 in mi.mesh.get_surface_count():
+			var m2 := mi.get_active_material(si2) as StandardMaterial3D
+			if m2 != null and _relief_cache.has(m2):
+				mi.set_surface_override_material(si2, _relief_cache[m2])
 	return n
+
+
+static var _relief_cache := {}
+static var _shaders := {}
+
+
+## opaque, lit, with a picture of its own; not the ground (it has its own finish), not glowing, not triplanar
+static func _pictured(m: StandardMaterial3D) -> bool:
+	if m.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED or m.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+		return false
+	if m.albedo_texture == null or m.detail_enabled or m.normal_enabled or m.uv1_triplanar:
+		return false
+	if m.emission_enabled or m.resource_name.begins_with("terrain"):
+		return false
+	return true
+
+
+static func _relief(m: StandardMaterial3D) -> ShaderMaterial:
+	var cull := "cull_disabled" if m.cull_mode == BaseMaterial3D.CULL_DISABLED else "cull_back"
+	if not _shaders.has(cull):
+		var sh := Shader.new()
+		sh.code = (load("res://shaders/relief.gdshader") as Shader).code.replace("CULL_MODE", cull)
+		_shaders[cull] = sh
+	var r := ShaderMaterial.new()
+	r.shader = _shaders[cull]
+	r.set_shader_parameter("albedo", m.albedo_color)
+	r.set_shader_parameter("tex", m.albedo_texture)
+	r.set_shader_parameter("grain", _grain)
+	r.set_shader_parameter("uv_scale", m.uv1_scale)
+	r.set_shader_parameter("uv_offset", m.uv1_offset)
+	r.set_shader_parameter("vcol", m.vertex_color_use_as_albedo)
+	r.set_shader_parameter("rough", m.roughness)
+	r.set_shader_parameter("metal", m.metallic)
+	var tw := maxi(1, m.albedo_texture.get_width())
+	var th := maxi(1, m.albedo_texture.get_height())
+	r.set_shader_parameter("texel", Vector2(1.0 / tw, 1.0 / th))
+	return r
 
 
 ## opaque, lit, no picture of its own, not glowing, not already finished (the ground has its own)
