@@ -12,10 +12,134 @@ static var _mats := {}
 
 
 static func upgrade(root: Node3D, T: TrackData) -> int:
+	var n := canyon(root, T)
 	match T.id:
 		"lagoon":
-			return _lagoon(root, T)
-	return 0
+			n += _lagoon(root, T)
+	return n
+
+
+# ---------------------------------------------------------------- the glide canyon's ends
+
+## The glide canyon is cut into the ground by the web's pitAt; the exported ground is a coarse polar grid, so at the
+## canyon's square ends its triangles span from the rim to the floor and stand up as rows of teeth in front of the
+## crust end walls. Near both ends the ground is laid again on a fine grid (the same picture, mapped the same way: x
+## and z over 110): the canyon's floor and side slopes from the same formula, dropping straight down just behind each
+## end wall so the walls show as clean cliffs; the coarse triangles there are taken out. Drawing only.
+static func canyon(root: Node3D, T: TrackData) -> int:
+	if T.glide.is_empty() or T.pits.is_empty():
+		return 0
+	var j0 := int(T.glide.get("j0", -1))
+	var j1 := int(T.glide.get("j1", -1))
+	if j0 < 0 or j1 < 0 or j0 >= T.N or j1 >= T.N:
+		return 0
+	var ax := T.px[j0]
+	var az := T.py[j0]
+	var L := Vector2(T.px[j1] - ax, T.py[j1] - az).length()
+	if L < 50.0:
+		return 0
+	var ux := (T.px[j1] - ax) / L
+	var uz := (T.py[j1] - az) / L
+	var W := T.CURB + 25.0
+	var D := 110.0 if bool(T.glide.get("long", false)) else 50.0
+	# the canyon's own frame: x across (v), z along (u), origin at the start
+	var xf := Transform3D(Basis(Vector3(-uz, 0, ux), Vector3.UP, Vector3(ux, 0, uz)), Vector3(ax, 0, az))
+	var ends: Array = []
+	if L < 220.0:
+		ends.append([-20.0, L + 20.0])
+	else:
+		ends.append([-20.0, 50.0])
+		ends.append([L - 50.0, L + 20.0])
+	var VW := W + 80.0
+	var boxes: Array = []
+	for e in ends:
+		boxes.append([xf, Vector3(0, 0, (e[0] + e[1]) * 0.5), Vector3(VW, 2000.0, (e[1] - e[0]) * 0.5), {"terrain": true}])
+	# the ground's material, from the mesh that holds it
+	var mat: Material = null
+	var shadow := GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		var am := mi.mesh as ArrayMesh
+		if am == null:
+			continue
+		for si in am.get_surface_count():
+			var m := am.surface_get_material(si)
+			if m != null and String(m.resource_name).begins_with("terrain"):
+				mat = mi.get_surface_override_material(si) if mi.get_surface_override_material(si) != null else m
+				shadow = mi.cast_shadow
+				break
+		if mat != null:
+			break
+	if mat == null:
+		return 0
+	var cut := cut_boxes(root, boxes)
+	if cut == 0:
+		return 0
+	# the new ground: 3-unit cells, reaching 28 units past the cut so it fills the holes the coarse triangles leave;
+	# outside the cut it sits a hair lower so the old ground wins wherever both are
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var step := 3.0
+	var pad := 28.0
+	# the drop sits 0.2 behind the web's crust end walls (0.8 outside the canyon), so the walls show as the ends
+	var cliff := [-1.0, L + 1.0]
+	for e in ends:
+		var u0: float = e[0] - pad
+		var u1: float = e[1] + pad
+		var us: Array = []
+		var nu := int(ceil((u1 - u0) / step))
+		for i in nu + 1:
+			us.append([u0 + (u1 - u0) * float(i) / nu, 0])
+		for c in cliff:
+			if c > u0 and c < u1:
+				us.append([c - 0.001, -1])
+				us.append([c + 0.001, 1])
+		us.sort_custom(func(a, b): return a[0] < b[0])
+		var nv := int(ceil((VW + pad) * 2.0 / step))
+		var pts: Array = []
+		for i in us.size():
+			var row: Array = []
+			var u: float = us[i][0]
+			for j in nv + 1:
+				var v := -(VW + pad) + (VW + pad) * 2.0 * float(j) / nv
+				var x := ax + ux * u - uz * v
+				var z := az + uz * u + ux * v
+				var base := T.ground(x, z) + T.pit(x, z)
+				var d := 0.0
+				if u > cliff[0] and u < cliff[1] and absf(v) < W + 70.0:
+					var l := minf(1.0, (W + 70.0 - absf(v)) / 70.0)
+					l = l * l * (3.0 - 2.0 * l)
+					d = D * l
+				var out := maxf(maxf(e[0] - u, u - e[1]), absf(v) - VW)
+				var y := base - d - 0.6 * clampf(out / 4.0, 0.0, 1.0)
+				row.append(Vector3(x, y, z))
+			pts.append(row)
+		for i in us.size() - 1:
+			# no face across the drop itself: the crust wall stands there
+			if absf(float(us[i + 1][0]) - float(us[i][0])) < 0.01:
+				continue
+			for j in nv:
+				var p00: Vector3 = pts[i][j]
+				var p01: Vector3 = pts[i][j + 1]
+				var p10: Vector3 = pts[i + 1][j]
+				var p11: Vector3 = pts[i + 1][j + 1]
+				for tri in [[p00, p10, p11], [p00, p11, p01]]:
+					var n: Vector3 = (tri[1] - tri[0]).cross(tri[2] - tri[0]).normalized()
+					if n.y < 0.0:
+						tri = [tri[0], tri[2], tri[1]]
+					# Godot fronts wind clockwise: emit so the face points up
+					for q in [tri[0], tri[2], tri[1]]:
+						st.set_uv(Vector2(q.x, q.z) / 110.0)
+						st.add_vertex(q)
+	st.index()
+	st.generate_normals()
+	var mi2 := MeshInstance3D.new()
+	mi2.name = "hd_canyon"
+	mi2.mesh = st.commit()
+	mi2.material_override = mat
+	mi2.cast_shadow = shadow
+	root.add_child(mi2)
+	return cut
 
 
 # ---------------------------------------------------------------- Pineapple Lagoon
@@ -514,7 +638,7 @@ static func cut_boxes(root: Node, boxes: Array) -> int:
 		var cols: Array = []
 		for hx in opt.get("cols", []):
 			cols.append(Color(hx))
-		opts.append({"cyl": bool(opt.get("cyl", false)), "cols": cols})
+		opts.append({"cyl": bool(opt.get("cyl", false)), "cols": cols, "terrain": bool(opt.get("terrain", false))})
 		inv.append(xf.affine_inverse())
 		var bb := AABB(c - h, h * 2.0)
 		aabbs.append(xf * bb)
@@ -541,20 +665,22 @@ static func cut_boxes(root: Node, boxes: Array) -> int:
 			var sm := am.surface_get_material(si)
 			# which of the boxes may cut this surface (never the ground; a box with colours only those colours)
 			var here: Array = []
-			if sm == null or not String(sm.resource_name).begins_with("terrain"):
-				for i in hit:
-					var cl: Array = opts[i]["cols"]
-					if cl.is_empty():
+			var ter := sm != null and String(sm.resource_name).begins_with("terrain")
+			for i in hit:
+				if ter != bool(opts[i]["terrain"]):
+					continue
+				var cl: Array = opts[i]["cols"]
+				if cl.is_empty():
+					here.append(i)
+					continue
+				var bm := sm as BaseMaterial3D
+				if bm == null:
+					continue
+				for cc in cl:
+					var d4: Color = bm.albedo_color - cc
+					if absf(d4.r) < 0.04 and absf(d4.g) < 0.04 and absf(d4.b) < 0.04:
 						here.append(i)
-						continue
-					var bm := sm as BaseMaterial3D
-					if bm == null:
-						continue
-					for cc in cl:
-						var d4: Color = bm.albedo_color - cc
-						if absf(d4.r) < 0.04 and absf(d4.g) < 0.04 and absf(d4.b) < 0.04:
-							here.append(i)
-							break
+						break
 			if here.is_empty():
 				out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 				out.surface_set_material(out.get_surface_count() - 1, sm)
