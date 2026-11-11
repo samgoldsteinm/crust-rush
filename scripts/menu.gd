@@ -52,8 +52,17 @@ var _grad := 8.0
 var _gcy := 3.0
 var _gasp := 0.0
 var _gdrag := false
-var _gzoom := 1.0             # garage zoom (1 = the web's framing)
-var _gtilt := 0.22            # garage camera height (radians above the floor)
+var _gzoom := 1.0             # web gZoom: the camera's distance (1 = the normal framing, .32 right up close, 1.5 far)
+var _gzc := 1.0               # the distance eased towards _gzoom
+var _gpitch := 0.0            # web gPitch: extra height above the usual .22 rad (dragging up and down in the inspect view)
+var _gpc := 0.0
+var _gbig := false            # web gBig: the full-screen inspect view
+var _gtap := Vector2(-1, -1)  # where a press on the preview started (a click without a drag opens the inspect view)
+var _gtap_t := 0
+var _g_hide: Array = []       # what the inspect view hides: the header, the parts list, the stats
+var _g_hint: Control
+var _g_insp: Button
+var _g_next: Control
 var map_id := "bay"
 var cup := 0
 var maps: Array = []           # from main.maps: {id, name, mi, theme, cup}
@@ -96,7 +105,10 @@ func _input(ev: InputEvent) -> void:
 		elif cur == "driver":
 			open("home")
 		elif cur == "garage":
-			open("driver")
+			if _gbig:
+				_set_big(false)
+			else:
+				open("driver")
 		elif cur == "track":
 			open("garage" if KartBuilder.ready() else "driver")
 		get_viewport().set_input_as_handled()
@@ -506,6 +518,11 @@ func open(name_: String) -> void:
 	for k in screens:
 		(screens[k] as Control).queue_free()
 	screens.clear()
+	if name_ != "garage" or cur != "garage":
+		# coming into the garage (not rebuilding it after a change): the normal view
+		_gbig = false
+		_gzoom = 1.0
+		_gpitch = 0.0
 	cur = name_
 	bg.set_blur(name_ == "garage")
 	var s: Control
@@ -1235,43 +1252,73 @@ func _garage() -> Control:
 		var px := _px_scale()
 		_gview.size = Vector2i(maxi(16, int(svc.size.x * px)), maxi(16, int(svc.size.y * px))))
 	_garage_scene()
-	# drag to turn it (and tilt), the wheel or the right stick to zoom, double-click to reset
+	# as the web's garage: drag to turn it (and, in the inspect view, tilt); a click without a drag opens the
+	# full-screen inspect view; the wheel zooms (rolling it forward opens the inspect view too)
 	svc.gui_input.connect(func(ev):
 		if ev is InputEventMouseButton:
 			var mb := ev as InputEventMouseButton
 			if mb.button_index == MOUSE_BUTTON_LEFT:
 				_gdrag = mb.pressed
-				if mb.double_click:
-					_gzoom = 1.0
-					_gtilt = 0.22
-					_frame_garage_cam()
-			elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:
-				_zoom_garage(1.12)
-			elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-				_zoom_garage(1.0 / 1.12)
+				if mb.pressed:
+					_gtap = mb.position
+					_gtap_t = Time.get_ticks_msec()
+				elif _gtap.x >= 0.0 and not _gbig and Time.get_ticks_msec() - _gtap_t < 350:
+					_set_big(true)
+				if not mb.pressed:
+					_gtap = Vector2(-1, -1)
+			elif mb.pressed and (mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+				var up := mb.button_index == MOUSE_BUTTON_WHEEL_UP
+				_gzoom = clampf(_gzoom * exp((-0.12 if up else 0.12) * maxf(1.0, mb.factor)), 0.32, 1.5)
+				if up and not _gbig:
+					_set_big(true)
 		elif ev is InputEventMagnifyGesture:
-			_zoom_garage((ev as InputEventMagnifyGesture).factor)
+			_gzoom = clampf(_gzoom / (ev as InputEventMagnifyGesture).factor, 0.32, 1.5)
 		elif ev is InputEventMouseMotion and _gdrag:
 			var mm := ev as InputEventMouseMotion
-			_grot += mm.relative.x * 0.01
-			_gtilt = clampf(_gtilt + mm.relative.y * 0.004, 0.04, 0.95)
-			_frame_garage_cam())
-	# zoom buttons in the top-right corner (in a free layer: the panel would stretch them over the whole view)
+			_grot += mm.relative.x * 0.011
+			if _gbig:
+				_gpitch = clampf(_gpitch + mm.relative.y * 0.006, -0.12, 1.1)
+			if _gtap.x >= 0.0 and mm.position.distance_to(_gtap) > z(7):
+				_gtap = Vector2(-1, -1))
+	# the inspect button in the top-right corner (web .g-zoom), in a free layer so the panel doesn't stretch it
 	var zl := Control.new()
 	zl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	zl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	view.add_child(zl)
-	var zb := hbox(6)
-	zl.add_child(zb)
-	zb.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE)
-	zb.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	zb.position = Vector2(-z(12) - z(82), z(10))
-	for spec in [["−", 1.0 / 1.25], ["+", 1.25]]:
-		var b := button(String(spec[0]), "icon", 18.0, Vector4(12, 4, 12, 4))
-		b.custom_minimum_size = Vector2(z(38), z(34))
-		b.tooltip_text = "Zoom (mouse wheel, right stick)"
-		var f: float = spec[1]
-		b.pressed.connect(func(): _zoom_garage(f))
-		zb.add_child(b)
+	var insp := button("", "icon", 15.0, Vector4(0, 0, 0, 0))
+	var ist := box([Color(20.0 / 255, 10.0 / 255, 6.0 / 255, 0.55)], 180.0, 12.0, Color(1, 0.957, 0.863, 0.2), 1.0, Vector4(0, 0, 0, 0))
+	var ish := box([Color(40.0 / 255, 22.0 / 255, 12.0 / 255, 0.7)], 180.0, 12.0, Color(1, 0.957, 0.863, 0.35), 1.0, Vector4(0, 0, 0, 0))
+	for s3 in ["normal", "pressed"]:
+		insp.add_theme_stylebox_override(s3, ist)
+	for s3 in ["hover", "hover_pressed"]:
+		insp.add_theme_stylebox_override(s3, ish)
+	insp.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	insp.offset_left = -z(10) - z(38)
+	insp.offset_right = -z(10)
+	insp.offset_top = z(10)
+	insp.offset_bottom = z(10) + z(38)
+	insp.tooltip_text = "Inspect: full screen (mouse wheel or left stick to zoom, triggers to spin)"
+	var corners := _Corners.new()
+	corners.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	corners.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	insp.add_child(corners)
+	insp.pressed.connect(func(): _set_big(not _gbig))
+	zl.add_child(insp)
+	_g_insp = insp
+	# the inspect view's hint (web .g-hint)
+	var hpill := PanelContainer.new()
+	hpill.add_theme_stylebox_override("panel", box([Color(20.0 / 255, 10.0 / 255, 6.0 / 255, 0.5)], 180.0, 999.0, Color(0, 0, 0, 0), 0.0, Vector4(10, 5, 10, 5)))
+	hpill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hpill.add_child(label("Drag to turn and tilt  ·  mouse wheel or left stick to zoom  ·  triggers spin  ·  B or Esc closes", f_semi, 12.0, Color(1, 0.957, 0.863, 0.75)))
+	var hrow := HBoxContainer.new()
+	hrow.alignment = BoxContainer.ALIGNMENT_CENTER
+	hrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hrow.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	hrow.offset_top = -z(14) - z(28)
+	hrow.offset_bottom = -z(14)
+	hrow.add_child(hpill)
+	zl.add_child(hrow)
+	_g_hint = hrow
 	var over := vbox(0)
 	over.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	over.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1291,11 +1338,14 @@ func _garage() -> Control:
 	fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ov.add_child(fill)
-	ov.add_child(_stats_box())
+	var stb := _stats_box()
+	ov.add_child(stb)
 	# the parts
 	var side := vbox(8)
 	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_child(side)
+	_g_hide = [h, side, stb]
+	_g_next = nxt
 	var desc := ""
 	var sc := ScrollContainer.new()
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -1415,7 +1465,62 @@ func _garage() -> Control:
 	rt.text = desc
 	side.add_child(rt)
 	side.add_child(sc)
+	_apply_big()
 	return root
+
+
+## the inspect view: the preview fills the screen (the header, the parts and the stats step aside), it stops
+## turning by itself, the camera centres on the car and dragging tilts as well as turns (web setBig)
+func _set_big(v: bool) -> void:
+	if v == _gbig:
+		return
+	_gbig = v
+	if not v:
+		_gzoom = 1.0
+		_gpitch = 0.0
+	_apply_big()
+
+
+func _apply_big() -> void:
+	for n in _g_hide:
+		if n != null and is_instance_valid(n):
+			(n as Control).visible = not _gbig
+	if _g_hint != null and is_instance_valid(_g_hint):
+		_g_hint.visible = _gbig
+	if _g_insp != null and is_instance_valid(_g_insp):
+		_g_insp.tooltip_text = "Close the inspect view (B or Esc)" if _gbig else "Inspect: full screen (mouse wheel or left stick to zoom, triggers to spin)"
+		var c := _g_insp.get_child(0)
+		if c is _Corners:
+			(c as _Corners).inward = _gbig
+			(c as Control).queue_redraw()
+		default_focus = _g_insp if _gbig else (_g_next as Control)
+		if _gbig:
+			_g_insp.grab_focus.call_deferred()
+		elif _g_insp.has_focus() and _g_next != null and is_instance_valid(_g_next):
+			(_g_next as Control).grab_focus.call_deferred()
+	_gasp = 0.0
+
+
+## the inspect button's four corner marks: pointing out (open) or in (close), as the web's icon
+class _Corners extends Control:
+	var inward := false
+	func _draw() -> void:
+		var s := minf(size.x, size.y) * 20.0 / 38.0
+		var o := (size - Vector2(s, s)) * 0.5
+		var k := s / 24.0
+		var w := maxf(1.5, 2.4 * k)
+		var col := Color("#fff4dc")
+		# web paths: out M4 9V4h5 M20 9V4h-5 M4 15v5h5 M20 15v5h-5; in M9 4v5H4 M15 4v5h5 M9 20v-5H4 M15 20v-5h5
+		var lines: Array = [[[4, 9], [4, 4], [9, 4]], [[20, 9], [20, 4], [15, 4]], [[4, 15], [4, 20], [9, 20]], [[20, 15], [20, 20], [15, 20]]]
+		if inward:
+			lines = [[[9, 4], [9, 9], [4, 9]], [[15, 4], [15, 9], [20, 9]], [[9, 20], [9, 15], [4, 15]], [[15, 20], [15, 15], [20, 15]]]
+		for l in lines:
+			var pts := PackedVector2Array()
+			for p in l:
+				pts.append(o + Vector2(float(p[0]), float(p[1])) * k)
+			draw_polyline(pts, col, w, true)
+			for p2 in pts:
+				draw_circle(p2, w * 0.5, col)
 
 
 ## a livery swatch: the three colours in diagonal bands, the name, as on the web's theme cards
@@ -1609,10 +1714,26 @@ static func _rel_xf(n: Node3D, top: Node3D) -> Transform3D:
 	return xf
 
 
-## web frameGarageCam (no glider unfolded, normal zoom): fit the kart's bounding sphere in a 30 degree view, raised .22 rad
-func _zoom_garage(f: float) -> void:
-	_gzoom = clampf(_gzoom * f, 0.75, 3.2)
-	_frame_garage_cam()
+## web frameGarageCam (no glider unfolded): fit the kart's bounding sphere in a 30 degree view, raised .22 rad; set off to
+## one side (the stats panel) and looking a little low in the normal view, centred in the inspect view; zoom and tilt eased
+func _frame_garage_cam(dt := 0.0) -> void:
+	if _gcam == null or not is_instance_valid(_gcam):
+		return
+	var e := 1.0 if dt <= 0.0 else minf(1.0, dt * 10.0)
+	_gzc += (_gzoom - _gzc) * e
+	_gpc += (_gpitch - _gpc) * e
+	var asp := 1.6
+	if _gview != null and _gview.size.y > 0:
+		asp = float(_gview.size.x) / float(_gview.size.y)
+	var vh := deg_to_rad(15.0)
+	var hh := atan(tan(vh) * asp)
+	var d := _grad / sin(minf(vh, hh)) * (0.95 if _gbig else 0.84) * _gzc
+	var el := 0.22 + _gpc
+	var hz := cos(el) * d
+	var sh := 0.0 if _gbig else _grad * 0.34 * minf(1.0, asp / 1.3)
+	_gcam.near = maxf(0.5, minf(d - _grad * 1.6, d * 0.25))
+	_gcam.far = maxf(200.0, d * 8.0)
+	_gcam.look_at_from_position(Vector3(hz * 0.756 - sh * 0.654, _gcy + sin(el) * d, hz * 0.654 + sh * 0.756), Vector3(-sh * 0.654, _gcy - (0.0 if _gbig else _grad * 0.16), sh * 0.756), Vector3.UP)
 
 
 ## screen pixels for one unit of the menus' layout (2 on a 1440p screen)
@@ -1622,44 +1743,32 @@ func _px_scale() -> float:
 	return clampf(ws.y / maxf(1.0, vr.y), 1.0, 4.0)
 
 
-func _frame_garage_cam() -> void:
-	if _gcam == null or not is_instance_valid(_gcam):
-		return
-	var asp := 1.6
-	if _gview != null and _gview.size.y > 0:
-		asp = float(_gview.size.x) / float(_gview.size.y)
-	var vh := deg_to_rad(15.0)
-	var hh := atan(tan(vh) * asp)
-	var d := _grad / sin(minf(vh, hh)) * 0.84
-	var el := _gtilt
-	d /= _gzoom
-	var hz := cos(el) * d
-	var sh := _grad * 0.34 * minf(1.0, asp / 1.3) / _gzoom
-	_gcam.near = maxf(0.5, minf(d - _grad * 1.6, d * 0.25))
-	_gcam.far = maxf(200.0, d * 8.0)
-	_gcam.look_at_from_position(Vector3(hz * 0.756 - sh * 0.654, _gcy + sin(el) * d, hz * 0.654 + sh * 0.756), Vector3(-sh * 0.654, _gcy - _grad * 0.16, sh * 0.756), Vector3.UP)
-
-
 func _process(dt: float) -> void:
-	if visible and not (cur == "garage" and modal == null):
+	if visible and not (cur == "garage" and modal == null and _gbig):
 		stick_scroll(modal if modal != null else self, dt)
 	if _gturn != null and is_instance_valid(_gturn) and cur == "garage":
-		if not _gdrag:
-			_grot += dt * 0.4 / _gzoom
-		# the right stick turns and zooms it on a controller
-		var pads := Input.get_connected_joypads()
-		if pads.size() > 0:
-			var rx := Input.get_joy_axis(pads[0], JOY_AXIS_RIGHT_X)
-			var ry := Input.get_joy_axis(pads[0], JOY_AXIS_RIGHT_Y)
-			if absf(rx) > 0.2:
-				_grot += rx * dt * 2.5
-			if absf(ry) > 0.2:
-				_zoom_garage(1.0 - ry * dt * 1.6)
+		if not _gdrag and not _gbig:
+			_grot += dt * 0.4
+		# a controller, as the web's garage: the bumpers and triggers spin it (right one way, left the other; the
+		# triggers are analog, so press harder to spin faster); in the inspect view the left stick's up and down zoom
+		if modal == null:
+			var sp := 0.0
+			var zy := 0.0
+			for j in Input.get_connected_joypads():
+				var r := Input.get_joy_axis(j, JOY_AXIS_TRIGGER_RIGHT) + (1.0 if Input.is_joy_button_pressed(j, JOY_BUTTON_RIGHT_SHOULDER) else 0.0)
+				var l := Input.get_joy_axis(j, JOY_AXIS_TRIGGER_LEFT) + (1.0 if Input.is_joy_button_pressed(j, JOY_BUTTON_LEFT_SHOULDER) else 0.0)
+				if absf(r - l) > absf(sp):
+					sp = r - l
+				var ay := Input.get_joy_axis(j, JOY_AXIS_LEFT_Y)
+				if absf(ay) > absf(zy):
+					zy = ay
+			if absf(sp) > 0.05:
+				_grot += sp * dt * 2.6
+			if _gbig and absf(zy) > 0.18:
+				var z2 := signf(zy) * (absf(zy) - 0.18) / 0.82
+				_gzoom = clampf(_gzoom * exp(z2 * dt * 1.6), 0.32, 1.5)
 		_gturn.rotation.y = _grot
-		var a := float(_gview.size.x) / maxf(1.0, float(_gview.size.y))
-		if absf(a - _gasp) > 0.01:
-			_gasp = a
-			_frame_garage_cam()
+		_frame_garage_cam(dt)
 
 
 # ---------------------------------------------------------------- overlays
