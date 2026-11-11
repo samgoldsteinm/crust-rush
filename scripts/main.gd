@@ -1965,6 +1965,8 @@ func _input(ev: InputEvent) -> void:
 		if kev.pressed and not kev.echo:
 			if code == KEY_F3:
 				lbl_info.visible = not lbl_info.visible
+				# the graphics card's own time per frame (and the processor's), measured only while this shows
+				RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), lbl_info.visible)
 				return
 			if code == KEY_F11:
 				_toggle_fullscreen()
@@ -2278,7 +2280,12 @@ func _hud(dt: float) -> void:
 	hud.fps_on = fps_counter
 	_incoming(dt)
 	if lbl_info.visible:
-		lbl_info.text = "%d fps · %s · %dk tris · %d draws\n%s" % [Engine.get_frames_per_second(), RenderingServer.get_current_rendering_driver_name(), int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)) / 1000, int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)), _win_info()]
+		var vr := get_viewport().get_viewport_rid()
+		var vp := get_viewport()
+		lbl_info.text = "%d fps · %s · graphics card %.1f ms · processor %.1f ms\nview %dk tris %d draws · shadows %dk tris %d draws\n%s" % [Engine.get_frames_per_second(), RenderingServer.get_current_rendering_driver_name(),
+			RenderingServer.viewport_get_measured_render_time_gpu(vr), RenderingServer.viewport_get_measured_render_time_cpu(vr) + RenderingServer.get_frame_setup_time_cpu(),
+			vp.get_render_info(Viewport.RENDER_INFO_TYPE_VISIBLE, Viewport.RENDER_INFO_PRIMITIVES_IN_FRAME) / 1000, vp.get_render_info(Viewport.RENDER_INFO_TYPE_VISIBLE, Viewport.RENDER_INFO_DRAW_CALLS_IN_FRAME),
+			vp.get_render_info(Viewport.RENDER_INFO_TYPE_SHADOW, Viewport.RENDER_INFO_PRIMITIVES_IN_FRAME) / 1000, vp.get_render_info(Viewport.RENDER_INFO_TYPE_SHADOW, Viewport.RENDER_INFO_DRAW_CALLS_IN_FRAME), _win_info()]
 	sfx.drive(absf(k.speed) / k.base_max, true, k.boost > 0.0, k.drift != 0 and not k.air, k.tier, state != "countdown" and state != "results" and state != "menu" and not paused)
 	if k.roll > 0.0 and not paused:
 		roll_tick -= dt

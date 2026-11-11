@@ -126,7 +126,11 @@ function collect(G,root,space,opts){opts=opts||{};const buckets=new Map(),inv=ne
       for(let i=0;i<inst;i++){_m.copy(o.matrixWorld);if(o.isInstancedMesh){const im=new THREE.Matrix4();o.getMatrixAt(i,im);_m.multiply(im);}const W=new THREE.Matrix4().multiplyMatrices(inv,_m);
         let ic=null;if(o.isInstancedMesh&&o.instanceColor){ic=new THREE.Color();o.getColorAt(i,ic);}
         const part=bake(o,W,o.geometry,mat,gr,ic);if(!part||!part.I.length)continue;
-        const vc=!!part.C,mi=G.material(mat,vc),cx=W.elements[12],cz=W.elements[14],cell=opts.cell?opts.cell(o,cx,cz):'all',cs=o.castShadow?1:0;
+        /* the cell is where the geometry is, not where its object's origin is: the web's detail chunks (and other
+           merged scenery) keep world-space vertices on an object at 0,0, so every chunk landed in cell 0_0 and the PC
+           got one map-wide mesh it could neither distance-cull nor skip in the shadow passes */
+        let cx=W.elements[12],cz=W.elements[14];if(!o.isInstancedMesh){const bs=o.geometry.boundingSphere||(o.geometry.computeBoundingSphere(),o.geometry.boundingSphere);if(bs){const c=bs.center.clone().applyMatrix4(W);cx=c.x;cz=c.z;}}
+        const vc=!!part.C,mi=G.material(mat,vc),cell=opts.cell?opts.cell(o,cx,cz):'all',cs=o.castShadow?1:0;
         add(mi+'|'+cell+'|'+cs+'|'+(part.UV?1:0),mi,!!part.UV,part,{cell,cs});}}});
   return buckets;}
 
