@@ -22,7 +22,7 @@ jobs:
       matrix:
         include:
           - {n: 1, map: bay, skip: 0, secs: 7.5}
-          - {n: 2, map: frosty, skip: 32, secs: 6}
+          - {n: 2, map: frosty, skip: 26, secs: 6}
           - {n: 3, map: lagoon, skip: 44, secs: 6}
     env:
       GODOT_VERSION: "4.7.2"
