@@ -82,7 +82,8 @@ var pad_used_at := -1e9
 var item_queued := ""        # "fwd" | "fwd2" | "hold" | "hold2"
 var pad_held := [false, false, false]
 var pad_hold := [0, 0, 0]
-var look_back := false
+var look_back := false         # the camera turned round (X, or the look key)
+var aim_back := false          # the next item goes behind (look back, or the left stick pulled back)
 
 # HUD
 var ui_root: Control
@@ -132,7 +133,23 @@ var upnp_thread: Thread
 var stats := {"used": {}, "spins": 0, "boxes": 0, "player_spins": 0, "abilities": {}}
 
 
+## Godot 4.7's built-in menu actions have no controller buttons for accept and back: A presses the focused button
+## and B goes back (the web: A selects, B back), as on every console
+static func pad_menu_actions() -> void:
+	for pair in [["ui_accept", JOY_BUTTON_A], ["ui_cancel", JOY_BUTTON_B]]:
+		var have := false
+		for e in InputMap.action_get_events(pair[0]):
+			if e is InputEventJoypadButton and (e as InputEventJoypadButton).button_index == pair[1]:
+				have = true
+		if not have:
+			var jb := InputEventJoypadButton.new()
+			jb.button_index = pair[1]
+			jb.device = -1
+			InputMap.action_add_event(pair[0], jb)
+
+
 func _ready() -> void:
+	pad_menu_actions()
 	is_phone = OS.has_feature("mobile") or DisplayServer.is_touchscreen_available() and OS.get_name() in ["iOS", "Android"]
 	quality = 0 if is_phone else 2
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -774,26 +791,46 @@ func _toggle_fullscreen() -> void:
 
 
 ## the window exactly covers the screen it is on (full screen), or sits inside that screen's free area: a window
-## left bigger than its screen (it happens with several screens at different sizes) cut the menus off at the edge
+## left bigger than its screen (it happens with several screens at different sizes) cut the menus off at the edge.
+## Full screen is left to Godot to size to the screen the window is on, then checked: with two screens of different
+## sizes the window could keep the other screen's size, so the picture was cropped on every side
 func _fit_window(startup: bool) -> void:
 	if OS.has_feature("mobile") or OS.has_feature("web") or DisplayServer.get_name() == "headless":
 		return
 	var w := get_window()
-	var scr := DisplayServer.window_get_current_screen()
-	var sp := DisplayServer.screen_get_position(scr)
-	var ss := DisplayServer.screen_get_size(scr)
+	var scr := w.current_screen
 	if fs_on:
-		if startup or w.mode != Window.MODE_FULLSCREEN or w.position != sp or w.size != ss:
+		if w.mode != Window.MODE_FULLSCREEN and w.mode != Window.MODE_EXCLUSIVE_FULLSCREEN:
 			w.mode = Window.MODE_WINDOWED
-			w.position = sp
-			w.size = ss
+			var ur := DisplayServer.screen_get_usable_rect(scr)
+			w.position = ur.position
+			w.size = ur.size
 			w.mode = Window.MODE_FULLSCREEN
+		_fs_check.call_deferred(0)
 	else:
 		var ur := DisplayServer.screen_get_usable_rect(scr)
 		w.mode = Window.MODE_WINDOWED
 		w.position = ur.position
 		w.size = ur.size
 		w.mode = Window.MODE_MAXIMIZED
+
+
+## full screen: the window must be exactly its screen's size and place (checked for a few frames after switching)
+func _fs_check(n: int) -> void:
+	var w := get_window()
+	if not fs_on or (w.mode != Window.MODE_FULLSCREEN and w.mode != Window.MODE_EXCLUSIVE_FULLSCREEN):
+		return
+	var scr := w.current_screen
+	var sp := DisplayServer.screen_get_position(scr)
+	var ss := DisplayServer.screen_get_size(scr)
+	if w.size != ss or w.position != sp:
+		w.mode = Window.MODE_WINDOWED
+		w.position = sp
+		w.size = ss
+		w.mode = Window.MODE_FULLSCREEN
+	if n < 3:
+		await get_tree().create_timer(0.25).timeout
+		_fs_check(n + 1)
 
 
 func _toggle_pause() -> void:
@@ -1679,6 +1716,7 @@ func _input_state() -> Dictionary:
 	var nb := false
 	var mul := 1.0
 	var look := false
+	var stick_back := false
 	# keyboard (the keys set in Settings > Controls; the web game's by default)
 	var typing := get_viewport().gui_get_focus_owner() is LineEdit
 	if Keys.held("left") and not typing:
@@ -1721,7 +1759,7 @@ func _input_state() -> Dictionary:
 		if Input.is_joy_button_pressed(j, JOY_BUTTON_X) or Input.is_joy_button_pressed(j, JOY_BUTTON_BACK):
 			look = true
 		if ay > 0.55 and act:
-			look = true   # stick pulled back: the next item goes behind
+			stick_back = true   # stick pulled back: the next item goes behind (it never turns the camera round)
 		# items: slot 1 (A or LB) and slot 2 (B or RB); hold to keep a holdable item behind, let go to fire it
 		var groups := [[], [JOY_BUTTON_A, JOY_BUTTON_LEFT_SHOULDER], [JOY_BUTTON_B, JOY_BUTTON_RIGHT_SHOULDER]]
 		for sl in [1, 2]:
@@ -1764,7 +1802,9 @@ func _input_state() -> Dictionary:
 		steer -= 1.0
 	if r:
 		steer += 1.0
+	# X (or the look key) turns the camera round; the stick pulled back only aims the next item behind (web PAD.back)
 	look_back = look or test_look
+	aim_back = look_back or stick_back
 	var o := {"steer": clampf(steer, -1.0, 1.0), "brake": brake, "nb": nb, "mul": mul, "use": false, "back": false, "hold": false, "hold_sl": 1, "release": null}
 	var it2 := item_queued
 	item_queued = ""
@@ -1775,14 +1815,14 @@ func _input_state() -> Dictionary:
 		if kart.item != "" and kart.roll <= 0.0 and net_tick % 240 == 0:
 			it2 = "fwd"
 	if it2 != "" and kart != null and web.racing():
-		web.press(it2, look)
+		web.press(it2, aim_back)
 	elif it2 != "" and kart != null:
 		if net_role == "client":
 			if net_ready:
 				_net_item.rpc_id(1, it2)
 		else:
 			race.item_intent(kart, it2, o)
-	if bool(o["use"]) and kart.item != "" and look and not kart.item in Race.NOBACK:
+	if bool(o["use"]) and kart.item != "" and aim_back and not kart.item in Race.NOBACK:
 		o["back"] = true
 	# the TESTING cheat: the kart drives itself; your items are still yours
 	if test_drive and kart != null and race != null and state == "race" and not kart.finished:
@@ -3541,7 +3581,7 @@ func _net_client_tick() -> void:
 		return
 	var o := _input_state()
 	if net_tick % 2 == 0 and state != "results":
-		var bits := (1 if bool(o["brake"]) else 0) | (2 if bool(o["nb"]) else 0) | (4 if float(o["mul"]) > 0.0 else 0) | (8 if look_back else 0)
+		var bits := (1 if bool(o["brake"]) else 0) | (2 if bool(o["nb"]) else 0) | (4 if float(o["mul"]) > 0.0 else 0) | (8 if aim_back else 0)
 		_net_input.rpc_id(1, float(o["steer"]), bits)
 	_drain_events()
 	if state == "race" or state == "finished":
