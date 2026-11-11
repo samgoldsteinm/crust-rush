@@ -82,6 +82,7 @@ class GradText extends Control:
 
 
 func _ready() -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	f_disp = load("res://assets/fonts/Bungee-Regular.ttf")
@@ -474,7 +475,7 @@ func _draw() -> void:
 	if bool(td.get("on", false)):
 		_draw_td()
 	if fps_on:
-		_text(f_bold, "%d fps" % Engine.get_frames_per_second(), W / 2.0 - 40.0, H - 22.0, 12.0, Color(1, 0.957, 0.863, 0.8), HORIZONTAL_ALIGNMENT_CENTER, 80.0, Color(0, 0, 0, 0.8), Vector2(0, 1), 1.5)
+		_text(f_bold, "%d fps" % Engine.get_frames_per_second(), 10.0, 5.0, 12.0, Color(1, 1, 1, 0.72), HORIZONTAL_ALIGNMENT_LEFT, -1.0, Color(0, 0, 0, 0.45), Vector2(0, 1), 1.0)
 	if heat_t > 0.0:
 		var hv := get_viewport_rect().size
 		var ha := clampf(heat_t / 0.9, 0.0, 1.0)
@@ -691,18 +692,36 @@ func _racer_col(k: Kart) -> Color:
 func _draw_glow(c: Vector2, r: float, col: Color, a: float) -> void:
 	for i in 6:
 		var f := float(i) / 6.0
-		draw_circle(_p(c), (r + f * 8.0) * s, Color(col.r, col.g, col.b, a * 0.12 * (1.0 - f)))
+		draw_circle(_p(c), (r + f * 8.0) * s, Color(col.r, col.g, col.b, a * 0.12 * (1.0 - f)), true, -1.0, true)
 
 
 func _marker(k: Kart, x: float, y: float, r: float, ring: float, ring_col: Color) -> void:
-	draw_circle(_p(Vector2(x, y + 1.5)), (r + ring + 1.0) * s, Color(0, 0, 0, 0.35))
-	draw_circle(_p(Vector2(x, y)), (r + ring) * s, ring_col)
-	draw_circle(_p(Vector2(x, y)), r * s, Color("#2a1810"))
+	_soft_shadow(Vector2(x, y), r + ring, 1.5, 3.0, 0.35)
+	draw_circle(_p(Vector2(x, y)), (r + ring) * s, ring_col, true, -1.0, true)
+	draw_circle(_p(Vector2(x, y)), r * s, Color("#2a1810"), true, -1.0, true)
 	var tex: Texture2D = portraits.get(k.ri)
 	if tex != null:
 		# background-size 230%, centred at 50% 26%: the face fills the disc
-		var src := Rect2(tex.get_width() * (0.5 - 0.5 / 2.3), tex.get_height() * (0.26 - 0.26 / 2.3), tex.get_width() / 2.3, tex.get_height() / 2.3)
+		var src := _bg_src(tex, 2.3, 0.26)
 		_disc_tex(tex, Vector2(x, y), r, src)
+
+
+## the part of a portrait a round button shows with the web's `background-size: <k*100>%; background-position: 50% <py>`:
+## the picture is scaled to k times the button's width (its height follows its own shape), so the button shows a
+## square of the picture's width / k. (Scaling both sides by k squashed the wide portraits: the special button's face.)
+static func _bg_src(tex: Texture2D, k: float, py: float) -> Rect2:
+	var tw := float(tex.get_width())
+	var th := float(tex.get_height())
+	var side := minf(tw / k, th)
+	return Rect2((tw - side) * 0.5, (th - side) * py, side, side)
+
+
+## a soft drop shadow under a round button (the web's box-shadow 0 <off>px <blur>px): rings fading out, no hard edge
+func _soft_shadow(c: Vector2, r: float, off: float, blur: float, a: float) -> void:
+	var n := 10
+	for i in n:
+		var f := float(i) / float(n - 1)
+		draw_circle(_p(c + Vector2(0, off)), (r - blur * 0.35 + blur * 1.1 * f) * s, Color(0, 0, 0, a / float(n) * 1.6 * (1.0 - f * 0.5)), true, -1.0, true)
 
 
 ## a portrait cut to a circle (the web's border-radius: 50% with a background image)
@@ -722,8 +741,8 @@ func _disc_tex(tex: Texture2D, c: Vector2, r: float, src: Rect2) -> void:
 
 func _draw_pause() -> void:
 	var c := Vector2(W - 16.0 - 22.0, 12.0 + 22.0)
-	draw_circle(_p(c + Vector2(0, 3)), 24.0 * s, Color(0, 0, 0, 0.15))
-	draw_circle(_p(c), 22.0 * s, Color(29.0 / 255, 15.0 / 255, 9.0 / 255, 0.75))
+	_soft_shadow(c, 22.0, 3.0, 8.0, 0.18)
+	draw_circle(_p(c), 22.0 * s, Color(29.0 / 255, 15.0 / 255, 9.0 / 255, 0.75), true, -1.0, true)
 	_ring(c, 21.5, 1.0, Color(1, 0.957, 0.863, 0.2))
 	var k := 16.0 / 10.0
 	for bx in [1.5, 6.0]:
@@ -771,9 +790,9 @@ func _draw_items(btn: float, top: float) -> void:
 			_draw_glow(c, size / 2.0 + 3.0, CHEESE, 0.45 + 0.25 * (0.5 + 0.5 * sin(t * TAU / 1.2)))
 		elif st["held"]:
 			ring = Color(1, 0.957, 0.863, 0.35)
-		draw_circle(_p(c + Vector2(0, 10)), (size / 2.0 + 4.0) * s, Color(0, 0, 0, 0.18 * a))
-		draw_circle(_p(c), (size / 2.0 + 5.0) * s, Color(20.0 / 255, 10.0 / 255, 6.0 / 255, 0.55 * a))
-		draw_circle(_p(c), (size / 2.0 + 3.0) * s, Color(ring.r, ring.g, ring.b, ring.a * a))
+		_soft_shadow(c, size / 2.0 + 3.0, 8.0, 18.0, 0.22 * a)
+		draw_circle(_p(c), (size / 2.0 + 5.0) * s, Color(20.0 / 255, 10.0 / 255, 6.0 / 255, 0.55 * a), true, -1.0, true)
+		draw_circle(_p(c), (size / 2.0 + 3.0) * s, Color(ring.r, ring.g, ring.b, ring.a * a), true, -1.0, true)
 		draw_texture_rect(_ibtn_tex, Rect2(_p(c - Vector2(size, size) / 2.0), Vector2(size, size) * s), false, Color(1, 1, 1, a))
 		var it: String = st["it"]
 		if it != "" and icons.has(it):
@@ -785,7 +804,7 @@ func _draw_items(btn: float, top: float) -> void:
 				_text(f_bold, "HELD", c.x - 30.0, y + size + 5.0, 10.0, Color(1, 0.957, 0.863, 0.75), HORIZONTAL_ALIGNMENT_CENTER, 60.0, Color(0, 0, 0, 0.8), Vector2(0, 1), 1.2)
 		# (empty: just the round slot; the web's faint dashed square inside is left out)
 		if pad_mode:
-			_badge(Vector2(x + size - 6.0, y + size - 6.0), "A" if sl == 1 else "B", Color("#2f9a3e") if sl == 1 else Color("#d63a26"))
+			_badge(Vector2(x + size - 6.0, y + size - 6.0), "A" if sl == 1 else "B", Color("#3fa641") if sl == 1 else Color("#d93a2f"))
 
 
 func _dashed_box(p: Vector2, w: float, r: float, col: Color) -> void:
@@ -832,10 +851,17 @@ static func _rr_point(p: Vector2, w: float, r: float, d: float) -> Vector2:
 			return p + Vector2(r, r) + Vector2(cos(a4), sin(a4)) * r
 
 
+## a controller button badge (web .ph): a 20 px disc in the button's colour with a 1.5 px white rim and a soft drop
+## shadow, the letter in Bungee centred on it (dark on the yellow Y)
 func _badge(c: Vector2, txt: String, col: Color) -> void:
-	draw_circle(_p(c), 10.0 * s, Color(1, 1, 1, 0.85))
-	draw_circle(_p(c), 8.5 * s, col)
-	_text(f_disp, txt, c.x - 10.0, c.y - 5.5, 10.0, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, 20.0)
+	_soft_shadow(c, 10.0, 2.0, 6.0, 0.5)
+	draw_circle(_p(c), 10.0 * s, Color(1, 1, 1, 0.85), true, -1.0, true)
+	draw_circle(_p(c), 8.5 * s, col, true, -1.0, true)
+	var fs := int(round(10.0 * s))
+	var ink := Color("#1a0c06") if txt == "Y" else Color.WHITE
+	var tw := f_disp.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	# the baseline half a capital below the centre (Bungee's capitals are about .72 of the size)
+	draw_string(f_disp, _p(c) + Vector2(-tw * 0.5, float(fs) * 0.36), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ink)
 
 
 func _draw_special(btn: float, top: float) -> void:
@@ -848,7 +874,7 @@ func _draw_special(btn: float, top: float) -> void:
 	var ac := Color(String(Race.ABIL.get(me.racer_name.to_lower(), ["", "", "#ffe066"])[2]))
 	var chg := clampf(me.ab_c, 0.0, 1.0)
 	var ready := chg >= 0.999
-	draw_circle(_p(c + Vector2(0, 10)), (size / 2.0 + 3.0) * s, Color(0, 0, 0, 0.2))
+	_soft_shadow(c, size / 2.0 + 3.0, 8.0, 18.0, 0.24)
 	if ready:
 		var pulse := 0.6 + 0.4 * sin(t * TAU)
 		_draw_glow(c, size / 2.0 + 4.0, ac, 0.55 * pulse)
@@ -857,19 +883,19 @@ func _draw_special(btn: float, top: float) -> void:
 	_ring(c, R - rw / 2.0, rw, Color(1, 1, 1, 0.14))
 	if chg > 0.002:
 		draw_arc(_p(c), (R - rw / 2.0) * s, -PI / 2.0, -PI / 2.0 + TAU * chg, maxi(8, int(64 * chg)), ac, rw * s, true)
-	draw_circle(_p(c), (size / 2.0 + 3.0) * s, ac if ready else Color(1, 0.957, 0.863, 0.35))
-	draw_circle(_p(c), size / 2.0 * s, Color("#2a1810"))
+	draw_circle(_p(c), (size / 2.0 + 3.0) * s, ac if ready else Color(1, 0.957, 0.863, 0.35), true, -1.0, true)
+	draw_circle(_p(c), size / 2.0 * s, Color("#2a1810"), true, -1.0, true)
 	var tex: Texture2D = portraits.get(me.ri)
 	if tex != null:
-		var src := Rect2(tex.get_width() * (0.5 - 0.5 / 2.1), tex.get_height() * (0.28 - 0.28 / 2.1), tex.get_width() / 2.1, tex.get_height() / 2.1)
+		var src := _bg_src(tex, 2.1, 0.28)
 		_disc_tex(tex, c, size / 2.0, src)
 	if not ready:
-		draw_circle(_p(c), size / 2.0 * s, Color(10.0 / 255, 5.0 / 255, 3.0 / 255, 0.55))
+		draw_circle(_p(c), size / 2.0 * s, Color(10.0 / 255, 5.0 / 255, 3.0 / 255, 0.55), true, -1.0, true)
 	var lw := f_disp.get_string_size("SPECIAL", HORIZONTAL_ALIGNMENT_LEFT, -1, int(11 * s)).x / s + 12.0
 	_rbox(c.x - lw / 2.0, y + size - 7.0, lw, 15.0, ac if ready else Color(14.0 / 255, 7.0 / 255, 4.0 / 255, 0.85), Color(0, 0, 0, 0), 0.0, 8.0)
 	_text(f_disp, "SPECIAL", c.x - lw / 2.0, y + size - 5.5, 11.0, Color("#1a0c06") if ready else CREAM, HORIZONTAL_ALIGNMENT_CENTER, lw, Color(0, 0, 0, 0), Vector2.ZERO, 0.66)
 	if pad_mode:
-		_badge(Vector2(x + size - 6.0, y + size - 6.0), "Y", Color("#e0a91a"))
+		_badge(Vector2(x + size - 6.0, y + size - 6.0), "Y", Color("#e0b020"))
 	# rear-view button
 	var ry := 12.0 + top + size + 20.0
 	var rh := btn * 0.62
@@ -893,13 +919,13 @@ func _draw_special(btn: float, top: float) -> void:
 	_rbox(mx + 20.0 * k, my + 25.0 * k, 8.0 * k, 4.0 * k, CREAM, Color(0, 0, 0, 0), 0.0, 1.5 * k)
 	_text(f_disp, "REAR", x, my + mh + 1.0, 9.0, Color(1, 0.957, 0.863, 0.8), HORIZONTAL_ALIGNMENT_CENTER, size, Color(0, 0, 0, 0), Vector2.ZERO, 1.26)
 	if pad_mode:
-		_badge(Vector2(x + size - 6.0, ry + rh - 6.0), "X", Color("#2a7fd8"))
+		_badge(Vector2(x + size - 6.0, ry + rh - 6.0), "X", Color("#2f7fd8"))
 
 
 func _draw_gauge(btn: float) -> void:
 	var gw := clampf(17.0 * _vmin(), 80.0, 112.0)
 	var gh := gw * 84.0 / 120.0
-	var gx := 16.0 + btn * 1.25 + 70.0
+	var gx := (16.0 + btn * 1.25 + 70.0) if show_touch else 14.0
 	var gy := H - 14.0 - gh
 	var k := gw / 120.0
 	var c := Vector2(gx + 60.0 * k, gy + 50.0 * k)
@@ -916,9 +942,9 @@ func _draw_gauge(btn: float) -> void:
 			var f1 := float(i + 1) / n * ga
 			var col := Color("#9ae8ff") if boost else _gauge_col(f0 + (f1 - f0) * 0.5)
 			draw_arc(_p(c), 46.0 * k * s, a0 + sweep * f0, a0 + sweep * f1 + 0.01, 3, col, 7.0 * k * s, true)
-		draw_circle(_p(c + Vector2(cos(a0), sin(a0)) * 46.0 * k), 3.5 * k * s, _gauge_col(0.0) if not boost else Color("#9ae8ff"))
+		draw_circle(_p(c + Vector2(cos(a0), sin(a0)) * 46.0 * k), 3.5 * k * s, _gauge_col(0.0) if not boost else Color("#9ae8ff"), true, -1.0, true)
 		var ae := a0 + sweep * ga
-		draw_circle(_p(c + Vector2(cos(ae), sin(ae)) * 46.0 * k), 3.5 * k * s, _gauge_col(ga) if not boost else Color("#9ae8ff"))
+		draw_circle(_p(c + Vector2(cos(ae), sin(ae)) * 46.0 * k), 3.5 * k * s, _gauge_col(ga) if not boost else Color("#9ae8ff"), true, -1.0, true)
 	# inner ring: drift charge
 	draw_arc(_p(c), 36.0 * k * s, a0, a0 + sweep, 40, Color(1, 0.957, 0.863, 0.1), 3.0 * k * s, true)
 	if me.drift != 0:
@@ -1006,7 +1032,7 @@ func _drift_icon(x: float, y: float, size: float, mirror: bool, col: Color) -> v
 		draw_polyline(sh, Color(0, 0, 0, 0.35), 2.6 * k * s, true)
 		draw_polyline(out, col, 2.6 * k * s, true)
 		for e in [0, out.size() - 1]:
-			draw_circle(out[e], 1.3 * k * s, col)
+			draw_circle(out[e], 1.3 * k * s, col, true, -1.0, true)
 
 
 func _draw_glow_rect(x: float, y: float, w: float, h: float, col: Color, a: float) -> void:

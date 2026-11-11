@@ -561,7 +561,17 @@ func _load_items() -> void:
 		for ext in ["jpg", "png"]:
 			var pp := "res://assets/kart/portrait%d.%s" % [ri, ext]
 			if ResourceLoader.exists(pp):
-				portraits[ri] = load(pp)
+				# with mipmaps: the HUD draws these small (the special button, the progress bar), where a
+				# full-size picture without them comes out grainy
+				var ptx: Texture2D = load(pp)
+				var pim := ptx.get_image() if ptx != null else null
+				if pim != null and not pim.is_empty():
+					if pim.is_compressed():
+						pim.decompress()
+					pim.generate_mipmaps()
+					portraits[ri] = ImageTexture.create_from_image(pim)
+				else:
+					portraits[ri] = ptx
 				break
 	for k in ITEM_NAMES:
 		var p := "res://assets/items/icon_%s.png" % k
