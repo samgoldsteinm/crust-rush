@@ -6762,7 +6762,11 @@ function netSteps(k){const id=k.netId,q=NET.inQ[id]||(NET.inQ[id]=[]),cn=NET.con
   if(!q.length){st.wait=true;st.T=Math.min(hi,st.T+1);st.ok=0;return 0;}
   if(++st.ok>600&&st.T>lo){st.T--;st.ok=0;}/* five calm seconds: try a smaller buffer */
   /* a host that falls behind (a slow frame, a busy phone) catches up by playing several inputs per step instead of skipping any */
-  return q.length>120?4:q.length>40?3:q.length>st.T*2+4?2:1;}
+  const n=q.length>120?4:q.length>40?3:q.length>st.T*2+4?2:1;
+  /* more waiting than the buffer needs (left over from a slow moment, a burst over the relay): play it down gently, an extra
+     input every sixth step, so a friend's controls don't stay a quarter second late for the rest of the race */
+  if(n===1&&q.length>st.T+3){st.dr=(st.dr||0)+1;if(st.dr%6===0)return 2;}
+  return n;}
 function netInput(k){const q=NET.inQ[k.netId];while(q.length>1&&q[0][0]<=(NET.ack[k.netId]||0))q.shift();const e=q.shift();NET.ack[k.netId]=e[0];
   const o={steer:+e[1]||0,brake:!!e[2],nb:!!e[6],mul:e[5]===0?0:1,use:false,back:false,hold:false,holdSl:1,release:null};if(e[3]&&k.spin<=0)itemIntent(k,e[3],o);if(e[4]&&state==='race')try{useAbility(k,e[4]===2);}catch(_){}return o;}
 const r3=v=>typeof v==='number'?Math.round(v*100)/100:v;
