@@ -67,6 +67,13 @@ var mode := ""               # "lss": Last Slice Standing
 var lss_lap := 0
 var lss_done := false
 var items_off := {}         # items switched off (settings) or not yet won (award items): {name: true}
+## the glide's boost rings (web GLIDE.rings): [x, y, z, yaw] from the track data; their heights float to meet the
+## local player's glide line as they fly (web steerGlideRings), so each machine has its own; online, a person's kart is
+## judged on the ring's line only (net_on), as on the web
+var ring_y: Array = []
+var ring_snap: Array = []
+var ring_rr := 0
+var net_on := false
 
 
 ## One-player race: the player in the middle of the grid, seven computer drivers.
@@ -2094,3 +2101,103 @@ func finalize() -> void:
 			k.finish_time = race_time + maxf(0.0, T.LAPS * T.N - k.prog) * 8.0 / maxf(60.0, k.base_max * 0.85)
 	state = "done"
 	stand = standings()
+
+
+# ---------------------------------------------------------------- glide rings (web glideRings, steerGlideRings, predictGlideY)
+
+func rings() -> Array:
+	return T.glide.get("rings", []) if not T.glide.is_empty() else []
+
+
+func ring_reset() -> void:
+	var R := rings()
+	ring_y.clear()
+	ring_snap.clear()
+	for r in R:
+		ring_y.append(float(r[1]))
+		ring_snap.append(true)
+
+
+## the player starts a glide: the rings jump straight to their line (web startGlide: r.snap = true)
+func rings_snap() -> void:
+	for i in ring_snap.size():
+		ring_snap[i] = true
+
+
+## where the glide kart `k` will be, height-wise, when it has flown along the glide to `u1`
+func predict_glide_y(k: Kart, u1: float) -> float:
+	var G: Dictionary = T.glide
+	var p: Array = G["p"]
+	var ux := float(G["ux"])
+	var uy := float(G["uy"])
+	var u := (k.x - float(p[0])) * ux + (k.y - float(p[1])) * uy
+	var yv := k.wy
+	var vy := k.wvy
+	var sp := maxf(40.0, absf(k.speed))
+	var sk := -k.glider_sink
+	var dt := 1.0 / 120.0
+	var lng := bool(G.get("long", false))
+	var n := 0
+	while n < 1800 and u < u1:
+		vy -= 70.0 * dt
+		if vy < sk:
+			vy += (sk - vy) * minf(1.0, dt * 4.0)
+		if lng:
+			var gyy := T.glide_y(float(p[0]) + ux * u, float(p[1]) + uy * u)
+			if yv < gyy + 6.0 and vy < 0.0:
+				vy *= 0.8
+		yv += vy * dt
+		u += sp * dt
+		n += 1
+	return yv
+
+
+## two rings a step drift up or down to meet the player's line (only rings still well ahead)
+func steer_rings(k: Kart) -> void:
+	var R := rings()
+	if R.is_empty() or k != player or ring_y.size() != R.size():
+		return
+	var G: Dictionary = T.glide
+	var p: Array = G["p"]
+	var ux := float(G["ux"])
+	var uy := float(G["uy"])
+	var u0 := (k.x - float(p[0])) * ux + (k.y - float(p[1])) * uy
+	for t in 2:
+		ring_rr = (ring_rr + 1) % R.size()
+		var i := ring_rr
+		if k.g_rings & (1 << i):
+			continue
+		var r: Array = R[i]
+		var ru := (float(r[0]) - float(p[0])) * ux + (float(r[2]) - float(p[1])) * uy
+		if ru - u0 < 90.0:
+			continue
+		var want := predict_glide_y(k, ru) + 4.0
+		ring_y[i] = float(ring_y[i]) + (want - float(ring_y[i])) * (1.0 if bool(ring_snap[i]) else 0.25)
+		ring_snap[i] = false
+
+
+## a gliding kart through a ring it hasn't had yet: a boost (web glideRings)
+func glide_rings(k: Kart) -> void:
+	var R := rings()
+	if R.is_empty() or T.glide.get("ux") == null:
+		return
+	if ring_y.size() != R.size():
+		ring_reset()
+	steer_rings(k)
+	var ux := float(T.glide["ux"])
+	var uy := float(T.glide["uy"])
+	var judged_on_line := net_on and (k == player or k.peer != 0 or k.remote)
+	for i in R.size():
+		if k.g_rings & (1 << i):
+			continue
+		var r: Array = R[i]
+		var dx := k.x - float(r[0])
+		var dz := k.y - float(r[2])
+		var al := dx * ux + dz * uy
+		if absf(al) > 7.0:
+			continue
+		if absf(dz * ux - dx * uy) < 15.0 and (judged_on_line or absf(k.wy + 4.0 - float(ring_y[i])) < 15.0):
+			k.g_rings |= 1 << i
+			k.boost = maxf(k.boost, 0.7)
+			k.events.append("ring")
+			fx.append({"t": "ring", "x": float(r[0]), "y": float(ring_y[i]), "z": float(r[2])})

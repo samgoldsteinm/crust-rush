@@ -13,6 +13,7 @@ static var _mats := {}
 
 static func upgrade(root: Node3D, T: TrackData) -> int:
 	var n := canyon(root, T)
+	n += _pagodas(root, T)
 	match T.id:
 		"lagoon":
 			n += _lagoon(root, T)
@@ -998,6 +999,35 @@ class Kit:
 		smooth[key] = true
 		_t(_st(key), a, b, c, out, out, out)
 
+	## a lathe turned round a vertical axis through `c`
+	func lathe_at(key: String, prof: Array, c: Vector3, segs := 24) -> void:
+		var moved: Array = []
+		for q in prof:
+			moved.append([q[0], float(q[1]) + c.y])
+		var st := _st(key)
+		for i in moved.size() - 1:
+			var r0: float = moved[i][0]
+			var y0: float = moved[i][1]
+			var r1: float = moved[i + 1][0]
+			var y1: float = moved[i + 1][1]
+			var nn := Vector2(y1 - y0, -(r1 - r0)).normalized()
+			for j in segs:
+				var a0 := TAU * j / segs
+				var a1 := TAU * (j + 1) / segs
+				var d0 := Vector3(cos(a0), 0, sin(a0))
+				var d1 := Vector3(cos(a1), 0, sin(a1))
+				var n0 := (d0 * nn.x + Vector3.UP * nn.y).normalized()
+				var n1 := (d1 * nn.x + Vector3.UP * nn.y).normalized()
+				var o := Vector3(c.x, 0, c.z)
+				var p00 := o + d0 * r0 + Vector3(0, y0, 0)
+				var p01 := o + d1 * r0 + Vector3(0, y0, 0)
+				var p10 := o + d0 * r1 + Vector3(0, y1, 0)
+				var p11 := o + d1 * r1 + Vector3(0, y1, 0)
+				if r0 > 0.001:
+					_t(st, p00, p01, p11, n0, n1, n1)
+				if r1 > 0.001:
+					_t(st, p00, p11, p10, n0, n1, n0)
+
 	## a surface turned round the y axis from a profile of [radius, height] points (bottom to top)
 	func lathe(key: String, prof: Array, segs := 48, _cap := true) -> void:
 		var st := _st(key)
@@ -1038,3 +1068,217 @@ class Kit:
 			mi.visibility_range_end_margin = 300.0
 			mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 			parent.add_child(mi)
+
+# ---------------------------------------------------------------- the night tracks' pagodas
+
+## The web draws each pagoda as five stacked boxes with posts, sagging hip roofs, a neon square and corner lanterns
+## (pagodaHQ_). The PC builds them whole where the export says they stand (track data sets.pagoda: x, z, turn; base 60
+## below zero): timber-framed walls of lit paper screens behind wooden lattice, balconies with railings, bracket sets
+## under deep tiled roofs with hip ridges and upturned gold-tipped corners, a neon line under each roof, ribbed paper
+## lanterns at the corners and a ringed spire. Same footprint, height and colours as the web's.
+static func _pagodas(root: Node3D, T: TrackData) -> int:
+	var L: Array = T.sets.get("pagoda", [])
+	if L.is_empty() and OS.get_environment("CR_PAGODA_TEST") != "" and T.theme == "night":
+		# a test on a track exported before the pagodas were: where the web puts them (its turns are random)
+		for i in 4:
+			var a := float(i) / 4.0 * 6.28 + 0.6
+			var d := T.R + 900.0 + float(i % 2) * 500.0
+			L.append([cos(a) * d, sin(a) * d, float(i) * 1.3])
+	if L.is_empty():
+		return 0
+	var cols := ["#5a1a1a", "#1a1a22", "#d9b25a", "#3a0f0f", "#ff4fa8", "#ff7a3a"]
+	var xfs: Array = []
+	var boxes: Array = []
+	for q in L:
+		var xf := Transform3D(Basis(Vector3.UP, float(q[2])), Vector3(float(q[0]), -60.0, float(q[1])))
+		xfs.append(xf)
+		boxes.append([xf, Vector3(0, 540, 0), Vector3(250, 560, 250), {"cols": cols}])
+	var cut := cut_boxes(root, boxes)
+	var g := Node3D.new()
+	g.name = "hd_pagodas"
+	root.add_child(g)
+	for i in xfs.size():
+		var xf: Transform3D = xfs[i]
+		_pagoda(g, xf, T.ground(xf.origin.x, xf.origin.z) + 60.0)
+	return cut
+
+
+## the web's hqPagodaRoof: a square hip roof, H high in the middle, sagging to the eaves, corners turned up by U
+static func _proof_y(x: float, z: float, W: float, H: float, U: float) -> float:
+	var m := clampf(maxf(absf(x), absf(z)) / W, 0.0, 1.0)
+	var c := pow(absf(x * z) / (W * W), 2.2)
+	return H * pow(1.0 - m, 1.7) + U * c
+
+
+static func _pagoda(parent: Node3D, xf: Transform3D, ground: float) -> void:
+	var k := Kit.new()
+	# a stone plinth where the ground meets it
+	if ground > 0.0 and ground < 160.0:
+		k.box("stone", Vector3(0, ground - 8.0, 0), Vector3(290, 26, 290))
+		k.box("stone", Vector3(0, ground + 7.0, 0), Vector3(250, 10, 250))
+	for t in 5:
+		var w := 320.0 - t * 50.0
+		var y := t * 170.0
+		var a := w * 0.31                      # the wall's half width; the posts stand at its corners
+		var fl := y + (ground + 12.0 if t == 0 and ground > 0.0 and ground < 160.0 else 0.0)
+		# the four lacquered corner posts with a base and a capital
+		for sx in [-1.0, 1.0]:
+			for sz in [-1.0, 1.0]:
+				var pc := Vector3(sx * a, 0, sz * a)
+				k.cyl("post", pc + Vector3(0, fl, 0), pc + Vector3(0, y + 150.0, 0), 8.5, 16)
+				k.cyl("gold", pc + Vector3(0, fl, 0), pc + Vector3(0, fl + 5.0, 0), 10.5, 16)
+				k.box("lac", pc + Vector3(0, y + 146.0, 0), Vector3(22, 8, 22))
+		# each face: a solid foot, then lit paper screens behind lattice in three bays, then a frieze
+		for f in 4:
+			var ang := f * PI / 2.0
+			var o := Vector3(sin(ang), 0, cos(ang))       # out of this face
+			var r := Vector3(cos(ang), 0, -sin(ang))      # along it
+			var c := o * a
+			var span := a * 2.0 - 17.0
+			k.box_on("lac", c + Vector3(0, (fl + y + 34.0) * 0.5, 0) - o * 2.0, r, o, Vector3(span, y + 34.0 - fl, 6))
+			k.box_on("paper", c + Vector3(0, y + 79.0, 0) - o * 4.0, r, o, Vector3(span, 90, 2))
+			k.box_on("lac", c + Vector3(0, y + 136.0, 0) - o * 2.0, r, o, Vector3(span, 28, 6))
+			k.box_on("gold", c + Vector3(0, y + 44.0, 0) + o * 2.0, r, o, Vector3(span + 18.0, 5, 3))
+			k.box_on("gold", c + Vector3(0, y + 123.0, 0) + o * 2.0, r, o, Vector3(span + 18.0, 4, 3))
+			# bay posts and the lattice in each bay
+			var bays := 3
+			var bw := span / bays
+			for b in bays + 1:
+				var bx := -span * 0.5 + b * bw
+				k.box_on("post", c + r * bx + Vector3(0, y + 79.0, 0) + o * 1.0, r, o, Vector3(6, 90, 8))
+			for b in bays:
+				var x0 := -span * 0.5 + b * bw
+				var nv := 5
+				for v in range(1, nv):
+					k.box_on("lat", c + r * (x0 + bw * v / nv) + Vector3(0, y + 79.0, 0), r, o, Vector3(2.2, 88, 3))
+				for hh in range(1, 6):
+					k.box_on("lat", c + r * (x0 + bw * 0.5) + Vector3(0, y + 34.0 + 90.0 * hh / 6.0, 0), r, o, Vector3(bw - 4.0, 2.2, 3))
+			# a bracket set under the eaves at each bay post: three stepped blocks reaching out
+			for b in bays + 1:
+				var bx2 := -span * 0.5 + b * bw
+				for st in 3:
+					var reach := 10.0 + st * 9.0
+					k.box_on("lac" if st % 2 == 0 else "post", c + r * bx2 + o * (reach * 0.5) + Vector3(0, y + 141.0 + st * 3.0, 0), r, o, Vector3(10.0 + st * 3.0, 4, reach))
+			# the balcony on the upper tiers: a deck out to the posts' line and a railing
+			if t > 0:
+				var dd := a + 26.0
+				k.box_on("deck", o * (a + 13.0) + Vector3(0, y + 3.0, 0), r, o, Vector3(dd * 2.0, 5, 26))
+				var nposts := int(dd * 2.0 / 22.0)
+				for pi in nposts + 1:
+					var px := -dd + pi * (dd * 2.0 / nposts)
+					k.box_on("post", o * (a + 24.0) + r * px + Vector3(0, y + 15.0, 0), r, o, Vector3(3, 20, 3))
+				k.box_on("lac", o * (a + 24.0) + Vector3(0, y + 25.0, 0), r, o, Vector3(dd * 2.0, 3, 4))
+				k.box_on("gold", o * (a + 24.0) + Vector3(0, y + 27.0, 0), r, o, Vector3(dd * 2.0, 1.2, 4.4))
+		# the floor slab and its edge
+		k.box("post", Vector3(0, y + 155.0, 0), Vector3(w * 0.7, 10, w * 0.7))
+		# the roof: tiled top, a dark rafter underside, a fascia round the eaves, hip ridges, gold-tipped corners
+		var W := w * 0.72
+		var H := 62.0
+		var U := 30.0
+		var ry := y + 150.0
+		var n := 30
+		for i in n:
+			for j in n:
+				var x0 := -W + 2.0 * W * i / n
+				var x1 := -W + 2.0 * W * (i + 1) / n
+				var z0 := -W + 2.0 * W * j / n
+				var z1 := -W + 2.0 * W * (j + 1) / n
+				var p00 := Vector3(x0, ry + _proof_y(x0, z0, W, H, U), z0)
+				var p10 := Vector3(x1, ry + _proof_y(x1, z0, W, H, U), z0)
+				var p01 := Vector3(x0, ry + _proof_y(x0, z1, W, H, U), z1)
+				var p11 := Vector3(x1, ry + _proof_y(x1, z1, W, H, U), z1)
+				k.smooth_tri("tile", p00, p10, p11, Vector3.UP)
+				k.smooth_tri("tile", p00, p11, p01, Vector3.UP)
+				var d := Vector3(0, -4.0, 0)
+				k.smooth_tri("under", p00 + d, p11 + d, p10 + d, Vector3.DOWN)
+				k.smooth_tri("under", p00 + d, p01 + d, p11 + d, Vector3.DOWN)
+		# the fascia: a gold-edged band round the eave line
+		var edge := PackedVector3Array()
+		var m := 24
+		for side in 4:
+			for e in m:
+				var u := -1.0 + 2.0 * e / m
+				var q := Vector2(u, -1.0)
+				match side:
+					1:
+						q = Vector2(1.0, u)
+					2:
+						q = Vector2(-u, 1.0)
+					3:
+						q = Vector2(-1.0, -u)
+				var ex := q.x * W
+				var ez := q.y * W
+				edge.append(Vector3(ex, ry + _proof_y(ex, ez, W, H, U) - 2.0, ez))
+		edge.append(edge[0])
+		k.tube("gold", edge, 2.6, 6)
+		# the neon line just inside the eaves (the web's neon square at the roof's foot)
+		var neon := PackedVector3Array()
+		var s2 := w * 0.375
+		for v in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1), Vector2(-1, -1)]:
+			neon.append(Vector3(v.x * s2, ry - 2.0, v.y * s2))
+		k.tube("neon", _densify(neon, 12.0), 2.4, 6)
+		# hip ridges from the top down to each upturned corner, finished with a gold curl
+		for sx in [-1.0, 1.0]:
+			for sz in [-1.0, 1.0]:
+				var rp := PackedVector3Array()
+				for e in 13:
+					var f2 := float(e) / 12.0 * 1.04
+					var xx: float = sx * W * f2
+					var zz: float = sz * W * f2
+					rp.append(Vector3(xx, ry + _proof_y(minf(absf(xx), W), minf(absf(zz), W), W, H, U) + 2.5 + (f2 - 1.0) * 30.0 * float(f2 > 1.0), zz))
+				k.tube("ridge", rp, 3.4, 8)
+				var tip := Vector3(sx * W * 1.04, ry + U + 6.0, sz * W * 1.04)
+				k.sphere("gold", tip, 5.0, 12)
+				k.cyl("gold", tip, tip + Vector3(sx * 6.0, 10.0, sz * 6.0), 2.2, 8)
+		# the corner lanterns: ribbed paper on a gold cord, a cap, a foot and a tassel
+		for sx in [-1.0, 1.0]:
+			for sz in [-1.0, 1.0]:
+				var lc := Vector3(sx * w * 0.68, ry - 12.0, sz * w * 0.68)
+				k.cyl("gold", lc + Vector3(0, 16, 0), Vector3(lc.x, ry + _proof_y(sx * w * 0.68, sz * w * 0.68, W, H, U), lc.z), 0.9, 6)
+				var prof: Array = []
+				for e in 13:
+					var ph := float(e) / 12.0
+					prof.append([13.0 * sin(PI * (0.08 + 0.84 * ph)) * (1.0 + 0.04 * cos(ph * 40.0)), -17.0 + 34.0 * ph])
+				k.lathe_at("lan", prof, lc, 20)
+				k.lathe_at("gold", [[0.0, 15.0], [7.5, 15.0], [7.5, 19.0], [3.0, 21.0], [0.0, 21.0]], lc, 16)
+				k.lathe_at("gold", [[0.0, -21.0], [3.0, -21.0], [7.5, -19.0], [7.5, -15.0], [0.0, -15.0]], lc, 16)
+				k.cyl("tassel", lc + Vector3(0, -21, 0), lc + Vector3(0, -33, 0), 1.6, 8)
+	# the spire: a base, nine rings on a mast, a water-flame and a jewel (the web: cone, four rings, a ball)
+	var top := 5.0 * 170.0
+	k.lathe_at("gold", [[0.0, 0.0], [20.0, 0.0], [20.0, 8.0], [14.0, 14.0], [14.0, 20.0], [0.0, 20.0]], Vector3(0, top + 40.0, 0), 24)
+	k.cyl("gold", Vector3(0, top + 50.0, 0), Vector3(0, top + 170.0, 0), 4.0, 12)
+	for i in 9:
+		var ry2 := top + 70.0 + i * 10.0
+		var rr := 16.0 - i * 0.9
+		k.lathe_at("gold", [[4.0, -1.6], [rr, -1.6], [rr + 1.2, 0.0], [rr, 1.6], [4.0, 1.6]], Vector3(0, ry2, 0), 24)
+	k.lathe_at("gold", [[0.0, 0.0], [7.0, 4.0], [5.0, 10.0], [2.0, 16.0], [0.0, 18.0]], Vector3(0, top + 162.0, 0), 16)
+	k.sphere("gold", Vector3(0, top + 185.0, 0), 7.0, 16)
+	var mats := {
+		"post": _wood(Color("#3a0f0f"), Color("#1c0806"), 3, 6.0, 0.15, 0.55),
+		"lac": _wood(Color("#6a1a18"), Color("#3a0f0f"), 3, 6.0, 0.18, 0.5),
+		"deck": _wood(Color("#4a1e14"), Color("#2a120c"), 1, 7.0, 0.25, 0.7),
+		"lat": _std(Color("#24100a"), 0.6),
+		"paper": _std(Color("#ffdcae"), 0.9, 0.0, Color("#ffb867"), 1.7),
+		"gold": _std(Color("#d9b25a"), 0.3, 0.85),
+		"tile": _wood(Color("#22222c"), Color("#16161c"), 2, 5.0, 0.05, 0.74),
+		"under": _wood(Color("#2a1410"), Color("#1a0c08"), 1, 6.0, 0.1, 0.8),
+		"ridge": _std(Color("#1a1a22"), 0.45, 0.2),
+		"neon": _std(Color("#ff4fa8"), 0.4, 0.0, Color("#ff4fa8"), 3.2),
+		"lan": _std(Color("#ff6a2a"), 0.85, 0.0, Color("#ff6a2a"), 1.3),
+		"tassel": _std(Color("#c8261b"), 0.8),
+		"stone": _wood(Color("#5a5560"), Color("#3a363e"), 4, 9.0, 0.0, 0.85),
+	}
+	k.build(parent, xf, mats, 9000.0)
+
+
+## a polyline with extra points so a tube along it bends only at its corners
+static func _densify(pts: PackedVector3Array, step: float) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for i in pts.size() - 1:
+		var a := pts[i]
+		var b := pts[i + 1]
+		var nn := maxi(1, int((b - a).length() / step))
+		for e in nn:
+			out.append(a.lerp(b, float(e) / nn))
+	out.append(pts[pts.size() - 1])
+	return out

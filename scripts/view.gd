@@ -31,6 +31,7 @@ var pops: Array = []     # {n, t, s}
 var haz_nodes := {}      # id -> {n, ring, warn}
 var whaz := {"traffic": [], "rollers": [], "walk": [], "wagons": []}   # the world's moving hazards
 var pad_nodes: Array = []
+var ring_nodes: Array = []   # the glide's boost rings (web GLIDE.rings meshes; the track export leaves them out)
 var time := 0.0
 var KS := 1.76
 
@@ -338,6 +339,7 @@ func add_kart(k: Kart, sc_file_loader: Callable) -> void:
 	fm.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
 	fm.cull_mode = BaseMaterial3D.CULL_DISABLED
 	fm.disable_fog = true
+	fm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD   # PC: added like the spark sprites, so the fan glows instead of painting over
 	fan.material_override = fm
 	fan.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	fan.visible = false
@@ -366,6 +368,8 @@ func clear() -> void:
 			(cn as Node).queue_free()
 		if v["held"] != null:
 			(v["held"] as Node).queue_free()
+		if v.get("dl") != null:
+			(v["dl"] as Node).queue_free()
 	views.clear()
 	for n in box_nodes:
 		(n["n"] as Node).queue_free()
@@ -379,6 +383,9 @@ func clear() -> void:
 	for id in haz_nodes:
 		(haz_nodes[id]["n"] as Node).queue_free()
 	haz_nodes.clear()
+	for n in ring_nodes:
+		(n as Node).queue_free()
+	ring_nodes.clear()
 
 
 func _near_cam(x: float, y: float, d: float) -> bool:
@@ -640,6 +647,30 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 			fx.spawn_n(tv3.x, tv3.y + 0.5, tv3.z, (randf() - 0.5) * 10.0, 5.0 + randf() * 6.0, (randf() - 0.5) * 10.0, Color("#f2cf6a"), 2.0, 7.0, 0.7, -1.0, 1.5)
 
 
+## PC: the sparks light the road: a small flickering light in the drift's colour between the back wheels
+func _drift_light(k: Kart, v: Dictionary, tier: int) -> void:
+	var fxl: Array = v["fxL"]
+	if fxl.is_empty():
+		return
+	var dl: OmniLight3D = v.get("dl")
+	if dl == null:
+		dl = OmniLight3D.new()
+		dl.shadow_enabled = false
+		dl.light_specular = 0.6
+		dl.omni_attenuation = 1.6
+		add_child(dl)
+		v["dl"] = dl
+	var mid := Vector3.ZERO
+	for lv in fxl:
+		mid += lv as Vector3
+	mid /= float(fxl.size())
+	dl.global_position = (v["g"] as Node3D).global_transform * Vector3(mid.x - 1.0, mid.y + 1.6, 0.0)
+	dl.light_color = SPARKC[tier]
+	dl.omni_range = 26.0 + 4.0 * tier
+	dl.light_energy = (1.1 + 0.45 * tier) * (0.7 + 0.6 * randf())
+	dl.visible = true
+
+
 ## web fanUpdate: a crackling fan of spark streaks at each back wheel while a drift is charged
 func _fan(k: Kart, v: Dictionary, near: bool) -> void:
 	var tier := 0
@@ -648,11 +679,14 @@ func _fan(k: Kart, v: Dictionary, near: bool) -> void:
 	var fan: MultiMeshInstance3D = v["fan"]
 	fan.visible = tier > 0
 	if tier == 0:
+		if v.get("dl") != null:
+			(v["dl"] as OmniLight3D).visible = false
 		return
 	# the web draws these without tone mapping: lift them by the same amount as the spark sprites so they
 	# come out of Godot's tone mapper at full strength
-	var c: Color = SPARKC[tier].srgb_to_linear() * 1.6
+	var c: Color = SPARKC[tier].srgb_to_linear() * 1.25
 	(v["fan_mat"] as StandardMaterial3D).albedo_color = Color(c.r, c.g, c.b, 1.0).linear_to_srgb()
+	_drift_light(k, v, tier)
 	var mm := fan.multimesh
 	var n := 0
 	for lv in v["fxL"]:
@@ -1091,6 +1125,7 @@ func draw(al: float, dt: float, racing: bool, paused: bool) -> void:
 	_draw_projectiles(al, 0.0 if paused else dt)
 	_draw_hazards()
 	_draw_world_haz(0.0 if paused else dt)
+	_draw_rings()
 	if not paused:
 		fx.step(dt)
 
@@ -1295,8 +1330,46 @@ func _draw_world_haz(dt: float) -> void:
 			n4.rotation = Vector3(0.0, -atan2(float(tr["uy"]), float(tr["ux"])) + (PI if float(tr["dir"]) > 0.0 else 0.0), 0.0)
 
 
+## the glide rings: a bright torus 15 across, standing across the glide line, gently breathing; the height follows the
+## race's floating ring heights (they meet the player's glide line)
+func _draw_rings() -> void:
+	var R := race.rings()
+	if R.is_empty():
+		return
+	if ring_nodes.size() != R.size():
+		for n in ring_nodes:
+			(n as Node).queue_free()
+		ring_nodes.clear()
+		var tm := TorusMesh.new()
+		tm.inner_radius = 15.0 - 1.1
+		tm.outer_radius = 15.0 + 1.1
+		tm.rings = 44
+		tm.ring_segments = 10
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.albedo_color = Color("#7fe8ff")
+		for r in R:
+			var mi := MeshInstance3D.new()
+			mi.mesh = tm
+			mi.material_override = mat
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			# three's torus stands in its XY plane, Godot's lies in XZ: stand it up, then turn it to the glide (web rotation.y)
+			mi.set_meta("basis", Basis(Vector3.UP, float(r[3]) if (r as Array).size() > 3 else 0.0) * Basis(Vector3.RIGHT, PI / 2.0))
+			add_child(mi)
+			ring_nodes.append(mi)
+	for i in R.size():
+		var mi: MeshInstance3D = ring_nodes[i]
+		var r: Array = R[i]
+		var yy := float(race.ring_y[i]) if i < race.ring_y.size() else float(r[1])
+		var sc := 1.0 + sin(time * 4.0 + float(i)) * 0.05
+		mi.transform = Transform3D((mi.get_meta("basis") as Basis).scaled(Vector3(sc, sc, sc)), Vector3(float(r[0]), yy, float(r[2])))
+
+
 func race_event(ed: Dictionary) -> void:
 	var t: String = ed["t"]
+	if t == "ring":
+		fx.ring(float(ed["x"]), float(ed["y"]), float(ed["z"]), Color("#7fe8ff"), 30.0, 0.5, false)
+		return
 	if t == "hzbump":
 		var kb: Kart = ed["k"]
 		fx.burst(kb.x, kb.wy + 6.0, kb.y, 10, _cols(["#fff4dc", "#ffe066"]), 40.0, 2.2)

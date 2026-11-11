@@ -5,6 +5,9 @@ render_mode unshaded, blend_add, depth_draw_never, cull_disabled, fog_disabled, 
 
 uniform sampler2D tex : source_color, filter_linear, repeat_disable;
 uniform bool additive = true;
+// PC: a fast spark is drawn as a streak along its motion (as long as the ground it covers in a thirtieth of a
+// second, up to six times its size), thinner as it stretches; a slow one stays a round glow (INSTANCE_CUSTOM = velocity)
+uniform float streak = 1.0;
 varying vec4 vc;
 
 void vertex() {
@@ -17,7 +20,13 @@ void vertex() {
 	vc = COLOR;
 	vc.a *= clamp(max_px * 1.6 / max(ps, 0.001), 0.25, 1.0);
 	float s2 = min(ps, max_px) * depth / scale_px;
-	vec3 v = cv.xyz + vec3(VERTEX.xy * s2, 0.0);
+	vec3 vel = (VIEW_MATRIX * vec4(INSTANCE_CUSTOM.xyz, 0.0)).xyz;
+	float vl = length(vel.xy);
+	vec2 dir = vl > 0.001 ? vel.xy / vl : vec2(1.0, 0.0);
+	vec2 perp = vec2(-dir.y, dir.x);
+	float st = 1.0 + clamp(vl * 0.033 / max(s2, 0.001), 0.0, 5.0) * streak;
+	vec2 off = dir * VERTEX.x * s2 * st + perp * VERTEX.y * s2 * mix(1.0, 0.65, clamp(st - 1.0, 0.0, 1.0));
+	vec3 v = cv.xyz + vec3(off, 0.0);
 	POSITION = PROJECTION_MATRIX * vec4(v, 1.0);
 }
 

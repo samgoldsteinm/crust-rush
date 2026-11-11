@@ -28,6 +28,7 @@ class Pool:
 		mm = MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		mm.use_colors = true
+		mm.use_custom_data = true   # each particle's velocity: the spark shader draws a fast spark as a streak
 		var q := QuadMesh.new()
 		q.size = Vector2(1, 1)
 		mm.mesh = q
@@ -84,6 +85,7 @@ class Pool:
 			col.a = minf(1.0, f * 1.6)
 			mm.set_instance_transform(n, Transform3D(Basis.from_scale(Vector3(s, s, s)), p[i]))
 			mm.set_instance_color(n, col)
+			mm.set_instance_custom_data(n, Color(vv.x, vv.y, vv.z, 0.0))
 			n += 1
 		mm.visible_instance_count = n
 

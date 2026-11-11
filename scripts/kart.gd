@@ -46,6 +46,7 @@ var air_t := 0.0
 var glide := false
 var g_h := 99.0
 var g_tr := 0
+var g_rings := 0          # the glide's boost rings this kart has flown through this glide (web gRings, a bit each)
 var trick := false
 var trick_t := 0.0
 var trick_n := 0
@@ -909,6 +910,8 @@ func _vertical(dt: float) -> bool:
 			var gyy := T.glide_y(x, y)
 			if g < gyy - 20.0 and wy < gyy + 6.0 and wvy < 0.0:
 				wvy *= 0.8
+			if race != null:
+				race.glide_rings(self)
 			g_h = wy - maxf(g, gyy)
 		else:
 			wvy -= ((80.0 if wvy > 0.0 else 110.0) if big else 260.0) * dt
@@ -960,7 +963,10 @@ func _start_glide() -> void:
 	speed = maxf(speed, base_max * 0.85)
 	wvy = 55.0 + speed * 0.08
 	g_tr = 0
+	g_rings = 0
 	g_h = 99.0
+	if race != null and race.player == self:
+		race.rings_snap()
 
 
 func _land() -> void:

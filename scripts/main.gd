@@ -456,7 +456,7 @@ func _build_world() -> void:
 	if track != null:
 		world.add_child(track)
 		_prepare_track(track)
-	var hd := hd_on and quality >= 1
+	var hd := hd_on and quality >= 1 and OS.get_environment("CR_HD") != "0"   # CR_HD=0: tests that only need the race
 	# the ground: the same picture with depth, gloss and a fine grain up close
 	if track != null and hd:
 		print("ground: %d finished" % HdGround.upgrade(track, String(_map_info(map_id)["dir"]).path_join(map_id + "_hd.json")))
@@ -787,9 +787,26 @@ func _toggle_res() -> void:
 	_apply_res()
 
 
+## below full size on a Forward+ graphics card, AMD FSR 2 draws the 3D view: it rebuilds a sharp full-size picture from
+## several smaller frames and is the anti-aliasing too, so multisampling goes off (at 85% it looks close to full size
+## and takes a good share of the work off the graphics card). Elsewhere, FSR 1.
+func _fsr2() -> bool:
+	return res_scale < 0.99 and RenderingServer.get_current_rendering_method() == "forward_plus"
+
+
+func _msaa() -> Viewport.MSAA:
+	if _fsr2():
+		return Viewport.MSAA_DISABLED
+	return Viewport.MSAA_4X if quality >= 2 else (Viewport.MSAA_2X if quality >= 1 else Viewport.MSAA_DISABLED)   # web Ultra: 4x
+
+
 func _apply_res() -> void:
 	var vp := get_viewport()
-	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if res_scale < 0.99 else Viewport.SCALING_3D_MODE_BILINEAR
+	if res_scale < 0.99:
+		vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR2 if _fsr2() else Viewport.SCALING_3D_MODE_FSR
+	else:
+		vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+	vp.msaa_3d = _msaa()
 	vp.scaling_3d_scale = res_scale
 	vp.fsr_sharpness = 0.25 if sharpen_on else 2.0
 	btn_res.text = "Resolution: %d%%" % int(round(res_scale * 100.0))
@@ -945,6 +962,7 @@ func _start_race(cfg: Dictionary) -> void:
 				if k.peer > 1:
 					k.web = true
 	kart = race.player
+	race.net_on = net_role != "" or web.role != ""
 	if auto_drive and net_role != "client":
 		kart.ai["auto"] = true
 	race.items_off = items_off()
@@ -1232,6 +1250,11 @@ func _drain_events() -> void:
 			elif e == "hop":
 				if mine:
 					sfx.play("hop", 0.6)
+			elif e == "ring":
+				# a glide ring (web SFX.ring and a small shake)
+				if mine:
+					_shake(0.15)
+					sfx.play("ring", 0.9)
 			elif e.begins_with("tier"):
 				if mine:
 					sfx.play("tier", 0.6, 0.8 + 0.2 * int(e.right(1)))
@@ -2683,8 +2706,8 @@ func _settings_panel() -> Control:
 				["Ambient occlusion", "Soft contact shading in corners and crevices, computed every frame. The single most expensive effect: turn it off to run Ultra's detail at a higher frame rate.", "ao", on_off, "1" if ao_on else "0"],
 				["Sharpening", "When the 3D view is drawn below screen size to hold the frame rate, a sharpening pass brings the detail back. Turn off if you prefer a softer picture.", "sharp", on_off, "1" if sharpen_on else "0"],
 				["Scenery distance", "How far away trackside props are drawn.", "scenery", [["0", "Near"], ["1", "Normal"], ["2", "Far"]], str(scenery)],
-				["Frame rate", "Auto runs at your monitor's full rate. 60 fps caps the game at a steady 60 for slower computers.", "fps", [["0", "Auto"], ["60", "60 fps"], ["120", "120 fps"]], str(fps_cap)],
-				["Resolution", "Draw the 3D view smaller and scale it up, for a higher frame rate on slower graphics cards.", "res", {"lo": 50, "hi": 100, "step": 5, "fmt": "%d%%", "mul": 0.01}, res_scale],
+				["Frame rate", "Auto runs as fast as your monitor shows (with G-SYNC or FreeSync, up to its refresh rate), so the graphics card works flat out. A cap lets it rest between frames: 90 still feels smooth and takes a good share of the load off.", "fps", [["0", "Auto"], ["60", "60"], ["90", "90"], ["120", "120"], ["144", "144"]], str(fps_cap)],
+				["Resolution", "Draw the 3D view smaller and scale it up for a higher frame rate. On most graphics cards AMD FSR 2 rebuilds the full-size picture (it does the anti-aliasing too): 85% looks close to full size and eases the load a lot.", "res", {"lo": 50, "hi": 100, "step": 5, "fmt": "%d%%", "mul": 0.01}, res_scale],
 				["Full screen", "F11 switches too.", "fs", on_off, "1" if DisplayServer.window_get_mode() in [DisplayServer.WINDOW_MODE_FULLSCREEN, DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN] else "0"],
 				["Frame counter", "Show frames per second during a race.", "fpsc", on_off, "1" if fps_counter else "0"],
 			]))
@@ -3167,7 +3190,7 @@ func _apply_quality() -> void:
 		sun.directional_shadow_fade_start = 0.9
 		sun.light_angular_distance = 0.0
 		sun.shadow_blur = 1.2
-	vp.msaa_3d = Viewport.MSAA_4X if quality >= 2 else (Viewport.MSAA_2X if quality >= 1 else Viewport.MSAA_DISABLED)   # web Ultra: 4x
+	vp.msaa_3d = _msaa()
 
 
 func _save_settings() -> void:

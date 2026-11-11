@@ -43,7 +43,8 @@ var pads: Array = []       # {j, lat, w}
 var obstacles: Array = []  # {x, y, r, h}
 var grid: Array = []       # {x, y, a, wy, player}
 var grid_prog: Array = []
-var glide := {}            # {j0, j1, rj, long} or empty
+var glide := {}            # {j0, j1, rj, long, p, ux, uy, L, y, rings: [[x, y, z, yaw]]} or empty
+var sets := {}             # set pieces the PC builds itself, from the export: {pagoda: [[x, z, yaw]]}
 var shorts: Array = []     # shortcuts: {a, b, s, route, w, n, x, y, tx, ty, nx, ny}
 var stat_mods := {}        # the player's kart multipliers: spd, acc, hnd, wgt, off
 var light := {}
@@ -136,6 +137,7 @@ func _read(d: Dictionary) -> void:
 	grid = d["grid"]
 	grid_prog = d.get("gridProg", [])
 	glide = d["glide"] if d.get("glide") != null else {}
+	sets = d["sets"] if d.get("sets") is Dictionary else {}
 	stat_mods = d["statMods"] if d.get("statMods") != null else {"spd": 1.0, "acc": 1.0, "hnd": 1.0, "wgt": 1.0, "off": 0.0}
 	light = d["light"]
 	sky = d["sky"] if d.get("sky") != null else {}

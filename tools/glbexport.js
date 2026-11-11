@@ -135,7 +135,9 @@ window.__exportTrack=function(name){const G=new GLB();G.extDir=name+'_tex';
   const kartSet=new Set(karts.map(k=>k.m&&k.m.g).filter(Boolean));
   /* things that move are drawn by the game, not baked into the track: traffic, walkers, the train's wagons, rolling meatballs, item boxes */
   const hz=__hazSet();
-  const skip=o=>{for(let p=o;p;p=p.parent){if(kartSet.has(p)||hz.has(p))return true;if(p.userData&&(p.userData.isBox||p.userData.box||p.userData.fx||p.userData.dyn||p.userData.hdProp))return true;}return false;};
+  /* the glide's boost rings float to meet each player's glide line: the PC draws and moves its own (race data glide.rings) */
+  const ringSet=new Set((typeof GLIDE!=='undefined'&&GLIDE&&GLIDE.rings)?GLIDE.rings.map(r=>r.m).filter(Boolean):[]);
+  const skip=o=>{for(let p=o;p;p=p.parent){if(kartSet.has(p)||hz.has(p)||ringSet.has(p))return true;if(p.userData&&(p.userData.isBox||p.userData.box||p.userData.fx||p.userData.dyn||p.userData.hdProp))return true;}return false;};
   /* the ground gets its own material name, so the PC can give it a finished surface */
   try{if(typeof TERR!=='undefined'&&TERR&&TERR.chunks)for(const c of TERR.chunks)if(c.material)c.material.name='terrain';}catch(e){}
   const CELL=700,DSET=new Set();for(const ch of (typeof detailChunks!=='undefined'?detailChunks:[]))for(const m of ch.ms)DSET.add(m);
@@ -263,7 +265,13 @@ window.__exportData=function(step){step=step||10;const def=MAPS[mapIdx];const R=
       fog:fog?{color:'#'+fog.color.getHexString(),near:fog.near,far:fog.far,density:fog.density}:null,bg:bg?'#'+bg.getHexString():null,exposure:renderer.toneMappingExposure},
     sky:(()=>{let u=null;world.traverse(o=>{const m=o.material;if(!u&&m&&m.isShaderMaterial&&m.uniforms&&m.uniforms.top&&m.uniforms.hor)u=m.uniforms;});if(!u)return null;const c=x=>x&&x.value&&x.value.isColor?'#'+x.value.getHexString():null;return {top:c(u.top),hor:c(u.hor),bot:c(u.bot),sunCol:c(u.sunCol),sunDir:u.sunDir&&u.sunDir.value&&u.sunDir.value.toArray?u.sunDir.value.toArray():null};})(),
     gridProg:karts.map(k=>k.prog),
-    glide:(typeof GLIDE!=='undefined'&&GLIDE)?{j0:GLIDE.j0,j1:GLIDE.j1,rj:GLIDE.rj,long:!!GLIDE.long,gy:(()=>{const n=Math.ceil(2*R/step)+1,A=new Int16Array(n*n);for(let j=0;j<n;j++)for(let i=0;i<n;i++){let v=-32768;try{const g=glideY(-R+i*step,-R+j*step);if(isFinite(g))v=Math.max(-32767,Math.min(32767,Math.round(g*20)));}catch(e){}A[j*n+i]=v;}return u8ToB64(new Uint8Array(A.buffer));})()}:null,
+    /* where the night tracks' pagodas stand and how each is turned (their turn comes from the track's random numbers): the PC builds finished ones there */
+    sets:(()=>{const pag=[];world.traverse(o=>{if(!o.isGroup||Math.abs(o.position.y+60)>.01)return;let neon=false;for(const c of o.children){const m=c.material;if(m&&!Array.isArray(m)&&m.isMeshBasicMaterial&&m.color&&m.color.getHexString()==='ff4fa8'){neon=true;break;}}
+      if(neon)pag.push([+o.position.x.toFixed(2),+o.position.z.toFixed(2),+o.rotation.y.toFixed(5)]);});return {pagoda:pag};})(),
+    glide:(typeof GLIDE!=='undefined'&&GLIDE)?{j0:GLIDE.j0,j1:GLIDE.j1,rj:GLIDE.rj,long:!!GLIDE.long,
+      /* the glide's frame and its boost rings (web glideRings / steerGlideRings / predictGlideY) */
+      p:GLIDE.p?[+GLIDE.p.x.toFixed(3),+GLIDE.p.y.toFixed(3)]:null,ux:GLIDE.ux,uy:GLIDE.uy,L:GLIDE.L,y:GLIDE.y,
+      rings:(GLIDE.rings||[]).map(r=>[+r.x.toFixed(3),+r.y.toFixed(3),+r.z.toFixed(3),r.m?+r.m.rotation.y.toFixed(5):0]),gy:(()=>{const n=Math.ceil(2*R/step)+1,A=new Int16Array(n*n);for(let j=0;j<n;j++)for(let i=0;i<n;i++){let v=-32768;try{const g=glideY(-R+i*step,-R+j*step);if(isFinite(g))v=Math.max(-32767,Math.min(32767,Math.round(g*20)));}catch(e){}A[j*n+i]=v;}return u8ToB64(new Uint8Array(A.buffer));})()}:null,
     pit:(typeof PITS!=='undefined'&&PITS.length)?(()=>{const n=Math.ceil(2*R/step)+1,A=new Int16Array(n*n);for(let j=0;j<n;j++)for(let i=0;i<n;i++)A[j*n+i]=Math.max(0,Math.min(32767,Math.round(pitAt(-R+i*step,-R+j*step)*20)));return u8ToB64(new Uint8Array(A.buffer));})():null,
     loopsD:(typeof LOOPS!=='undefined'?LOOPS:[]).map(L=>({j:L.j,full:!!L.full,lat0:L.lat0,W:L.W,S:L.S})),
     shortsD:(typeof SHORTS!=='undefined'?SHORTS:[]).map(c=>({a:c.a,b:c.b,s:c.s,route:!!c.route,n:c.n,w:c.w||SCW,pts:c.pts.map(p=>[+p.x.toFixed(2),+p.y.toFixed(2),+p.tx.toFixed(4),+p.ty.toFixed(4),+p.nx.toFixed(4),+p.ny.toFixed(4)])})),
