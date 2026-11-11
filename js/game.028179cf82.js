@@ -5957,6 +5957,7 @@ function postInit(){if(POST.qs)return;POST.qs=new THREE.Scene();POST.qc=new THRE
     vec3 RRT(vec3 v){vec3 a=v*(v+.0245786)-.000090537;vec3 b=v*(.983729*v+.4329510)+.238081;return a/b;}
     vec3 aces(vec3 c){const mat3 I=mat3(.59719,.07600,.02840,.35458,.90834,.13383,.04823,.01566,.83777);const mat3 O=mat3(1.60475,-.10208,-.00327,-.53108,1.10813,-.07276,-.07367,-.00605,1.07602);c*=exposure/.6;c=I*c;c=RRT(c);c=O*c;return clamp(c,0.,1.);}
     vec3 srgb(vec3 c){return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(vec3(.0031308),c));}
+vec3 lin(vec3 s){return mix(s/12.92,pow((s+.055)/1.055,vec3(2.4)),step(vec3(.04045),s));}
     void main(){vec2 suv=min(vUv*us,uc);vec3 c=texture2D(tex,suv).rgb;
       /* contrast-adaptive sharpening (the trick consoles use with dynamic resolution): when the 3D view was drawn below screen size this
          frame, pull detail back out of the stretched picture. Each pixel is weighed against its four neighbours; the weight shrinks where
@@ -5964,7 +5965,7 @@ function postInit(){if(POST.qs)return;POST.qs=new THREE.Scene();POST.qc=new THRE
       if(shp>.001){vec2 lo=px*.5;vec3 n=texture2D(tex,clamp(suv-vec2(0.,px.y),lo,uc)).rgb,s=texture2D(tex,clamp(suv+vec2(0.,px.y),lo,uc)).rgb,w=texture2D(tex,clamp(suv-vec2(px.x,0.),lo,uc)).rgb,e=texture2D(tex,clamp(suv+vec2(px.x,0.),lo,uc)).rgb;
         vec3 mn=min(c,min(min(n,s),min(w,e))),mx=max(c,max(max(n,s),max(w,e)));vec3 amp=sqrt(clamp(min(mn,1.-mx)/max(mx,1e-4),0.,1.));vec3 wt=-amp*shp/mix(8.,5.,shp);c=clamp((c+wt*(n+s+w+e))/(1.+4.*wt),0.,1.);}
       c=c*(aoOn>.5?texture2D(aoT,vUv).r:1.)+(texture2D(b1,vUv).rgb*.65+texture2D(b2,vUv).rgb*.6)*bloom;c=clamp(c*tint,0.,1.);/* the scene is already tone-mapped by the material shaders; mapping it twice greyed every white */
-      float l=dot(c,vec3(.2126,.7152,.0722));c=mix(vec3(l),c,sat);c=clamp((c-.5)*con+.5,0.,1.);
+      float l=dot(c,vec3(.2126,.7152,.0722));c=mix(vec3(l),c,sat);/* contrast around the screen's mid-grey: done on the linear colour it crushed everything darker than about #474747 to black (the dark green kitchen walls) */c=lin(clamp((srgb(clamp(c,0.,1.))-.5)*con+.5,0.,1.));
       vec2 d=(vUv-.5)*vec2(aspect,1.);c*=1.-vig*smoothstep(.35,1.05,length(d));
   /* screen-edge flash (boost, hit, pickup) drawn here instead of as a blurred page layer */
   vec2 e=abs(vUv-.5)*2.;float ed=max(e.x,e.y);c=mix(c,edgeC,edgeA*smoothstep(.62,1.,ed)*(.55+.45*smoothstep(.85,1.,ed)));
