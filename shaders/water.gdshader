@@ -61,7 +61,7 @@ void fragment() {
 	bool shelf_floor = false;
 	if (shelf_r > 0.0) {
 		float rr = length(wp.xz);
-		float shelf = mix(5.0, 150.0, smoothstep(shelf_r * 0.98, shelf_r + 2400.0, rr));
+		float shelf = mix(6.0, 150.0, smoothstep(shelf_r * 0.98, shelf_r + 1600.0, rr));
 		shelf *= 0.75 + 0.5 * texture(foam_tex, wp.xz * 0.0006).r;
 		if (thick > shelf) {
 			thick = shelf;
@@ -76,7 +76,7 @@ void fragment() {
 	if (view_z(SCREEN_UV + off, texture(depth_tex, SCREEN_UV + off).r, INV_PROJECTION_MATRIX) < here) {
 		off = vec2(0.0);
 	}
-	vec3 bottom = shelf_floor ? sand * 0.75 : texture(screen_tex, SCREEN_UV + off).rgb;
+	vec3 bottom = shelf_floor ? sand * 0.6 : texture(screen_tex, SCREEN_UV + off).rgb;
 	// sunlight playing on the bottom of the shallows
 	float c1 = texture(foam_tex, wp.xz * 0.028 + TIME * vec2(0.013, 0.008)).r;
 	float c2 = texture(foam_tex, wp.xz * 0.034 - TIME * vec2(0.009, 0.012)).r;
