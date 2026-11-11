@@ -13,6 +13,7 @@ uniform float wave_scale = 0.012;
 uniform float wave_speed = 0.02;
 uniform float wave_strength = 0.55;
 uniform float foam_amount = 1.0;
+uniform float min_depth = 0.0;         // a pool laid on the ground: as if this much water were under it
 uniform sampler2D n1 : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D n2 : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D foam_tex : filter_linear_mipmap, repeat_enable;
@@ -53,7 +54,7 @@ void fragment() {
 
 	// how much water lies between the surface and whatever is under it
 	float here = -VERTEX.z;
-	float thick = max(0.0, view_z(SCREEN_UV, texture(depth_tex, SCREEN_UV).r, INV_PROJECTION_MATRIX) - here);
+	float thick = max(min_depth, view_z(SCREEN_UV, texture(depth_tex, SCREEN_UV).r, INV_PROJECTION_MATRIX) - here);
 	float k = clamp(thick / depth_scale, 0.0, 1.0);
 	float absorb = 1.0 - exp(-3.4 * k);
 

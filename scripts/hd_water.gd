@@ -15,7 +15,7 @@ static var _foam: NoiseTexture2D
 static var _hide: ShaderMaterial
 
 
-static func upgrade(root: Node, theme: String) -> int:
+static func upgrade(root: Node, theme: String, T: TrackData = null) -> int:
 	var done := {}
 	var n := 0
 	for node in root.find_children("*", "MeshInstance3D", true, false):
@@ -31,15 +31,23 @@ static func upgrade(root: Node, theme: String) -> int:
 				continue
 			var kind := _kind(m, theme)
 			if OS.has_environment("CR_WATER_DBG"):
-				print("WATERDBG ", mi.name, " ", bb.size.snapped(Vector3.ONE), " ", _avg(m), " tr=", m.transparency, " em=", m.emission_enabled, " ", m.emission_energy_multiplier, " sh=", m.shading_mode, " r=", m.roughness, " -> ", kind)
+				print("WATERDBG ", mi.name, " at ", (mi.global_transform * bb).get_center().snapped(Vector3.ONE), " ", bb.size.snapped(Vector3.ONE), " ", _avg(m), " tr=", m.transparency, " em=", m.emission_enabled, " ", m.emission_energy_multiplier, " sh=", m.shading_mode, " r=", m.roughness, " -> ", kind)
 			if kind == "":
 				continue
 			if kind == "sheet":
 				mi.set_surface_override_material(si, _hidden())
 				continue
-			if not done.has(m):
-				done[m] = _water(_avg(m), theme, bb.size.x * bb.size.z > 4.0e6)
-			mi.set_surface_override_material(si, done[m])
+			# a pool laid on the ground (the web's kart-swallowing ponds) has almost no water under it: it gets a
+			# body of water of its own, so it doesn't read as a sheet of foam over sand
+			var shallow := 0.0
+			if T != null and bb.size.x * bb.size.z < 2.0e5:
+				var c := (mi.global_transform * bb).get_center()
+				if c.y - T.ground(c.x, c.z) < 4.0:
+					shallow = 24.0
+			var key := [m, shallow]
+			if not done.has(key):
+				done[key] = _water(_avg(m), theme, bb.size.x * bb.size.z > 4.0e6, shallow)
+			mi.set_surface_override_material(si, done[key])
 			n += 1
 	return n
 
@@ -82,7 +90,7 @@ static func _avg(m: StandardMaterial3D) -> Color:
 	return c
 
 
-static func _water(col: Color, theme: String, sea: bool) -> ShaderMaterial:
+static func _water(col: Color, theme: String, sea: bool, shallow := 0.0) -> ShaderMaterial:
 	_make()
 	var m := ShaderMaterial.new()
 	m.shader = load("res://shaders/water.gdshader")
@@ -105,6 +113,7 @@ static func _water(col: Color, theme: String, sea: bool) -> ShaderMaterial:
 	m.set_shader_parameter("deep", dp)
 	# the open sea is deep almost everywhere; a pool or a lake fills in over a shorter depth
 	m.set_shader_parameter("depth_scale", 70.0 if sea else 40.0)
+	m.set_shader_parameter("min_depth", shallow)
 	m.set_shader_parameter("n1", _n1)
 	m.set_shader_parameter("n2", _n2)
 	m.set_shader_parameter("foam_tex", _foam)

@@ -444,7 +444,7 @@ func _build_world() -> void:
 	if track != null and hd:
 		print("ground: %d finished" % HdGround.upgrade(track, String(_map_info(map_id)["dir"]).path_join(map_id + "_hd.json")))
 		# the sea, lakes and pools as real water (first, so the surface finish below leaves them alone)
-		print("water: %d surfaces" % HdWater.upgrade(track, T.theme))
+		print("water: %d surfaces" % HdWater.upgrade(track, T.theme, T))
 		# the web's plain-coloured scenery: a fine surface so nothing reads as flat untextured colour
 		print("surfaces: %d finished" % HdSurface.upgrade(track))
 		# the web's hand-built set pieces that read as painted boxes, built again properly (after the finish above)
