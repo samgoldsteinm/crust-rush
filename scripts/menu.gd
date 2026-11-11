@@ -101,13 +101,20 @@ func _input(ev: InputEvent) -> void:
 	var fo := get_viewport().gui_get_focus_owner()
 	# nothing (or something no longer on screen) has the focus: give it to this screen's main button. A move only
 	# shows where the focus is; A (or Enter) then goes on to press that button, so A is never swallowed
+	if ev is InputEventJoypadButton or ev is InputEventJoypadMotion:
+		if nav or acc:
+			_pad_mode = true
+	elif ev is InputEventKey:
+		_pad_mode = false
 	var lost := fo == null or not fo.is_visible_in_tree() or (modal != null and not modal.is_ancestor_of(fo))
 	if (nav or acc) and lost:
-		var tgt := default_focus if default_focus != null and is_instance_valid(default_focus) and default_focus.is_visible_in_tree() else _first_focusable(modal if modal != null else screens.get(cur))
+		# as the web's controller: with nothing highlighted, a move or A only puts the yellow border on the screen
+		# (on your current pick when the screen has one); A then picks what's highlighted, and the screen's
+		# button (Build kart, Start race) is pressed only when the border is on it
+		var tgt := _focus_target()
 		if tgt != null:
 			tgt.grab_focus()
-			if nav:
-				get_viewport().set_input_as_handled()
+			get_viewport().set_input_as_handled()
 	# X on a controller (or F) favourites the highlighted livery, or the one on the car (web)
 	if cur == "garage" and modal == null and g_tab == "theme" and not _gbig:
 		var xk := (ev is InputEventJoypadButton and (ev as InputEventJoypadButton).pressed and (ev as InputEventJoypadButton).button_index == JOY_BUTTON_X) \
@@ -133,6 +140,20 @@ func _input(ev: InputEvent) -> void:
 			open("garage" if KartBuilder.ready() else "driver")
 		get_viewport().set_input_as_handled()
 var _seg_groups := {}
+var _pad_mode := false          # the controller (or keys) was used last: screens open with the border showing
+var sel_focus: Control = null   # this screen's current pick (driver, track, cup), where the border starts
+
+
+## where the highlight goes when nothing has it: the open pop-up's first button, else this screen's current pick,
+## else its main button
+func _focus_target() -> Control:
+	if modal != null:
+		return _first_focusable(modal)
+	if sel_focus != null and is_instance_valid(sel_focus) and sel_focus.is_visible_in_tree():
+		return sel_focus
+	if default_focus != null and is_instance_valid(default_focus) and default_focus.is_visible_in_tree():
+		return default_focus
+	return _first_focusable(screens.get(cur))
 
 
 ## the first button (or other control that takes the focus) showing under a node, in reading order
@@ -427,7 +448,7 @@ func icon_tex(name_: String) -> Texture2D:
 
 
 ## a segmented control (.seg): options [[key, text]], the chosen key, called with the new key
-func seg(group: String, options: Array, chosen: String, on_pick: Callable, size_css := 15.0, pad_y := 10.0) -> PanelContainer:
+func seg(group: String, options: Array, chosen: String, on_pick: Callable, size_css := 15.0, pad_y := 10.0, pad_x := 4.0) -> PanelContainer:
 	var pc := PanelContainer.new()
 	var st := glass(14.0, Vector4(4, 4, 4, 4))
 	pc.add_theme_stylebox_override("panel", st)
@@ -437,14 +458,14 @@ func seg(group: String, options: Array, chosen: String, on_pick: Callable, size_
 	var btns := {}
 	for o in options:
 		var key: String = o[0]
-		var b := button(String(o[1]), "seg_on" if key == chosen else "seg_off", size_css, Vector4(4, pad_y, 4, pad_y))
+		var b := button(String(o[1]), "seg_on" if key == chosen else "seg_off", size_css, Vector4(pad_x, pad_y, pad_x, pad_y))
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.pressed.connect(func():
 			_seg_select(group, key)
 			on_pick.call(key))
 		row.add_child(b)
 		btns[key] = b
-	_seg_groups[group] = {"btns": btns, "size": size_css, "pad": pad_y}
+	_seg_groups[group] = {"btns": btns, "size": size_css, "pad": pad_y, "padx": pad_x}
 	return pc
 
 
@@ -452,7 +473,8 @@ func _seg_select(group: String, key: String) -> void:
 	var g: Dictionary = _seg_groups[group]
 	for k in g["btns"]:
 		var b: Button = g["btns"][k]
-		var nb := button(b.text, "seg_on" if k == key else "seg_off", float(g["size"]), Vector4(4, float(g["pad"]), 4, float(g["pad"])))
+		var px := float(g.get("padx", 4.0))
+		var nb := button(b.text, "seg_on" if k == key else "seg_off", float(g["size"]), Vector4(px, float(g["pad"]), px, float(g["pad"])))
 		for st in ["normal", "hover", "pressed", "hover_pressed"]:
 			b.add_theme_stylebox_override(st, nb.get_theme_stylebox(st))
 		for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
@@ -546,6 +568,9 @@ func open(name_: String) -> void:
 		_gpitch = 0.0
 	cur = name_
 	bg.set_blur(name_ == "garage")
+	sel_focus = null
+	default_focus = null
+	var restoring := name_ == "garage" and not _g_keep.is_empty()
 	var s: Control
 	match name_:
 		"home":
@@ -563,6 +588,20 @@ func open(name_: String) -> void:
 	screens[name_] = wrap
 	add_child(wrap)
 	visible = true
+	if _pad_mode and not restoring:
+		_pad_focus.call_deferred()
+
+
+## the menu is showing again (a track loaded behind it): with the controller in use, the border goes back on
+func pad_refocus() -> void:
+	if _pad_mode:
+		_pad_focus.call_deferred()
+
+
+func _pad_focus() -> void:
+	var t := _focus_target()
+	if t != null and is_instance_valid(t) and t.is_inside_tree():
+		t.grab_focus()
 
 
 ## `content` in a scroll area filling its parent: when it fits it fills the area exactly as before; when it
@@ -789,10 +828,9 @@ func _driver() -> Control:
 			setting_changed.emit("ri", i)
 			for c in grid.get_children():
 				_mark_card(c as Button, int(c.get_meta("i")) == ri, true))
-		card.focus_entered.connect(func():
-			if ri != i:
-				card.pressed.emit())
 		grid.add_child(card)
+		if i == ri:
+			sel_focus = card
 	show_detail.call(ri)
 	return root
 
@@ -907,7 +945,9 @@ func _mark_card(b: Button, on: bool, tall := false) -> void:
 	b.add_theme_stylebox_override("hover", hv)
 	b.add_theme_stylebox_override("pressed", st)
 	b.add_theme_stylebox_override("hover_pressed", st)
-	b.add_theme_stylebox_override("focus", box([Color(0, 0, 0, 0)], 180.0, r, Color(1, 0.957, 0.863, 0.6), 2.0))
+	var fr := box([Color(0, 0, 0, 0)], 180.0, r, CHEESE, 3.0)
+	fr.grow = 4.0
+	b.add_theme_stylebox_override("focus", fr)
 
 
 func _step_head(back_text: String, back_to: String, small: String, title: String, next_text: String, on_next: Callable) -> Control:
@@ -1024,6 +1064,8 @@ func _track() -> Control:
 				for c in grid.get_children():
 					_mark_card(c as Button, int(c.get_meta("cup")) == cup))
 			grid.add_child(card)
+			if ci == cup:
+				sel_focus = card
 	else:
 		for m in maps:
 			var id: String = m["id"]
@@ -1035,6 +1077,8 @@ func _track() -> Control:
 				for c in grid.get_children():
 					_mark_card(c as Button, String(c.get_meta("id")) == map_id))
 			grid.add_child(card2)
+			if id == map_id:
+				sel_focus = card2
 	show_detail.call()
 	return root
 
@@ -1211,14 +1255,16 @@ func _garage() -> Control:
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(sp)
 	var is_bike := bool(I["bodies"][int(build["b"])].get("bike", false))
-	var tabs := [["kart", "Karts"], ["car", "Cars"], ["bike", "Bikes"], ["glider", "Glider"], ["colour", "Colour"], ["theme", "Theme"]]
+	var tabs := [["kart", "Karts"], ["car", "Cars"], ["bike", "Bikes"], ["glider", "Glider"], ["theme", "Theme"]]
+	if g_tab == "colour":
+		g_tab = "theme"
 	if not is_bike:
 		tabs.insert(3, ["wheel", "Wheels"])
 	elif g_tab == "wheel":
 		g_tab = "bike"
 	h.add_child(seg("gtab", tabs, g_tab, func(k):
 		g_tab = k
-		open("garage"), 14.0, 6.0))
+		open("garage"), 15.0, 8.0, 12.0))
 	var sp2 := Control.new()
 	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(sp2)
@@ -1390,6 +1436,10 @@ func _garage() -> Control:
 					continue
 				var c := _part_card(String(bd["name"]), bd["st"], i == int(build["b"]), dense)
 				c.set_meta("gkey", "b:%d" % i)
+				c.set_meta("part", ["b", i])
+				_preview_on(c, "b", i)
+				if i == int(build["b"]):
+					sel_focus = c
 				var bi := i
 				c.pressed.connect(func():
 					build["b"] = bi
@@ -1412,6 +1462,10 @@ func _garage() -> Control:
 				var pd: Dictionary = list[i]
 				var c2 := _part_card(String(pd["name"]), pd["st"], i == int(build[key]), false)
 				c2.set_meta("gkey", "%s:%d" % [key, i])
+				c2.set_meta("part", [key, i])
+				_preview_on(c2, key, i)
+				if i == int(build[key]):
+					sel_focus = c2
 				var pi := i
 				c2.pressed.connect(func():
 					build[key] = pi
@@ -1419,27 +1473,6 @@ func _garage() -> Control:
 				grid.add_child(c2)
 			var cp: Dictionary = list[int(build[key])]
 			desc = "[b][color=#fff4dc]%s.[/color][/b] %s" % [cp["name"], cp["desc"]]
-		"colour":
-			grid.columns = 5
-			var paints: Array = I["paints"]
-			var pn: Array = I["paintNames"]
-			for i in paints.size():
-				var sw := Button.new()
-				sw.custom_minimum_size = Vector2(z(64), z(64))
-				sw.tooltip_text = String(pn[i])
-				sw.set_meta("gkey", "p:%d" % i)
-				var col := Color(String(paints[i])) if paints[i] != null else Color(String(I["racers"][ri]["color"]))
-				var on := i == int(build["p"]) and String(build.get("t", "")) == ""
-				var st := box([col], 180.0, 32.0, CHEESE if on else Color(1, 0.957, 0.863, 0.3), 3.0 if on else 1.5)
-				for s2 in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
-					sw.add_theme_stylebox_override(s2, st)
-				var pi2 := i
-				sw.pressed.connect(func():
-					build["p"] = pi2
-					build["t"] = ""
-					_build_changed())
-				grid.add_child(sw)
-			desc = "[b][color=#fff4dc]%s.[/color][/b] One colour all over the kart." % pn[int(build["p"])]
 		"theme":
 			grid.columns = 3
 			var bid := String(I["bodies"][int(build["b"])]["id"])
@@ -1448,8 +1481,8 @@ func _garage() -> Control:
 			var fl: Array = favs.get(bid, [])
 			# the categories that have something for this body (Favourites and All always)
 			var chips := HFlowContainer.new()
-			chips.add_theme_constant_override("h_separation", zi(5))
-			chips.add_theme_constant_override("v_separation", zi(5))
+			chips.add_theme_constant_override("h_separation", zi(7))
+			chips.add_theme_constant_override("v_separation", zi(7))
 			for cq in LIV_CATS:
 				var ck := String(cq[0])
 				var n := 0
@@ -1458,7 +1491,7 @@ func _garage() -> Control:
 						n += 1
 				if n == 0 and ck != "all" and ck != "fav":
 					continue
-				var chip := button(String(cq[1]), "seg_on" if ck == liv_cat else "ghost", 12.0, Vector4(10, 5, 10, 5))
+				var chip := button(String(cq[1]), "seg_on" if ck == liv_cat else "ghost", 13.5, Vector4(15, 7, 15, 7))
 				chip.set_meta("gkey", "cat:" + ck)
 				chip.pressed.connect(func():
 					liv_cat = ck
@@ -1488,6 +1521,8 @@ func _garage() -> Control:
 					shown = fv + rest
 				_liv_order = {"key": okey, "ids": shown.map(func(l): return String(l["id"]))}
 				var none := _livery_card({"id": "", "name": "No theme", "A": "#5a4a40", "B": "#5a4a40", "C": "#5a4a40"}, cur_t == "", false)
+				if cur_t == "":
+					sel_focus = none
 				none.pressed.connect(func():
 					build["t"] = ""
 					_build_changed())
@@ -1498,6 +1533,8 @@ func _garage() -> Control:
 				var lid := String(l["id"])
 				var locked := Ach.liv_locked(l)
 				var lc := _livery_card(l, lid == cur_t, fl.has(lid))
+				if lid == cur_t:
+					sel_focus = lc
 				if locked:
 					# a reward livery not won yet: shown with a lock; a tap says how to win it
 					lc.modulate = Color(1, 1, 1, 0.55)
@@ -1531,7 +1568,7 @@ func _garage() -> Control:
 			var lv := KartBuilder.livery(cur_t)
 			var bn := String(I["bodies"][int(build["b"])]["name"])
 			if not lv.is_empty():
-				desc = "[b][color=#fff4dc]%s.[/color][/b] %s Pick a colour to go back to plain paint. The heart (or X on a controller) keeps it in Favourites." % [String(lv["name"]), ("A signature theme made for the %s." % bn) if lv.get("only") != null else "A multi-colour livery."]
+				desc = "[b][color=#fff4dc]%s.[/color][/b] %s Pick No theme to go back to plain paint. The heart (or X on a controller) keeps it in Favourites." % [String(lv["name"]), ("A signature theme made for the %s." % bn) if lv.get("only") != null else "A multi-colour livery."]
 			else:
 				desc = "Multi-colour liveries. Themes marked ★ are made for the %s. The heart (or X on a controller) keeps one in Favourites." % bn
 			if g_hint != "":
@@ -1813,45 +1850,125 @@ class _Bands extends Control:
 
 
 func _stats_box() -> Control:
-	var p := panel(box([Color(0.06, 0.03, 0.02, 0.72)], 180.0, 12.0, Color(1, 0.957, 0.863, 0.12), 1.0, Vector4(10, 8, 10, 8)))
+	var p := panel(box([Color(0.06, 0.03, 0.02, 0.72)], 180.0, 12.0, Color(1, 0.957, 0.863, 0.12), 1.0, Vector4(12, 10, 12, 10)))
 	p.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	p.custom_minimum_size.x = z(200)
-	var v := vbox(4)
+	p.mouse_filter = Control.MOUSE_FILTER_PASS
+	var v := vbox(5)
 	p.add_child(v)
-	var hh := hbox(8)
+	var hh := hbox(10)
 	var sl := label("STATS", f_bold, 10.0, MUTED)
 	sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hh.add_child(sl)
 	var sg := seg("stats", [["1", "On"], ["0", "Off"]], "1" if stats_on else "0", func(k):
 		stats_on = k == "1"
 		setting_changed.emit("stats", stats_on)
 		open("garage"), 11.0, 3.0)
-	sg.custom_minimum_size.x = z(100)
+	sg.custom_minimum_size.x = z(104)
+	sg.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hh.add_child(sg)
 	v.add_child(hh)
 	var names: Array = KartBuilder.info.get("statNames", ["Speed", "Accel", "Handling", "Weight", "Off-road"])
-	var bars := KartBuilder.stat_bars(build) if stats_on else [6, 6, 6, 6, 6]
+	var rows := GridContainer.new()
+	rows.columns = 3
+	rows.add_theme_constant_override("h_separation", zi(8))
+	rows.add_theme_constant_override("v_separation", zi(5))
+	v.add_child(rows)
+	_st_rows = []
 	for i in 5:
-		var r := hbox(6)
-		var n := label(String(names[i]).to_upper(), f_bold, 8.5, MUTED)
-		n.custom_minimum_size.x = z(64)
-		r.add_child(n)
+		var n := label(String(names[i]).to_upper(), f_bold, 9.0, MUTED)
+		n.custom_minimum_size.x = z(66)
+		n.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		rows.add_child(n)
 		var dots := _Dots.new()
-		dots.n = int(bars[i])
-		dots.custom_minimum_size = Vector2(z(100), z(8))
+		dots.custom_minimum_size = Vector2(z(120), z(10))
 		dots.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		r.add_child(dots)
-		v.add_child(r)
+		rows.add_child(dots)
+		var d := label("0", f_bold, 12.0, CREAM)
+		d.custom_minimum_size.x = z(24)
+		d.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		d.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		rows.add_child(d)
+		_st_rows.append([dots, d])
+	p.modulate.a = 1.0 if stats_on else 0.55
+	_stats_show({})
 	return p
 
 
+var _st_rows: Array = []
+
+
+## the stats box for your build, and (with `prev` a build) what changing to it would do: the bars it adds in green,
+## the ones it takes away in red, and the change in the column (web: the value against the middle bar)
+func _stats_show(prev: Dictionary) -> void:
+	if _st_rows.is_empty() or not KartBuilder.ready():
+		return
+	var cur := KartBuilder.stat_bars(build)
+	var nxt := KartBuilder.stat_bars(prev) if not prev.is_empty() else cur
+	for i in mini(5, _st_rows.size()):
+		var r: Array = _st_rows[i]
+		if not is_instance_valid(r[0]):
+			return
+		var dots := r[0] as _Dots
+		dots.n = int(cur[i])
+		dots.p = int(nxt[i])
+		dots.queue_redraw()
+		var dl := r[1] as Label
+		var ch := int(nxt[i]) - int(cur[i])
+		if not prev.is_empty():
+			# previewing a part: every row says what it would change (0 where it changes nothing)
+			dl.text = (("+" if ch > 0 else "−") + str(absi(ch))) if ch != 0 else "0"
+			dl.add_theme_color_override("font_color", Color("#8ff08a") if ch > 0 else (Color("#ff9a88") if ch < 0 else MUTED))
+		else:
+			var dv := int(nxt[i]) - 6
+			dl.text = (("+" if dv > 0 else "−") + str(absi(dv))) if dv != 0 else "0"
+			dl.add_theme_color_override("font_color", Color("#8ff08a") if dv > 0 else (Color("#ff9a88") if dv < 0 else CREAM))
+
+
+## a part card shows what it would do to the stats while it's highlighted or under the mouse
+func _preview_on(c: Control, key: String, idx: int) -> void:
+	var on := func():
+		var b := build.duplicate()
+		b[key] = idx
+		_stats_show(b)
+	var off := func():
+		var f := get_viewport().gui_get_focus_owner() if is_inside_tree() else null
+		if f != null and f.has_meta("part") and f != c:
+			return
+		_stats_show({})
+	c.focus_entered.connect(on)
+	c.mouse_entered.connect(on)
+	c.focus_exited.connect(off)
+	c.mouse_exited.connect(func():
+		var f := get_viewport().gui_get_focus_owner() if is_inside_tree() else null
+		if f != null and f.has_meta("part") and is_instance_valid(f):
+			var pk: Array = f.get_meta("part")
+			var b := build.duplicate()
+			b[String(pk[0])] = int(pk[1])
+			_stats_show(b)
+		else:
+			_stats_show({}))
+
+
 class _Dots extends Control:
+	## the web's .st-bar: 12 bars, the middle one ringed; with a preview, bars gained in green and lost in red
 	var n := 6
+	var p := 6
 	func _draw() -> void:
 		var step := size.x / 12.0
+		var rr := minf(step * 0.36, size.y * 0.5)
 		for i in 12:
 			var c := Vector2(step * (i + 0.5), size.y / 2.0)
-			draw_circle(c, step * 0.32, Color("#f7a72e") if i < n else Color(1, 0.957, 0.863, 0.16))
+			var col := Color(1, 0.957, 0.863, 0.14)
+			if i < mini(n, p):
+				col = Color("#f7a72e")
+			elif i < p:
+				col = Color("#6fe06a")
+			elif i < n:
+				col = Color(1, 0.42, 0.33, 0.85)
+			if i == 5:
+				draw_circle(c, rr + maxf(1.0, rr * 0.35), Color(1, 0.957, 0.863, 0.45), false, maxf(1.0, rr * 0.25), true)
+			draw_circle(c, rr, col, true, -1.0, true)
 
 
 func _build_changed() -> void:
@@ -1873,9 +1990,6 @@ func _garage_scene() -> void:
 	# a warm studio with soft-box lights, for clean reflections in the paint, glass and chrome
 	var skm := ShaderMaterial.new()
 	skm.shader = load("res://shaders/studio_sky.gdshader")
-	skm.set_shader_parameter("top_col", Color("#fff1d6"))
-	skm.set_shader_parameter("hor_col", Color("#ffd9a8"))
-	skm.set_shader_parameter("bot_col", Color("#6b3a1e"))
 	sky.sky_material = skm
 	sky.radiance_size = Sky.RADIANCE_SIZE_256
 	e.sky = sky

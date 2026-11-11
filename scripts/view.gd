@@ -356,7 +356,7 @@ func add_kart(k: Kart, sc_file_loader: Callable) -> void:
 		smoke = Vector3(sv[0], sv[1], sv[2])
 	views[k] = {"g": g, "tilt": tilt, "model": model, "wheels": wheels, "flames": flames, "bub": bub, "cloves": cloves, "mz": mz, "sc": sc, "pop": false, "bf": 0.0, "cut_m": [], "ice": ice, "fan": fan, "fan_mat": fm,
 		"fxL": fxl, "fxP": fxp, "smoke": smoke, "top": float(meta.get("top", 7.0)), "axF": float(meta.get("axF", 6.0)), "axR": float(meta.get("axR", -6.0)),
-		"axW": float(meta.get("axW", 5.0)), "hover": float(meta.get("hover", 0.0)), "tp": 0.0, "tr": 0.0, "fxc": 0.0, "trick_on": false, "f_ti": -1,
+		"axW": float(meta.get("axW", 5.0)), "hover": float(meta.get("hover", 0.0)), "hglow": meta.get("hglow"), "tp": 0.0, "tr": 0.0, "fxc": 0.0, "trick_on": false, "f_ti": -1,
 		"held": null, "held_it": "", "rx": k.x, "ry": k.y, "rz": k.wy, "rma": k.ma, "glider": glider, "ga": 0.0}
 
 
@@ -491,6 +491,11 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 		tilt.rotation = rot
 	if float(v["hover"]) > 0.0 and not v["trick_on"]:
 		tilt.position.y = sin(time * 2.4 + k.ri * 1.7) * 0.22
+	if v.get("hglow") != null and is_instance_valid(v["hglow"]):
+		# the underglow flickers, and burns brighter on a boost (web: opacity .55 + .12 sin(9t) + .3)
+		var hm := (v["hglow"] as MeshInstance3D).material_override as StandardMaterial3D
+		if hm != null:
+			hm.albedo_color.a = clampf(0.55 + sin(time * 9.0 + k.ri) * 0.12 + (0.3 if k.boost > 0.0 else 0.0), 0.0, 1.0)
 	if not paused:
 		for w in v["wheels"]:
 			var n: Node3D = w["node"]

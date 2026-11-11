@@ -258,6 +258,12 @@ static func build(spec: Dictionary, ri: int) -> Dictionary:
 	var liv = (info.get("liv", []) as Array)[b] if b < (info.get("liv", []) as Array).size() else null
 	if body != null:
 		_paint(body, cols, liv, ri)
+	# hover bikes: the cyan glow pooled under them (web cfg.glow; the exporter leaves it out of the model)
+	var hglow: MeshInstance3D = null
+	if float(pl.get("hover", 0.0)) > 0.0 and body != null:
+		hglow = _hover_glow(String(bd["id"]), body)
+		if hglow != null:
+			root.add_child(hglow)
 	# wheels: the body's own (cars on standard wheels, bikes) or the chosen wheel type
 	var meta_wheels: Array = []
 	var wsrc := _scene("wheel_%s.glb" % wd["id"])
@@ -313,9 +319,156 @@ static func build(spec: Dictionary, ri: int) -> Dictionary:
 	var sf := float(bd.get("sf", 1.0))
 	var meta := {"scale": 1.76 * sf, "sf": sf, "wheels": meta_wheels, "top": float(pl["top"]), "axF": float(pl["axF"]), "axR": float(pl["axR"]), "axW": float(pl["axW"]),
 		"hover": float(pl.get("hover", 0.0)), "bike": bool(pl.get("bike", false)), "fxL": pl.get("fxL", []), "fxP": pl.get("fxP", []), "smoke": pl.get("smoke"), "bub": pl.get("bub"),
-		"flames": pl.get("flames", []), "spec": spec}
+		"flames": pl.get("flames", []), "spec": spec, "hglow": hglow}
 	var gd: Dictionary = info["gliders"][gi]
 	return {"node": root, "meta": meta, "sm": stat_mods(spec), "glider": {"id": gd["id"], "sink": gd["sink"], "air": gd["air"]}, "glider_node": glider}
+
+
+static var _hg_cache := {}
+
+
+## the web's hoverGlowFor: the body's outline seen from above, rasterised into a 128 x 64 grid, softened, and coloured
+## from a white-cyan core to a blue fringe, on a flat additive sheet a little above the ground
+static func _hover_glow(id: String, body: Node3D) -> MeshInstance3D:
+	if not _hg_cache.has(id):
+		_hg_cache[id] = _hover_glow_tex(body)
+	var hg: Dictionary = _hg_cache[id]
+	if hg.is_empty():
+		return null
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(float(hg["w"]), float(hg["h"]))
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.disable_fog = true
+	m.albedo_texture = hg["tex"]
+	m.albedo_color = Color(0.498, 0.847, 1.0, 0.55)   # #7fd8ff
+	m.render_priority = 2
+	var mi := MeshInstance3D.new()
+	mi.name = "hglow"
+	mi.mesh = pm
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.position = Vector3(float(hg["cx"]), 0.25, float(hg["cz"]))
+	return mi
+
+
+static func _hover_glow_tex(body: Node3D) -> Dictionary:
+	var tris: Array = []      # [ax, az, bx, bz, cx, cz] in the kart's own frame
+	var x0 := 1e9
+	var x1 := -1e9
+	var z0 := 1e9
+	var z1 := -1e9
+	var ms: Array = body.find_children("*", "MeshInstance3D", true, false)
+	if body is MeshInstance3D:
+		ms.push_front(body)
+	for n in ms:
+		var mi := n as MeshInstance3D
+		if mi.mesh == null:
+			continue
+		var xf := body.transform * (Transform3D.IDENTITY if mi == body else Menu._rel_xf(mi, body))
+		for si in mi.mesh.get_surface_count():
+			var a := mi.mesh.surface_get_arrays(si)
+			var vs: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+			var ix = a[Mesh.ARRAY_INDEX]
+			var pts := PackedVector2Array()
+			pts.resize(vs.size())
+			for i in vs.size():
+				var p := xf * vs[i]
+				pts[i] = Vector2(p.x, p.z)
+				x0 = minf(x0, p.x)
+				x1 = maxf(x1, p.x)
+				z0 = minf(z0, p.z)
+				z1 = maxf(z1, p.z)
+			var cnt: int = (ix as PackedInt32Array).size() if ix != null else vs.size()
+			for t in range(0, cnt - 2, 3):
+				var i0: int = (ix as PackedInt32Array)[t] if ix != null else t
+				var i1: int = (ix as PackedInt32Array)[t + 1] if ix != null else t + 1
+				var i2: int = (ix as PackedInt32Array)[t + 2] if ix != null else t + 2
+				tris.append([pts[i0], pts[i1], pts[i2]])
+	if not (x1 > x0):
+		return {}
+	var M := 1.7
+	var W := 128
+	var H := 64
+	var w := x1 - x0 + M * 2.0
+	var h := z1 - z0 + M * 2.0
+	var ox := x0 - M
+	var oz := z0 - M
+	var sx := W / w
+	var sz := H / h
+	var O := PackedFloat32Array()
+	O.resize(W * H)
+	for tr in tris:
+		var A: Vector2 = tr[0]
+		var B: Vector2 = tr[1]
+		var C: Vector2 = tr[2]
+		var ax := (A.x - ox) * sx
+		var az := (A.y - oz) * sz
+		var bx := (B.x - ox) * sx
+		var bz := (B.y - oz) * sz
+		var cx := (C.x - ox) * sx
+		var cz := (C.y - oz) * sz
+		var d := (bx - ax) * (cz - az) - (bz - az) * (cx - ax)
+		if absf(d) < 1e-6:
+			continue
+		var gx0 := maxi(0, floori(minf(ax, minf(bx, cx))))
+		var gx1 := mini(W - 1, ceili(maxf(ax, maxf(bx, cx))))
+		var gz0 := maxi(0, floori(minf(az, minf(bz, cz))))
+		var gz1 := mini(H - 1, ceili(maxf(az, maxf(bz, cz))))
+		for zz in range(gz0, gz1 + 1):
+			for xx in range(gx0, gx1 + 1):
+				var px := xx + 0.5
+				var pz := zz + 0.5
+				var u := ((bx - px) * (cz - pz) - (bz - pz) * (cx - px)) / d
+				var v := ((cx - px) * (az - pz) - (cz - pz) * (ax - px)) / d
+				if u >= -0.02 and v >= -0.02 and u + v <= 1.04:
+					O[zz * W + xx] = 1.0
+	var wide := _box_blur(O.duplicate(), W, H, 3, 3)
+	var core := _box_blur(O.duplicate(), W, H, 1, 2)
+	var img := Image.create(W, H, false, Image.FORMAT_RGBA8)
+	for z in H:
+		for x in W:
+			var i := z * W + x
+			var edge := minf(1.0, minf(minf(x, W - 1 - x) / 6.0, minf(z, H - 1 - z) / 6.0))
+			var k := minf(1.0, wide[i] * 1.25 + core[i] * 0.35) * edge
+			var hot := minf(1.0, core[i] * 0.9) * edge
+			img.set_pixel(x, z, Color8(int(round(40 + 180 * hot)), int(round(150 + 100 * maxf(k, hot) * 0.8 + 20 * hot)), 255, int(round(255 * minf(1.0, k * 0.95 + hot * 0.25)))))
+	img.generate_mipmaps()
+	return {"tex": ImageTexture.create_from_image(img), "w": w, "h": h, "cx": ox + w / 2.0, "cz": oz + h / 2.0}
+
+
+## the web's running-sum box blur: `pass` times, radius r, rows then columns
+static func _box_blur(A: PackedFloat32Array, W: int, H: int, r: int, passes: int) -> PackedFloat32Array:
+	var B := PackedFloat32Array()
+	B.resize(A.size())
+	for p in passes:
+		for z in H:
+			var acc := 0.0
+			for x in range(-r, W + r):
+				var xa := x + r
+				var xb := x - r - 1
+				if xa < W and xa >= 0:
+					acc += A[z * W + xa]
+				if xb >= 0 and xb < W:
+					acc -= A[z * W + xb]
+				if x >= 0 and x < W:
+					B[z * W + x] = acc / (2 * r + 1)
+		for x in W:
+			var acc2 := 0.0
+			for z in range(-r, H + r):
+				var za := z + r
+				var zb := z - r - 1
+				if za < H and za >= 0:
+					acc2 += B[za * W + x]
+				if zb >= 0 and zb < H:
+					acc2 -= B[zb * W + x]
+				if z >= 0 and z < H:
+					A[z * W + x] = acc2 / (2 * r + 1)
+	return A
 
 
 ## a built kart repainted for another paint or livery (the garage's livery pictures): body and wheels

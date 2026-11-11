@@ -36,9 +36,6 @@ func _ready() -> void:
 	var sky := Sky.new()
 	var skm := ShaderMaterial.new()
 	skm.shader = load("res://shaders/studio_sky.gdshader")
-	skm.set_shader_parameter("top_col", Color("#fff1d6"))
-	skm.set_shader_parameter("hor_col", Color("#ffd9a8"))
-	skm.set_shader_parameter("bot_col", Color("#6b3a1e"))
 	sky.sky_material = skm
 	sky.radiance_size = Sky.RADIANCE_SIZE_128
 	e.sky = sky

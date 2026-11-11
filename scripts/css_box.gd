@@ -16,6 +16,7 @@ extends StyleBox
 @export var inset_bottom := Color(0, 0, 0, 0)   # inset 0 -Npx Mpx <color>: a shade at the bottom
 @export var inset_bottom_h := 10.0
 @export var scale := 1.0                        # CSS px -> screen px
+@export var grow := 0.0                         # drawn this much outside the control (CSS outline-offset), CSS px
 
 
 static func make(cols: Array, ang := 180.0, r := 12.0, border := Color(0, 0, 0, 0), bw := 0.0, pad := Vector4(12, 8, 12, 8)) -> CssBox:
@@ -168,6 +169,9 @@ func _fill(ci: RID, r: Rect2, rad: Vector4) -> void:
 func _draw(ci: RID, rect: Rect2) -> void:
 	var s := scale
 	var rad := radius * s
+	if grow != 0.0:
+		rect = rect.grow(grow * s)
+		rad += Vector4.ONE * grow * s
 	# outer shadows, widest first
 	for sh in shadows:
 		var d: Dictionary = sh

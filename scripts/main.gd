@@ -814,52 +814,85 @@ func _apply_res() -> void:
 
 func _toggle_fullscreen() -> void:
 	var w := get_window()
-	fs_on = not (w.mode == Window.MODE_FULLSCREEN or w.mode == Window.MODE_EXCLUSIVE_FULLSCREEN)
+	fs_on = not (w.mode == Window.MODE_FULLSCREEN or w.mode == Window.MODE_EXCLUSIVE_FULLSCREEN or (w.borderless and w.mode == Window.MODE_WINDOWED))
 	_fit_window(false)
 	_save_settings()
 
 
-## the window exactly covers the screen it is on (full screen), or sits inside that screen's free area: a window
-## left bigger than its screen (it happens with several screens at different sizes) cut the menus off at the edge.
-## Full screen is left to Godot to size to the screen the window is on, then checked: with two screens of different
-## sizes the window could keep the other screen's size, so the picture was cropped on every side
+## the window exactly covers the screen it is on (full screen), or sits inside that screen's free area. Godot's own
+## full screen sized the window from the screen it believed the window was on: with two screens that could be the
+## other one, and the game was drawn bigger than the screen showing it (the menus and the HUD ran off the right and
+## bottom edges). Full screen is now a borderless window put exactly over the screen that holds most of the window
+## (what Godot's full screen is on Windows anyway), and checked every second.
 func _fit_window(startup: bool) -> void:
 	if OS.has_feature("mobile") or OS.has_feature("web") or DisplayServer.get_name() == "headless":
 		return
 	var w := get_window()
-	var scr := w.current_screen
+	var scr := _window_screen(w)
 	if fs_on:
-		if w.mode != Window.MODE_FULLSCREEN and w.mode != Window.MODE_EXCLUSIVE_FULLSCREEN:
+		var sp := DisplayServer.screen_get_position(scr)
+		var ss := DisplayServer.screen_get_size(scr)
+		if w.mode != Window.MODE_WINDOWED:
 			w.mode = Window.MODE_WINDOWED
-			var ur := DisplayServer.screen_get_usable_rect(scr)
-			w.position = ur.position
-			w.size = ur.size
-			w.mode = Window.MODE_FULLSCREEN
+		w.borderless = true
+		w.position = sp
+		w.size = ss
+		_fs_screen = scr
 		_fs_check.call_deferred(0)
 	else:
 		var ur := DisplayServer.screen_get_usable_rect(scr)
 		w.mode = Window.MODE_WINDOWED
+		w.borderless = false
 		w.position = ur.position
 		w.size = ur.size
 		w.mode = Window.MODE_MAXIMIZED
 
 
-## full screen: the window must be exactly its screen's size and place (checked for a few frames after switching)
+var _fs_screen := -1
+var _fs_t := 0.0
+
+
+## the screen holding the biggest part of the window (not Godot's guess)
+func _window_screen(w: Window) -> int:
+	var wr := Rect2i(w.position, w.size)
+	var best := w.current_screen
+	var best_a := -1
+	for i in DisplayServer.get_screen_count():
+		var sr := Rect2i(DisplayServer.screen_get_position(i), DisplayServer.screen_get_size(i))
+		var a := wr.intersection(sr).get_area()
+		if a > best_a:
+			best_a = a
+			best = i
+	return best
+
+
+## full screen: the window must be exactly its screen's size and place (checked after switching, then each second)
 func _fs_check(n: int) -> void:
 	var w := get_window()
-	if not fs_on or (w.mode != Window.MODE_FULLSCREEN and w.mode != Window.MODE_EXCLUSIVE_FULLSCREEN):
+	if not fs_on or w.mode == Window.MODE_MINIMIZED:
 		return
-	var scr := w.current_screen
+	var scr := _fs_screen if _fs_screen >= 0 and _fs_screen < DisplayServer.get_screen_count() else _window_screen(w)
 	var sp := DisplayServer.screen_get_position(scr)
 	var ss := DisplayServer.screen_get_size(scr)
-	if w.size != ss or w.position != sp:
+	if w.size != ss or w.position != sp or w.mode != Window.MODE_WINDOWED or not w.borderless:
 		w.mode = Window.MODE_WINDOWED
+		w.borderless = true
 		w.position = sp
 		w.size = ss
-		w.mode = Window.MODE_FULLSCREEN
 	if n < 3:
 		await get_tree().create_timer(0.25).timeout
 		_fs_check(n + 1)
+
+
+## what F3 shows about the window: its size and place against each screen's
+func _win_info() -> String:
+	var w := get_window()
+	var t := "window %dx%d at %d,%d (%s) · drawn %dx%d" % [w.size.x, w.size.y, w.position.x, w.position.y, ["windowed", "minimized", "maximized", "full", "exclusive"][w.mode], int(get_viewport().get_visible_rect().size.x), int(get_viewport().get_visible_rect().size.y)]
+	for i in DisplayServer.get_screen_count():
+		var sp := DisplayServer.screen_get_position(i)
+		var ss := DisplayServer.screen_get_size(i)
+		t += " · screen %d: %dx%d at %d,%d x%.2f%s" % [i, ss.x, ss.y, sp.x, sp.y, DisplayServer.screen_get_scale(i), " (this one)" if i == _window_screen(w) else ""]
+	return t
 
 
 func _toggle_pause() -> void:
@@ -1873,8 +1906,8 @@ func _input_state() -> Dictionary:
 
 
 func _input(ev: InputEvent) -> void:
-	# the pause and results sheets: a controller or key press with nothing on them focused gives the focus to their
-	# first button (and A goes on to press it), as the menus do
+	# the pause and results sheets: a controller or key press with nothing on them focused only puts the yellow
+	# border on their first button (A then presses what's highlighted), as the menus do
 	if (ev is InputEventJoypadButton or ev is InputEventKey or ev is InputEventJoypadMotion) and not (menu != null and menu.visible):
 		var acc := ev.is_action_pressed("ui_accept")
 		var nav := ev.is_action_pressed("ui_up") or ev.is_action_pressed("ui_down") or ev.is_action_pressed("ui_left") or ev.is_action_pressed("ui_right")
@@ -1885,9 +1918,8 @@ func _input(ev: InputEvent) -> void:
 				var t := Menu._first_focusable(host)
 				if t != null:
 					t.grab_focus()
-					if nav:
-						get_viewport().set_input_as_handled()
-						return
+					get_viewport().set_input_as_handled()
+					return
 	if ev is InputEventScreenTouch:
 		var t := ev as InputEventScreenTouch
 		if t.device != InputEvent.DEVICE_ID_EMULATION and hud != null:
@@ -1988,6 +2020,12 @@ func _zone(p: Vector2) -> String:
 func _process(dt: float) -> void:
 	if web != null:
 		web.poll()
+	# full screen stays fitted to its screen (a resolution change, another screen plugged in, a game bar overlay)
+	_fs_t += dt
+	if fs_on and _fs_t > 1.0:
+		_fs_t = 0.0
+		if DisplayServer.get_name() != "headless" and not OS.has_feature("mobile") and not OS.has_feature("web"):
+			_fs_check(3)
 	if music != null and not auto_drive:
 		music.want(map_id, "loading" if (loading != null and loading.visible) else state, paused, dt)
 	if not (menu != null and menu.visible):
@@ -2239,7 +2277,8 @@ func _hud(dt: float) -> void:
 	var k := kart
 	hud.fps_on = fps_counter
 	_incoming(dt)
-	lbl_info.text = "%d fps · %s · %dk tris · %d draws" % [Engine.get_frames_per_second(), RenderingServer.get_current_rendering_driver_name(), int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)) / 1000, int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))]
+	if lbl_info.visible:
+		lbl_info.text = "%d fps · %s · %dk tris · %d draws\n%s" % [Engine.get_frames_per_second(), RenderingServer.get_current_rendering_driver_name(), int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)) / 1000, int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)), _win_info()]
 	sfx.drive(absf(k.speed) / k.base_max, true, k.boost > 0.0, k.drift != 0 and not k.air, k.tier, state != "countdown" and state != "results" and state != "menu" and not paused)
 	if k.roll > 0.0 and not paused:
 		roll_tick -= dt
@@ -2328,15 +2367,36 @@ func _my_build() -> Dictionary:
 
 
 ## the track menu: show the chosen track behind the menu
+var _preview_busy := false
+var _preview_want := ""
+
+
+## the track you pick on the track screen is loaded behind the menu. Loading it starts the background race, which
+## hid the menu and left it hidden: the screen froze on the new track with the camera circling the grid. The menu
+## now comes back when the track is in, a quick second pick waits for the first, and Start waits for both
 func _menu_preview_map(id: String) -> void:
 	if state != "menu":
 		return
-	await _with_loading("Loading " + String(_map_info(id).get("name", id)) + "…")
-	if load_map(id):
-		_start_race({})
-		state = "menu"
-		hud_race.visible = false
+	_preview_want = id
+	if _preview_busy:
+		return
+	_preview_busy = true
+	while _preview_want != "" and _preview_want != map_id and state == "menu":
+		var want := _preview_want
+		await _with_loading("Loading " + String(_map_info(want).get("name", want)) + "…")
+		if state != "menu":
+			break
+		if load_map(want):
+			_start_race({})
+			state = "menu"
+			hud_race.visible = false
+		loading.visible = false
+	_preview_want = ""
+	_preview_busy = false
 	loading.visible = false
+	if state == "menu" and menu != null:
+		menu.visible = true
+		menu.pad_refocus()
 
 
 ## items left out of races: the award items until their achievement is won, and any switched off in Settings
@@ -2376,6 +2436,8 @@ func _menu_go(o: Dictionary) -> void:
 	else:
 		gp = {}
 	menu.visible = false
+	while _preview_busy:
+		await get_tree().process_frame
 	await _race_on(id)
 
 
@@ -3087,7 +3149,7 @@ func _apply_setting(key: String, val: String) -> void:
 			_apply_res()
 		"fs":
 			var want := val == "1"
-			var is_fs := DisplayServer.window_get_mode() in [DisplayServer.WINDOW_MODE_FULLSCREEN, DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN]
+			var is_fs := DisplayServer.window_get_mode() in [DisplayServer.WINDOW_MODE_FULLSCREEN, DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN] or (get_window().borderless and get_window().mode == Window.MODE_WINDOWED)
 			if want != is_fs:
 				_toggle_fullscreen()
 			else:
