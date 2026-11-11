@@ -106,6 +106,8 @@ jobs:
 
       - name: Screenshots (software Vulkan)
         if: ${{ always() && !contains(github.event.head_commit.message, '[quick]') }}
+        # pictures for checking only: an outage of the Ubuntu package mirrors (it happens) mustn't hold back the download
+        continue-on-error: true
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq mesa-vulkan-drivers xvfb > /dev/null
