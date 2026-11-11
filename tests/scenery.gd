@@ -9,7 +9,7 @@ func _ready() -> void:
 	main = load("res://scenes/main.tscn").instantiate()
 	main.auto_drive = true
 	add_child(main)
-	for i in 25:
+	for i in 10:
 		await get_tree().process_frame
 	main.state = "race"
 	main.race.state = "race"
@@ -33,7 +33,7 @@ func _ready() -> void:
 		var t := Vector3(float(c[3]), float(c[4]), float(c[5]))
 		cam.look_at_from_position(p, t, Vector3.UP)
 		cam.make_current()
-		for k in 20:
+		for k in 6:
 			await get_tree().process_frame
 		cam.make_current()
 		await get_tree().process_frame
