@@ -739,8 +739,7 @@ func _build_hud() -> void:
 		sel[k] = v
 		if k == "favs":
 			_save_settings()
-		if k == "map" and String(v) != map_id:
-			_menu_preview_map(String(v)))
+		pass)
 	menu.modal_builders["mp"] = _mp_panel
 	# a friends' room (web rooms): the steps lead back to it, as the web's room screen does
 	menu.net_ready.connect(func():
@@ -814,29 +813,29 @@ func _apply_res() -> void:
 
 func _toggle_fullscreen() -> void:
 	var w := get_window()
-	fs_on = not (w.mode == Window.MODE_FULLSCREEN or w.mode == Window.MODE_EXCLUSIVE_FULLSCREEN or (w.borderless and w.mode == Window.MODE_WINDOWED))
+	fs_on = not (w.mode == Window.MODE_FULLSCREEN or w.mode == Window.MODE_EXCLUSIVE_FULLSCREEN)
 	_fit_window(false)
 	_save_settings()
 
 
-## the window exactly covers the screen it is on (full screen), or sits inside that screen's free area. Godot's own
-## full screen sized the window from the screen it believed the window was on: with two screens that could be the
-## other one, and the game was drawn bigger than the screen showing it (the menus and the HUD ran off the right and
-## bottom edges). Full screen is now a borderless window put exactly over the screen that holds most of the window
-## (what Godot's full screen is on Windows anyway), and checked every second.
+## the window covers the screen it is on (full screen), or sits inside that screen's free area. Full screen is
+## Godot's own (what G-SYNC and the driver expect), put on the screen holding most of the window and checked a few
+## times after switching. (A hand-made borderless window, checked every second, made the game choppy: it lost the
+## driver's full-screen path, and any mismatch it saw resized the window again. The menus that ran off the right
+## edge in full screen were a layout too wide for a 1280 x 720 screen, fixed in the layout itself.)
 func _fit_window(startup: bool) -> void:
 	if OS.has_feature("mobile") or OS.has_feature("web") or DisplayServer.get_name() == "headless":
 		return
 	var w := get_window()
 	var scr := _window_screen(w)
 	if fs_on:
-		var sp := DisplayServer.screen_get_position(scr)
-		var ss := DisplayServer.screen_get_size(scr)
-		if w.mode != Window.MODE_WINDOWED:
+		w.borderless = false
+		if w.mode != Window.MODE_FULLSCREEN and w.mode != Window.MODE_EXCLUSIVE_FULLSCREEN:
 			w.mode = Window.MODE_WINDOWED
-		w.borderless = true
-		w.position = sp
-		w.size = ss
+			var ur := DisplayServer.screen_get_usable_rect(scr)
+			w.position = ur.position
+			w.size = ur.size
+			w.mode = Window.MODE_FULLSCREEN
 		_fs_screen = scr
 		_fs_check.call_deferred(0)
 	else:
@@ -866,19 +865,20 @@ func _window_screen(w: Window) -> int:
 	return best
 
 
-## full screen: the window must be exactly its screen's size and place (checked after switching, then each second)
+## full screen: the window must be its screen's size and place (checked for a moment after switching)
 func _fs_check(n: int) -> void:
 	var w := get_window()
-	if not fs_on or w.mode == Window.MODE_MINIMIZED:
+	if not fs_on or (w.mode != Window.MODE_FULLSCREEN and w.mode != Window.MODE_EXCLUSIVE_FULLSCREEN):
 		return
 	var scr := _fs_screen if _fs_screen >= 0 and _fs_screen < DisplayServer.get_screen_count() else _window_screen(w)
 	var sp := DisplayServer.screen_get_position(scr)
 	var ss := DisplayServer.screen_get_size(scr)
-	if w.size != ss or w.position != sp or w.mode != Window.MODE_WINDOWED or not w.borderless:
+	# a pixel or two off (Godot keeps full screen a hair from exclusive) is fine; a different screen's size isn't
+	if absi(w.size.x - ss.x) > 4 or absi(w.size.y - ss.y) > 4 or absi(w.position.x - sp.x) > 4 or absi(w.position.y - sp.y) > 4:
 		w.mode = Window.MODE_WINDOWED
-		w.borderless = true
 		w.position = sp
 		w.size = ss
+		w.mode = Window.MODE_FULLSCREEN
 	if n < 3:
 		await get_tree().create_timer(0.25).timeout
 		_fs_check(n + 1)
@@ -1912,6 +1912,9 @@ func _input(ev: InputEvent) -> void:
 		var acc := ev.is_action_pressed("ui_accept")
 		var nav := ev.is_action_pressed("ui_up") or ev.is_action_pressed("ui_down") or ev.is_action_pressed("ui_left") or ev.is_action_pressed("ui_right")
 		var host: Control = panel_pause if panel_pause != null and panel_pause.visible else (panel_results if panel_results != null and panel_results.visible else null)
+		var vdir := 1 if ev.is_action_pressed("ui_down") else (-1 if ev.is_action_pressed("ui_up") else 0)
+		if host != null and vdir != 0:
+			Menu.nav_scroll.call_deferred(host, get_viewport().gui_get_focus_owner(), vdir)
 		if host != null and (acc or nav):
 			var fo := get_viewport().gui_get_focus_owner()
 			if fo == null or not fo.is_visible_in_tree() or not host.is_ancestor_of(fo):
@@ -2022,12 +2025,6 @@ func _zone(p: Vector2) -> String:
 func _process(dt: float) -> void:
 	if web != null:
 		web.poll()
-	# full screen stays fitted to its screen (a resolution change, another screen plugged in, a game bar overlay)
-	_fs_t += dt
-	if fs_on and _fs_t > 1.0:
-		_fs_t = 0.0
-		if DisplayServer.get_name() != "headless" and not OS.has_feature("mobile") and not OS.has_feature("web"):
-			_fs_check(3)
 	if music != null and not auto_drive:
 		music.want(map_id, "loading" if (loading != null and loading.visible) else state, paused, dt)
 	if not (menu != null and menu.visible):
@@ -2282,7 +2279,7 @@ func _hud(dt: float) -> void:
 	if lbl_info.visible:
 		var vr := get_viewport().get_viewport_rid()
 		var vp := get_viewport()
-		lbl_info.text = "%d fps · %s · graphics card %.1f ms · processor %.1f ms\nview %dk tris %d draws · shadows %dk tris %d draws\n%s" % [Engine.get_frames_per_second(), RenderingServer.get_current_rendering_driver_name(),
+		lbl_info.text = Menu.build_info() + "\n%d fps · %s · graphics card %.1f ms · processor %.1f ms\nview %dk tris %d draws · shadows %dk tris %d draws\n%s" % [Engine.get_frames_per_second(), RenderingServer.get_current_rendering_driver_name(),
 			RenderingServer.viewport_get_measured_render_time_gpu(vr), RenderingServer.viewport_get_measured_render_time_cpu(vr) + RenderingServer.get_frame_setup_time_cpu(),
 			vp.get_render_info(Viewport.RENDER_INFO_TYPE_VISIBLE, Viewport.RENDER_INFO_PRIMITIVES_IN_FRAME) / 1000, vp.get_render_info(Viewport.RENDER_INFO_TYPE_VISIBLE, Viewport.RENDER_INFO_DRAW_CALLS_IN_FRAME),
 			vp.get_render_info(Viewport.RENDER_INFO_TYPE_SHADOW, Viewport.RENDER_INFO_PRIMITIVES_IN_FRAME) / 1000, vp.get_render_info(Viewport.RENDER_INFO_TYPE_SHADOW, Viewport.RENDER_INFO_DRAW_CALLS_IN_FRAME), _win_info()]
@@ -3156,7 +3153,7 @@ func _apply_setting(key: String, val: String) -> void:
 			_apply_res()
 		"fs":
 			var want := val == "1"
-			var is_fs := DisplayServer.window_get_mode() in [DisplayServer.WINDOW_MODE_FULLSCREEN, DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN] or (get_window().borderless and get_window().mode == Window.MODE_WINDOWED)
+			var is_fs := DisplayServer.window_get_mode() in [DisplayServer.WINDOW_MODE_FULLSCREEN, DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN]
 			if want != is_fs:
 				_toggle_fullscreen()
 			else:

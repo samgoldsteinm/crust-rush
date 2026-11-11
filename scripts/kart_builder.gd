@@ -171,10 +171,23 @@ static func stat_mods(spec: Dictionary) -> Dictionary:
 
 ## the 0..12 bars the garage shows (web STAT_MID 6, body/wheel/glider weighted)
 static func stat_bars(spec: Dictionary) -> Array:
+	return _bars(spec, true)
+
+
+## the vehicle on its own: the body (and a bike's built-in wheels), before the wheels and glider you pick
+static func base_bars(spec: Dictionary) -> Array:
+	return _bars(spec, false)
+
+
+static func _bars(spec: Dictionary, parts: bool) -> Array:
 	var W: Array = info.get("statW", [1.5, 1.0, 0.5])
 	var o := [0.0, 0.0, 0.0, 0.0, 0.0]
-	var parts_ := [info["bodies"][int(spec["b"])], wheel_of(spec), info["gliders"][int(spec.get("g", 0))]]
+	var bd: Dictionary = info["bodies"][int(spec["b"])]
+	var bike := bool(bd.get("bike", false)) and bd.get("bw") != null
+	var parts_ := [bd, wheel_of(spec), info["gliders"][int(spec.get("g", 0))]]
 	for k in 3:
+		if not parts and (k == 2 or (k == 1 and not bike)):
+			continue
 		var st: Array = parts_[k]["st"]
 		for i in 5:
 			o[i] += float(st[i]) * float(W[k])

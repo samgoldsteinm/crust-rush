@@ -21,3 +21,4 @@ assets/hd/waterfall/*.jpg
 
 # the WebRTC add-on (godotengine/webrtc-native), fetched by the PC build
 addons/webrtc_native/
+assets/build.json

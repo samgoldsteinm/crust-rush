@@ -14,6 +14,7 @@ uniform float wave_speed = 0.02;
 uniform float wave_strength = 0.55;
 uniform float foam_amount = 1.0;
 uniform float min_depth = 0.0;         // a pool laid on the ground: as if this much water were under it
+uniform float own_colour = 0.0;        // a pond: some of the water's colour shines on its own, so it reads blue, not grey
 uniform float shelf_r = 0.0;           // the open sea: a sandy shelf round the island out to about this far, then deep
 uniform vec3 sand : source_color = vec3(0.86, 0.79, 0.62);
 uniform sampler2D n1 : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -95,6 +96,7 @@ void fragment() {
 	// water itself scatters little light back: most of its look is the bottom, the sky and the sun
 	ALBEDO = mix(water * absorb * 0.6, vec3(0.92), foam);
 	EMISSION = bottom * (1.0 - absorb) * mix(vec3(1.0), shallow * 1.3, 0.55) * (1.0 - foam);
+	EMISSION += water * absorb * own_colour * (1.0 - foam);
 	ROUGHNESS = mix(mix(0.03, 0.1, smoothstep(400.0, 5000.0, dist)), 0.6, foam);
 	METALLIC = 0.0;
 	SPECULAR = 0.5;

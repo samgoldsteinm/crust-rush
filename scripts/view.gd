@@ -1270,6 +1270,7 @@ func build_world_haz(lib: Node3D) -> void:
 			var ln := n3.find_child("leg%d" % j, false, false) as Node3D
 			if ln != null:
 				legs.append(ln)
+		_seat_body(n3, legs)
 		whaz["walk"].append({"n": n3, "legs": legs})
 	if not race.train.is_empty():
 		var cars: Array = (hd.get("train", {}) as Dictionary).get("cars", [])
@@ -1282,6 +1283,40 @@ func build_world_haz(lib: Node3D) -> void:
 			n4.scale = Vector3.ONE * float((cars[i] as Dictionary).get("scale", 1.0))
 			n4.visible = false
 			whaz["wagons"].append({"n": n4})
+
+
+## a critter's body sits on its legs: on some tracks the exported body (its finished, rounded version) came out
+## higher than the legs' tops, leaving a gap between the legs and the head
+func _seat_body(n: Node3D, legs: Array) -> void:
+	var body := n.find_child("body", false, false) as Node3D
+	if body == null or legs.is_empty():
+		return
+	var bmin := _min_y(body)
+	var ltop := -1e9
+	for l in legs:
+		ltop = maxf(ltop, _max_y(l as Node3D))
+	if bmin > -1e8 and ltop > -1e8 and bmin > ltop - 0.6:
+		body.position.y -= bmin - (ltop - 0.6)
+
+
+static func _min_y(n: Node3D) -> float:
+	var y := 1e9
+	for m in ([n] if n is MeshInstance3D else []) + n.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		if mi.mesh != null:
+			var ab := (n.transform * (Transform3D.IDENTITY if mi == n else Menu._rel_xf(mi, n))) * mi.mesh.get_aabb()
+			y = minf(y, ab.position.y)
+	return y if y < 1e8 else -1e9
+
+
+static func _max_y(n: Node3D) -> float:
+	var y := -1e9
+	for m in ([n] if n is MeshInstance3D else []) + n.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		if mi.mesh != null:
+			var ab := (n.transform * (Transform3D.IDENTITY if mi == n else Menu._rel_xf(mi, n))) * mi.mesh.get_aabb()
+			y = maxf(y, ab.end.y)
+	return y
 
 
 func _draw_world_haz(dt: float) -> void:

@@ -243,14 +243,15 @@ func play(name_: String, vol := 1.0, pitch := 1.0) -> void:
 
 ## the engine voice for a kart body (its id from the garage)
 func set_body(body_id: String) -> void:
-	prof = ENG_PROF.get(ENG_BODY.get(body_id, "std"), ENG_PROF["std"])
-	var want := "eng_" + String(prof[2])
+	# one engine for every body: the game's first engine sound (two voices an octave apart, a lumpy idle), which the
+	# player liked best; the per-body voices, the recordings and the activity envelope that came after are retired
+	prof = ENG_PROF["std"]
 	prev_sp = -1.0
 	act = 0.0
-	if want == voice or not bank.has(want):
+	if voice == "engine" or not bank.has("engine"):
 		return
-	voice = want
-	eng.stream = bank[want]
+	voice = "engine"
+	eng.stream = bank["engine"]
 	eng.play(randf() * 0.9)
 
 
@@ -264,35 +265,11 @@ func drive(speed: float, gas: bool, boosting: bool, drifting: bool, tier: int, o
 		wind.volume_db = -60.0
 		return
 	var s := clampf(speed, 0.0, 1.7)
-	var dt := maxf(get_process_delta_time(), 1e-3)
 	rec.volume_db = -60.0
-	# revs climb through each gear and drop at the shift, like the web's (jets and electric motors glide)
-	var GT := [0.0, 0.2, 0.42, 0.64, 0.86, 1.31]
-	var r := minf(1.3, s)
-	var gi := 0
-	while gi < 4 and r > float(GT[gi + 1]):
-		gi += 1
-	var rpm: float
-	if bool(prof[1]):
-		rpm = minf(1.12, 0.3 + 0.7 * minf(1.0, (r - float(GT[gi])) / (float(GT[gi + 1]) - float(GT[gi]))) + (0.12 if boosting else 0.0))
-	else:
-		rpm = minf(1.12, 0.25 + 0.7 * minf(1.2, r) + (0.12 if boosting else 0.0))
-	var ef := (24.0 + rpm * 58.0 + (gi * 4.0 if bool(prof[1]) else 0.0)) * float(prof[0])
-	eng.pitch_scale = clampf(ef / ENG_BASE, 0.25, 4.0)
+	eng.pitch_scale = 0.7 + s * 1.15 + (0.12 if boosting else 0.0)
 	eng2.pitch_scale = eng.pitch_scale
-	# it speaks up when you work it (pulling away, each gear, a boost) and settles to a soft hum at a steady speed
-	var a := 0.0 if prev_sp < 0.0 else (s - prev_sp) / dt
-	prev_sp = s
-	if gi != prev_gi:
-		if a > 0.0:
-			kick = 0.55
-		prev_gi = gi
-	kick = maxf(0.0, kick - dt * 1.4)
-	var tgt := maxf(maxf(clampf(a / 0.5, 0.0, 1.0), 0.9 if boosting else 0.0), maxf(kick, 0.6 if (r < 0.12 and a > 0.01 and gas) else 0.0))
-	act += (tgt - act) * (1.0 - exp(-dt / (0.1 if tgt > act else 1.2)))
-	var lv := volume * float(prof[4]) * ((0.13 + 0.09 * rpm) + act * (0.13 + 0.1 * rpm)) * (1.0 if gas else 0.75)
-	eng.volume_db = linear_to_db(maxf(0.0005, lv))
-	eng2.volume_db = linear_to_db(maxf(0.0005, lv * 0.12 * rpm))
+	eng.volume_db = linear_to_db(volume * (0.2 + 0.14 * s) * (1.0 if gas else 0.6))
+	eng2.volume_db = linear_to_db(volume * maxf(0.001, (s - 0.35) * 0.2) * (1.3 if boosting else 1.0))
 	skid.volume_db = linear_to_db(volume * 0.22) if drifting else -60.0
 	skid.pitch_scale = 0.9 + 0.12 * tier
 	wind.volume_db = linear_to_db(volume * clampf((s - 0.4) * 0.35, 0.001, 0.4))

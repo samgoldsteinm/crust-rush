@@ -99,13 +99,17 @@ class GLB{
 const _m=new THREE.Matrix4(),_n=new THREE.Matrix3(),_v=new THREE.Vector3(),_c=new THREE.Color();
 function bake(o,mat4,geo,mat,group,instColor){const pa=geo.attributes.position;if(!pa)return null;const na=geo.attributes.normal,ua=geo.attributes.uv,ca=geo.attributes.color,ix=geo.index;
   let s=0,e=ix?ix.count:pa.count;if(group){s=group.start;e=Math.min(e,group.start+group.count);}
-  const flip=mat4.determinant()<0;_n.getNormalMatrix(mat4);
+  /* an inside-out surface (BackSide: the kitchen rooms' walls, seen from inside) is turned round: its faces wound the
+     other way and its normals reversed, so the PC draws it from the side the web does (glTF has no back-side-only flag,
+     and the walls were culled away on the PC: you saw the sky through them). The web's sky spheres (BackSide too, but
+     drawn behind everything with depthWrite off) are left as they were: the PC draws its own sky */
+  const back=mat.side===THREE.BackSide&&mat.depthWrite!==false,flip=(mat4.determinant()<0)!==back;_n.getNormalMatrix(mat4);
   const tex=mat.map||mat.normalMap||mat.emissiveMap||mat.alphaMap||mat.roughnessMap;let uvM=null;if(tex&&ua){tex.updateMatrix();uvM=tex.matrix;}
   const la=geo.attributes.livColor;const vc=!!(mat.vertexColors&&ca),useC=vc||!!instColor||!!la;
   /* re-index the used range */const remap=new Map(),P=[],N=[],UV=[],C=[],I=[];
   const get=i=>{let r=remap.get(i);if(r!==undefined)return r;r=P.length/3;remap.set(i,r);
     _v.fromBufferAttribute(pa,i).applyMatrix4(mat4);P.push(_v.x,_v.y,_v.z);
-    if(na){_v.fromBufferAttribute(na,i).applyMatrix3(_n).normalize();N.push(_v.x,_v.y,_v.z);}else N.push(0,1,0);
+    if(na){_v.fromBufferAttribute(na,i).applyMatrix3(_n).normalize();if(back)_v.negate();N.push(_v.x,_v.y,_v.z);}else N.push(0,1,0);
     if(ua){let u=ua.getX(i),v=ua.getY(i);if(uvM){const e=uvM.elements,uu=e[0]*u+e[3]*v+e[6],vv=e[1]*u+e[4]*v+e[7];u=uu;v=vv;}UV.push(u,v);}
     if(useC){let r=1,g=1,b=1;if(vc){r=ca.getX(i);g=ca.getY(i);b=ca.getZ(i);}if(instColor){r*=instColor.r;g*=instColor.g;b*=instColor.b;}if(la){r*=la.getX(i);g*=la.getY(i);b*=la.getZ(i);}C.push(r,g,b);}return r;};
   for(let t=s;t+2<e;t+=3){const a=ix?ix.getX(t):t,b=ix?ix.getX(t+1):t+1,c=ix?ix.getX(t+2):t+2;if(flip)I.push(get(a),get(c),get(b));else I.push(get(a),get(b),get(c));}

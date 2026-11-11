@@ -127,6 +127,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build/windows
+          # the build's stamp, shown in the corner of the title screen and on F3
+          echo "{\"build\": \"${GITHUB_SHA::8}\", \"date\": \"$(date -u +%Y-%m-%d)\"}" > assets/build.json
           ./godot --headless --path . --export-release "Windows Desktop" build/windows/CrustRush.exe 2>&1 | tail -30
           # the tracks go in a "maps" folder next to the game
           if ls maps/*/ > /dev/null 2>&1; then cp -r maps build/windows/maps; rm -f build/windows/maps/.gdignore; fi

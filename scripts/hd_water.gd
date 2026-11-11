@@ -112,6 +112,11 @@ static func _water(col: Color, theme: String, sea: bool, shallow := 0.0) -> Shad
 		dp = dp.lerp(Color(0.06, 0.2, 0.3), 0.4)
 	elif theme == "kitchen":
 		sh = sh.lerp(Color(0.3, 0.55, 0.5), 0.2)
+	if shallow > 0.0 and theme != "night" and theme != "freezer":
+		# a pond beside the road: clear blue (it read grey, the bottom and the pale sky showing more than the water)
+		sh = sh.lerp(Color(0.16, 0.6, 0.86), 0.55)
+		dp = dp.lerp(Color(0.03, 0.22, 0.42), 0.5)
+		m.set_shader_parameter("own_colour", 0.35)
 	m.set_shader_parameter("shallow", sh)
 	m.set_shader_parameter("deep", dp)
 	# the open sea is deep almost everywhere; a pool or a lake fills in over a shorter depth
