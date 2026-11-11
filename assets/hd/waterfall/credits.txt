@@ -1,0 +1,4 @@
+WATERFALL MOUNTAIN River by Nikitos & 3130 (https://sketchfab.com/vrcityphoto)
+https://sketchfab.com/3d-models/waterfall-mountain-river-446f36f2ccb54cf1bc090cd5bc25dce1
+Licensed under Creative Commons Attribution 4.0 (http://creativecommons.org/licenses/by/4.0/).
+Changed for Crust Rush: turned into the game's frame, surfaces made lit and two-sided, pictures halved to 2048.

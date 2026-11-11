@@ -100,3 +100,6 @@ The web game's credits all carry over. The finished models' bark and stone surfa
 [Poly Haven](https://polyhaven.com) (bark_brown_02, bark_willow, rock_boulder_dry and others listed in
 `assets/hd/cc0/credits.txt` in the build), used under CC0 with thanks. The leaf, frond, bough and ground maps are
 made by this project's own tools. The background mountain is the user's own mountain model at full detail.
+The waterfall on Hawaiian Bay and Calzone Coast is "WATERFALL MOUNTAIN River" by Nikitos & 3130
+([Sketchfab](https://sketchfab.com/3d-models/waterfall-mountain-river-446f36f2ccb54cf1bc090cd5bc25dce1)), CC BY 4.0,
+drawn at full detail on PC (turned into the game's frame, lit, pictures halved to 2K by `tools/hd_waterfall.py`).

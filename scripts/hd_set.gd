@@ -16,7 +16,41 @@ static func upgrade(root: Node3D, T: TrackData) -> int:
 	match T.id:
 		"lagoon":
 			n += _lagoon(root, T)
+		"bay", "calzone":
+			n += _waterfall(root, T)
 	return n
+
+
+# ---------------------------------------------------------------- the waterfall (Hawaiian Bay, Calzone Coast)
+
+## "WATERFALL MOUNTAIN River" by Nikitos & 3130 (CC BY 4.0): the web game draws it cut to about 5% of its triangles;
+## the PC draws the original at full detail (tools/hd_waterfall.py), where the web puts it (bayExtras, VAR 0 and 2:
+## atA(.9 + .95 PI, R+1500), turned -a - PI/2, scale 64, 30 below the sea's zero).
+static func _waterfall(root: Node3D, T: TrackData) -> int:
+	var path := "res://assets/hd/waterfall/waterfall.glb"
+	if not ResourceLoader.exists(path):
+		return 0
+	var a := 0.9 + PI * 0.95
+	var d := T.R + 1500.0
+	var xf := Transform3D(Basis(Vector3.UP, -a - PI / 2.0).scaled(Vector3(64, 64, 64)), Vector3(cos(a) * d, -30.0, sin(a) * d))
+	# the web's cut-down copy goes: every surface lying (almost) wholly inside the model's own box
+	var cut := cut_boxes(root, [[xf, Vector3(0, 3.0, 0), Vector3(10.5, 3.6, 16.0), {"whole": true}]])
+	var sc: PackedScene = load(path)
+	var w := sc.instantiate() as Node3D
+	w.name = "hd_waterfall"
+	w.transform = xf
+	root.add_child(w)
+	for node in w.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		for si in mi.mesh.get_surface_count():
+			var m := mi.mesh.surface_get_material(si) as StandardMaterial3D
+			if m != null:
+				m.cull_mode = BaseMaterial3D.CULL_DISABLED
+				m.roughness = 0.92
+				m.metallic_specular = 0.25
+				m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	return cut
 
 
 # ---------------------------------------------------------------- the glide canyon's ends
@@ -638,7 +672,7 @@ static func cut_boxes(root: Node, boxes: Array) -> int:
 		var cols: Array = []
 		for hx in opt.get("cols", []):
 			cols.append(Color(hx))
-		opts.append({"cyl": bool(opt.get("cyl", false)), "cols": cols, "terrain": bool(opt.get("terrain", false))})
+		opts.append({"cyl": bool(opt.get("cyl", false)), "cols": cols, "terrain": bool(opt.get("terrain", false)), "whole": bool(opt.get("whole", false))})
 		inv.append(xf.affine_inverse())
 		var bb := AABB(c - h, h * 2.0)
 		aabbs.append(xf * bb)
@@ -691,6 +725,27 @@ static func cut_boxes(root: Node, boxes: Array) -> int:
 				idx.resize(v.size())
 				for q in v.size():
 					idx[q] = q
+			# a "whole" box takes a surface only if nearly all of it lies inside, and then all of it
+			var whole_in := -1
+			for i in here:
+				if opts[i]["whole"]:
+					var ins := 0
+					var tot := 0
+					for t in range(0, idx.size() - 2, 9):
+						var mw := gx * ((v[idx[t]] + v[idx[t + 1]] + v[idx[t + 2]]) / 3.0)
+						var lp: Vector3 = inv[i] * mw
+						var dd: Vector3 = (lp - boxes[i][1]).abs()
+						var hh: Vector3 = boxes[i][2]
+						tot += 1
+						if dd.x <= hh.x and dd.y <= hh.y and dd.z <= hh.z:
+							ins += 1
+					if tot > 0 and float(ins) / tot >= 0.95:
+						whole_in = i
+			if whole_in >= 0:
+				removed += idx.size() / 3
+				changed = true
+				overrides[si] = "drop"
+				continue
 			var keep := PackedInt32Array()
 			keep.resize(idx.size())
 			var nk := 0
@@ -698,6 +753,8 @@ static func cut_boxes(root: Node, boxes: Array) -> int:
 				var m := gx * ((v[idx[t]] + v[idx[t + 1]] + v[idx[t + 2]]) / 3.0)
 				var inside := false
 				for i in here:
+					if opts[i]["whole"]:
+						continue
 					var lp: Vector3 = inv[i] * m
 					var c: Vector3 = boxes[i][1]
 					var h: Vector3 = boxes[i][2]
