@@ -474,6 +474,8 @@ func _build_world() -> void:
 		# the kitchen tracks' room: a tiled kitchen wall, wall cabinets, and the things along the counter
 		if T.theme == "kitchen":
 			print("kitchen: %d pieces" % HdKitchen.upgrade(track))
+			# the oven's wood fires: real flames, embers, sparks and a flickering light
+			print("fires: %d" % HdFire.upgrade(track))
 	# the dough-ball walls round the bends: all of them, from the track data (the export missed many)
 	print("wall balls: %d" % WallBalls.build(world, T))
 	# trees, palms, bushes and rocks: finished models on PC (the web game's own shapes far away, and when off)
