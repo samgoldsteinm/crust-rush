@@ -1,16 +1,12 @@
 # Collects the pictures a "Track pictures" run made into one zip on a scratch pre-release (shots-tmp), so they can
-# be fetched and the best ones picked. Run by hand with the run number; mode "delete" removes the scratch release.
+# be fetched and the best ones picked. Runs when .github/shotspub.txt changes: its first word is the run number, or
+# the word delete to remove the scratch release.
 name: Track pictures zip
 
 on:
-  workflow_dispatch:
-    inputs:
-      run:
-        description: "Track pictures run id"
-        required: true
-      mode:
-        description: "publish or delete"
-        default: "publish"
+  push:
+    branches: [godot]
+    paths: [.github/shotspub.txt]
 
 permissions:
   contents: write
@@ -23,18 +19,21 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
+      - uses: actions/checkout@v4
+      - id: req
+        run: echo "run=$(awk '{print $1; exit}' .github/shotspub.txt)" >> "$GITHUB_OUTPUT"
       - name: Remove the scratch release
-        if: github.event.inputs.mode == 'delete'
+        if: steps.req.outputs.run == 'delete'
         run: gh release delete shots-tmp --yes --cleanup-tag || true
       - uses: actions/download-artifact@v4
-        if: github.event.inputs.mode != 'delete'
+        if: steps.req.outputs.run != 'delete'
         with:
-          run-id: ${{ github.event.inputs.run }}
+          run-id: ${{ steps.req.outputs.run }}
           github-token: ${{ github.token }}
           path: shots
           merge-multiple: true
       - name: Publish the zip
-        if: github.event.inputs.mode != 'delete'
+        if: steps.req.outputs.run != 'delete'
         run: |
           ls shots | wc -l
           (cd shots && zip -q -r ../shots.zip .)
