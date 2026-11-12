@@ -51,13 +51,15 @@ function toyWall(ax,at,a0,a1,H,hole,m,face){const T=12*TM.U,mk=(u0,u1,v0,v1)=>{i
   if(!hole){mk(a0,a1,0,H);return;}const [h0,h1,y0,y1]=hole;mk(a0,h0,0,H);mk(h1,a1,0,H);mk(h0,h1,0,y0);mk(h0,h1,y1,H);}
 /* ---- Bedroom Blitz: a teenager's bedroom, 4.0 x 4.8 m ---- */
 function toyBedroom(def){const U=TM.U,X=695,Y=833,H=868,M=TM;
-  /* light: afternoon sun from the window side, soft fill from the pale walls and ceiling */
-  renderer.toneMappingExposure=.92;hemi.color.set('#fff4e6');hemi.groundColor.set('#a8845e');hemi.intensity=.62;sun.color.set('#fff0d6');sun.intensity=1.25;sunDir.set(.28,.66,-.7).normalize();rimL.intensity=.18;rimL.color.set('#cfe0ff');
+  /* light: a low afternoon sun that reaches the room only through the window (sunBeam, below): warm, hard-edged patches on the desk
+     and across the middle of the floor; the rest of the room is in cooler shade, lit by the sky and by what the floor throws back up */
+  renderer.toneMappingExposure=.98;hemi.color.set('#cfdcf0');hemi.groundColor.set('#b3937a');hemi.intensity=.54;sun.color.set('#ffdcaa');sun.intensity=2.7;sunDir.set(-.1,.56,-.82).normalize();rimL.intensity=.16;rimL.color.set('#cfe0ff');
   scene.fog=new THREE.Fog('#d8cfc0',6000,30000);scene.background=new THREE.Color('#bcd6f2');Object.assign(POST.grade,{sat:1.04,con:1.05,tint:[1.01,1,.985],vig:.16,bloom:.22,thr:.97});
   /* floor: oak boards 12 cm wide running the length of the room */
   const fm=M.wood('floor','#b08556','#4a2f18',{planks:8,knots:1,rough:.46,env:.55,bump:1.4}),fg=new THREE.PlaneGeometry(2*X,2*Y,1,1);fg.rotateX(-Math.PI/2);M.uvw(fg,96,true);const fl=new THREE.Mesh(fg,fm);fl.position.y=-.1;fl.receiveShadow=true;fl.userData.noLift=true;world.add(fl);
   /* walls (the window in the north wall, the door in the south wall), ceiling, skirting boards */
   const wall=M.paint('wall','#e9e3d8',.92),wall2=M.paint('wall2','#93a8a6',.92),win=[-370,150,330,764],dr=[-300,-14,0,712];
+  sunBeam([[win[0],win[1],win[2],win[3],-Y-12*U,-Y]],win[3]/sunDir.y+160);
   toyWall('x',-Y,-X,X,H,[win[0],win[1],win[2],win[3]],wall,-1);toyWall('x',Y,-X,X,H,[dr[0],dr[1],dr[2],dr[3]],wall,1);toyWall('z',-X,-Y,Y,H,null,wall,-1);toyWall('z',X,-Y,Y,H,null,wall2,1);
   const cg=new THREE.PlaneGeometry(2*X,2*Y);cg.rotateX(Math.PI/2);const ce=new THREE.Mesh(cg,M.paint('ceiling','#f4f1ea',.95));ce.position.y=H;ce.userData.noLift=true;world.add(ce);
   const sk=M.paint('skirting','#f6f4ee',.5),sb=(x0,x1,z0,z1)=>{const b=new THREE.Mesh(M.slab(Math.abs(x1-x0)||1.6*U,10*U,Math.abs(z1-z0)||1.6*U,.3*U,.3*U,2),sk);b.position.set((x0+x1)/2,5*U,(z0+z1)/2);b.userData.noLift=true;b.receiveShadow=true;world.add(b);};
@@ -72,7 +74,7 @@ function toyBedroom(def){const U=TM.U,X=695,Y=833,H=868,M=TM;
   const deskTop=260;toyPut(M.desk({w:200,d:80,h:75}),-123,694,0);TOYF.push([-470,224,-833,-555,deskTop]);
   toyPut(M.deskmat(),-110,738,0,deskTop);toyPut(M.monitor({screen:'game'}),-110,792,0,deskTop+.4*U);toyPut(M.monitor({arm:true,screen:'desk'}),-345,800,.42,deskTop);toyPut(M.keyboard(),-118,712,0,deskTop+.4*U);toyPut(M.mouse(),-22,706,.1,deskTop+.4*U);
   toyPut(M.pc(),150,733,Math.PI/2*0,deskTop);toyPut(M.mug({color:'#2f5d8a'}),-262,712,.6,deskTop);toyPut(M.sodacan(),30,776,0,deskTop);toyPut(M.books(4,5),-428,770,.3,deskTop);toyPut(M.plant({seed:4}),-452,792,0,deskTop).scale.setScalar(.5);
-  toyPut(M.chair({turn:.35}),-120,392,Math.PI);toyPut(M.floorlamp(),460,455,0);
+  /* the chair is pushed back to one side, clear of the sunlight that falls across the floor */toyPut(M.chair({turn:-.5}),-345,372,Math.PI+.35);toyPut(M.floorlamp(),460,455,0);
   toyPut(M.bed(),431.5,-469,Math.PI);toyPut(M.nightstand(),88,-760,Math.PI);toyPut(M.mug(),70,-756,2,52*U);toyPut(M.books(2,9),104,-764,.2,52*U);
   toyPut(M.dresser(),-617,268,Math.PI/2);TOYF.push([-695,-539,-476,-60,156]);
   /* the start of the climb rests on a stack of books */
@@ -87,7 +89,7 @@ function toyBedroom(def){const U=TM.U,X=695,Y=833,H=868,M=TM;
   toyPut(M.setbox(),-130,-722,.15);toyPut(M.trackpiece(),-150,-722,.9,38.4);toyPut(M.trackpiece({l:22}),-248,-664,-.4);
   toyPut(M.poster(50,70,0),-689,268,Math.PI/2,430);toyPut(M.poster(42,60,1),689,-250,-Math.PI/2,500);toyPut(M.poster(42,60,2),689,-430,-Math.PI/2,470);toyPut(M.shelf(),689,250,-Math.PI/2,520);
   /* where furniture keeps the light off the floor */
-  toyShade(168,695,-833,-137,.5);toyShade(-470,224,555,833,.34);toyShade(-695,-539,60,476,.3);toyShade(-190,-50,320,460,.22);toyShade(10,165,-833,-690,.3);}
+  toyShade(168,695,-833,-137,.5);toyShade(-470,224,555,833,.34);toyShade(-695,-539,60,476,.3);toyShade(-415,-275,302,442,.22);toyShade(10,165,-833,-690,.3);}
 /* ---- the pieces of the racing set ---- */
 /* the loop: the same full loop the other cups have, scaled to the toy track. The road swings left into it and comes out on the right */
 function toyLoops(def){LOOP_DH=5;for(const q of def.tloops||[]){const j=nfj(q[0]),p=track[j];LOOPS.push({j,p:{x:p.x,y:p.y,tx:p.tx,ty:p.ty,nx:p.nx,ny:p.ny,ang:p.ang},g0:groundAt(p.x,p.y)+(p.ey||0),W:WALLD,S:54,lat0:-54,shift:108,full:true,sc:q[1]||LS});}

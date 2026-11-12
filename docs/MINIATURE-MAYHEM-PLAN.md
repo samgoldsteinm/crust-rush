@@ -144,3 +144,24 @@ Open items the user raised: booster housings near shortcut mouths (guarded in to
 - "Before" pictures for the realism pass: D:\crust-rush\scratch\neon_before_*.png (cameras in scratch\cams_bed.txt,
   taken with VP=1280x720 HOLD=1, quality ultra). On a real graphics card the track shows a mottled, felt-like
   surface (the fine surface detail every plain material gets): it should be smooth moulded plastic.
+
+## Realism pass progress (from the PC session, 2026-11-12 night)
+- Blender: no live connection in the Claude Code session; it is run in the background with scripts
+  (`D:lenderlender.exe --background --python <script>`), which is enough to build, render and export GLB.
+- Item 1 done on web (not yet published, source only): sunlight through the window only.
+  - Engine patch 4 (`tools/mini/patch4.py`, applied): `TOYSUN`, `sunBox()`, `sunBeam(holes,reach)`, `sunShadeAll()`,
+    `sunReset()`. On a toy map the sun's shadow camera is fixed on the window opening (it does not follow the player)
+    and the shadow shader treats everything outside that beam as shade. The switch is the light's shadow radius: 51 on
+    toy maps, 1 everywhere else (the shader subtracts the 50 again, so the Fast and Lite shadow filter is unchanged).
+  - `toyBedroom` calls `sunBeam([[x0,x1,y0,y1,z0,z1]], reach)` with the window opening. Every new room needs the same
+    call for each opening the sun shines through; an outdoor track (Backyard) simply does not call it.
+  - Things outdoors that should stay in full sun (the view outside, item 4) must set `userData.sunlit=true`, because
+    `sunShadeAll()` makes every other mesh receive shadows on toy maps (otherwise it would be sunlit inside the room).
+  - Bedroom light now: sun from the north window, direction (-.1,.56,-.82), colour #ffdcaa, strength 2.7; sky fill
+    #cfdcf0 over #b3937a at .54; exposure .98. The chair moved to (-345,372) so the beam falls on the loop and the rug.
+  - Tested: boot, load, races forward 212 s / reverse 162 s (8 finish, 0 respawns, 0 stuck), margherita regression,
+    Lite/Fast/Balanced/Ultra pictures, bedroom -> regular track -> bedroom switch, quality change mid-race.
+  - Pictures: scratch
+eon_s1b_*.png (same cameras as neon_before_*), chase_s1c_*.png.
+  - PC still to do for item 1: shadow range to the room on toy tracks, walls cast, same sun direction and colours.
+

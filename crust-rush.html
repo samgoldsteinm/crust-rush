@@ -1283,7 +1283,10 @@ renderer.shadowMap.enabled=true;renderer.shadowMap.type=QUAL[qKey].soft?THREE.PC
 const maxAniso=Math.min(16,renderer.capabilities.getMaxAnisotropy());
 /* shadows fade out over the last few percent of the sun's shadow box instead of stopping on a hard line on the road ahead
    (a few ALU ops per shadowed pixel, every preset) */
-try{const C=THREE.ShaderChunk,k='shadowmap_pars_fragment',a='\t\t}\n\t\treturn shadow;\n\t}\n\tvec2 cubeToUV';if(C[k].indexOf(a)>=0)C[k]=C[k].replace(a,'\t\t}\n\t\tshadow=mix(1.0,shadow,smoothstep(0.0,0.07,min(min(shadowCoord.x,1.0-shadowCoord.x),min(shadowCoord.y,1.0-shadowCoord.y))));\n\t\treturn shadow;\n\t}\n\tvec2 cubeToUV');}catch(e){}
+try{const C=THREE.ShaderChunk,k='shadowmap_pars_fragment',a='\t\t}\n\t\treturn shadow;\n\t}\n\tvec2 cubeToUV',h='float shadowRadius, vec4 shadowCoord ) {\n\t\tfloat shadow = 1.0;';
+  /* a shadow radius of 50 or more marks a light whose beam is the whole of its shadow map (the sun through a toy room's window):
+     outside the map is shade, not light. Everywhere else beamLit is 1 and the shader does what it always did. */
+  if(C[k].indexOf(a)>=0&&C[k].indexOf(h)>=0)C[k]=C[k].replace(h,'float shadowRadius, vec4 shadowCoord ) {\n\t\tfloat beamLit = 1.0 - step( 50.0, shadowRadius );\n\t\tshadowRadius -= 50.0 * ( 1.0 - beamLit );\n\t\tfloat shadow = beamLit;').replace(a,'\t\t}\n\t\tshadow=mix(beamLit,shadow,smoothstep(0.0,0.07,min(min(shadowCoord.x,1.0-shadowCoord.x),min(shadowCoord.y,1.0-shadowCoord.y))));\n\t\treturn shadow;\n\t}\n\tvec2 cubeToUV');}catch(e){}
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(60,16/9,1.6,22000);
 const hemi=new THREE.HemisphereLight('#ffffff','#444444',.7);scene.add(hemi);
@@ -1294,6 +1297,25 @@ Object.assign(sun.shadow.camera,{left:-115,right:115,top:115,bottom:-115,near:20
 sun.shadow.bias=-.0004;sun.shadow.normalBias=.35;scene.add(sun,sun.target);
 {const X=QUAL[qKey].sx||115;Object.assign(sun.shadow.camera,{left:-X,right:X,top:X,bottom:-X});sun.shadow.camera.updateProjectionMatrix();if(QUAL[qKey].hqAll)rimL.intensity=.28;}
 const sunDir=new THREE.Vector3(.6,1,.35).normalize();
+/* Toy rooms: the sun comes in only through the window. TOYSUN holds a shadow camera fixed on the window opening (it does not follow the
+   player); a shadow radius of 51 tells the shader that everything outside that beam is shade (see the shader patch above).
+   sunBox() puts the shadow camera into the mode the current map needs: call it after anything that changes the map or the shadow map's size. */
+let TOYSUN=null,SUNRCV=[];
+function sunBox(){const sc=sun.shadow.camera,b=TOYSUN;
+  if(b){Object.assign(sc,{left:b.l,right:b.r,bottom:b.b,top:b.t,near:b.n,far:b.f});sun.position.copy(b.pos);sun.target.position.copy(b.tgt);sun.shadow.radius=51;sun.shadow.normalBias=Math.max(.35,1.6*(b.r-b.l)/sun.shadow.mapSize.x);}
+  else{const X=QUAL[qKey].sx||115;Object.assign(sc,{left:-X,right:X,top:X,bottom:-X,near:20,far:1400});sun.shadow.radius=1;sun.shadow.normalBias=.35;}
+  sc.updateProjectionMatrix();}
+/* fit the sun's beam to the openings it shines through: each is [x0,x1,y0,y1,z0,z1], the box of a hole in a wall; reach is how far
+   past the opening the light can travel before it meets the floor */
+function sunBeam(holes,reach){const A=new THREE.Vector3(0,1,0).cross(sunDir).normalize(),B=new THREE.Vector3().copy(sunDir).cross(A).normalize(),c=new THREE.Vector3(),v=new THREE.Vector3(),pts=[];
+  for(const h of holes)for(const x of [h[0],h[1]])for(const y of [h[2],h[3]])for(const z of [h[4],h[5]]){const q=new THREE.Vector3(x,y,z);pts.push(q);c.add(q);}c.multiplyScalar(1/pts.length);
+  let l=1e9,r=-1e9,bt=1e9,t=-1e9;for(const q of pts){v.copy(q).sub(c);const a=v.dot(A),b=v.dot(B);l=Math.min(l,a);r=Math.max(r,a);bt=Math.min(bt,b);t=Math.max(t,b);}
+  /* the shader fades the outer 7% of the map into shade, so the opening sits well inside it */
+  const px=(r-l)*.14+12,py=(t-bt)*.14+12;TOYSUN={l:l-px,r:r+px,b:bt-py,t:t+py,n:20,f:700+reach,pos:c.clone().addScaledVector(sunDir,700),tgt:c};sunBox();}
+/* in a toy room every lit surface has to be tested against the beam, or it would stand in full sun wherever it is. Meshes built
+   without shadows receive them for this map only; userData.sunlit marks the things outdoors, which stay in full sun */
+function sunShadeAll(){if(!TOYSUN)return;scene.traverse(o=>{if(o.isMesh&&!o.receiveShadow&&!o.userData.sunlit){o.receiveShadow=true;SUNRCV.push(o);}});}
+function sunReset(){for(const o of SUNRCV)o.receiveShadow=false;SUNRCV=[];TOYSUN=null;sunBox();}
 const pmrem=new THREE.PMREMGenerator(renderer);
 
 function T2(c,rx,ry,linear){const t=new THREE.CanvasTexture(c);t.anisotropy=maxAniso;if(!linear)t.encoding=THREE.sRGBEncoding;if(rx){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx,ry);}return t;}
@@ -4616,13 +4638,15 @@ function toyWall(ax,at,a0,a1,H,hole,m,face){const T=12*TM.U,mk=(u0,u1,v0,v1)=>{i
   if(!hole){mk(a0,a1,0,H);return;}const [h0,h1,y0,y1]=hole;mk(a0,h0,0,H);mk(h1,a1,0,H);mk(h0,h1,0,y0);mk(h0,h1,y1,H);}
 /* ---- Bedroom Blitz: a teenager's bedroom, 4.0 x 4.8 m ---- */
 function toyBedroom(def){const U=TM.U,X=695,Y=833,H=868,M=TM;
-  /* light: afternoon sun from the window side, soft fill from the pale walls and ceiling */
-  renderer.toneMappingExposure=.92;hemi.color.set('#fff4e6');hemi.groundColor.set('#a8845e');hemi.intensity=.62;sun.color.set('#fff0d6');sun.intensity=1.25;sunDir.set(.28,.66,-.7).normalize();rimL.intensity=.18;rimL.color.set('#cfe0ff');
+  /* light: a low afternoon sun that reaches the room only through the window (sunBeam, below): warm, hard-edged patches on the desk
+     and across the middle of the floor; the rest of the room is in cooler shade, lit by the sky and by what the floor throws back up */
+  renderer.toneMappingExposure=.98;hemi.color.set('#cfdcf0');hemi.groundColor.set('#b3937a');hemi.intensity=.54;sun.color.set('#ffdcaa');sun.intensity=2.7;sunDir.set(-.1,.56,-.82).normalize();rimL.intensity=.16;rimL.color.set('#cfe0ff');
   scene.fog=new THREE.Fog('#d8cfc0',6000,30000);scene.background=new THREE.Color('#bcd6f2');Object.assign(POST.grade,{sat:1.04,con:1.05,tint:[1.01,1,.985],vig:.16,bloom:.22,thr:.97});
   /* floor: oak boards 12 cm wide running the length of the room */
   const fm=M.wood('floor','#b08556','#4a2f18',{planks:8,knots:1,rough:.46,env:.55,bump:1.4}),fg=new THREE.PlaneGeometry(2*X,2*Y,1,1);fg.rotateX(-Math.PI/2);M.uvw(fg,96,true);const fl=new THREE.Mesh(fg,fm);fl.position.y=-.1;fl.receiveShadow=true;fl.userData.noLift=true;world.add(fl);
   /* walls (the window in the north wall, the door in the south wall), ceiling, skirting boards */
   const wall=M.paint('wall','#e9e3d8',.92),wall2=M.paint('wall2','#93a8a6',.92),win=[-370,150,330,764],dr=[-300,-14,0,712];
+  sunBeam([[win[0],win[1],win[2],win[3],-Y-12*U,-Y]],win[3]/sunDir.y+160);
   toyWall('x',-Y,-X,X,H,[win[0],win[1],win[2],win[3]],wall,-1);toyWall('x',Y,-X,X,H,[dr[0],dr[1],dr[2],dr[3]],wall,1);toyWall('z',-X,-Y,Y,H,null,wall,-1);toyWall('z',X,-Y,Y,H,null,wall2,1);
   const cg=new THREE.PlaneGeometry(2*X,2*Y);cg.rotateX(Math.PI/2);const ce=new THREE.Mesh(cg,M.paint('ceiling','#f4f1ea',.95));ce.position.y=H;ce.userData.noLift=true;world.add(ce);
   const sk=M.paint('skirting','#f6f4ee',.5),sb=(x0,x1,z0,z1)=>{const b=new THREE.Mesh(M.slab(Math.abs(x1-x0)||1.6*U,10*U,Math.abs(z1-z0)||1.6*U,.3*U,.3*U,2),sk);b.position.set((x0+x1)/2,5*U,(z0+z1)/2);b.userData.noLift=true;b.receiveShadow=true;world.add(b);};
@@ -4637,7 +4661,7 @@ function toyBedroom(def){const U=TM.U,X=695,Y=833,H=868,M=TM;
   const deskTop=260;toyPut(M.desk({w:200,d:80,h:75}),-123,694,0);TOYF.push([-470,224,-833,-555,deskTop]);
   toyPut(M.deskmat(),-110,738,0,deskTop);toyPut(M.monitor({screen:'game'}),-110,792,0,deskTop+.4*U);toyPut(M.monitor({arm:true,screen:'desk'}),-345,800,.42,deskTop);toyPut(M.keyboard(),-118,712,0,deskTop+.4*U);toyPut(M.mouse(),-22,706,.1,deskTop+.4*U);
   toyPut(M.pc(),150,733,Math.PI/2*0,deskTop);toyPut(M.mug({color:'#2f5d8a'}),-262,712,.6,deskTop);toyPut(M.sodacan(),30,776,0,deskTop);toyPut(M.books(4,5),-428,770,.3,deskTop);toyPut(M.plant({seed:4}),-452,792,0,deskTop).scale.setScalar(.5);
-  toyPut(M.chair({turn:.35}),-120,392,Math.PI);toyPut(M.floorlamp(),460,455,0);
+  /* the chair is pushed back to one side, clear of the sunlight that falls across the floor */toyPut(M.chair({turn:-.5}),-345,372,Math.PI+.35);toyPut(M.floorlamp(),460,455,0);
   toyPut(M.bed(),431.5,-469,Math.PI);toyPut(M.nightstand(),88,-760,Math.PI);toyPut(M.mug(),70,-756,2,52*U);toyPut(M.books(2,9),104,-764,.2,52*U);
   toyPut(M.dresser(),-617,268,Math.PI/2);TOYF.push([-695,-539,-476,-60,156]);
   /* the start of the climb rests on a stack of books */
@@ -4652,7 +4676,7 @@ function toyBedroom(def){const U=TM.U,X=695,Y=833,H=868,M=TM;
   toyPut(M.setbox(),-130,-722,.15);toyPut(M.trackpiece(),-150,-722,.9,38.4);toyPut(M.trackpiece({l:22}),-248,-664,-.4);
   toyPut(M.poster(50,70,0),-689,268,Math.PI/2,430);toyPut(M.poster(42,60,1),689,-250,-Math.PI/2,500);toyPut(M.poster(42,60,2),689,-430,-Math.PI/2,470);toyPut(M.shelf(),689,250,-Math.PI/2,520);
   /* where furniture keeps the light off the floor */
-  toyShade(168,695,-833,-137,.5);toyShade(-470,224,555,833,.34);toyShade(-695,-539,60,476,.3);toyShade(-190,-50,320,460,.22);toyShade(10,165,-833,-690,.3);}
+  toyShade(168,695,-833,-137,.5);toyShade(-470,224,555,833,.34);toyShade(-695,-539,60,476,.3);toyShade(-415,-275,302,442,.22);toyShade(10,165,-833,-690,.3);}
 /* ---- the pieces of the racing set ---- */
 /* the loop: the same full loop the other cups have, scaled to the toy track. The road swings left into it and comes out on the right */
 function toyLoops(def){LOOP_DH=5;for(const q of def.tloops||[]){const j=nfj(q[0]),p=track[j];LOOPS.push({j,p:{x:p.x,y:p.y,tx:p.tx,ty:p.ty,nx:p.nx,ny:p.ny,ang:p.ang},g0:groundAt(p.x,p.y)+(p.ey||0),W:WALLD,S:54,lat0:-54,shift:108,full:true,sc:q[1]||LS});}
@@ -5213,7 +5237,7 @@ function loadMap0(mi,rev){
   renderer.toneMappingExposure=th.exposure;Object.assign(POST.grade,{kitchen:{sat:1.05,con:1.04,tint:[1.01,1,.99],vig:.2,bloom:.32,thr:.94},bay:{sat:1.07,con:1.04,tint:[1.0,1,1.0],vig:.16,bloom:.3,thr:.94},freezer:{sat:1.06,con:1.04,tint:[.99,1,1.01],vig:.15,bloom:.24,thr:.96},night:{sat:1.03,con:1.05,tint:[1,1,1],vig:.24,bloom:.48,thr:.88}}[def.theme]||{});
   scene.fog=new THREE.Fog(th.fog[0],th.fog[1],th.fog[2]);scene.background=new THREE.Color(th.bg);
   hemi.color.set(th.hemi[0]);hemi.groundColor.set(th.hemi[1]);hemi.intensity=th.hemi[2];rimL.color.set(def.theme==='night'?'#8a6bff':def.theme==='kitchen'?'#ffd0a0':'#a8ccff');rimL.intensity=def.theme==='night'?.9:.55;
-  sun.color.set(th.sun[0]);sun.intensity=th.sun[1];sunDir.set(th.dir[0],th.dir[1],th.dir[2]).normalize();varLook(def);balanceLook(def);
+  sunReset();sun.color.set(th.sun[0]);sun.intensity=th.sun[1];sunDir.set(th.dir[0],th.dir[1],th.dir[2]).normalize();varLook(def);balanceLook(def);
   if(scene.environment)scene.environment.dispose();
   scene.environment=envFrom(th.env,def.theme==='kitchen'?[[128,40,30,'#ffffff'],[384,40,30,'#ffffff'],[256,140,40,'#ff8a2a']]:def.theme==='freezer'?[[256,50,50,'#ffffff'],[100,120,20,'#dff2ff']]:def.theme==='bay'?[[380,110,40,'#fff2d0']]:[[100,60,10,'#bcd0ff'],[300,130,16,'#ffd27a'],[420,130,16,'#ffd27a']]);
   sky=null;if(th.sky){sky=skyDome(th.sky,sunDir,def.theme==='bay'?'#ffd9a0':def.theme==='freezer'?'#ffffff':'#c8d8ff');world.add(sky);}
@@ -5900,7 +5924,7 @@ function envProbe(){if(ENVP){try{ENVP.dispose();}catch(e){}ENVP=null;}if(!QUAL[q
     const pm=new THREE.PMREMGenerator(renderer);ENVP=pm.fromCubemap(rt.texture).texture;pm.dispose();rt.dispose();}catch(e){console.warn('probe',e);ENVP=null;}
   applyEnvProbe();}
 function applyEnvProbe(){for(const k of karts){if(!k.m)continue;k.m.g.traverse(o=>{if(!o.isMesh||!o.material)return;for(const m of (Array.isArray(o.material)?o.material:[o.material])){if(!m.isMeshStandardMaterial||SHSET.has(m)||m.userData.shared)continue;const t=ENVP||null;if(m.envMap!==t){m.envMap=t;m.needsUpdate=true;}}});}}
-function warmScene(){try{if(!_warmG){_warmG=new THREE.Group();for(const k of Object.keys(ITEM_BUILD)){try{_warmG.add(itemProto(k).clone());}catch(e){}}for(const k in ITEM_GLOW){const sp=new THREE.Sprite(glowMat(ITEM_GLOW[k]));sp.scale.setScalar(4);_warmG.add(sp);}}
+function warmScene(){sunShadeAll();try{if(!_warmG){_warmG=new THREE.Group();for(const k of Object.keys(ITEM_BUILD)){try{_warmG.add(itemProto(k).clone());}catch(e){}}for(const k in ITEM_GLOW){const sp=new THREE.Sprite(glowMat(ITEM_GLOW[k]));sp.scale.setScalar(4);_warmG.add(sp);}}
   scene.add(_warmG);const saved=[];scene.traverse(o=>{saved.push(o,o.visible,o.frustumCulled);o.visible=true;o.frustumCulled=false;});
   renderer.compile(scene,camera);const sm=renderer.shadowMap.autoUpdate;renderer.shadowMap.needsUpdate=true;
   /* draw everything once into the very targets the race uses: GPU drivers (Metal on iPhones, ANGLE, SwiftShader) build a separate pipeline per target format and sample count,
@@ -7228,7 +7252,7 @@ function render(time,dt){
   FXA.update(dt);FXN.update(dt);updRings(dt);
   const bh=renderer.getDrawingBufferSize(v2).y,sc=bh/(2*Math.tan(camera.fov*Math.PI/360));FXA.mat.uniforms.scale.value=sc;FXN.mat.uniforms.scale.value=sc;FXA.mat.uniforms.maxPt.value=FXN.mat.uniforms.maxPt.value=Math.max(28,bh*.12);
   mfzStep();/* after everything this frame has moved, just before drawing */
-  render.n=(render.n||0)+1;render.fdt=render.fdt==null?dt:render.fdt*.9+dt*.1;
+  render.n=(render.n||0)+1;render.fdt=render.fdt==null?dt:render.fdt*.9+dt*.1;if(TOYSUN&&render.n%90===0)sunShadeAll();
   /* above ~85 fps the shadow map is redrawn every other frame: shadows still update 60+ times a second (exactly as at 60 fps), so they look
      the same, but a 120 Hz screen doesn't pay for the 4096 shadow map twice as often */
   renderer.shadowMap.needsUpdate=BENCH.noShUp?false:(LOWQF()||saverOn())?render.n%(QUAL[qKey].shEvery||2)===0:(render.fdt>.0118||render.n%2===0);/* half-rate shadows made moving shadows judder */
@@ -7601,7 +7625,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&(state==='
 document.querySelectorAll('#clsSeg button').forEach(b=>b.onclick=()=>{clsKey=b.dataset.c;store.set('crust-cls',clsKey);refreshMenu();});
 document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{mode=b.dataset.m;store.set('crust-mode',mode);if(mode==='gp'){const t=CUP_TRACKS[cupIdx][0];if(t!==mapIdx){mapIdx=t;loadMap(t,false);resetRace(true);}}refreshMenu();});
 document.querySelectorAll('#qual button').forEach(b=>b.onclick=()=>{qKey=b.dataset.q;store.set('crust-q',qKey);applyQuality();refreshMenu();});
-function applyQuality(){const q=QUAL[qKey];LIVQ.value=q.hqAll?2:qKey==='sharp'?1:0;{const X=q.sx||115;Object.assign(sun.shadow.camera,{left:-X,right:X,top:X,bottom:-X});sun.shadow.camera.updateProjectionMatrix();rimL.intensity=q.hqAll?.28:0;}renderer.shadowMap.type=q.soft?THREE.PCFSoftShadowMap:THREE.PCFShadowMap;sun.shadow.mapSize.set(q.sm,q.sm);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
+function applyQuality(){const q=QUAL[qKey];LIVQ.value=q.hqAll?2:qKey==='sharp'?1:0;{sunBox();rimL.intensity=q.hqAll?.28:0;}renderer.shadowMap.type=q.soft?THREE.PCFSoftShadowMap:THREE.PCFShadowMap;sun.shadow.mapSize.set(q.sm,q.sm);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
   /* shaders only need rebuilding when something baked into them changes (the shadow filter, the surface-detail level); every other
      preset switch keeps its programs, which spares a multi-second compile stall on PC drivers (the graphics test switches four times) */
   {const sig=renderer.shadowMap.type+'|'+(LOWQF()?0:(q.hqAll&&!q.mob)?2:1);if(applyQuality.sig!==sig){applyQuality.sig=sig;scene.traverse(o=>{if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.needsUpdate=true);});}}
@@ -7920,7 +7944,7 @@ async function boot(){const ld=document.getElementById('loader'),bar=document.ge
 let last=performance.now(),resTick=0,perfT=0,perfN=0,perfSum=0,raisedAt=-1,fpsMax=0;
 let bestDt=1;const HZ=[1/165,1/144,1/120,1/90,1/75,1/60,1/50,1/30];
 const _sA=new THREE.Vector3(),_sB=new THREE.Vector3(),_sT=new THREE.Vector3();
-function snapSun(x,y,z){const sc=sun.shadow.camera,tx=(sc.right-sc.left)/sun.shadow.mapSize.x;_sA.set(0,1,0).cross(sunDir).normalize();_sB.copy(sunDir).cross(_sA).normalize();
+function snapSun(x,y,z){if(TOYSUN)return;const sc=sun.shadow.camera,tx=(sc.right-sc.left)/sun.shadow.mapSize.x;_sA.set(0,1,0).cross(sunDir).normalize();_sB.copy(sunDir).cross(_sA).normalize();
   _sT.set(x,y,z);const a=Math.round(_sT.dot(_sA)/tx)*tx,b=Math.round(_sT.dot(_sB)/tx)*tx,c=Math.round(_sT.dot(sunDir)/4)*4;
   _sT.copy(_sA).multiplyScalar(a).addScaledVector(_sB,b).addScaledVector(sunDir,c);sun.target.position.copy(_sT);sun.position.copy(_sT).addScaledVector(sunDir,500);}
 /* Frame-rate ladder. When frames run long the game steps down one rung at a time, cheapest-looking change first;
@@ -7930,7 +7954,7 @@ let LAD=0,ladBest=0,LADV=LADS[0];
 function ladKey(){return 'crust-lad2-'+qKey;}/* key changed in v115: the graphics test had been writing its own switches into the ladder */
 function applyLad(n,save){LAD=clamp(n,0,LADS.length-1);LADV=LADS[LAD];const q=QUAL[qKey],fl=Math.min(DPR,q.floor);
   const np=Math.max(fl,Math.min(DPR,q.start)-LADV.p);if(Math.abs(np-pr)>.01)pr=np;fitPending=true;
-  const sm=Math.min(saverOn()?1024:1e5,Math.max(512,Math.round(q.sm*(LADV.sm||1))));if(sun.shadow.mapSize.x!==sm){sun.shadow.mapSize.set(sm,sm);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}}
+  const sm=Math.min(saverOn()?1024:1e5,Math.max(512,Math.round(q.sm*(LADV.sm||1))));if(sun.shadow.mapSize.x!==sm){sun.shadow.mapSize.set(sm,sm);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}}sunBox();
   LODM=0;LODF=(LADV.lod?100:(q.lodf||120))*(saverOn()?.8:1);if(save)store.set(ladKey(),String(LAD));}
 function adaptQuality(dt,time){if(BENCH.on){perfSum=perfN=perfT=0;slowN=fastN=0;return;}/* the graphics test switches presets every few seconds: not a measurement of the player's own setting */perfSum+=dt;perfN++;perfT+=dt;if(perfT<1)return;const avg=perfSum/perfN;perfT=perfSum=perfN=0;
   bestDt=Math.min(bestDt*1.01,avg);let P=1/60;for(const h of HZ)if(h>=bestDt*.93){P=h;break;}if(fps60())P=Math.max(P,1/60);else P=Math.max(P,1/120);
