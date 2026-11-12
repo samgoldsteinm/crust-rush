@@ -456,6 +456,11 @@ func _build_world() -> void:
 	if track != null:
 		world.add_child(track)
 		_prepare_track(track)
+	# the Neon Cup's lights: beams and the hologram glow, the hologram turns, stars overhead (all settings)
+	if track != null and T.theme == "night":
+		var nn := HdNeon.upgrade(track)
+		if nn > 0:
+			print("neon: %d" % nn)
 	var hd := hd_on and quality >= 1 and OS.get_environment("CR_HD") != "0"   # CR_HD=0: tests that only need the race
 	# the ground: the same picture with depth, gloss and a fine grain up close
 	if track != null and hd:

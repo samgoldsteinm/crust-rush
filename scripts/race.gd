@@ -2044,7 +2044,8 @@ func _projectiles(dt: float) -> void:
 			continue
 		if type == "lob":
 			if float(p["t"]) <= 0.0:
-				if not (not T.glide.is_empty() and T.ground(float(p["x"]), float(p["y"])) < T.glide_y(float(p["x"]), float(p["y"])) - 20.0):
+				# web overPit: a thrown trap is lost only over the glide's shaft itself
+				if not (not T.glide.is_empty() and T.pit(float(p["x"]), float(p["y"])) > 1.0 and T.ground(float(p["x"]), float(p["y"])) < T.glide_y(float(p["x"]), float(p["y"])) - 20.0):
 					_hazard(p["owner"], float(p["x"]), float(p["y"]))
 				projectiles.remove_at(i)
 			i -= 1
@@ -2189,6 +2190,9 @@ func _hazards(dt: float) -> void:
 	while i >= 0:
 		var h: Dictionary = hazards[i]
 		cur_p = h
+		# web: a trap dropped over the glide's shaft falls away at once
+		if float(h["born"]) == 0.0 and not T.glide.is_empty() and T.pit(float(h["x"]), float(h["y"])) > 1.0 and T.ground(float(h["x"]), float(h["y"])) < T.glide_y(float(h["x"]), float(h["y"])) - 20.0:
+			h["t"] = 0.0
 		h["t"] = float(h["t"]) - dt
 		h["born"] = float(h["born"]) + dt
 		var o: Kart = h["owner"]

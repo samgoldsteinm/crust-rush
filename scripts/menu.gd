@@ -29,7 +29,7 @@ const MODES := [["gp", "Grand Prix"], ["single", "Single race"], ["lss", "Last S
 const CLASSES := [["small", "50cc"], ["medium", "100cc"], ["large", "200cc"], ["reverse", "Reverse"]]
 const CLS_NOTE := {"small": "50cc: a relaxed speed for learning the tracks.", "medium": "100cc: the standard race speed.", "large": "200cc: much faster karts and sharper rivals.", "reverse": "Every track runs backwards at 200cc speed."}
 const MODE_NOTE := {"lss": "Last Slice Standing: each time the leader completes a lap, the racer in last place is out. Seven laps, one slice left."}
-const CUPS := [["Margherita Cup", "#f7c948"], ["Supreme Cup", "#3f9a35"], ["Deep Dish Cup", "#e0452c"], ["Meat Lover's Cup", "#b06a3c"]]
+const CUPS := [["Margherita Cup", "#f7c948"], ["Supreme Cup", "#3f9a35"], ["Deep Dish Cup", "#e0452c"], ["Meat Lover's Cup", "#b06a3c"], ["Neon Cup", "#3ff0ff"]]
 
 var f_disp: Font
 var f_bold: Font
@@ -1209,7 +1209,7 @@ func _track() -> Control:
 	var dv := vbox(8)
 	detail.add_child(dv)
 	var grid := GridContainer.new()
-	grid.columns = 2 if gp else 4
+	grid.columns = 3 if gp else 4   # five cups: three across, two down
 	grid.add_theme_constant_override("h_separation", zi(12))
 	grid.add_theme_constant_override("v_separation", zi(12))
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL

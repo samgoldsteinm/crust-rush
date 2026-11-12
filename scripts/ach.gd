@@ -25,7 +25,7 @@ const LIST := [
 	["drivers4", "Team Players", "Win races with 4 different drivers.", "drivers", 4, "r_splash", ""],
 	["drift200", "Sparks Fly", "Fire 200 boosts from the hottest drift sparks.", "drift3", 200, "r_shatter", ""],
 	["perfect", "Clean Sweep", "Win all four races of a Grand Prix cup.", "perfects", 1, "r_gold", ""],
-	["cups4", "Grand Slam", "Win all four Grand Prix cups.", "cupset", 4, "r_prismc", ""],
+	["cups4", "Grand Slam", "Win four different Grand Prix cups.", "cupset", 4, "r_prismc", ""],
 ]
 const ITEM_NAMES := {"meatball": "Bowling Meatball", "twister": "Dough Twister", "freezer": "Freezer Blast", "bomb": "Calzone Bomb"}
 
