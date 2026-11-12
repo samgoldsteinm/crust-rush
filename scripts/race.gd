@@ -519,9 +519,10 @@ func _racer(racers: Array, ri: int) -> Dictionary:
 
 ## staggered grid across four lanes: every kart has its own row (web makeKart)
 func _make_kart(ri: int, slot: int, is_player: bool, info: Dictionary) -> Kart:
-	var back := 5 + slot * 3
+	# a toy track is two karts wide on the grid (web makeKart)
+	var back := (5 + slot * 2) if T.toy else (5 + slot * 3)
 	var idx := (T.N - back) % T.N
-	var lat: float = [-30.0, -10.0, 10.0, 30.0][slot % 4]
+	var lat: float = ((1.0 if slot % 2 == 1 else -1.0) * T.RW * 0.42) if T.toy else float([-30.0, -10.0, 10.0, 30.0][slot % 4]) * T.LS
 	var sk_r: Array = diff["skill"]
 	var sk := float(sk_r[0]) + rng.randf() * (float(sk_r[1]) - float(sk_r[0]))
 	var k := Kart.new()
@@ -797,7 +798,7 @@ func ai_input(k: Kart, dt: float) -> Dictionary:
 	ai["lane_t"] = float(ai["lane_t"]) - dt
 	if float(ai["lane_t"]) <= 0.0:
 		ai["lane_t"] = 1.5 + rng.randf() * 3.0
-		ai["lane_target"] = (rng.randf() * 2.0 - 1.0) * 36.0
+		ai["lane_target"] = (rng.randf() * 2.0 - 1.0) * 36.0 * T.LS
 	var avoid := false
 	for o in T.obst_lane:
 		var dj: int = int(o["j"]) - k.idx
@@ -840,7 +841,7 @@ func ai_input(k: Kart, dt: float) -> Dictionary:
 		if dg < 0:
 			dg += T.N
 		if dg > 0 and dg < 60:
-			ai["lane_target"] = clampf(float(ai["lane_target"]), -28.0, 28.0)
+			ai["lane_target"] = clampf(float(ai["lane_target"]), -28.0 * T.LS, 28.0 * T.LS)
 			avoid = true
 	ai["lane"] = float(ai["lane"]) + (float(ai["lane_target"]) - float(ai["lane"])) * minf(1.0, dt * (2.8 if avoid else 0.8))
 	var ti := (k.idx + 9 + int(floor(maxf(0.0, k.speed) / 32.0))) % T.N
@@ -883,7 +884,7 @@ func ai_input(k: Kart, dt: float) -> Dictionary:
 				if dj > -16 and dj < 6:
 					des = atan2(float(c2["y"][2]) - k.y, float(c2["x"][2]) - k.x)
 				elif dj >= -40 and dj <= -16:
-					ai["lane"] = float(ai["lane"]) + (int(c2["s"]) * 48.0 - float(ai["lane"])) * minf(1.0, dt * 2.0)
+					ai["lane"] = float(ai["lane"]) + (int(c2["s"]) * 48.0 * T.LS - float(ai["lane"])) * minf(1.0, dt * 2.0)
 				elif dj >= 6:
 					ai["sc_pick"] = -1
 	var steer := clampf(Kart.ang_diff(des, k.a) * 2.6, -1.0, 1.0)
@@ -1051,7 +1052,7 @@ func td_drive(k: Kart, o: Dictionary) -> void:
 		var bc := 1e9
 		var cur: float = td_lane if td_lane != null else float(ai["lane"])
 		for ci in range(-13, 14):
-			var c := ci * 4.0
+			var c := ci * 4.0 * T.LS
 			var cost := absf(c - cur) + absf(c) * 0.15
 			for q in L:
 				if absf(c - float(q[0])) < float(q[1]):
@@ -1092,7 +1093,7 @@ func td_drive(k: Kart, o: Dictionary) -> void:
 		var sc: Dictionary = T.shorts[pick]
 		if pd < (-20 if bool(sc["route"]) else -14):
 			td_lane = float(ai["lane"]) if td_lane == null else float(td_lane)
-			td_lane = float(td_lane) + (int(sc["s"]) * 58.0 - float(td_lane)) * minf(1.0, STEP * 3.5)
+			td_lane = float(td_lane) + (int(sc["s"]) * 58.0 * T.LS - float(td_lane)) * minf(1.0, STEP * 3.5)
 			ai["lane"] = td_lane
 			steer = lane_steer.call(float(td_lane))
 		else:

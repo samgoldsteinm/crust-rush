@@ -477,7 +477,7 @@ func _build_world() -> void:
 		var mst := HdMount.upgrade(track, 2 if quality >= 2 else 1, T.theme)
 		print("mountains: %d ranges, %d sculpted (%d ms)" % [mst["rings"], mst["mounts"], Time.get_ticks_msec() - mt0])
 		# the kitchen tracks' room: a tiled kitchen wall, wall cabinets, and the things along the counter
-		if T.theme == "kitchen":
+		if T.theme == "kitchen" and not T.toy:
 			print("kitchen: %d pieces" % HdKitchen.upgrade(track))
 			# the oven's wood fires: real flames, embers, sparks and a flickering light
 			print("fires: %d" % HdFire.upgrade(track))
@@ -1012,7 +1012,7 @@ func _start_race(cfg: Dictionary) -> void:
 		NetLog.start("client" if web.racing() else net_role, map_id, ["fast", "balanced", "ultra"][clampi(quality, 0, 2)], _net_names())
 	var lss := String(cfg.get("mode", "")) == "lss" if not cfg.is_empty() else (String(sel.get("mode", "")) == "lss" and gp.is_empty())
 	race.mode = "lss" if lss else ""
-	T.LAPS = maxi(2, race.karts.size() - 1) if race.mode == "lss" else 3
+	T.LAPS = maxi(2, race.karts.size() - 1) if race.mode == "lss" else T.laps0
 	spec_k = null
 	_spec_reset()
 	if sfx != null and kart != null:
