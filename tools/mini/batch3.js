@@ -1,0 +1,64 @@
+/* ============ the room's own parts ============ */
+/* a window, w x h cm: frame, a centre bar, glass and a sill; origin at the middle of the opening's bottom edge, facing +z (into the room) */
+M.window=function(w,h,o){o=o||{};const G=grp(),W=w*U,H=h*U,fr=paint('winframe','#f6f5f1',.45),t=5.5*U,dp=9*U;
+  for(const s of [-1,1])add(G,slab(t,H,dp,.6*U,.3*U,2),fr,s*(W/2-t/2),H/2,0);add(G,slab(W,t,dp,.6*U,.3*U,2),fr,0,t/2,0);add(G,slab(W,t,dp,.6*U,.3*U,2),fr,0,H-t/2,0);
+  add(G,slab(4*U,H-2*t,5*U,.5*U,.25*U,2),fr,0,H/2,0);for(const s of [-1,1]){const x=s*(W/4-t/4+1*U);/* each sash: a thinner inner frame */
+    for(const q of [-1,1])add(G,box(2.6*U,H-2*t,3*U),fr,x+q*(W/4-t/2-1.6*U),H/2,-1*U);add(G,box(W/2-t-2*U,2.6*U,3*U),fr,x,t+1.3*U,-1*U);add(G,box(W/2-t-2*U,2.6*U,3*U),fr,x,H-t-1.3*U,-1*U);
+    add(G,box(1.2*U,5*U,1.6*U),metal('winhandle','#c9ccd2',.3),x-s*(W/4-t/2-3*U),H/2,1.4*U);}
+  const gl=add(G,new THREE.PlaneGeometry(W-2*t,H-2*t),glass('winglass','#dfeeff',.12),0,H/2,-1.5*U);gl.userData.cast=false;
+  add(G,slab(W+10*U,3*U,dp+9*U,1*U,.6*U,3),fr,0,-1.5*U,4.5*U);/* the sill */return G;};
+/* what is outside the window: sky, clouds, a neighbour's roof and trees, as a lit picture a little way beyond the glass */
+M.outside=function(w,h){const c=can('outside',1024,768,(g,W,H,r)=>{const sk=g.createLinearGradient(0,0,0,H);sk.addColorStop(0,'#5fa0e6');sk.addColorStop(.6,'#bfe0fb');sk.addColorStop(1,'#eaf5ff');g.fillStyle=sk;g.fillRect(0,0,W,H);
+    for(let i=0;i<9;i++){const x=r()*W,y=40+r()*260;for(let k=0;k<7;k++){g.fillStyle='rgba(255,255,255,'+(.16+r()*.2)+')';g.beginPath();g.ellipse(x+(r()-.5)*150,y+(r()-.5)*30,60+r()*70,20+r()*18,0,0,7);g.fill();}}
+    g.fillStyle='#8c9aa6';g.beginPath();g.moveTo(520,560);g.lineTo(760,420);g.lineTo(1024,540);g.lineTo(1024,768);g.lineTo(520,768);g.fill();g.fillStyle='#d9d2c4';g.fillRect(560,590,464,178);g.fillStyle='#6f7f8c';g.fillRect(640,630,90,90);g.fillRect(820,630,90,90);
+    for(let i=0;i<60;i++){const x=r()*560-40,y=470+r()*200,rr=40+r()*60;g.fillStyle=['#3f7a3a','#4e8f45','#2f6a34','#5a9c4c'][i%4];g.globalAlpha=.9;g.beginPath();g.arc(x,y,rr,0,7);g.fill();}g.globalAlpha=1;g.fillStyle='#4a8a40';g.fillRect(0,690,1024,78);});
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w*U,h*U),mat('outside',()=>new THREE.MeshBasicMaterial({map:tex(c,'outside'),toneMapped:false,color:'#e8e8e8'})));m.userData.cast=false;return m;};
+/* a curtain panel hanging in pleats from a rod: w cm wide when drawn back, h cm long; origin at the top middle */
+M.curtain=function(w,h,o){o=o||{};const G=grp(),W=w*U,H=h*U,nx=40,ny=10,P=[],I=[],UV=[],r=rng(o.seed||4);
+  for(let j=0;j<=ny;j++)for(let i=0;i<=nx;i++){const u=i/nx,v=j/ny,amp=(2.2+v*2.6)*U,ph=u*Math.PI*2*7;P.push((u-.5)*W*(1-v*.06),-v*H,Math.sin(ph)*amp+Math.sin(ph*.5+1)*amp*.4);UV.push(u*3,v*H/(40*U));}
+  for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const a=j*(nx+1)+i,b=a+1,c=a+nx+1,e=c+1;I.push(a,c,b,b,c,e);}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(UV,2));g.setIndex(I);g.computeVertexNormals();
+  const m=fabric('curtain',o.color||'#c9bfae',{ws:3,ns:.9});m.side=THREE.DoubleSide;add(G,g,m);return G;};
+/* an interior door, 82 x 203 cm, with four raised panels, its casing, hinges and a lever handle; origin at the bottom middle, facing +z */
+M.door=function(){const G=grp(),W=82*U,H=203*U,wh=paint('doorwhite','#f3f1ec',.5),t=4*U;add(G,slab(W,H,t,.3*U,.2*U,2),wh,0,H/2,0);
+  for(const [x,y,w,h] of [[-.25,.72,.36,.42],[.25,.72,.36,.42],[-.25,.26,.36,.4],[.25,.26,.36,.4]]){add(G,slab(w*W,1*U,h*H,1*U,.5*U,3),wh,x*W,y*H,t/2+.2*U,Math.PI/2);add(G,slab(w*W-5*U,.8*U,h*H-5*U,.8*U,.4*U,3),wh,x*W,y*H,t/2+.9*U,Math.PI/2);}
+  const cs=9*U;for(const s of [-1,1])add(G,slab(cs,H+cs,2.4*U,.5*U,.5*U,3),wh,s*(W/2+cs/2+.5*U),(H+cs)/2,t/2);add(G,slab(W+2*cs+1*U,cs,2.4*U,.5*U,.5*U,3),wh,0,H+cs/2+.5*U,t/2);
+  const st=metal('doorsteel','#b9bcc2',.3);add(G,cyl(2.6*U,2.6*U,1*U,20),st,W/2-7*U,100*U,t/2+.5*U,Math.PI/2);add(G,cyl(.9*U,.9*U,5*U,12),st,W/2-7*U,100*U,t/2+3*U,Math.PI/2);add(G,slab(12*U,1.8*U,2*U,.8*U,.5*U,3),st,W/2-12*U,100*U,t/2+5.5*U);
+  for(const y of [22,100,180])add(G,box(.6*U,9*U,3*U),st,-W/2-.2*U,y*U,t/2);return G;};
+/* ============ smaller things ============ */
+M.nightstand=function(){const G=grp(),W=46*U,D=40*U,H=52*U,oak=wood('oak','#b98a58','#5a3a1c',{rough:.5}),leg=14*U;add(G,uvw(slab(W,H-leg,D,1.2*U,.5*U,3),80),oak,0,leg+(H-leg)/2,0);for(const sx of [-1,1])for(const sz of [-1,1])add(G,cyl(1.8*U,1.2*U,leg,12),oak,sx*(W/2-4*U),leg/2,sz*(D/2-4*U));
+  for(let i=0;i<2;i++){const y=leg+4*U+(H-leg-6*U)/4+i*(H-leg-4*U)/2;add(G,uvw(slab(W-4*U,1.6*U,(H-leg)/2-3.4*U,.8*U,.4*U,3),80),oak,0,y,D/2+.3*U,Math.PI/2);add(G,cyl(1.3*U,1.3*U,1.6*U,16),metal('brass','#b08a4a',.3),0,y,D/2+2*U,Math.PI/2);}return G;};
+/* a coffee mug, 9.5 cm tall and 8 cm across, with a handle */
+M.mug=function(o){o=o||{};const G=grp(),c=mat('mug'+(o.color||''),()=>phy({color:o.color||'#f4f1ea',roughness:.25,clearcoat:.6,clearcoatRoughness:.2,envMapIntensity:.8,side:THREE.DoubleSide})),pts=[];
+  for(const [r,y] of [[0,0],[3.4,0],[3.9,.5],[4,9.3],[3.85,9.5],[3.55,9.3],[3.5,1],[0,.9]])pts.push(new THREE.Vector2(r*U,y*U));add(G,new THREE.LatheGeometry(pts,36),c);add(G,new THREE.TorusGeometry(2.5*U,.6*U,10,24,Math.PI*1.25),c,4.4*U,4.8*U,0,0,0,-Math.PI*.62);
+  add(G,cyl(3.5*U,3.5*U,.1*U,28),mat('coffee',()=>std({color:'#3a2313',roughness:.2})),0,8.2*U,0);return G;};
+/* a drinks can, 12.2 cm tall */
+M.can=function(o){o=o||{};const G=grp(),c=can('can'+(o.color||'o'),256,256,(g,W,H)=>{g.fillStyle=o.color||'#e0452c';g.fillRect(0,0,W,H);g.fillStyle='#fff4dc';g.font='900 54px Arial';g.save();g.translate(128,128);g.rotate(-Math.PI/2);g.textAlign='center';g.fillText('FIZZ',0,18);g.restore();g.fillStyle='rgba(255,255,255,.25)';g.fillRect(0,0,W,22);g.fillRect(0,H-22,W,22);});
+  add(G,cyl(3.3*U,3.3*U,10.6*U,32),mat('can'+(o.color||'o'),()=>std({map:tex(c,'can'+(o.color||'o')),roughness:.3,metalness:.7,envMapIntensity:1})),0,5.9*U,0);const al=metal('alu','#cfd3d8',.28);add(G,cyl(3.3*U,2.7*U,.7*U,32),al,0,.35*U,0);add(G,cyl(2.7*U,3.3*U,1*U,32),al,0,11.7*U,0);add(G,new THREE.TorusGeometry(2.7*U,.18*U,6,28),al,0,12.2*U,0,Math.PI/2);return G;};
+/* a house plant in a ceramic pot: broad leaves on arching stems, about 55 cm tall */
+M.plant=function(o){o=o||{};const G=grp(),r=rng(o.seed||11),pot=mat('pot',()=>phy({color:'#e9e4da',roughness:.4,clearcoat:.3,envMapIntensity:.6})),pts=[];for(const [x,y] of [[0,0],[7,0],[9.5,1],[10.5,16],[10.8,17],[9.6,17],[9.2,3],[0,3]])pts.push(new THREE.Vector2(x*U,y*U));add(G,new THREE.LatheGeometry(pts,28),pot);add(G,cyl(9.4*U,9.4*U,.6*U,24),mat('soil',()=>std({color:'#3a2a1e',roughness:1})),0,15.5*U,0);
+  const leaf=mat('leaf',()=>std({color:'#3f7d3c',roughness:.55,side:THREE.DoubleSide,envMapIntensity:.5})),stem=mat('stem',()=>std({color:'#5b8a45',roughness:.7}));
+  for(let i=0;i<11;i++){const a=i/11*6.283+r()*.5,len=(22+r()*20)*U,lean=.35+r()*.6,S=grp(G,0,15.5*U,0,a);const top=new THREE.Vector3(Math.sin(lean)*len,Math.cos(lean)*len,0),mid=new THREE.Vector3(Math.sin(lean*.4)*len*.55,Math.cos(lean*.4)*len*.6,0);
+    S.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(new THREE.Vector3(0,0,0),mid,top),8,.35*U,5),stem));
+    /* a leaf: a pointed oval, folded a little along its rib and curled down at the tip */
+    const L=(13+r()*8)*U,Wl=L*.42,P=[],I=[],n=8;for(let j=0;j<=n;j++){const t=j/n,w=Math.sin(t*Math.PI)*Wl*(1-.25*t),y=-t*t*L*.35;for(const s of [-1,0,1])P.push(t*L,y+Math.abs(s)*w*.22,s*w);}
+    for(let j=0;j<n;j++){const b=j*3;I.push(b,b+3,b+1,b+1,b+3,b+4,b+1,b+4,b+2,b+2,b+4,b+5);}const lg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.Float32BufferAttribute(P,3));lg.setIndex(I);lg.computeVertexNormals();
+    const lm=new THREE.Mesh(lg,leaf);lm.position.copy(top);lm.rotation.z=-lean+.2;S.add(lm);}return G;};
+/* a framed poster, w x h cm, with one of a few pictures */
+M.poster=function(w,h,kind){const G=grp(),W=w*U,H=h*U,c=can('poster'+kind,512,720,(g,cw,ch,r)=>{if(kind===0){const b=g.createLinearGradient(0,0,0,ch);b.addColorStop(0,'#ff8a3d');b.addColorStop(.55,'#d8496a');b.addColorStop(1,'#2a1a4a');g.fillStyle=b;g.fillRect(0,0,cw,ch);g.fillStyle='#ffe9a8';g.beginPath();g.arc(cw/2,ch*.48,120,0,7);g.fill();g.fillStyle='#1a1030';g.beginPath();g.moveTo(0,ch*.62);for(let x=0;x<=cw;x+=40)g.lineTo(x,ch*(.56+r()*.1));g.lineTo(cw,ch);g.lineTo(0,ch);g.fill();g.fillStyle='#fff4dc';g.font='900 64px Arial';g.textAlign='center';g.fillText('RACE DAY',cw/2,ch-60);}
+    else if(kind===1){g.fillStyle='#10131a';g.fillRect(0,0,cw,ch);for(let i=0;i<7;i++){g.strokeStyle=['#ff6a12','#39d98a','#4aa8ff','#ffd24a'][i%4];g.lineWidth=14;g.beginPath();g.arc(cw/2,ch*.45,40+i*30,-.6+i*.3,2.2+i*.3);g.stroke();}g.fillStyle='#fff';g.font='900 54px Arial';g.textAlign='center';g.fillText('CRUST RUSH',cw/2,ch-70);g.font='700 26px Arial';g.fillText('WORLD TOUR',cw/2,ch-34);}
+    else{g.fillStyle='#e9e2d2';g.fillRect(0,0,cw,ch);g.fillStyle='#c8321d';g.beginPath();g.moveTo(cw*.2,ch*.25);g.lineTo(cw*.8,ch*.32);g.lineTo(cw*.42,ch*.72);g.closePath();g.fill();g.fillStyle='#f7c948';g.beginPath();g.moveTo(cw*.26,ch*.29);g.lineTo(cw*.72,ch*.345);g.lineTo(cw*.43,ch*.66);g.closePath();g.fill();g.fillStyle='#a8281a';for(const [x,y] of [[.4,.38],[.55,.42],[.45,.52]]){g.beginPath();g.arc(cw*x,ch*y,22,0,7);g.fill();}g.fillStyle='#25150f';g.font='900 50px Arial';g.textAlign='center';g.fillText('ONE MORE SLICE',cw/2,ch-70);}});
+  add(G,new THREE.PlaneGeometry(W,H),mat('poster'+kind,()=>std({map:tex(c,'poster'+kind),roughness:.6,envMapIntensity:.3})),0,0,.9*U);const fr=plastic('black','#0c0c0d',.6),t=1.6*U;for(const s of [-1,1]){add(G,box(t,H+2*t,1.8*U),fr,s*(W/2+t/2),0,.6*U);add(G,box(W,t,1.8*U),fr,0,s*(H/2+t/2),.6*U);}
+  const gl=add(G,new THREE.PlaneGeometry(W,H),glass('frameglass','#ffffff',.08),0,0,1.2*U);gl.userData.cast=false;return G;};
+/* a wall shelf, 90 cm long, with books standing on it, a trophy and a small plant pot */
+M.shelf=function(){const G=grp(),oak=wood('oak','#b98a58','#5a3a1c',{rough:.5}),W=90*U,D=22*U;add(G,uvw(slab(W,3*U,D,.8*U,.4*U,3),80),oak,0,0,D/2);for(const s of [-1,1])add(G,box(2*U,12*U,2*U),metal('bracket','#2a2c31',.5),s*W*.36,-7*U,1*U);
+  const r=rng(21),cols=['#b8322a','#27527a','#e0a020','#2f6b4a','#5a3d7a','#d8d2c4','#1d1f24'];let x=-W/2+5*U;for(let i=0;i<9;i++){const t=(2+r()*2.6)*U,h=(18+r()*7)*U,d=(13+r()*4)*U,c=cols[Math.floor(r()*cols.length)];add(G,slab(t,h,d,.3*U,.15*U,2),paint('book'+c,c,.6),x+t/2,1.5*U+h/2,D/2,0,0,i===8?.18:0);x+=t+.15*U;}
+  const gold=metal('gold','#d8a83a',.22),tx=W/2-16*U;add(G,slab(8*U,3*U,8*U,.6*U,.3*U,2),plastic('black','#0c0c0d',.6),tx,3*U,D/2);add(G,cyl(.8*U,1.6*U,6*U,14),gold,tx,7.5*U,D/2);const cp=[];for(const [rr,y] of [[1,0],[3.2,2],[4.4,6],[4.6,8.5],[4.2,8.5],[3.9,6],[2.6,2.4],[0,1.2]])cp.push(new THREE.Vector2(rr*U,y*U));add(G,new THREE.LatheGeometry(cp,24),gold,tx,10.2*U,D/2);return G;};
+/* a cardboard storage box with a taped lid, w x d x h cm */
+M.carton=function(w,d,h){const G=grp(),c=can('carton',256,256,(g,W,H,r)=>{g.fillStyle='#b58a5a';g.fillRect(0,0,W,H);for(let i=0;i<160;i++){g.strokeStyle='rgba(90,60,30,'+r()*.14+')';g.beginPath();const y=r()*H;g.moveTo(0,y);g.lineTo(W,y);g.stroke();}}),m=mat('carton',()=>std({map:tex(c,'carton'),roughness:.9,envMapIntensity:.2}));
+  add(G,uvw(slab(w*U,h*U,d*U,.6*U,.3*U,2),40),m,0,h*U/2,0);add(G,box(w*U+.2*U,.15*U,6*U),mat('tape',()=>std({color:'#c9a878',roughness:.35,envMapIntensity:.6})),0,h*U+.05*U,0);add(G,box(.15*U,h*U*.4,6*U),mat('tape',()=>std({color:'#c9a878',roughness:.35})),w*U/2+.05*U,h*U*.8,0);return G;};
+/* a wire-mesh waste bin, 28 cm tall */
+M.bin=function(){const G=grp(),c=can('binmesh',64,64,(g,W,H)=>{g.clearRect(0,0,W,H);g.strokeStyle='#1c1d20';g.lineWidth=5;g.beginPath();g.moveTo(0,0);g.lineTo(W,H);g.moveTo(W,0);g.lineTo(0,H);g.stroke();}),t=T2(c,22,8),m=mat('binmesh',()=>std({map:t,alphaTest:.5,side:THREE.DoubleSide,roughness:.5,metalness:.7}));
+  add(G,new THREE.CylinderGeometry(12*U,9.5*U,28*U,28,1,true),m,0,14*U,0);const bl=metal('binrim','#1c1d20',.5);add(G,new THREE.TorusGeometry(12*U,.5*U,6,28),bl,0,28*U,0,Math.PI/2);add(G,cyl(9.5*U,9.5*U,.6*U,24),bl,0,.3*U,0);
+  for(let i=0;i<3;i++)add(G,blob((7+i)*U,(6+i)*U,(7+i)*U,.9,6),paint('paperball','#f1eee6',.95),(i-1)*4*U,(4+i*4)*U,(i%2)*3*U);return G;};
+/* a hoodie dropped on the floor: cloth settled over itself */
+M.hoodie=function(o){o=o||{};const G=grp(),m=fabric('hoodie'+(o.color||''),o.color||'#7a2f3a',{ws:5,ns:1.1});m.side=THREE.DoubleSide;add(G,drape(34*U,30*U,16*U,{seed:o.seed||13,nx:22,nz:22,fold:3.2,puff:6}),m,0,7*U,-15*U);add(G,blob(26*U,9*U,22*U,.8,8),m,3*U,4.5*U,2*U,0,.4,0);add(G,blob(40*U,5*U,12*U,.7,8),m,-8*U,2.5*U,10*U,0,-.5,0);return G;};

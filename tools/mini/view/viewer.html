@@ -1,0 +1,33 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#222;overflow:hidden}canvas{display:block}</style></head><body>
+<script src="three.min.js"></script>
+<script>
+// the few helpers of the game the model library uses
+function cnv(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(innerWidth,innerHeight);renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.8;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;document.body.appendChild(renderer.domElement);
+const maxAniso=renderer.capabilities.getMaxAnisotropy();
+function T2(c,rx,ry,linear){const t=new THREE.CanvasTexture(c);t.anisotropy=maxAniso;if(!linear)t.encoding=THREE.sRGBEncoding;if(rx){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx,ry);}return t;}
+function heightToNormal(hc,str){const W=hc.width,H=hc.height,src=hc.getContext('2d').getImageData(0,0,W,H).data,out=cnv(W,H),og=out.getContext('2d'),id=og.createImageData(W,H),d=id.data;
+  const h=(x,y)=>src[(((y+H)%H)*W+((x+W)%W))*4]/255;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const dx=(h(x+1,y)-h(x-1,y))*str,dy=(h(x,y+1)-h(x,y-1))*str,l=Math.hypot(dx,dy,1),i=(y*W+x)*4;
+    d[i]=(-dx/l*.5+.5)*255;d[i+1]=(dy/l*.5+.5)*255;d[i+2]=(1/l*.5+.5)*255;d[i+3]=255;}
+  og.putImageData(id,0,0);return out;}
+</script>
+<script src="../models.js"></script>
+<script>
+const q=new URLSearchParams(location.search),name=q.get('asset'),az=+(q.get('az')||35)*Math.PI/180,el=+(q.get('el')||22)*Math.PI/180,zoom=+(q.get('zoom')||1);
+const scene=new THREE.Scene();scene.background=new THREE.Color('#5c6066');
+// a soft sky for reflections
+{const c=cnv(512,256),g=c.getContext('2d'),gr=g.createLinearGradient(0,0,0,256);gr.addColorStop(0,'#dfe9f5');gr.addColorStop(.5,'#f3efe6');gr.addColorStop(.52,'#8a7f72');gr.addColorStop(1,'#4a4038');g.fillStyle=gr;g.fillRect(0,0,512,256);g.fillStyle='#ffffff';g.fillRect(60,40,90,70);g.fillRect(330,30,70,90);
+ const t=new THREE.CanvasTexture(c);t.mapping=THREE.EquirectangularReflectionMapping;t.encoding=THREE.sRGBEncoding;const pm=new THREE.PMREMGenerator(renderer);scene.environment=pm.fromEquirectangular(t).texture;}
+scene.add(new THREE.HemisphereLight('#ffffff','#8a7a68',.3));const sun=new THREE.DirectionalLight('#fff3e0',1.1);sun.position.set(300,520,260);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);scene.add(sun);
+const obj=TM[name]?TM[name](...(q.get('args')?JSON.parse(q.get('args')):[])):new THREE.Group();scene.add(obj);obj.traverse(o=>{if(o.isMesh){if(o.userData.cast!==false)o.castShadow=true;o.receiveShadow=true;}});
+const box=new THREE.Box3().setFromObject(obj),size=box.getSize(new THREE.Vector3()),ctr=box.getCenter(new THREE.Vector3()),rad=Math.max(size.x,size.y,size.z)*.75||50;
+const S=rad*1.6;Object.assign(sun.shadow.camera,{left:-S,right:S,top:S,bottom:-S,near:10,far:2000});sun.shadow.camera.updateProjectionMatrix();sun.target.position.copy(ctr);scene.add(sun.target);sun.position.copy(ctr).add(new THREE.Vector3(.45,.8,.4).multiplyScalar(700));sun.shadow.bias=-.0006;
+const fl=new THREE.Mesh(new THREE.PlaneGeometry(rad*12,rad*12),new THREE.MeshStandardMaterial({color:'#6f7378',roughness:.9}));fl.rotation.x=-Math.PI/2;fl.position.y=box.min.y-.05;fl.receiveShadow=true;scene.add(fl);
+if(q.get('car')!=='0'){// a toy car for scale: 7.5 cm long
+ const car=new THREE.Mesh(new THREE.BoxGeometry(26,9,11),new THREE.MeshStandardMaterial({color:'#e0452c',roughness:.4}));car.position.set(box.max.x+22,box.min.y+4.5,box.max.z+10);car.castShadow=true;scene.add(car);}
+const cam=new THREE.PerspectiveCamera(32,innerWidth/innerHeight,1,20000),d=rad*3.3/zoom;const tg=ctr.clone();if(q.get('ty'))tg.y=+q.get('ty');if(q.get('tx'))tg.x=+q.get('tx');if(q.get('tz'))tg.z=+q.get('tz');
+cam.position.set(tg.x+Math.sin(az)*Math.cos(el)*d,tg.y+Math.sin(el)*d,tg.z+Math.cos(az)*Math.cos(el)*d);cam.lookAt(tg);
+let tris=0,calls=0;obj.traverse(o=>{if(o.isMesh){const g=o.geometry,n=(g.index?g.index.count:g.attributes.position.count)/3;tris+=n*(o.isInstancedMesh?o.count:1);calls++;}});
+renderer.render(scene,cam);renderer.render(scene,cam);window.__info={name,size:[size.x/3.47,size.y/3.47,size.z/3.47].map(v=>+v.toFixed(1)),tris:Math.round(tris),meshes:calls};window.__done=true;
+</script></body></html>
