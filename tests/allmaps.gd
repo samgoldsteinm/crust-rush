@@ -63,7 +63,8 @@ func _process(_dt: float) -> void:
 		worst = minf(worst, float(k.prog) / T.N)
 		most_resp = maxi(most_resp, int(resp.get(k, 0)))
 		line += "%s %.2f  " % [k.racer_name.substr(0, 3), float(k.prog) / T.N]
-	var ok := not nan and worst > 0.45 and most_resp <= 6
+	# every kart must have covered real distance: 45% of an ordinary lap (the Neon Cup's laps are twice as long)
+	var ok := not nan and worst * T.L > 4000.0 and most_resp <= 6
 	results.append(ok)
 	print("MAP %s %s %s (load %d ms): laps done %s| slowest %.2f, most respawns %d, spin-outs %d, traffic %d, walkers %d, rollers %d, train %s%s" % [
 		id, "ok" if ok else "BAD", main._map_info(id)["name"], load_ms, line, worst, most_resp, spins,
