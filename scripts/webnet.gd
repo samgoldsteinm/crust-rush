@@ -350,6 +350,12 @@ func _recv(d: Dictionary) -> void:
 				ack_rx = int(d.get("ack", 0))
 				_reconcile(d["me"], ack_rx)
 				NetLog.ev("hit", 0)
+		"tst":
+			# the host says one of your items or traps got someone (web hitNote)
+			if (d.get("rk") == null or int(d["rk"]) == rk) and main != null and main.state == "race" and main.race != null:
+				var vi := int(d.get("v", -1))
+				if vi >= 0 and vi < main.race.karts.size():
+					main.show_hit_toast(String(d.get("ty", "")), main.race.karts[vi])
 		"rtc":
 			_rtc_answer(d)
 		"po":
@@ -1173,6 +1179,15 @@ func _sig(k: Kart) -> int:
 
 
 var _hit := {}
+
+
+## hosting: tell a browser friend that their item or trap got someone, so their screen shows it (web hitNote)
+func send_toast(by: Kart, ty: String, vi: int) -> void:
+	if vi < 0:
+		return
+	for ch in guests_open():
+		if int(ch["pid"]) == by.peer - 1:
+			_send_to(ch, {"t": "tst", "rk": rk, "ty": ty, "v": vi})
 
 
 func _hit_push() -> void:

@@ -1367,9 +1367,10 @@ func _drain_events() -> void:
 				sfx.play("warn")
 		elif t == "oily":
 			if ed["k"] == kart:
-				_show_center("Oily wheels!", 0.9, "sm")
+				_show_center("Slicked!", 0.9, "sm")
 				_edge(Color("#c8b23a"), true)
-				_shake(0.25)
+				_shake(0.6)
+			sfx.play("bump", maxf(_near(ed["k"]), 0.3) * 0.8)
 		elif t == "ability":
 			var ka: Kart = ed["k"]
 			stats["abilities"][String(ed["id"])] = int(stats["abilities"].get(String(ed["id"]), 0)) + 1
@@ -1397,18 +1398,16 @@ func _drain_events() -> void:
 				_shake(0.3)
 			sfx.play("bump", maxf(_near(kf), 0.4))
 		elif t == "hit_toast":
-			# you got them (web hitToast): the item, an arrow, their portrait
-			if ed.get("by") == kart and ed.get("k") is Kart and ed["k"] != kart and state == "race":
-				var vk: Kart = ed["k"]
-				var ty := String(ed.get("type", ""))
-				var key: String = {"pep": "pepperoni", "meat": "meatball", "meat2": "meatball", "lob": "bomb", "olive": "oil", "torp": "torpedo", "twist": "twister", "shroom": "shroom"}.get(ty, ty)
-				var acol := Color("#ffe066")
-				if Race.ABIL.has(key):
-					acol = Color(String(Race.ABIL[key][2]))
-				var rc := Color.WHITE
-				if vk.ri < T.racers.size():
-					rc = Color.html(String((T.racers[vk.ri] as Dictionary)["color"]))
-				hud.hit_toast(key, icons.get(key), acol, portraits.get(vk.ri), rc)
+			# you got them (web hitToast): the item, an arrow, their portrait. Hosting, a friend who got someone is told
+			# (web hitNote) so their own screen shows it
+			var by = ed.get("by")
+			if ed.get("k") is Kart and by is Kart and ed["k"] != by and state == "race":
+				if by == kart:
+					show_hit_toast(String(ed.get("type", "")), ed["k"])
+				elif web.racing() and web.role == "host" and (by as Kart).web and (by as Kart).remote:
+					web.send_toast(by, String(ed.get("type", "")), race.karts.find(ed["k"]))
+				elif net_role == "host" and (by as Kart).peer != 0 and not (by as Kart).web:
+					_net_toast.rpc_id((by as Kart).peer, String(ed.get("type", "")), race.karts.find(ed["k"]))
 		elif t == "blast":
 			var bsc := maxf(1.0, float(ed["r"]) / 130.0)
 			var bp := Vector2(float(ed["x"]), float(ed["y"]))
@@ -3469,6 +3468,27 @@ func _net_start() -> void:
 		cfg["mode"] = "lss"
 	_net_begin.rpc(cfg)
 	_start_race(cfg)
+
+
+## the item, an arrow and the portrait of whoever it hit (web hitToast)
+func show_hit_toast(ty: String, vk: Kart) -> void:
+	if vk == null or vk == kart or state != "race" or hud == null:
+		return
+	var key: String = {"pep": "pepperoni", "meat": "meatball", "meat2": "meatball", "lob": "bomb", "olive": "oil", "torp": "torpedo", "twist": "twister", "shroom": "shroom"}.get(ty, ty)
+	var acol := Color("#ffe066")
+	if Race.ABIL.has(key):
+		acol = Color(String(Race.ABIL[key][2]))
+	var rc := Color.WHITE
+	if vk.ri < T.racers.size():
+		rc = Color.html(String((T.racers[vk.ri] as Dictionary)["color"]))
+	hud.hit_toast(key, icons.get(key), acol, portraits.get(vk.ri), rc)
+
+
+## a friend's screen (PC to PC): the host says one of your items or traps got someone
+@rpc("authority", "call_remote", "reliable")
+func _net_toast(ty: String, vi: int) -> void:
+	if net_role == "client" and race != null and vi >= 0 and vi < race.karts.size():
+		show_hit_toast(ty, race.karts[vi])
 
 
 @rpc("authority", "call_remote", "reliable")

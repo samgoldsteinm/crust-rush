@@ -26,7 +26,7 @@ const PTS := [15, 12, 10, 8, 6, 4, 2, 1]
 const ABIL := {
 	"pep": ["Pepperoni Storm", "Fires a fan of six spinning pepperoni slices low along the track, ahead or, while you look back, behind you. Each slice ricochets between the track walls and off anything it hits and vanishes on its third hit.", "#ff5a2a"],
 	"basil": ["Pesto Rush", "The longest ability boost: nothing can hit you while it lasts, and it ignores the slow cheese.", "#3fd06a"],
-	"olive": ["Slick Trail", "Leaves ten olive-oil slicks behind; nothing can touch you while you lay them. Drive through one and your wheels get coated: no spin, but slowed a lot for 5 seconds.", "#c8b23a"],
+	"olive": ["Slick Trail", "Leaves ten olive-oil slicks behind; nothing can touch you while you lay them. Drive through one and you spin out fast, then your tyres stay slick for 3 seconds.", "#c8b23a"],
 	"mozz": ["Melt Shield", "Wraps the kart in stretchy cheese that blocks every hit for a while, with a quick burst of speed.", "#fff4c0"],
 	"chili": ["Fire Trail", "A fiery boost that leaves burning flames on the road: anyone who drives into them spins out and catches fire. Nothing can hit you while it burns.", "#ff3a12"],
 	"shroom": ["Mega Shroom", "Grows huge and unstoppable and flattens anyone it touches for 3 seconds.", "#c8a06a"],
@@ -39,6 +39,11 @@ const PESTO_T := 5.9
 const OLIVE_T := 2.6
 const FLAT_T := 3.0
 const BURN_T := 2.0
+## Olive's slick (web SLICK_SPIN, SLICK_T, OIL_T): a fast spin on the spot, then slippery tyres. oil_t counts down through both:
+## above SLICK_T the spin is the fast one, at or below it the tyres are slick
+const SLICK_SPIN := 2.0
+const SLICK_T := 3.0
+const OIL_T := SLICK_SPIN + SLICK_T
 const DEF_DIFF := {"skill": [0.88, 0.95], "ahead": 0.94, "behind": 1.06, "delay": [1.6, 5.5], "corner": 0.3, "boost": 0.3}
 
 var T: TrackData
@@ -1681,9 +1686,18 @@ func _mega_crush(a: Kart, b: Kart) -> bool:
 
 
 func _oil_up(k: Kart) -> void:
-	k.oil_t = 5.0
-	k.inv = maxf(k.inv, 3.0)
+	k.oil_t = OIL_T
+	k.spin = SLICK_SPIN
+	k.inv = maxf(k.inv, OIL_T)     # protected through the spin and the slick
+	k.speed *= 0.6
+	k.drift = 0
+	k.charge = 0.0
+	k.boost = 0.0
+	k.d_latch = false
 	fx.append({"t": "oily", "k": k})
+	var ow = cur_p.get("owner") if not cur_p.is_empty() else null
+	if ow is Kart and ow != k:
+		fx.append({"t": "hit_toast", "by": ow, "k": k, "type": "oil"})
 
 
 # ---------------------------------------------------------------- thrown items

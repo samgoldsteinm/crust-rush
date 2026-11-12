@@ -1503,7 +1503,8 @@ func race_event(ed: Dictionary) -> void:
 		fx.burst(k5.x, gy3 + 8.0, k5.y, 56, _cols(["#ff3b1a", "#ffe066", "#ffffff", "#e9ecef"]), 130.0, 4.2)
 	elif t == "oily":
 		var k6: Kart = ed["k"]
-		fx.burst(k6.x, k6.wy + 3.0, k6.y, 22, _cols(["#c8b23a", "#8a7a1c", "#fff3b0"]), 55.0, 2.4)
+		fx.burst(k6.x, k6.wy + 3.0, k6.y, 30, _cols(["#c8b23a", "#8a7a1c", "#fff3b0"]), 70.0, 2.8)
+		fx.ring(k6.x, k6.wy + 0.6, k6.y, Color("#c8b23a"), 38.0, 0.45)
 	elif t == "ability":
 		# web itemFx(k, colour, 50) plus a wide ring on the ground
 		var ka: Kart = ed["k"]

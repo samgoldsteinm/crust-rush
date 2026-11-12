@@ -288,7 +288,6 @@ func step(inp: Dictionary, dt: float) -> void:
 		pen = maxf(pen, 0.95)
 	if oil_t > 0.0:
 		oil_t -= dt
-		mx *= 0.72
 	if cannon_t > 0.0:
 		mx *= 1.22
 	if shrink_t > 0.0:
@@ -323,8 +322,9 @@ func step(inp: Dictionary, dt: float) -> void:
 	var v0 := speed
 	if spin > 0.0:
 		spin -= dt
-		a += 14.0 * dt
-		speed += (0.0 - speed) * minf(1.0, 2.5 * dt)
+		var os := oil_t > Race.SLICK_T     # Olive's slick: a much faster spin that slides on further
+		a += (26.0 if os else 14.0) * dt
+		speed += (0.0 - speed) * minf(1.0, (1.1 if os else 2.5) * dt)
 		if spin <= 0.0:
 			spin = 0.0
 			a = ma
@@ -504,10 +504,13 @@ func _drive(inp: Dictionary, dt: float, brake_in: bool, d_press: bool, trick_now
 	# the direction of motion follows the facing, slower while drifting
 	var da2 := d_amt * d_amt * (3.0 - 2.0 * d_amt)
 	var follow := (9.0 - 5.0 * da2) if drift != 0 else (7.0 if grip_t > 0.0 else 9.0)
-	ma += ang_diff(a, ma) * minf(1.0, follow * dt)
+	# slick tyres after Olive's spin: the path follows where the kart points far more slowly, and it can slide much wider
+	var slk := oil_t > 0.0 and oil_t <= Race.SLICK_T
+	ma += ang_diff(a, ma) * minf(1.0, follow * (0.2 if slk else 1.0) * dt)
 	var slip := ang_diff(a, ma)
-	if absf(slip) > 0.5:
-		ma = a - signf(slip) * 0.5
+	var smax := 1.1 if slk else 0.5
+	if absf(slip) > smax:
+		ma = a - signf(slip) * smax
 
 
 # ---------------------------------------------------------------- loop-the-loop
