@@ -5407,6 +5407,7 @@ function render(time,dt){
     camera.lookAt(cam.look.x,cam.look.y+cam.oy*.45,cam.look.z);camera.rotateX(-cam.gp);
     if(SPEC&&SPEC.on){specLabel();if(SPEC.mode>0)specCamera(dt);}
     cam.roll=cam.gr;camera.rotateZ(cam.roll+n3*amp*.006);
+    fpCam(lb,n1*amp,n2*amp);
     const hf=(camT.boost>0?(CL?100:96):(CL?92:90))*Math.PI/180;let vf=clamp(2*Math.atan(Math.tan(hf/2)/camera.aspect)*180/Math.PI,52,100);
     const fp=finPunch>0?Math.sin(Math.min(1,finPunch/.8)*Math.PI)*(finPunch<.12?finPunch/.12:1)*14:0;vf+=fp;/* the finish kick: wide fast, back slowly */
     if(!(SPEC&&SPEC.on&&SPEC.mode>0)&&Math.abs(camera.fov-vf)>.05){camera.fov+=(vf-camera.fov)*Math.min(1,(fp>0?18:5)*dt);camera.updateProjectionMatrix();}/* the spectator cameras set their own zoom */
@@ -5709,6 +5710,21 @@ function specExit(toResults=true){if(!SPEC.on)return;SPEC.on=false;camT=player;c
 function specLabel(force){const now=performance.now();if(!force&&now-SPEC.labT<400)return;SPEC.labT=now;const k=camT;if(!k)return;const st=standings(),pl=st.indexOf(k)+1;
   $('specMode').textContent=SPEC_MODES[SPEC.mode];$('specName').textContent=(k.netName||k.r.name)+(k.netName?'':' (CPU)');
   $('specInfo').textContent=pl+suf(pl)+' place · '+(k.finished?(k.est?'finished':'finished '+fmt(k.finishTime)):'lap '+Math.min(LAPS,Math.floor(Math.max(0,k.prog)/N)+1)+' of '+LAPS);}
+/* first person (Settings > Camera): the camera sits in the driver's head and looks where the kart points (where it is going while it
+   spins out); the driver is hidden so you see the bonnet and the wheels. Your own kart only, not while watching others. */
+const _fpE=new THREE.Vector3(),_fpL=new THREE.Vector3(),_fpU=new THREE.Vector3(),_fpB=new THREE.Box3(),_fpM=new THREE.Matrix4();let _fpHid=null;
+function fpCam(lb,j1,j2){const k=camT,m=k&&k.m,on=CFG.cam==='fp'&&k===player&&!(SPEC&&SPEC.on)&&state!=='intro'&&state!=='menu'&&m&&m.tilt&&m.drv;
+  if(_fpHid&&(!on||_fpHid!==m)){_fpHid.drv.visible=true;_fpHid=null;}if(!on)return;
+  m.tilt.updateWorldMatrix(true,true);
+  if(!m.fpEye){/* the driver's head in the kart's own space: near the top of the driver, a little forward of their middle */
+    m.drv.visible=true;_fpB.makeEmpty();_fpM.copy(m.tilt.matrixWorld).invert();m.drv.traverse(o=>{if(o.isMesh&&o.geometry){if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();const b=o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld).applyMatrix4(_fpM);_fpB.union(b);}});
+    if(_fpB.isEmpty())m.fpEye=new THREE.Vector3(0,(m.top||7.2)*.8,0);else m.fpEye=new THREE.Vector3(_fpB.min.x+(_fpB.max.x-_fpB.min.x)*.62+.4,_fpB.min.y+(_fpB.max.y-_fpB.min.y)*.84,0);
+    /* a closed car (the driver sits under a roof): just over the roof, so the view isn't the inside of the cabin */m.fpEye.y=Math.max(m.fpEye.y,(m.top||7.2)*.97);}
+  m.drv.visible=false;_fpHid=m;
+  _fpE.copy(m.fpEye);m.tilt.localToWorld(_fpE);_fpU.set(0,1,0).transformDirection(m.tilt.matrixWorld);
+  if(k.spin>0){const a=k.rma!=null?k.rma:k.ma,d=lb?-40:40;_fpL.set(_fpE.x+Math.cos(a)*d,_fpE.y-2,_fpE.z+Math.sin(a)*d);_fpU.set(0,1,0);}
+  else{_fpL.set(m.fpEye.x+(lb?-40:40),m.fpEye.y-2.2,m.fpEye.z);m.tilt.localToWorld(_fpL);}
+  camera.position.set(_fpE.x+j1*.08,_fpE.y+j2*.08,_fpE.z);camera.up.copy(_fpU);camera.lookAt(_fpL);}
 const _spv=new THREE.Vector3();
 function specCamera(dt){const k=camT,kx=k.rx,ky=k.ry,kz=k.rz||0,sn=SPEC.snap;SPEC.snap=false;camera.up.set(0,1,0);
   if(SPEC.mode===1){if(!SPEC.tv||SPEC.tvMap!==mapIdx){SPEC.tvMap=mapIdx;SPEC.tv=[];const n=14;for(let i=0;i<n;i++){const q=track[Math.floor(i*N/n)],sd=i%2?1:-1,x=q.x+q.nx*sd*(WALLD+46),y=q.y+q.ny*sd*(WALLD+46);SPEC.tv.push({x,y,h:Math.max(groundAt(x,y),groundAt(q.x,q.y))+60});}}
