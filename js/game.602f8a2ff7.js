@@ -3366,7 +3366,40 @@ function neonPalms(def){/* one palm: a leaning trunk in rings of light and a cro
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.computeVertexNormals();
   const list=[],r=nRand(def.R+9);let n=0;for(let j=3;j<N;j+=9){if(nInGl(j,14,10))continue;const p=track[j];if((p.ey||0)>1.5||Math.abs(p.bend)>.5)continue;const sd=(n++%2)?1:-1,o=(WALLD+20+r()*10)*sd,x=p.x+p.nx*o,z=p.y+p.ny*o;if(nRoadNear(x,z,j,WALLD+30)||nearSC(x,z,SCW+18)||pitAt(x,z)>.5)continue;const s=.9+r()*.5;list.push({x,y:0,z,ry:r()*6.283,sx:s,sy:s,sz:s});}
   instBatch(g,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide,toneMapped:false}),list,false);}
-function neonScenery(def){neonSky(def);neonPylons(def);
+/* arrows of light running round the outside of every real corner, on top of the wall */
+function neonChevrons(def){const pos=[],uv=[],H0=5.4,H1=13.4,o=WALLD+1.3;let run=0;
+  for(let j=0;j<N;j++){const p=track[j],q=track[(j+1)%N],b=p.bend;if(Math.abs(b)<.34||Math.sign(q.bend)!==Math.sign(b)||nInGl(j,6,6)||p.open||q.open){run=0;continue;}const sd=-Math.sign(b);
+    if(SHORTS.some(sc=>sc.s===sd&&[sc.a,sc.b].some(e=>{const d=Math.abs(j-e)%N;return Math.min(d,N-d)<=5;}))){run=0;continue;}
+    const A=[p.x+p.nx*o*sd,p.y+p.ny*o*sd,p.ey||0],B=[q.x+q.nx*o*sd,q.y+q.ny*o*sd,q.ey||0],L=Math.hypot(B[0]-A[0],B[1]-A[1]),v0=run/16,v1=(run+L)/16;run+=L;
+    pos.push(A[0],A[2]+H0,A[1],B[0],B[2]+H0,B[1],B[0],B[2]+H1,B[1],A[0],A[2]+H0,A[1],B[0],B[2]+H1,B[1],A[0],A[2]+H1,A[1]);uv.push(0,v0,0,v1,1,v1,0,v0,1,v1,1,v0);}
+  if(!pos.length)return;const t=T2(neonLaneTex(def),1,1),m=new THREE.MeshBasicMaterial({name:'neonlane',map:t,side:THREE.DoubleSide,toneMapped:false,transparent:true,opacity:.92});nGeo(pos,uv,m);animators.push((tt,dt)=>{t.offset.y-=dt*1.4;});}
+/* signs of light beside the straights */
+function neonSignTex(def,k){const c=cnv(512,224),g=c.getContext('2d'),a1=nAcc(def),a2=nAcc2(def);g.fillStyle='#060b16';g.fillRect(0,0,512,224);g.strokeStyle=a1;g.lineWidth=8;g.strokeRect(8,8,496,208);g.textAlign='center';g.textBaseline='middle';
+  if(k===0){g.fillStyle=a2;g.font='900 84px "Arial Black",Impact,sans-serif';g.fillText('CRUST',256,78);g.fillStyle=a1;g.fillText('RUSH',256,154);}
+  else if(k===1){g.strokeStyle=a2;g.lineWidth=20;g.lineJoin='miter';for(let i=0;i<4;i++){const x=70+i*110;g.globalAlpha=.4+i*.2;g.beginPath();g.moveTo(x,50);g.lineTo(x+62,112);g.lineTo(x,174);g.stroke();}g.globalAlpha=1;}
+  else{/* a slice of pizza drawn in light */g.strokeStyle=a2;g.lineWidth=9;g.lineJoin='round';g.beginPath();g.moveTo(90,40);g.lineTo(210,184);g.lineTo(60,150);g.closePath();g.stroke();g.fillStyle=a2;for(const [x,y] of [[112,92],[150,150],[98,138]]){g.beginPath();g.arc(x,y,10,0,7);g.fill();}
+    g.fillStyle=a1;g.font='900 60px "Arial Black",Impact,sans-serif';g.fillText('NEON',356,84);g.fillText('CUP',356,150);}
+  return c;}
+function neonSigns(def){const cdj=(a,b)=>{const d=Math.abs(a-b)%N;return Math.min(d,N-d);},posts=[],panels=[[],[],[]],backs=[];let last=-999,n=0;
+  for(let j=70;j<N-40;j++){if(j-last<120)continue;const p=track[j];if((p.ey||0)>1.5||nInGl(j,30,110))continue;let ok=true;for(let o=-10;o<=10;o+=2)if(Math.abs(track[(j+o+N)%N].bend)>.12){ok=false;break;}if(!ok)continue;
+    const sd=(n%2)?1:-1,o=(WALLD+44)*sd,x=p.x+p.nx*o,z=p.y+p.ny*o;if(nRoadNear(x,z,j,WALLD+70)||nearSC(x,z,SCW+50)||nGlideNear(x,z,120)||Math.hypot(x,z)>def.R-120)continue;last=j;const ry=-p.ang+Math.PI/2+sd*.28;
+    panels[n%3].push({x,y:33,z,ry});backs.push({x:x+p.tx*1.2,y:33,z:z+p.ty*1.2,ry,sx:1.03,sy:1.06});for(const e of [-17,17])posts.push({x:x+p.nx*e*Math.cos(.28)*1+0,y:11.5,z:z+p.ny*e,sy:23});n++;}
+  for(let k=0;k<3;k++){const t=T2(neonSignTex(def,k));instBatch(new THREE.BoxGeometry(48,21,.8),new THREE.MeshBasicMaterial({map:t,toneMapped:false}),panels[k],false);}
+  instBatch(new THREE.BoxGeometry(48,21,1.4),new THREE.MeshStandardMaterial({color:'#0a1220',roughness:.4,metalness:.6}),backs,true);
+  instBatch(new THREE.CylinderGeometry(.7,1,1,8),new THREE.MeshStandardMaterial({color:'#0d1626',roughness:.35,metalness:.7}),posts,true);}
+/* grandstands of light either side of the start line */
+function neonStands(def){const P=[],U=[],RP=[],L=[],r=nRand(def.R+21),c=cnv(256,128),g=c.getContext('2d');g.fillStyle='#070c18';g.fillRect(0,0,256,128);const cols=[nAcc(def),nAcc2(def),'#ffffff','#ffd24a'];
+  for(let y=0;y<8;y++)for(let x=0;x<32;x++){if(r()<.2)continue;g.fillStyle=cols[Math.floor(r()*4)];g.globalAlpha=.35+r()*.65;g.fillRect(x*8+2,y*16+4,4,7);}g.globalAlpha=1;g.fillStyle='rgba(120,200,230,.25)';for(let y=0;y<8;y++)g.fillRect(0,y*16,256,1.5);
+  const j0=N-26,j1=22,D0=WALLD+26,D1=WALLD+74,H=30;
+  for(const sd of [-1,1]){let ok=true;for(let j=j0;j<=N+j1;j+=6){const p=track[j%N];if(nRoadNear(p.x+p.nx*D1*sd,p.y+p.ny*D1*sd,j%N,WALLD+30)||Math.abs(p.bend)>.12)ok=false;}if(!ok)continue;
+    for(let j=j0;j<N+j1;j++){const p=track[j%N],q=track[(j+1)%N],at=(t,d,y)=>[t.x+t.nx*d*sd,y,t.y+t.ny*d*sd],u0=(j-j0)/8,u1=(j+1-j0)/8;
+      const a=at(p,D0,5),b=at(q,D0,5),c2=at(q,D1,H),d=at(p,D1,H);P.push(...a,...b,...c2,...a,...c2,...d);U.push(u0,0,u1,0,u1,1,u0,0,u1,1,u0,1);
+      const quad=(arr,A,B,C,D2)=>arr.push(...A,...B,...C,...A,...C,...D2);quad(RP,at(p,D0,0),at(q,D0,0),b,a);quad(RP,at(p,D1,0),at(q,D1,0),c2,d);quad(RP,at(p,D0-6,H+16),at(q,D0-6,H+16),at(q,D1+2,H+22),at(p,D1+2,H+22));
+      quad(L,at(p,D0-6.2,H+15.2),at(q,D0-6.2,H+15.2),at(q,D0-6.2,H+17),at(p,D0-6.2,H+17));quad(L,at(p,D0-.2,4.2),at(q,D0-.2,4.2),at(q,D0-.2,5.4),at(p,D0-.2,5.4));}
+    const posts=[];for(let j=j0;j<=N+j1;j+=8){const p=track[j%N];posts.push({x:p.x+p.nx*(D1+1)*sd,y:(H+22)/2,z:p.y+p.ny*(D1+1)*sd,sy:H+22});}instBatch(new THREE.CylinderGeometry(.9,1.2,1,8),new THREE.MeshStandardMaterial({color:'#0d1626',roughness:.35,metalness:.7}),posts,true);}
+  if(!P.length)return;const t=T2(c,1,1);nGeo(P,U,new THREE.MeshStandardMaterial({map:t,emissive:'#ffffff',emissiveMap:t,emissiveIntensity:.9,roughness:.6,metalness:.2,side:THREE.DoubleSide}),{recv:true});
+  nGeo(RP,null,new THREE.MeshStandardMaterial({color:'#0b1422',roughness:.4,metalness:.6,side:THREE.DoubleSide}),{cast:true,recv:true});nGeo(L,null,new THREE.MeshBasicMaterial({color:nAcc(def),toneMapped:false,side:THREE.DoubleSide}));}
+function neonScenery(def){neonSky(def);neonPylons(def);neonChevrons(def);neonSigns(def);neonStands(def);
   if(def.look==='city'){neonCity(def,{seed:11,far:150,near:.62,cols:['#3ff0ff','#ff3fd8','#ffffff','#8fb8ff','#ffd24a']});neonLasers(def);}
   else if(def.look==='holo'){neonCity(def,{seed:23,far:70,near:.2,hk:.8,cols:['#4dffb8','#b56bff','#ffffff','#7fe8ff']});neonHologram(def);}
   else if(def.look==='sun'){neonCity(def,{seed:37,far:46,near:0,hk:.55,cols:['#ff5fa2','#ffb43f','#b56bff','#ffffff']});neonSun(def);neonPalms(def);}}
