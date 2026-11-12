@@ -1,6 +1,6 @@
 # Crust Rush
 
-A 3D kart racer on giant pizzas, made as an installable web app. Sixteen tracks in four Grand Prix cups, speed classes from 50cc to Reverse, 25 items, eight drivers with their own special abilities, a soundtrack for every track, moving hazards, and a garage where you build your kart from bodies, wheels, gliders, colours and liveries, and twenty achievements that unlock reward liveries.
+A 3D kart racer on giant pizzas, made as an installable web app. Twenty tracks in five Grand Prix cups, plus Bedroom Blitz (a toy racing set at true scale in a bedroom, the first track of the coming Miniature Mayhem Cup), speed classes from 50cc to Reverse, 25 items, eight drivers with their own special abilities, a soundtrack for every track, moving hazards, and a garage where you build your kart from bodies, wheels, gliders, colours and liveries, and twenty achievements that unlock reward liveries.
 
 **Play:** https://samgoldsteinm.github.io/crust-rush/
 
