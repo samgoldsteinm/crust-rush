@@ -2921,6 +2921,24 @@ const HZSET={margherita:['walk','pool'],basil:['walk','pool'],oven:['walk','pool
   peaks:['traffic','city'],mozz:['walk','pool'],napoli:['traffic','city'],moon:['walk','pool'],
   frosty:['walk','pool'],burn:['traffic','pool'],glacier:['pool','train'],peak:['train','walk']};
 let HAZ={traffic:[],train:null,walk:[],pool:[],city:[]};
+/* ---- the world hazards' shared clock. Where the traffic, the train and the walkers are depends only on how long the race has run
+   (simTime since HZT0), never on dice rolled on one device: online, every screen then shows them in the same place. They used to
+   roll their own dice, so a friend's walkers and train were somewhere else than the host's, and the host (who decides the hits)
+   spun friends out on walkers they could not see. The dice are now a fixed list per hazard, made from its number and the track
+   (hzRand: the same list on every device and on the PC version). ---- */
+let HZT0=0;const hzNow=()=>Math.max(0,simTime-HZT0);
+function hzRand(seed){let s=((Math.floor(seed)%2147483646)+2147483646)%2147483646+1;return ()=>(s=s*48271%2147483647)/2147483647;}
+/* traffic: lane changes every 4 to 9 s (the first after laneT0), easing across in 3 s; the list repeats */
+function hzLanes(i,lat0,laneT0){const R=hzRand(N*31+i*131+7),L=[{t:0,v:lat0}];let t=laneT0;for(let k=0;k<30;k++){const d=4+R()*5,v=[-34,-12,12,34][Math.min(3,Math.floor(R()*4))];L.push({t,v:k===29?lat0:v});t+=d;}L.T=t;return L;}
+function hzLaneAt(L,t){const u=t%L.T;let i=0;while(i+1<L.length&&L[i+1].t<=u)i++;if(i===0)return L[0].v;const a=L[i-1].v,b=L[i].v;let f=Math.min(1,(u-L[i].t)/3);f=f*f*(3-2*f);return a+(b-a)*f;}
+/* walkers: stand a moment, cross to a new spot at their own pace, stand again; the list repeats (it ends where it began) */
+function hzWalk(i,v){const R=hzRand(N*17+i*977+3),lat0=(R()-.5)*RW*1.6,L=[{t:0,a:lat0,b:lat0,d:0,p:R()*2}];let t=L[0].p,prev=lat0;
+  for(let k=0;k<24;k++){const b=k===23?lat0:(R()*2-1)*(RW+8),d=Math.abs(b-prev)/v,p=.4+R()*1.8;L.push({t,a:prev,b,d,p});t+=d+p;prev=b;}L.T=t;return L;}
+function hzWalkAt(L,t,o){const u=t%L.T;let i=0;while(i+1<L.length&&L[i+1].t<=u)i++;const e=L[i],x=u-e.t;if(x<e.d){o.lat=e.a+(e.b-e.a)*(x/e.d);o.latT=e.b;o.pause=0;}else{o.lat=e.b;o.latT=e.b;o.pause=e.p-(x-e.d)+.001;}}
+/* the train: waits (2 to 4 s the first time, then 4 to 9 s), then runs through from one side or the other; the list repeats */
+function hzTrain(tr){const R=hzRand(N*13+101),run=(tr.span*2+tr.len+10)/tr.v,L=[];let t=0;for(let k=0;k<48;k++){const w=k===0?2+R()*2:4+R()*5,dir=R()<.5?1:-1;L.push({t,w,dir});t+=w+run;}L.T=t;return L;}
+function hzTrainAt(tr,t){const L=tr.sch||(tr.sch=hzTrain(tr)),u=t%L.T;let i=0;while(i+1<L.length&&L[i+1].t<=u)i++;const e=L[i],x=u-e.t;tr.dir=e.dir;
+  if(x<e.w){tr.state='wait';tr.wait=e.w-x;tr.pos=-tr.span-tr.len;}else{tr.state='run';tr.wait=0;tr.pos=-tr.span-tr.len+tr.v*(x-e.w);}}
 const segL=()=>T.L/N;
 function trackAt(s,lat){const n=N,i=Math.floor(((s%n)+n)%n),f=s-Math.floor(s),p=track[i],q=track[(i+1)%n];const x=p.x+(q.x-p.x)*f,y=p.y+(q.y-p.y)*f,nx=p.nx+(q.nx-p.nx)*f,ny=p.ny+(q.ny-p.ny)*f;
   return {x:x+nx*lat,y:y+ny*lat,ang:lerpA(p.ang,q.ang,f),i};}
@@ -2934,7 +2952,7 @@ function mkTraffic(car,col){const M={paint:new THREE.MeshStandardMaterial({color
 function buildTraffic(def){const cars=def.theme==='kitchen'?['hatch','gt','muscle']:def.theme==='freezer'?['suv','hatch','tourer']:['suv','hatch','coupe','muscle','tourer'];
   const cols=['#e8e4da','#2a5bff','#c8261b','#1a1b22','#f7c948','#3f9a35','#9aa4b8'],n=3;
   for(let i=0;i<n;i++){const car=cars[i%cars.length],m=mkTraffic(car,cols[(i*3+def.R)%cols.length]);const s0=N*(.22+i*.27);
-    HAZ.traffic.push({m,s:s0,s0,lat:[-32,30,0][i%3],latT:[-32,30,0][i%3],laneT:3+i*2,v:BASE_MAX*.38,x:0,y:0,ang:0,hide:false});}}
+    HAZ.traffic.push({m,s:s0,s0,hi:i,lat0:[-32,30,0][i%3],laneT0:3+i*2,lat:[-32,30,0][i%3],latT:[-32,30,0][i%3],laneT:3+i*2,v:BASE_MAX*.38,x:0,y:0,ang:0,hide:false});}}
 /* --- train: crosses the road just past a jump ramp, so the jump carries you over it --- */
 function buildTrain(def){let best=null;for(const r of ramps){if(r.glide)continue;for(const off of [15,14,16,13]){const jc=(r.j+off)%N;if(segBad(jc))continue;const p=track[jc];
     const ux=p.nx,uy=p.ny,span=RW+300;let ok=true;for(const sd of [-1,1]){const ex=p.x+ux*span*sd,ey=p.y+uy*span*sd;if(Math.hypot(ex,ey)>def.R-80){ok=false;break;}
@@ -2993,7 +3011,7 @@ function mkWalker(theme,i){const g=new THREE.Group();g.userData.noLift=true;worl
   g.traverse(o=>{if(o.isMesh)o.castShadow=true;});return {g,legs,H};}
 function buildWalkers(def,ctx){const n=5;for(let i=0;i<n;i++){const j0=Math.floor((i+.5)*N/n+(rnd()-.5)*N*.06)%N;let j=j0;for(let t=0;t<40&&(Math.min(j,N-j)<50||segBad(j)||ramps.some(r=>Math.min(Math.abs(r.j-j),N-Math.abs(r.j-j))<12)||LOOPS.some(L=>Math.min(Math.abs(L.j-j),N-Math.abs(L.j-j))<130));t++)j=(j+3)%N;
     if(LOOPS.some(L=>Math.min(Math.abs(L.j-j),N-Math.abs(L.j-j))<130))continue;/* never anywhere near a loop, where they would walk through it */
-    const w=mkWalker(def.theme,i);HAZ.walk.push({...w,j,lat:(rnd()-.5)*RW*1.6,latT:0,along:0,v:14+rnd()*10,ph:rnd()*6,pause:rnd()*2,x:0,y:0,face:0,hitT:0});}}
+    const w=mkWalker(def.theme,i);HAZ.walk.push({...w,hi:i,j,lat:(rnd()-.5)*RW*1.6,latT:0,along:0,v:14+rnd()*10,ph:rnd()*6,pause:rnd()*2,x:0,y:0,face:0,hitT:0});}}
 /* --- pools: sunken liquid patches that eat one side of the road; fall in and you are fished out a moment later --- */
 const POOLLOOK={kitchen:['#4a3a04','#140c00','olive oil'],bay:['#04405e','#011522','water'],night:['#0a2480','#02061a','water'],freezer:['#0e4a70','#021422','icy water']};
 const POOLBY={basil:['#3a0410','#0e0104','wine'],oven:['#e03a06','#3a0802','lava'],moon:['#22a018','#021a06','acid'],mozz:['#5a1aa0','#10041e','goo']};
@@ -3088,7 +3106,7 @@ function pondTick(dt){for(const k of karts){if(k.sink!=null){k.sink-=dt;k.sinkT+
 
 function buildHazards(def,R,ctx){HAZ={traffic:[],train:null,walk:[],pool:[],city:[]};const set=HZSET[def.id]||[];
   for(const k of set){try{({traffic:buildTraffic,train:buildTrain,walk:buildWalkers,pool:buildPonds,city:buildCity})[k](def,ctx);}catch(e){console.warn('hazard',k,e);}}}
-function resetHazards(){for(const c of HAZ.traffic){c.s=c.s0;c.lat=c.latT;}if(HAZ.train){HAZ.train.state='wait';HAZ.train.wait=2+Math.random()*2;HAZ.train.pos=-HAZ.train.span-HAZ.train.len;}}
+function resetHazards(){HZT0=simTime;NET.hz0=false;for(const c of HAZ.traffic){c.s=c.s0;c.lat=c.lat0;}if(HAZ.train)hzTrainAt(HAZ.train,0);}
 function hzBump(k,x,y,r,kind){const dx=k.x-x,dy=k.y-y,d=Math.hypot(dx,dy)||1;if(d>=r)return false;const ov=r-d;k.x+=dx/d*ov;k.y+=dy/d*ov;
   if(kind){spinOut(k,kind,1);return true;}if(k.inv>0)return true;k.speed*=.55;k.inv=.35;if(k===camT)shake(.6);SFX.bump(near(k));burst(k.x,6,k.y,10,['#fff4dc','#ffe066'],40,2.2);return true;}
 function poolFall(k,pl){if(k.inv>0&&k.sink==null)return;k.sink=.7;k.sinkP=pl;k.speed*=.25;k.drift=0;k.boost=0;k.charge=0;burst(k.x,2,k.y,24,[POOLBY[curMapId()]?.[0]||'#7fd8ff','#ffffff'],60,2.6);SFX.bump(near(k));if(k===player)edgeFx('#7fd8ff');if(k===camT)shake(.5);}
@@ -3098,19 +3116,19 @@ function poolRespawn(k){const j=(k.idx-6+N)%N,p=track[j],lat=k.sinkP?-Math.sign(
   if(k===camT){camSnap=true;}spawnRing(k.x,k.wy+.6,k.y,'#7fe8ff',40,.6);}
 function updateHazards(dt){if(state==='menu'&&!HAZ.traffic.length&&!HAZ.train&&!HAZ.walk.length)return;const racing=state==='race'||state==='menu';
   /* traffic */
-  for(const c of HAZ.traffic){if(racing)c.s+=c.v*dt/segL();c.laneT-=dt;if(c.laneT<=0){c.laneT=4+Math.random()*5;c.latT=[-34,-12,12,34][Math.floor(Math.random()*4)];}c.lat+=(c.latT-c.lat)*Math.min(1,dt*.6);
+  const ht=hzNow();
+  for(const c of HAZ.traffic){c.s=c.s0+c.v*ht/segL();c.lat=hzLaneAt(c.sch||(c.sch=hzLanes(c.hi,c.lat0,c.laneT0)),ht);
     const P=trackAt(c.s,c.lat);c.x=P.x;c.y=P.y;c.ang=P.ang;c.i=P.i;c.hide=segBad(P.i);if(c.hide)continue;const fx=Math.cos(c.ang),fy=Math.sin(c.ang),hl=c.m.len*.55;
     for(const k of karts){if(k.loop||k.z>12||k.sink!=null)continue;for(const o of [-hl,0,hl])if(hzBump(k,c.x+fx*o,c.y+fy*o,15))break;}}
   /* train */
-  const tr=HAZ.train;if(tr){if(tr.state==='wait'){tr.wait-=dt;if(tr.wait<=0){tr.state='run';tr.dir=Math.random()<.5?1:-1;tr.pos=-tr.span-tr.len;}}
-    else{tr.pos+=tr.v*dt;if(tr.pos>tr.span+10){tr.state='wait';tr.wait=4+Math.random()*5;}}
+  const tr=HAZ.train;if(tr){hzTrainAt(tr,ht);
     for(const b of boxes){if(!b.trainCar)continue;const c=tr.cars[b.trainCar];const t=(tr.pos+tr.len-c.off)*tr.dir;b.x=tr.p.x+tr.ux*t;b.y=tr.p.y+tr.uy*t;b.gy=groundAt(b.x,b.y)+21;}
     if(tr.state==='run')for(const c of tr.cars){const t=(tr.pos+tr.len-c.off)*tr.dir,x=tr.p.x+tr.ux*t,y=tr.p.y+tr.uy*t;c.t=t;
       for(const k of karts){if(k.loop||k.z>18||k.sink!=null)continue;const dx=k.x-x,dy=k.y-y,u=dx*tr.ux+dy*tr.uy,v=dy*tr.ux-dx*tr.uy;if(Math.abs(u)<c.L/2+6&&Math.abs(v)<12){const sg=Math.sign(v)||1;k.x+=-tr.uy*sg*(14-Math.abs(v));k.y+=tr.ux*sg*(14-Math.abs(v));spinOut(k,'wheel',1);}}}}
   /* walkers */
-  for(const w of HAZ.walk){if(w.pause>0){w.pause-=dt;}else{if(Math.abs(w.lat-w.latT)<2){w.latT=(Math.random()*2-1)*(RW+8);w.pause=.4+Math.random()*1.8;}else w.lat+=Math.sign(w.latT-w.lat)*w.v*dt;}
+  for(const w of HAZ.walk){hzWalkAt(w.sch||(w.sch=hzWalk(w.hi,w.v)),ht,w);
     w.along=Math.sin(simTime*.3+w.ph)*3;const P=trackAt(w.j+w.along,w.lat);w.x=P.x;w.y=P.y;w.face=P.ang+(w.pause>0?Math.sin(simTime+w.ph)*.6:Math.sign(w.latT-w.lat)*Math.PI/2);
-    for(const k of karts){if(k.loop||k.z>w.H*.8||k.sink!=null)continue;if((k.x-w.x)**2+(k.y-w.y)**2<15*15&&k.inv<=0){spinOut(k,'meat',1);w.pause=1.2;w.hitT=.6;}}}
+    for(const k of karts){if(k.loop||k.z>w.H*.8||k.sink!=null)continue;if((k.x-w.x)**2+(k.y-w.y)**2<15*15&&k.inv<=0){spinOut(k,'meat',1);w.hitT=.6;}}}
   pondTick(dt);
   for(const k of karts){if(k.sink!=null)continue;
     if(k.air||k.loop||k.glide||k.z>2)continue;for(const pl of HAZ.pool){const dx=k.x-pl.x,dy=k.y-pl.y,u=dx*pl.tx+dy*pl.ty,v=dx*pl.nx+dy*pl.ny;if((u/(pl.rx-4))**2+(v/(pl.rz-4))**2<1){poolFall(k,pl);break;}}}}
@@ -4899,7 +4917,7 @@ function itemsRender(time,dt){for(const p of projectiles){const col=TRAIL[p.type
 let _sauceEl=null;/* Olive's slick: the kart spins out fast on the spot for SLICK_SPIN s (no launch into the air, unlike other spin-outs), then its
    tyres stay coated and slippery for SLICK_T s. oilT counts down through both (it is in the network snapshot): above SLICK_T the
    spin is the fast one, at or below it the tyres are slick */
-const SLICK_SPIN=2,SLICK_T=3,OIL_T=SLICK_SPIN+SLICK_T,BURN_T=2;/* BURN_T: how long a kart that hit Chili's flames stays on fire (burnT is in the network snapshot) */function oilUp(k){k.oilT=OIL_T;k.spin=SLICK_SPIN;k.inv=Math.max(k.inv||0,OIL_T);/* hit protection through the spin and the slick */k.speed*=.6;k.drift=0;k.charge=0;k.boost=0;k.dLatch=false;
+const SLICK_MAX=60,SLICK_SPIN=2,SLICK_T=3,OIL_T=SLICK_SPIN+SLICK_T,BURN_T=2;/* BURN_T: how long a kart that hit Chili's flames stays on fire (burnT is in the network snapshot) */function oilUp(k){k.oilT=OIL_T;k.spin=SLICK_SPIN;k.inv=Math.max(k.inv||0,OIL_T);/* hit protection through the spin and the slick */k.speed*=.6;k.drift=0;k.charge=0;k.boost=0;k.dLatch=false;
   hitNote(CURP&&CURP.owner,'oil',k);const gy=(k.wy||0)+3;burst(k.x,gy,k.y,30,['#c8b23a','#8a7a1c','#fff3b0'],70,2.8);if(!NET.replay)spawnRing(k.x,gy-2.4,k.y,'#c8b23a',38,.45);SFX.bump(Math.max(near(k),.3)*.8);if(k===camT&&!NET.replay)shake(.6);if(k===player&&!NET.replay){showBanner('Slicked!',.9,'sm');edgeFx('#c8b23a',1);}}
 const _od=new THREE.Vector3();/* drawing only: oil flicks off the coated tyres and catches the light */
 function oilDrip(k,m){if(Math.random()>.55||!m.wheels.length)return;const w=m.wheels[(Math.random()*m.wheels.length)|0],c=w.spin.children[0];if(!c||!c.geometry)return;if(!c.geometry.boundingSphere)c.geometry.computeBoundingSphere();
@@ -4924,7 +4942,7 @@ function useAbility(k,back){const id=abilKey(k),A=ABIL[id];if(!A||!(k.abC>=1)||k
   itemFx(k,A[2],50);spawnRing(k.x,(k.wy||0)+.6,k.y,A[2],70,.8);if(k===player){SFX.ability();showBanner(A[0],1.1,'sm');shake(.6);abilFlash(A[2]);}else if(v>0)SFX.ability();
   if(id==='pep'){const vol=()=>{const n0=projectiles.length;fireItem(k,'trio',back);for(let q=n0;q<projectiles.length;q++){const P=projectiles[q];P.storm=1;P.hp=3;P.wb=0;P.t=8;}};vol();k.abQ=[[.25,vol]];}/* storm slices ricochet: walls, racers and items each count as a hit; the third hit ends the slice */
   else if(id==='basil'){/* the longest ability boost (normal boost speed), untouchable while it lasts but it doesn't spin anyone out */k.boost=Math.max(k.boost,PESTO_T);k.rush=Math.max(k.rush||0,PESTO_T);k.pestoT=PESTO_T;k.abFx=PESTO_T;k.abCol=A[2];if(k===player)SFX.boost(3);}
-  else if(id==='olive'){/* ten slicks over 2.25 s; untouchable while laying them (OLIVE_T), like the other ability boosts */k.abQ=[0,1,2,3,4,5,6,7,8,9].map(n=>[n*.25,()=>hazards.push({x:k.x-Math.cos(k.ma)*22,y:k.y-Math.sin(k.ma)*22,t:25,born:0,owner:k,armed:false,olive:1,mesh:itemMesh('oil')})]);k.oliveT=OLIVE_T;k.abFx=OLIVE_T;k.abCol=A[2];}
+  else if(id==='olive'){/* ten slicks over 2.25 s; untouchable while laying them (OLIVE_T), like the other ability boosts */k.abQ=[0,1,2,3,4,5,6,7,8,9].map(n=>[n*.25,()=>{/* Olive's slicks stay until someone drives into them (they used to dry up after 25 s); at most SLICK_MAX of one Olive's lie on the road, the oldest making way */const mine=hazards.filter(h=>h.olive&&h.owner===k&&h.t>0);if(mine.length>=SLICK_MAX)mine[0].t=0;hazards.push({x:k.x-Math.cos(k.ma)*22,y:k.y-Math.sin(k.ma)*22,t:1e9,born:0,owner:k,armed:false,olive:1,mesh:itemMesh('oil')});}]);k.oliveT=OLIVE_T;k.abFx=OLIVE_T;k.abCol=A[2];}
   else if(id==='mozz'){k.shield=7;k.mzH=3;k.boost=Math.max(k.boost,.7);k.pBoost=0;if(v>0)SFX.garlic(v||.3);}
   else if(id==='chili'){k.boost=Math.max(k.boost,2.2);k.fireT=2.2;k.chiliT=2.2;/* untouchable while it burns */k.abFx=2.2;k.abCol=A[2];if(k===player)SFX.chili();}
   else if(id==='shroom'){k.megaT=MEGA_T;k.boost=Math.max(k.boost,.55);k.speed=Math.max(k.speed,Math.min(k.speed+12,BASE_MAX*1.15));k.pBoost=k.boost;k.bAge=9;k.bPk=k.boost;/* a small surge, about a first-tier drift boost: enough to catch the kart just ahead and squash it */}
@@ -6537,7 +6555,7 @@ function musTick(){if(!ac||!master)return;musInit();if(!MUS.bus)return;
    Phones find each other through a short room code over a relay server; the race data uses a direct link when one opens. */
 const NET={role:null,code:'',peer:null,conns:[],me:0,pl:[],cfg:null,fromNet:false,loaded:new Set(),tick:0,seq:0,hist:[],outQ:[],inQ:{},inS:{},inLast:{},ack:{},
   snaps:[],mir:new Map(),mirH:new Map(),mirList:[],fxQ:[],nid:0,inUpd:false,finSeen:false,lastRecv:0,goT:0,waitTimer:0,replay:false,abQ:false,relay:null,lastFl:0,unack:[],ackRx:0};
-const NET_PROTO=97;/* bump when race messages or kart physics change: friends on different versions would drive differently */
+const NET_PROTO=98;/* bump when race messages or kart physics change: friends on different versions would drive differently */
 const NET_SLOTS=[4,3,5,2],NET_ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const netId=c=>'crustrush-v1-'+c.toUpperCase();
 const NET_REM=['x','y','a','ma','z','wy','speed','steer','drift','charge','boost','spin','air','glide','loopTh','onRamp','rush','shL','shield','mzH','sink','sinkT','trickK','trickT','frozen','acc','brake','dAmt','fx','prog','finished','place','finishTime','inv','big','ghostT','shrinkT','absT','idx','gRings','trick','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT','est','oliveT'];
@@ -6837,7 +6855,7 @@ function netFx(kind,args){if(NET.role==='host'&&NET.inUpd&&NET.conns.length&&NET
    really is for them), applies the hit at once, and tells the host which input it happened on; the host applies the same hit when it
    runs that input. No more waiting a round trip for a hit, and no hitboxes that seem to be in the wrong place. ---- */
 const CLAIMP=new Set(['pep','dough']);
-function netClaimFx(k,kind){if(k.inv>0||k.loop)return false;
+function netClaimFx(k,kind){if(kind.startsWith('w:')){spinOut(k,kind.slice(2),1);return true;}/* (replaying a world-hazard hit after a correction) */if(k.inv>0||k.loop)return false;
   if(kind==='olive'){if(k.air||k.glide||k.shield>0||k.rush>0||abInv(k)||k.ghostT>0||k.oilT>4.5)return false;oilUp(k);return true;}
   if(kind==='fire'){if(spinOut(k,'fire')){k.burnT=BURN_T;if(k===player&&!NET.replay)edgeFx('#ff3a12',1);}return true;}
   if(!kind.startsWith('p:')){spinOut(k,'oil');return true;}
@@ -6854,8 +6872,10 @@ function netApplyClaims(k){const L=NET.claims&&NET.claims[k.netId];if(!L||!L.len
     else{const p=projectiles.find(x=>x.nid===nid&&!x.dead&&x.t>0);if(!p)continue;CURP=p;const ok=netClaimFx(k,c.kind);CURP=null;if(ok){p.pop=1;if(p.storm){(p.ign||(p.ign=new Map())).set(k,simTime+.6);if(--p.hp<=0)p.t=0;}else p.t=0;}}}}
 function netGuestStep(dt){simTime+=dt;standCache=standings();const k=player;
   /* moving world hazards follow the shared clock */
+  const sp0=k.spin>0;
   for(const r of rollers){const p=track[r.j];r.lat=Math.sin(simTime*1.05+r.ph)*(RW+6);r.x=p.x+p.nx*r.lat;r.y=p.y+p.ny*r.lat;if(!k.loop&&k.z<14&&(k.x-r.x)**2+(k.y-r.y)**2<306)spinOut(k,'meat',1);}
   try{updateHazards(dt);}catch(e){}
+  const wHit=!sp0&&k.spin>0;/* a roller, a walker or the train got this player on their own screen: the host will find the same on the same control */
   for(const o of karts){o.px=o.x;o.py=o.y;o.pa=o.a;o.pma=o.ma;o.pz=o.z;o.pwy=o.wy;o.pth=o.loopTh||0;}
   if(state==='race'&&!k.finished)for(const b of boxes){if(b.r>0||b.pr>simTime)continue;if(b.air?(k.glide&&(k.x-b.x)**2+(k.y-b.y)**2<400):((k.x-b.x)**2+(k.y-b.y)**2<270&&((!MULTI&&!b.trainCar)||Math.abs((k.wy||0)-b.gy)<18))){b.pr=simTime+1.5;boxFx(b,k);}}
   const LS=NET.snaps[NET.snaps.length-1],quiet=LS&&performance.now()-LS.at>1300;
@@ -6863,8 +6883,8 @@ function netGuestStep(dt){simTime+=dt;standCache=standings();const k=player;
   if((NET.hostAway||quiet)&&state==='race'&&!k.finished){if(!NET.awayShown){NET.awayShown=true;NETLOG.ev('host-quiet',0);showBanner('Waiting for the host…',600,'sm');}}else if(NET.awayShown){NET.awayShown=false;banner.textContent='';bannerT=0;}
   const hostRacing=LS&&LS.gs==='race'&&!NET.hostAway&&!quiet;
   if(state==='race'&&!k.finished&&hostRacing){const raw=playerInput();const ev=raw.ev||0,ab=abilQueued?(lookingBack()?2:1):0;abilQueued=false;
-    const stq=Math.round(raw.steer*100)/100,mq=raw.mul===0?0:1;const inp={steer:stq,brake:raw.brake,nb:!!raw.nb,mul:mq,use:false,back:false,hold:false,holdSl:1,release:null};NET.seq++;NET.hist.push({seq:NET.seq,inp});if(NET.hist.length>480)NET.hist.shift();
-    NET.outQ.push([NET.seq,stq,raw.brake?1:0,ev,ab,mq,raw.nb?1:0]);stepKart(k,inp,dt);netGuestClaims(k,NET.hist[NET.hist.length-1]);}
+    const stq=Math.round(raw.steer*100)/100,mq=raw.mul===0?0:1;const inp={steer:stq,brake:raw.brake,nb:!!raw.nb,mul:mq,use:false,back:false,hold:false,holdSl:1,release:null};NET.seq++;NET.hist.push({seq:NET.seq,inp,st:simTime});if(NET.hist.length>480)NET.hist.shift();
+    NET.outQ.push([NET.seq,stq,raw.brake?1:0,ev,ab,mq,raw.nb?1:0]);if(wHit){const h=NET.hist[NET.hist.length-1];(h.cl||(h.cl=[])).push('w:meat');}stepKart(k,inp,dt);netGuestClaims(k,NET.hist[NET.hist.length-1]);}
   netInterp(k.finished?null:k);if(state==='race'&&(hostRacing||k.finished))raceTime+=dt;}
 /* relay servers may drop a message now and then: every input message repeats all inputs the host hasn't confirmed yet,
    so a lost packet costs nothing (the host ignores the copies it already has). A direct link never loses messages. */
@@ -6892,7 +6912,14 @@ function netPlay(now){const want=now-(NET.off||0)-netDelay();if(NET.play==null||
 function netOnSnap(d){if(d.rk!=null&&NET.rk&&d.rk!==NET.rk)return;if(d.n){if(d.n<=(NET.lastSn||0))return;}if(d.kc){d.k=d.kc.map(r=>[netKDec(r[0]),r[1],r[2],r[3]]);delete d.kc;}{const P=NET.snaps[NET.snaps.length-1];if(!d.h)d.h=P?P.h:[];}if(d.n){const sd=d.sd||1,miss=Math.max(0,Math.round((d.n-(NET.lastSn||d.n))/sd)-1);if(NET.lastSn&&miss>0){NET.snGap=(NET.snGap||0)+miss;NETLOG.gapT+=miss;}NET.lastSn=d.n;NETLOG.snT=(NETLOG.snT||0)+1;
     const P=NET.snaps[NET.snaps.length-1],hT=d.st*1000;if(P&&hT>P.ht&&hT-P.ht<400)NET.snIv=NET.snIv==null?hT-P.ht:NET.snIv*.85+(hT-P.ht)*.15;/* how often snapshots really arrive (the host may have slowed them for this link) */}if(d.ack>(NET.ackRx||0))NET.ackRx=d.ack;
   if(state==='netwait'&&(d.gs==='countdown'||d.gs==='race'))netGo();/* the 'go' message itself was lost */d.at=performance.now();NET.hostAway=false;d.ht=d.st*1000;netClock(d);NET.snaps.push(d);if(NET.snaps.length>16)NET.snaps.shift();if(!karts.length||!NET.cfg)return;
-  simTime=Math.max(simTime,d.st-.2);if(Math.abs(raceTime-d.rt)>.25)raceTime=d.rt;
+  /* the shared clock (rollers, traffic, train, walkers). It runs a little ahead of the host's, by exactly the time this player's controls
+     take to be played there: the host says which control it played last (ack) and what its clock read then, and this side knows what its
+     own clock read when it made that control. The two are kept equal, so the world this player drives through is the world the host
+     tests their kart against (it used to be only "not more than 0.2 s behind", and never corrected when it ran ahead). */
+  {const he=d.ack&&state==='race'&&!player.finished?NET.hist.find(h=>h.seq===d.ack):null;
+    if(he&&he.st!=null){const e=d.st-he.st;simTime+=Math.abs(e)>.3?e:e*.1;}else if(Math.abs(simTime-d.st)>.12)simTime=d.st;
+    if(d.gs==='countdown'){HZT0=d.st;NET.hz0=true;}else if(d.gs==='race'&&!NET.hz0){HZT0=d.st-d.rt;NET.hz0=true;}}
+  if(Math.abs(raceTime-d.rt)>.25)raceTime=d.rt;
   if(d.b)boxes.forEach((b,i)=>{const r=(d.b[i]||0)/20;if(r>3.5&&!(b.r>0)&&!(b.pr>simTime-.6)&&state==='race'){let nk=null,nd=1e9;for(const o of karts){const dd=(o.x-b.x)**2+(o.y-b.y)**2;if(dd<nd){nd=dd;nk=o;}}if(nk&&nk!==player)boxFx(b,nk,true);}b.r=r;});
   for(const f of d.fx||[]){try{const [kind,...a]=f;if(kind==='b'&&boxes.some(b=>b.pr>simTime-1.2&&Math.abs(b.x-a[0])<3&&Math.abs(b.y-a[2])<3))continue;/* already shown when we drove through it */if(kind==='b')burst0(...a);else if(kind==='r')spawnRing0(...a);}catch(e){}}
   if(d.me&&player&&!player.finished)netReconcile(d.me,d.ack);else if(d.me&&player)netApplyFull(player,d.me);
@@ -7007,11 +7034,11 @@ const NETLOG={rows:[],evs:[],t0:0,on:false,last:0,b0:[0,0],fx0:0,gap0:0,sn0:0,
     else{const op=NET.conns.filter(x=>x.open);row=[t,fps,Math.round(out/1024),Math.round(inn/1024)].concat(op.map(c=>{const r=[c._id,c.direct?(c.route==='via TURN'?'turn':'peer'):'relay',Math.round(c.art!=null?c.art:c.rtt||0),c.snSent||0,c.snSkip||0,c.snDiv||1,Math.round(c.bufF||0),(NET.inQ[c._id]||[]).length];c.snSent=0;c.snSkip=0;return r;}));}
     this.rows.push(row);if(this.rows.length>900)this.on=false;},
   stop(){if(!this.on)return;this.on=false;try{const names=karts.filter(k=>k.netName).map(k=>k.netName+(k===player?' (me)':''));
-      const e={when:new Date().toISOString(),map:MAPS[mapIdx]?MAPS[mapIdx].id:'?',role:NET.role,players:names,quality:qKey,ua:navigator.userAgent.replace(/Mozilla\/5\.0 \(|\).*/g,'').slice(0,60),secs:Math.round((performance.now()-this.t0)/1000),turn:!!(rtcTurn&&rtcTurn.length),nat:[NET.natMe||'?',NET.natPeer||'?'],rows:this.rows,evs:this.evs};
+      const e={ver:String(window.CR_BUILD||'').replace('crust-rush-','')+' p'+NET_PROTO,when:new Date().toISOString(),map:MAPS[mapIdx]?MAPS[mapIdx].id:'?',role:NET.role,players:names,quality:qKey,ua:navigator.userAgent.replace(/Mozilla\/5\.0 \(|\).*/g,'').slice(0,60),secs:Math.round((performance.now()-this.t0)/1000),turn:!!(rtcTurn&&rtcTurn.length),nat:[NET.natMe||'?',NET.natPeer||'?'],rows:this.rows,evs:this.evs};
       const L=JSON.parse(localStorage.getItem('crust-netlog')||'[]');L.unshift(e);while(L.length>6)L.pop();localStorage.setItem('crust-netlog',JSON.stringify(L));}catch(err){}}};
 /* a readable summary of one saved log */
 function netLogText(e){const g=e.role==='guest';const R=e.rows;const col=i=>R.map(r=>r[i]).filter(v=>typeof v==='number');const mx=a=>a.length?Math.max(...a):0,av=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):0,med=a=>{if(!a.length)return 0;const b=a.slice().sort((x,y)=>x-y);return b[b.length>>1];};
-  let h='Crust Rush network log · '+e.when.replace('T',' ').slice(0,16)+' · '+e.map+' · '+e.role+' · '+e.quality+' · '+e.secs+' s · '+(e.turn?'TURN list loaded':'no TURN list')+(e.nat?' · router: you '+e.nat[0]+', other player '+e.nat[1]:'')+'\nplayers: '+e.players.join(', ')+'\ndevice: '+e.ua+'\n';
+  let h='Crust Rush network log · '+e.when.replace('T',' ').slice(0,16)+' · '+e.map+' · '+e.role+' · '+e.quality+' · '+e.secs+' s · '+(e.turn?'TURN list loaded':'no TURN list')+(e.nat?' · router: you '+e.nat[0]+', other player '+e.nat[1]:'')+'\nplayers: '+e.players.join(', ')+'\ndevice: '+e.ua+(e.ver?' · game '+e.ver:'')+'\n';
   if(g){const rt=col(3),lag=col(4),fx=col(8),gp=col(7);h+='round trip: median '+med(rt)+' ms, worst '+mx(rt)+' ms · input lag: median '+med(lag)+' ms, worst '+mx(lag)+' ms · lost snapshots '+gp.reduce((a,b)=>a+b,0)+' · big fixes '+fx.reduce((a,b)=>a+b,0)+' · route: '+[...new Set(R.map(r=>r[2]))].join('/')+' · fps avg '+av(col(1))+'\n';
     h+='rows: t fps route rtt lag jitter snaps lost fixes KBout KBin\n';}
   else{const fr=new Map();for(const r of R)for(let i=4;i<r.length;i++){const f=r[i];const o=fr.get(f[0])||{rt:[],skip:0,div:[],q:[]};o.rt.push(f[2]);o.skip+=f[4];o.div.push(f[5]);o.q.push(f[7]);fr.set(f[0],o);}
