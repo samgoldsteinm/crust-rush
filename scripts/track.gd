@@ -237,6 +237,16 @@ func pit(x: float, y: float) -> float:
 func k_ey(j0: int, x: float, y: float) -> float:
 	if not multi:
 		return 0.0
+	if toy:
+		# a toy track's bends are tight: the height is worked out along the bend, so it does not step from one
+		# point of the road to the next on the inside or the outside of a curve (web kEy, TOYT)
+		var sl := L / float(N)
+		var u := (x - px[j0]) * tx[j0] + (y - py[j0]) * ty[j0]
+		var lat := (x - px[j0]) * nx[j0] + (y - py[j0]) * ny[j0]
+		var kap := Kart.ang_diff(ang[(j0 + 10) % N], ang[(j0 - 10 + N) % N]) / (20.0 * sl)
+		var f := clampf(u / (1.0 - clampf(kap * lat, -0.7, 0.7)), -2.0 * sl, 2.0 * sl) / sl
+		var fi := int(floor(f))
+		return ey_at(((j0 + fi) % N + N) % N, f - float(fi))
 	var j := j0
 	for it in 3:
 		var q := (j + 1) % N

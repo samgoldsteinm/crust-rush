@@ -48,6 +48,8 @@ var fin_t := 0.0
 var cam_a := 0.0
 var cam_base := Vector3.ZERO
 var cam_look := Vector3.ZERO
+var cam_sb := 0.0   # toy tracks: how much higher the road behind the kart is, and the slope ahead (eased)
+var cam_sa := 0.0
 var cam_snap := true
 var shake_imp := 0.0
 var cam_gp := 0.0
@@ -386,13 +388,14 @@ func _build_world() -> void:
 	# Settings > Look: Vivid (a darker base, a stronger sun, more contrast and colour) or Classic (web applyLook)
 	var night := T.theme == "night"
 	var vivid := look != "classic"
-	env.ambient_light_energy = float(L.get("hemiI", 0.52)) * ((0.88 if night else 0.7) if vivid else 1.0)
+	# a toy track is a room: the soft light off its walls and ceiling stays as bright as the web game has it
+	env.ambient_light_energy = float(L.get("hemiI", 0.52)) * (1.25 if T.toy else ((0.88 if night else 0.7) if vivid else 1.0))
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	# Godot's ACES pre-scales by 1.8 and normalises to its white point; three.js pre-scales by 1/0.6 and
 	# doesn't normalise. A high white point and exposure x(1.667/1.8) make the two curves match.
 	env.tonemap_white = 16.0
-	env.tonemap_exposure = float(L.get("exposure", 0.92)) * ((1.0 if night else 0.96) if vivid else 1.0) * (1.0 / 0.6) / 1.8
+	env.tonemap_exposure = float(L.get("exposure", 0.92)) * ((1.0 if night or T.toy else 0.96) if vivid else 1.0) * (1.0 / 0.6) / 1.8
 	# Ultra's screen-space ambient occlusion (radius 7, strong) and its bloom (threshold .94, strength .3)
 	env.ssao_enabled = not is_phone
 	env.ssao_radius = 2.5
@@ -434,7 +437,7 @@ func _build_world() -> void:
 	world.add_child(sun)
 	sun.look_at_from_position(to_sun * 100.0, Vector3.ZERO, Vector3.UP)
 	sun.light_color = _hex(L.get("sunColor"), Color(1, 0.84, 0.66))
-	sun.light_energy = float(L.get("sunI", 3.25)) * (((1.12 if T.theme == "night" else 1.25)) if look != "classic" else 1.0)
+	sun.light_energy = float(L.get("sunI", 3.25)) * (0.9 if T.toy else ((1.12 if T.theme == "night" else 1.25) if look != "classic" else 1.0))
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 300.0
@@ -457,6 +460,9 @@ func _build_world() -> void:
 		world.add_child(track)
 		_prepare_track(track)
 	# the Neon Cup's lights: beams and the hologram glow, the hologram turns, stars overhead (all settings)
+	# toy tracks: the room's walls and ceiling throw no shadow (all settings)
+	if track != null and T.toy:
+		print("toy room: %d" % HdToy.upgrade(track))
 	if track != null and T.theme == "night":
 		var nn := HdNeon.upgrade(track)
 		if nn > 0:
@@ -2138,14 +2144,28 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 		cam_snap = true
 	var fx_ := cos(cam_a) * (-1.0 if lb else 1.0)
 	var fy := sin(cam_a) * (-1.0 if lb else 1.0)
-	var rg := T.ground(rx, ry)
+	# the road under the kart: the ground plus the raised deck it is on (web rg = groundAt + kEy). Without the deck
+	# the camera sat well below the kart on every raised road
+	var rg := T.ground(rx, ry) + (T.k_ey(k.idx, rx, ry) if T.multi else 0.0)
 	if not T.glide.is_empty():
 		var gyy := T.glide_y(rx, ry)
 		if rg < gyy - 20.0:
 			rg = minf(rz, gyy)
 	var cy := rz - 4.0 if k.glide else rg + (rz - rg) * 0.45
+	# a toy track: the camera rises over the road behind on a descent and looks down the slope ahead (web cSA)
+	var c_sa := 0.0
+	if T.toy and T.multi and k.loop.is_empty() and not k.glide and not (k.z > 3.0):
+		var sp := T.L / float(T.N)
+		var e0 := T.ey[k.idx]
+		var eb := T.ey[((k.idx - int(round(dist / sp))) % T.N + T.N) % T.N]
+		var ea2 := T.ey[(k.idx + int(round(40.0 / sp))) % T.N]
+		var f5 := minf(1.0, dt * 5.0)
+		cam_sb += (maxf(0.0, (ea2 if lb else eb) - e0) - cam_sb) * f5
+		cam_sa += (((eb if lb else ea2) - e0) - cam_sa) * f5
+		h += cam_sb * 1.15 + maxf(0.0, -cam_sa) * 0.6
+		c_sa = cam_sa * 0.75
 	var tv2 := Vector3(rx - fx_ * dist, cy + h, ry - fy * dist)
-	var tv := Vector3(rx + fx_ * 32.0, cy + 6.2 + ex * 0.5, ry + fy * 32.0)
+	var tv := Vector3(rx + fx_ * 32.0, cy + 6.2 + ex * 0.5 + c_sa, ry + fy * 32.0)
 	var in_loop := not k.loop.is_empty() and k.loop.has("p")
 	var up_t := Vector3.UP
 	if in_loop:
