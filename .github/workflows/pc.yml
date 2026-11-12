@@ -152,9 +152,11 @@ jobs:
           gh release view pc -R "$GITHUB_REPOSITORY" > /dev/null 2>&1 || \
             gh release create pc -R "$GITHUB_REPOSITORY" --target godot --title "Crust Rush for Windows" \
               --notes "The PC version of Crust Rush. Download CrustRush-Windows.zip, unzip it anywhere and run CrustRush.exe. Updated automatically from the godot branch."
-          gh release upload pc -R "$GITHUB_REPOSITORY" --clobber CrustRush-Windows.zip
+          # GitHub's upload sometimes answers 502 (the old file is already gone by then): try again, up to three times
+          up() { for i in 1 2 3; do gh release upload pc -R "$GITHUB_REPOSITORY" --clobber "$1" && return 0; echo "upload of $1 failed, trying again"; sleep 20; done; return 1; }
+          up CrustRush-Windows.zip
           echo "{\"build\": \"${GITHUB_SHA::8}\", \"date\": \"$(date -u +%Y-%m-%d)\", \"bytes\": $size}" > pc-build.json
-          gh release upload pc -R "$GITHUB_REPOSITORY" --clobber pc-build.json
+          up pc-build.json
 
       - uses: actions/upload-artifact@v4
         if: ${{ !contains(github.event.head_commit.message, '[quick]') }}
