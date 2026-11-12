@@ -437,7 +437,7 @@ func _build_world() -> void:
 	world.add_child(sun)
 	sun.look_at_from_position(to_sun * 100.0, Vector3.ZERO, Vector3.UP)
 	sun.light_color = _hex(L.get("sunColor"), Color(1, 0.84, 0.66))
-	sun.light_energy = float(L.get("sunI", 3.25)) * (0.9 if T.toy else ((1.12 if T.theme == "night" else 1.25) if look != "classic" else 1.0))
+	sun.light_energy = float(L.get("sunI", 3.25)) * (0.5 if T.toy else ((1.12 if T.theme == "night" else 1.25) if look != "classic" else 1.0))
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 300.0
@@ -2115,6 +2115,9 @@ func _process(dt: float) -> void:
 	post_mat.set_shader_parameter("edge_a", ea)
 	spd_fx += ((1.0 if (kart.boost > 0.0 and state == "race") else 0.0) - spd_fx) * minf(1.0, dt / 0.25)
 	post_mat.set_shader_parameter("spd", spd_fx)
+	var mb_t := (pow(minf(1.5, maxf(0.0, kart.speed) / maxf(1.0, kart.base_max)), 2.0) * 0.8) if (mblur_on and state == "race" and kart.spin <= 0.0) else 0.0
+	mb_fx += (mb_t - mb_fx) * minf(1.0, dt * 7.0)
+	post_mat.set_shader_parameter("mb", mb_fx)
 	post_mat.set_shader_parameter("tm", time)
 	_hud(dt)
 
@@ -2815,6 +2818,7 @@ func _settings_panel() -> Control:
 				["Finished models", "Trees, palms, bushes, rocks and the ground as finished models: leafy crowns that sway in the wind, bark, stone and a cheese surface with real depth. Far away, and when off, the web game's own shapes. Balanced and Ultra; applies from the next race.", "hd", on_off, "1" if hd_on else "0"],
 				["Look", "Vivid: a darker base tone with a stronger sun, deeper shadows and richer colour, so lit faces and light sources stand out. Classic: the softer, brighter balance. Applies from the next race.", "look", [["vivid", "Vivid"], ["classic", "Classic"]], look],
 				["Ambient occlusion", "Soft contact shading in corners and crevices, computed every frame. The single most expensive effect: turn it off to run Ultra's detail at a higher frame rate.", "ao", on_off, "1" if ao_on else "0"],
+				["Motion blur", "The edges of the picture streak with speed; your kart and the road ahead stay sharp.", "mblur", on_off, "1" if mblur_on else "0"],
 				["Sharpening", "When the 3D view is drawn below screen size to hold the frame rate, a sharpening pass brings the detail back. Turn off if you prefer a softer picture.", "sharp", on_off, "1" if sharpen_on else "0"],
 				["Scenery distance", "How far away trackside props are drawn.", "scenery", [["0", "Near"], ["1", "Normal"], ["2", "Far"]], str(scenery)],
 				["Frame rate", "Auto runs as fast as your monitor shows (with G-SYNC or FreeSync, up to its refresh rate), so the graphics card works flat out. A cap lets it rest between frames: 90 still feels smooth and takes a good share of the load off.", "fps", [["0", "Auto"], ["60", "60"], ["90", "90"], ["120", "120"], ["144", "144"]], str(fps_cap)],
@@ -3102,6 +3106,7 @@ func _reset_settings() -> void:
 	look = "vivid"
 	ao_on = true
 	sharpen_on = true
+	mblur_on = false
 	scenery = 1
 	fps_cap = 0
 	res_scale = 1.0
@@ -3145,6 +3150,8 @@ var hd_on := true         # Settings > Finished models
 var look := "vivid"
 var ao_on := true
 var sharpen_on := true
+var mblur_on := false   # Settings > Motion blur
+var mb_fx := 0.0
 var scenery := 1          # 0 near, 1 normal, 2 far
 var fps_counter := false
 var snd_level := 1.0
@@ -3227,6 +3234,8 @@ func _apply_setting(key: String, val: String) -> void:
 		"sharp":
 			sharpen_on = val == "1"
 			_apply_res()
+		"mblur":
+			mblur_on = val == "1"
 		"scenery":
 			scenery = int(val)
 		"look":
@@ -3314,7 +3323,7 @@ func _save_settings() -> void:
 	cf.set_value("gfx", "res", res_scale)
 	cf.set_value("snd", "vol", sfx_vol)
 	cf.set_value("snd", "level", snd_level)
-	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "mblur_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
 		cf.set_value("opt", k2, get(k2))
 	cf.set_value("opt", "stats_on", KartBuilder.stats_on)
 	Keys.save_to(cf)
@@ -3341,7 +3350,7 @@ func _load_settings() -> void:
 	res_scale = float(cf.get_value("gfx", "res", res_scale))
 	sfx_vol = float(cf.get_value("snd", "vol", 1.0))
 	snd_level = float(cf.get_value("snd", "level", 1.0))
-	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "mblur_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
 		var vv = cf.get_value("opt", k2, get(k2))
 		if typeof(vv) == typeof(get(k2)):
 			set(k2, vv)

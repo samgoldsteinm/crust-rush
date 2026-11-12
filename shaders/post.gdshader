@@ -11,6 +11,7 @@ uniform float vig = 0.16;
 uniform vec3 edge_c = vec3(1.0);
 uniform float edge_a = 0.0;
 uniform float spd = 0.0;
+uniform float mb = 0.0;   // motion blur (Settings): 0 off, up to about 1.8 at full boost
 uniform float tm = 0.0;
 
 vec3 lin(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c)); }
@@ -18,7 +19,19 @@ vec3 srgb(vec3 c) { return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.05
 
 void fragment() {
 	vec2 uv = SCREEN_UV;
-	vec3 c = lin(texture(screen, uv).rgb);
+	vec3 c0 = texture(screen, uv).rgb;
+	float aspect0 = SCREEN_PIXEL_SIZE.y / SCREEN_PIXEL_SIZE.x;
+	if (mb > 0.001) {
+		// each pixel is smeared along the line from the middle of the screen, more toward the edges and with speed
+		vec2 dv = uv - 0.5;
+		vec2 da = dv * vec2(aspect0, 1.0);
+		vec2 st = dv * mb * 0.07 * smoothstep(0.015, 0.45, dot(da, da));
+		for (int i = 1; i < 8; i++) {
+			c0 += texture(screen, uv - st * float(i) * 0.125).rgb;
+		}
+		c0 *= 0.125;
+	}
+	vec3 c = lin(c0);
 	c = clamp(c * tint, 0.0, 1.0);
 	float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
 	c = mix(vec3(l), c, sat);
