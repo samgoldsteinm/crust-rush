@@ -736,6 +736,15 @@ static func fresh_vdir(ev: InputEvent) -> int:
 	return vdir
 
 
+## a stick crossing into a direction on its axis: -1 or 1 once per push, 0 otherwise (shares fresh_vdir's memory)
+static func fresh_axis(jm: InputEventJoypadMotion) -> int:
+	var key := "%d:%d" % [jm.device, jm.axis]
+	var d := (1 if jm.axis_value > 0.0 else -1) if absf(jm.axis_value) >= 0.5 else 0
+	var was: int = _axis_dir.get(key, 0)
+	_axis_dir[key] = d
+	return d if d != was else 0
+
+
 ## after an up/down press: if the highlight didn't move (the end of a list, a page of text), scroll the page under it
 ## (or the biggest one showing) a step. While the highlight moves, its scroll area keeps it in view (follow_focus), so
 ## the page slides along with it as it reaches the bottom or the top

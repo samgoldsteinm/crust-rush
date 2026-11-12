@@ -31,6 +31,8 @@ var banner_text := ""
 var banner_t := 0.0
 var banner_kind := ""   # "" (big), "md", "sm"
 var pos_txt: GradText
+var spectating := false   # watching the others after you finish (web body.spectating): only the progress bar shows
+var spec_k: Kart = null    # ...and its marker is the one picked out
 var banner_txt: GradText
 var steer_dir := 0      # touch-zone arrows light up
 var braking := false
@@ -317,7 +319,7 @@ func _place_texts() -> void:
 	var m: ShaderMaterial = pos_txt.material
 	m.set_shader_parameter("y0", pos_txt.size_px * 0.05)
 	m.set_shader_parameter("y1", pos_txt.size_px * 0.82)
-	pos_txt.visible = race != null and race.state != "countdown" or (race != null and me != null)
+	pos_txt.visible = not spectating and (race != null and race.state != "countdown" or (race != null and me != null))
 	# banner
 	var bsize := clampf(0.2 * H, 48.0, 110.0)
 	var btop := 0.28 * H
@@ -496,6 +498,9 @@ func _draw() -> void:
 		var az := clampf(7.0 * vmin, 30.0, 48.0)
 		_chevron(18.0 + az / 2.0, H / 2.0, az, false, 0.85 if steer_dir < 0 else 0.22)
 		_chevron(W - 18.0 - az / 2.0, H / 2.0, az, true, 0.85 if steer_dir > 0 else 0.22)
+	if spectating:
+		_draw_top_bar(true)
+		return
 	_draw_top_bar()
 	_draw_pause()
 	_draw_items(btn, top)
@@ -604,7 +609,7 @@ func _draw_incoming(vmin: float) -> void:
 	draw_colored_polygon(PackedVector2Array([_p(tip), _p(base + side), _p(base - side)]), inc_col)
 
 
-func _draw_top_bar() -> void:
+func _draw_top_bar(only_bar := false) -> void:
 	var tb := _top_bar()
 	var x0: float = tb["x0"]
 	var y0: float = tb["y0"]
@@ -613,12 +618,23 @@ func _draw_top_bar() -> void:
 	var ps: float = tb["pos_size"]
 	# position number shadow (the gradient digits are a child control)
 	var py := y0 + (h - ps * 0.85) / 2.0 - ps * 0.08
+	if not only_bar:
+		_draw_pos_num(tb, x0, py, ps)
+	_draw_progress(tb, mid)
+	if not only_bar:
+		_draw_lap_box(tb, mid)
+
+
+func _draw_pos_num(tb: Dictionary, x0: float, py: float, ps: float) -> void:
 	draw_string(f_disp, _p(Vector2(x0, py + ps * 0.8 + 3.0)), String(tb["num"]), HORIZONTAL_ALIGNMENT_LEFT, -1, int(ps * s), Color(125.0 / 255, 29.0 / 255, 14.0 / 255, 0.95))
 	var sx := x0 + float(tb["num_w"]) + 6.0
 	var ss: float = tb["suf_size"]
 	_text(f_disp, _ord_suffix(_pos_num()).to_upper(), sx, py + 3.0, ss, CHEESE, HORIZONTAL_ALIGNMENT_LEFT, -1.0, SAUCE_DARK, Vector2(0, 2))
 	_text(f_bold, "OF %d" % race.karts.size(), sx + 1.0, py + 3.0 + ss + 2.0, 9.5, Color(1, 0.957, 0.863, 0.65), HORIZONTAL_ALIGNMENT_LEFT, -1.0, Color(0, 0, 0, 0), Vector2.ZERO, 9.5 * 0.14)
-	# progress bar with a marker per racer
+
+
+## the progress bar with a marker per racer (yours, or the one being watched, picked out)
+func _draw_progress(tb: Dictionary, mid: float) -> void:
 	var tx: float = tb["tb_x"]
 	var tw: float = tb["tb_w"]
 	if tw > 40.0:
@@ -644,16 +660,19 @@ func _draw_top_bar() -> void:
 					draw_rect(Rect2(_p(Vector2(fx2 + qx * 7.0, mid - 7.0 + qy * 7.0)), Vector2(7, 7) * s), Color("#111111") if (qx + qy) % 2 == 0 else Color.WHITE)
 		var total := float(T.LAPS * T.N)
 		var mine_x := 0.0
+		var hk: Kart = spec_k if spectating and spec_k != null else me
 		for k in race.karts:
 			var f := clampf((total if k.finished else float(k.prog)) / total, 0.0, 1.0)
 			var mx := lx0 + f * (lx1 - lx0)
-			if k == me:
+			if k == hk:
 				mine_x = mx
 				continue
 			_marker(k, mx, mid, 10.0, 2.0, _racer_col(k))
 		_draw_glow(Vector2(mine_x, mid), 14.0 + 6.0, CHEESE, 0.5)
-		_marker(me, mine_x, mid, 14.0, 3.0, CHEESE)
-	# lap box
+		_marker(hk, mine_x, mid, 14.0, 3.0, CHEESE)
+
+
+func _draw_lap_box(tb: Dictionary, mid: float) -> void:
 	var lx: float = tb["lap_x"]
 	var lw: float = tb["lap_w"]
 	var lh: float = tb["lap_h"]

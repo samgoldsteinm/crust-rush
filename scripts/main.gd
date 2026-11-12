@@ -1007,6 +1007,7 @@ func _start_race(cfg: Dictionary) -> void:
 	race.mode = "lss" if lss else ""
 	T.LAPS = maxi(2, race.karts.size() - 1) if race.mode == "lss" else 3
 	spec_k = null
+	_spec_reset()
 	if sfx != null and kart != null:
 		sfx.set_body(String(kart.info.get("body", "")))
 	view.setup(T, race, fx, cam, items_lib)
@@ -1637,6 +1638,9 @@ func _net_names() -> Array:
 
 
 func _show_results() -> void:
+	if spec_on:
+		_spec_exit(false)
+	live_open = false
 	NetLog.stop(_net_names())
 	var st := race.standings()
 	var me_place := st.find(kart) + 1
@@ -1907,6 +1911,9 @@ func _input_state() -> Dictionary:
 
 
 func _input(ev: InputEvent) -> void:
+	if spec_on and _spec_input(ev):
+		get_viewport().set_input_as_handled()
+		return
 	# the pause and results sheets: a controller or key press with nothing on them focused only puts the yellow
 	# border on their first button (A then presses what's highlighted), as the menus do
 	if (ev is InputEventJoypadButton or ev is InputEventKey or ev is InputEventJoypadMotion) and not (menu != null and menu.visible):
@@ -2056,7 +2063,7 @@ func _process(dt: float) -> void:
 			if not q.finished:
 				spec_k = q
 				break
-	var ck: Kart = spec_k if spec_k != null and kart.elim else kart
+	var ck: Kart = _cam_kart()
 	var v: Dictionary = view.views[ck]
 	_camera(dt, float(v["rx"]), float(v["ry"]), float(v["rz"]), float(v["rma"]))
 	if ghost != null:
@@ -2098,7 +2105,7 @@ func _process(dt: float) -> void:
 ## the web game's close chase camera: it eases round behind the kart, hangs on a sprung mount, leans
 ## into turns and with the ground, shakes with speed and hits, and rides round the loop-the-loop
 func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
-	var k: Kart = spec_k if spec_k != null and kart.elim else kart
+	var k: Kart = _cam_kart()
 	var v: Dictionary = view.views[k]
 	if state == "menu":
 		var oa := time * 0.18 + k.a + 2.4
@@ -2107,6 +2114,7 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 		cam.fov = 55.0
 		cam_snap = true
 		cam_a = k.ma
+		_fp_camera(k, 0.0, 0.0)     # (puts a hidden driver back)
 		return
 	cam_a = lerp_angle(cam_a, rma, 1.0 - exp(-5.5 * dt))
 	var ex := maxf(0.0, float(v["top"]) - 7.2) * T.KS
@@ -2217,6 +2225,10 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 	# the sun's shadow box follows the kart (centred 80 ahead of it)
 	var sc := Vector3(rx + cos(cam_a) * 80.0, rg, ry + sin(cam_a) * 80.0)
 	sun.global_position = sc
+	# watching the race: the track cameras or the blimp take over
+	if spec_on and spec_mode > 0:
+		_spec_camera(dt, rx, ry, rz, rma)
+	_fp_camera(k, n1 * amp, n2 * amp)
 
 
 ## web incomingTick: the nearest item closing on you, shown at the bottom with an arrow toward it and a beep that
@@ -2274,6 +2286,7 @@ func _incoming(dt: float) -> void:
 
 
 func _hud(dt: float) -> void:
+	_spec_tick(dt)
 	var k := kart
 	hud.fps_on = fps_counter
 	_incoming(dt)
@@ -2791,7 +2804,7 @@ func _settings_panel() -> Control:
 			c.add_child(_set_rows([
 				["Kart stats", "Off makes every part cosmetic, so all karts drive the same. Applies from the next race.", "stats", on_off, "1" if KartBuilder.stats_on else "0"],
 				["Speed units", "", "units", [["mph", "mph"], ["kmh", "km/h"]], "kmh" if hud.kmh else "mph"],
-				["Camera", "Close sits right behind your driver.", "cam", [["close", "Close"], ["far", "Far"]], "far" if cam_far else "close"],
+				["Camera", "Close sits right behind your driver. First person: from the driver's seat.", "cam", [["close", "Close"], ["far", "Far"], ["fp", "First person"]], "fp" if cam_fp else ("far" if cam_far else "close")],
 				["Camera distance", "How far behind your kart the camera sits.", "camd", {"lo": 75, "hi": 150, "step": 5, "fmt": "%d%%", "mul": 1.0}, cam_d],
 				["Camera shake", "Shake on bumps, boosts and hits.", "shake", on_off, "1" if shake_on else "0"],
 				["Best-run ghost", "Race a see-through copy of your personal best.", "ghost", on_off, "1" if ghost_on else "0"],
@@ -3067,6 +3080,7 @@ func _reset_settings() -> void:
 	KartBuilder.stats_on = true
 	hud.kmh = false
 	cam_far = false
+	cam_fp = false
 	cam_d = 100
 	shake_on = true
 	ghost_on = true
@@ -3104,6 +3118,7 @@ var scenery := 1          # 0 near, 1 normal, 2 far
 var fps_counter := false
 var snd_level := 1.0
 var cam_far := false
+var cam_fp := false       # first person: from the driver's seat (Settings > Camera)
 var cam_d := 100
 var shake_on := true
 var fs_on := true         # full screen (saved; F11 switches too)
@@ -3194,6 +3209,7 @@ func _apply_setting(key: String, val: String) -> void:
 			hud.kmh = val == "kmh"
 		"cam":
 			cam_far = val == "far"
+			cam_fp = val == "fp"
 		"camd":
 			cam_d = int(round(float(val)))
 		"shake":
@@ -3267,7 +3283,7 @@ func _save_settings() -> void:
 	cf.set_value("gfx", "res", res_scale)
 	cf.set_value("snd", "vol", sfx_vol)
 	cf.set_value("snd", "level", snd_level)
-	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
 		cf.set_value("opt", k2, get(k2))
 	cf.set_value("opt", "stats_on", KartBuilder.stats_on)
 	Keys.save_to(cf)
@@ -3294,7 +3310,7 @@ func _load_settings() -> void:
 	res_scale = float(cf.get_value("gfx", "res", res_scale))
 	sfx_vol = float(cf.get_value("snd", "vol", 1.0))
 	snd_level = float(cf.get_value("snd", "level", 1.0))
-	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
 		var vv = cf.get_value("opt", k2, get(k2))
 		if typeof(vv) == typeof(get(k2)):
 			set(k2, vv)
@@ -3468,6 +3484,402 @@ func _net_start() -> void:
 		cfg["mode"] = "lss"
 	_net_begin.rpc(cfg)
 	_start_race(cfg)
+
+
+# ---------------------------------------------------------------- watching the race (web spectating)
+## After you finish an online race (or are knocked out of Last Slice Standing) while others still race: the standings
+## so far with "Watch the race", then the spectator view. Pick the racer (‹ ›, left/right, A/D, the bumpers), change
+## camera (Camera, C, Y or X): chase, track cameras (tall posts round the course; the nearest follows the racer and
+## zooms in) and a blimp view high above and behind; back to the standings (Results, Esc, B). Only the progress bar
+## stays on screen. Watching changes nothing in the race.
+const SPEC_MODES := ["Chase camera", "Track cameras", "Blimp view"]
+var spec_on := false
+var spec_mode := 0
+var spec_kart: Kart = null
+var spec_tv: Array = []
+var spec_tv_i := -1
+var spec_lk := Vector3.ZERO
+var spec_bp := Vector3.ZERO
+var spec_snap := true
+var spec_fov := 58.0
+var spec_bar: PanelContainer = null
+var spec_lab: Array = []          # the camera's name, the racer's name, place and lap
+var spec_lab_t := 0.0
+var live_open := false            # the standings so far are up (while the others still race)
+var live_rows: VBoxContainer = null
+var live_t := 0.0
+
+
+func _cam_kart() -> Kart:
+	if spec_on and spec_kart != null:
+		return spec_kart
+	if spec_k != null and kart.elim:
+		return spec_k
+	return kart
+
+
+func _spec_reset() -> void:
+	if spec_on:
+		_spec_exit(false)
+	spec_on = false
+	spec_kart = null
+	spec_tv = []
+	live_open = false
+	if hud != null:
+		hud.spectating = false
+
+
+func _spec_online() -> bool:
+	return net_role != "" or web.racing() or (race != null and race.mode == "lss")
+
+
+func _spec_can_watch() -> bool:
+	if race == null or kart == null or state != "race" or not _spec_online() or not (kart.finished or kart.elim):
+		return false
+	for k in race.karts:
+		if k != kart and not k.finished and not k.elim:
+			return true
+	return false
+
+
+## the racers to watch: friends still racing first (everyone still in, in Last Slice), then the rest, by place
+func _spec_targets() -> Array:
+	var st: Array = race.standings()
+	var out: Array = []
+	for k in st:
+		if k != kart and _spec_live(k):
+			out.append(k)
+	for k in st:
+		if k != kart and not _spec_live(k) and not k.elim:
+			out.append(k)
+	return out
+
+
+func _spec_live(k: Kart) -> bool:
+	return not k.finished and not k.elim and (k.peer != 0 or k.remote or k.web or race.mode == "lss")
+
+
+func _spec_tick(dt: float) -> void:
+	if spec_on:
+		if state != "race" or _spec_targets().is_empty():
+			_spec_exit(false)
+		else:
+			if spec_kart == null or spec_kart.elim:
+				_spec_set(0)
+			spec_lab_t -= dt
+			if spec_lab_t <= 0.0:
+				_spec_label()
+		return
+	var can := _spec_can_watch()
+	if can and not live_open and not panel_results.visible and not panel_pause.visible:
+		_live_show()
+	elif live_open and not can:
+		live_open = false
+		if state == "race":
+			panel_results.visible = false
+	elif live_open:
+		live_t -= dt
+		if live_t <= 0.0:
+			live_t = 0.5
+			_live_rows()
+
+
+## the standings so far, with "Watch the race" (web renderResultsNet while others still race)
+func _live_show() -> void:
+	live_open = true
+	var v := _sheet(panel_results, 520.0, 10.0)
+	var me_place: int = race.standings().find(kart) + 1
+	var title := ("You’re out · %s" % _ordinal(me_place)) if kart.elim else ("%s place!" % _ordinal(me_place))
+	v.add_child(menu.label(title, menu.f_disp, 48.0, Color("#f7c948"), Color("#7d1d0e"), Vector2(0, 4)))
+	v.add_child(menu.label("%s · the others are still racing" % String(_map_info(map_id).get("name", map_id)), menu.f_semi, 15.0, Color("#c2a58c")))
+	live_rows = menu.vbox(5)
+	v.add_child(live_rows)
+	_live_rows()
+	var w := menu.button("Watch the race  ›", "cta", 20.0, Vector4(16, 12, 16, 12))
+	w.pressed.connect(_spec_enter)
+	v.add_child(w)
+	if net_role != "" or web.racing():
+		var nb := menu.button("Network log", "ghost", 14.0, Vector4(12, 8, 12, 8))
+		nb.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		nb.pressed.connect(func():
+			menu.netlog_back = ""
+			menu.visible = true
+			menu.show_modal("netlog"))
+		v.add_child(nb)
+	panel_results.visible = true
+	w.grab_focus.call_deferred()
+
+
+func _live_rows() -> void:
+	if live_rows == null or not is_instance_valid(live_rows):
+		return
+	for c in live_rows.get_children():
+		c.queue_free()
+	var st: Array = race.standings()
+	for i in st.size():
+		var k: Kart = st[i]
+		var rt := ""
+		if k.elim:
+			rt = "out on lap %d" % k.elim_lap
+		elif k.finished:
+			rt = ("~" if k.est else "") + _fmt(k.finish_time)
+		else:
+			rt = "racing · lap %d of %d" % [mini(T.LAPS, int(floor(maxf(0.0, float(k.prog)) / T.N)) + 1), T.LAPS]
+		live_rows.add_child(_result_row(i + 1, k, rt, ""))
+
+
+func _spec_enter() -> void:
+	if not _spec_can_watch():
+		return
+	spec_on = true
+	live_open = false
+	panel_results.visible = false
+	hud.spectating = true
+	_spec_bar_build()
+	spec_bar.visible = true
+	_spec_set(0)
+
+
+func _spec_set(i: int) -> void:
+	var L := _spec_targets()
+	if L.is_empty():
+		_spec_exit()
+		return
+	spec_kart = L[posmod(i, L.size())]
+	hud.spec_k = spec_kart
+	spec_snap = true
+	cam_snap = true
+	spec_tv_i = -1
+	_spec_label()
+
+
+func _spec_next(d: int) -> void:
+	var L := _spec_targets()
+	var cur := L.find(spec_kart)
+	_spec_set((0 if cur < 0 else cur) + d)
+
+
+func _spec_cam() -> void:
+	spec_mode = (spec_mode + 1) % SPEC_MODES.size()
+	spec_snap = true
+	cam_snap = true
+	spec_tv_i = -1
+	_spec_label()
+
+
+func _spec_exit(to_results := true) -> void:
+	if not spec_on:
+		return
+	spec_on = false
+	spec_kart = null
+	cam_snap = true
+	if hud != null:
+		hud.spectating = false
+		hud.spec_k = null
+	if spec_bar != null:
+		spec_bar.visible = false
+	if to_results and _spec_can_watch():
+		_live_show()
+
+
+func _spec_label() -> void:
+	spec_lab_t = 0.4
+	var k := spec_kart
+	if k == null or spec_lab.size() < 3:
+		return
+	var pl: int = race.standings().find(k) + 1
+	(spec_lab[0] as Label).text = String(SPEC_MODES[spec_mode]).to_upper()
+	(spec_lab[1] as Label).text = k.racer_name + ("" if (k.peer != 0 or k.remote or k.web) else " (CPU)")
+	var info := "%s place · " % _ordinal(pl)
+	if k.finished:
+		info += "finished" if k.est else "finished %s" % _fmt(k.finish_time)
+	else:
+		info += "lap %d of %d" % [mini(T.LAPS, int(floor(maxf(0.0, float(k.prog)) / T.N)) + 1), T.LAPS]
+	(spec_lab[2] as Label).text = info
+
+
+## the bar at the bottom: ‹ who › · Camera · Results (web #specBar)
+func _spec_bar_build() -> void:
+	if spec_bar != null and is_instance_valid(spec_bar):
+		return
+	spec_bar = PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(22.0 / 255.0, 14.0 / 255.0, 9.0 / 255.0, 0.82)
+	sb.set_corner_radius_all(menu.zi(18))
+	sb.set_content_margin_all(menu.z(8))
+	sb.shadow_color = Color(0, 0, 0, 0.35)
+	sb.shadow_size = menu.zi(12)
+	spec_bar.add_theme_stylebox_override("panel", sb)
+	spec_bar.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	spec_bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	spec_bar.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	spec_bar.offset_bottom = -menu.z(14)
+	var row := menu.hbox(8)
+	spec_bar.add_child(row)
+	var mk := func(text: String, f: Callable, wide := false) -> Button:
+		var b := menu.button(text, "ghost", 16.0 if not wide else 14.0, Vector4(12, 10, 12, 10) if wide else Vector4(14, 10, 14, 10))
+		b.focus_mode = Control.FOCUS_NONE
+		b.pressed.connect(f)
+		row.add_child(b)
+		return b
+	mk.call("‹", _spec_next.bind(-1))
+	var who := VBoxContainer.new()
+	who.alignment = BoxContainer.ALIGNMENT_CENTER
+	who.custom_minimum_size.x = menu.z(190)
+	who.add_theme_constant_override("separation", 0)
+	spec_lab = []
+	for spec in [[menu.f_bold, 10.0, Color("#ffd24a")], [menu.f_disp, 17.0, Color("#fff4dc")], [menu.f_semi, 12.0, Color(1, 0.957, 0.863, 0.8)]]:
+		var l := menu.label("", spec[0], spec[1], spec[2])
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		who.add_child(l)
+		spec_lab.append(l)
+	row.add_child(who)
+	mk.call("›", _spec_next.bind(1))
+	mk.call("Camera", _spec_cam, true)
+	mk.call("Results", _spec_exit.bind(true), true)
+	panel_results.get_parent().add_child(spec_bar)
+	spec_bar.visible = false
+
+
+## keys and the controller while watching (web: left/right or the bumpers, Y or X, B)
+func _spec_input(ev: InputEvent) -> bool:
+	if ev is InputEventKey and ev.pressed and not ev.echo:
+		match (ev as InputEventKey).physical_keycode:
+			KEY_LEFT, KEY_A:
+				_spec_next(-1)
+			KEY_RIGHT, KEY_D:
+				_spec_next(1)
+			KEY_C, KEY_V, KEY_TAB:
+				_spec_cam()
+			KEY_ESCAPE, KEY_BACKSPACE:
+				_spec_exit(true)
+			_:
+				return false
+		return true
+	if ev is InputEventJoypadButton and ev.pressed:
+		match (ev as InputEventJoypadButton).button_index:
+			JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_LEFT_SHOULDER:
+				_spec_next(-1)
+			JOY_BUTTON_DPAD_RIGHT, JOY_BUTTON_RIGHT_SHOULDER:
+				_spec_next(1)
+			JOY_BUTTON_Y, JOY_BUTTON_X:
+				_spec_cam()
+			JOY_BUTTON_B, JOY_BUTTON_START:
+				_spec_exit(true)
+			_:
+				return false
+		return true
+	if ev is InputEventJoypadMotion and (ev as InputEventJoypadMotion).axis == JOY_AXIS_LEFT_X:
+		var d := Menu.fresh_axis(ev as InputEventJoypadMotion)
+		if d != 0:
+			_spec_next(d)
+		return true
+	return false
+
+
+## first person (Settings > Camera, web fpCam): the camera sits in the driver's head and looks where the kart points
+## (where it is going while it spins out); the driver is hidden so you see the bonnet and the wheels. Your own kart
+## only, not while watching others
+var _fp_hid: Node3D = null
+
+
+func _fp_camera(k: Kart, j1: float, j2: float) -> void:
+	var v: Dictionary = view.views.get(k, {})
+	var on := cam_fp and k == kart and not spec_on and state != "menu" and not v.is_empty()
+	var drv: Node3D = null
+	if on:
+		if not v.has("fp_drv"):
+			v["fp_drv"] = (v["model"] as Node3D).find_child("driver", true, false) if v.get("model") is Node3D else null
+		drv = v["fp_drv"] as Node3D
+	if _fp_hid != null and is_instance_valid(_fp_hid) and _fp_hid != drv:
+		_fp_hid.visible = true
+		_fp_hid = null
+	if not on:
+		return
+	var tilt: Node3D = v["tilt"]
+	var txf := tilt.global_transform
+	if not v.has("fp_eye"):
+		# the driver's head in the kart's own space: near the top of the driver, a little forward of their middle
+		var eye := Vector3(0.0, float(v.get("top", 7.0)) * 0.8, 0.0)
+		if drv != null:
+			var bb := AABB()
+			var first := true
+			var inv := txf.affine_inverse()
+			for m in drv.find_children("*", "MeshInstance3D", true, false) + ([drv] if drv is MeshInstance3D else []):
+				var mi := m as MeshInstance3D
+				if mi.mesh == null:
+					continue
+				var ab: AABB = (inv * mi.global_transform) * mi.mesh.get_aabb()
+				bb = ab if first else bb.merge(ab)
+				first = false
+			if not first:
+				eye = Vector3(bb.position.x + bb.size.x * 0.62 + 0.4, bb.position.y + bb.size.y * 0.84, 0.0)
+		# a closed car (the driver sits under a roof): just over the roof, so the view isn't the inside of the cabin
+		eye.y = maxf(eye.y, float(v.get("top", 7.0)) * 0.97)
+		v["fp_eye"] = eye
+	if drv != null:
+		drv.visible = false
+		_fp_hid = drv
+	var e: Vector3 = v["fp_eye"]
+	var lb := look_back and state == "race"
+	var pos := txf * e
+	var up := txf.basis.y.normalized()
+	var tgt := txf * (e + Vector3(-40.0 if lb else 40.0, -2.2, 0.0))
+	if k.spin > 0.0:
+		var a := float(v.get("rma", k.ma))
+		var d := -40.0 if lb else 40.0
+		tgt = Vector3(pos.x + cos(a) * d, pos.y - 2.0, pos.z + sin(a) * d)
+		up = Vector3.UP
+	cam.global_position = pos + Vector3(j1 * 0.08, j2 * 0.08, 0.0)
+	if cam.global_position.distance_to(tgt) > 0.1:
+		cam.look_at(tgt, up)
+
+
+## the track cameras and the blimp (the chase camera is the usual one); runs after it and takes over
+func _spec_camera(dt: float, kx: float, ky: float, kz: float, kma: float) -> void:
+	var sn := spec_snap
+	spec_snap = false
+	if spec_mode == 1:
+		if spec_tv.is_empty():
+			var n := 14
+			for i in n:
+				var q: int = int(floor(i * T.N / float(n)))
+				var sd := 1.0 if i % 2 == 1 else -1.0
+				var px: float = T.px[q] + T.nx[q] * sd * (T.WALLD + 46.0)
+				var py: float = T.py[q] + T.ny[q] * sd * (T.WALLD + 46.0)
+				spec_tv.append(Vector3(px, maxf(T.ground(px, py), T.ground(T.px[q], T.py[q])) + 60.0, py))
+		var best := 0
+		var bd := 1e18
+		for i in spec_tv.size():
+			var c: Vector3 = spec_tv[i]
+			var d := (c.x - kx) ** 2 + (c.z - ky) ** 2
+			if d < bd:
+				bd = d
+				best = i
+		var cut := sn or spec_tv_i < 0
+		if not cut and best != spec_tv_i:
+			var cc: Vector3 = spec_tv[spec_tv_i]
+			if bd < ((cc.x - kx) ** 2 + (cc.z - ky) ** 2) * 0.6:
+				cut = true
+		if cut:
+			spec_tv_i = best
+		var c2: Vector3 = spec_tv[spec_tv_i]
+		var tgt := Vector3(kx, kz + 4.0, ky)
+		spec_lk = tgt if cut else spec_lk.lerp(tgt, 1.0 - exp(-9.0 * dt))
+		cam.global_position = c2
+		cam.look_at(spec_lk, Vector3.UP)
+		var dd := c2.distance_to(Vector3(kx, kz, ky))
+		var fov := clampf(2.0 * atan(34.0 / maxf(1.0, dd)) * 180.0 / PI, 14.0, 58.0)
+		spec_fov = fov if cut else spec_fov + (fov - spec_fov) * minf(1.0, dt * 5.0)
+		cam.fov = spec_fov
+	elif spec_mode == 2:
+		var bx := kx - cos(kma) * 100.0
+		var by := ky - sin(kma) * 100.0
+		var tgt2 := Vector3(bx, maxf(kz, T.ground(bx, by)) + 160.0, by)
+		spec_bp = tgt2 if sn else spec_bp.lerp(tgt2, 1.0 - exp(-2.5 * dt))
+		cam.global_position = spec_bp
+		cam.look_at(Vector3(kx + cos(kma) * 10.0, kz, ky + sin(kma) * 10.0), Vector3.UP)
+		cam.fov = 58.0
 
 
 ## the item, an arrow and the portrait of whoever it hit (web hitToast)
