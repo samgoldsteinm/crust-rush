@@ -1,11 +1,11 @@
 import asyncio, sys, json
 from playwright.async_api import async_playwright
 from PIL import Image
-# usage: view.py <out name> "asset[:az,el,zoom[,args json]];..."   -> /home/claude/mini/view/<out>.jpg (a sheet)
+# usage: view.py <out name> "asset[:az,el,zoom[,args json]];..."   -> D:/crust-rush/source/tools/mini/view/<out>.jpg (a sheet)
 OUT, SPEC = sys.argv[1], sys.argv[2]
 async def main():
     async with async_playwright() as p:
-        b = await p.chromium.launch(args=['--use-gl=swiftshader','--enable-webgl','--ignore-gpu-blocklist'])
+        b = await p.chromium.launch(channel='chromium', args=['--use-angle=d3d11','--enable-gpu','--ignore-gpu-blocklist','--enable-webgl'])
         ctx = await b.new_context(viewport={'width':960,'height':600})
         pg = await ctx.new_page()
         errs=[]; pg.on('pageerror', lambda e: errs.append(str(e)[:300]))
@@ -25,12 +25,12 @@ async def main():
                 print(await pg.evaluate('JSON.stringify(window.__info)'), flush=True)
             except Exception as e:
                 print('FAIL', nm, errs[-2:], flush=True)
-            f = f'/home/claude/mini/view/_{i}.png'; await pg.screenshot(path=f); ims.append(Image.open(f).convert('RGB'))
+            f = f'D:/crust-rush/source/tools/mini/view/_{i}.png'; await pg.screenshot(path=f); ims.append(Image.open(f).convert('RGB'))
         await b.close()
         cols = 2 if len(ims) > 1 else 1; rows = (len(ims)+cols-1)//cols; w,h = ims[0].size
         sh = Image.new('RGB', (w*cols, h*rows))
         for i, im in enumerate(ims): sh.paste(im, ((i%cols)*w, (i//cols)*h))
         if sh.width > 1920: sh = sh.resize((1920, int(sh.height*1920/sh.width)))
-        sh.save(f'/home/claude/mini/view/{OUT}.jpg', quality=88)
+        sh.save(f'D:/crust-rush/source/tools/mini/view/{OUT}.jpg', quality=88)
         if errs: print('errors', errs[:3])
 asyncio.run(main())

@@ -135,3 +135,12 @@ Open items the user raised: booster housings near shortcut mouths (guarded in to
 - Agreed order for Bedroom Blitz: 1 sunlight through the window only, 2 room reflections on track and karts (undo the
   earlier turned-down reflections), 3 wood and fabric rebuilt in Blender, 4 real view outside, 5 background blur on
   Ultra, 6 edge dashes and coloured sections. Show before and after pictures after 1 and 2.
+- PC toolchain is set up (2026-11-12): D:\crust-rush\tools holds a portable Node, a Python venv (playwright, pillow,
+  numpy, matplotlib), the Playwright browser, and py.cmd, which runs any script with the right settings:
+  `D:\crust-rush\tools\py.cmd D:\crust-rush\source\tools\neon\webtest.py` builds (stamp inside that file, now v155) and
+  serves the test copy on port 8771; then boottest.py, loadtest.py, simtest.py, shots.py, chase.py as before.
+  The scripts' paths were rewritten by D:\crust-rush\tools\port_paths.py; webtest.sh is replaced by webtest.py.
+  The test browser uses the RTX 3060 (channel='chromium', ANGLE D3D11), so Ultra pictures take seconds.
+- "Before" pictures for the realism pass: D:\crust-rush\scratch\neon_before_*.png (cameras in scratch\cams_bed.txt,
+  taken with VP=1280x720 HOLD=1, quality ultra). On a real graphics card the track shows a mottled, felt-like
+  surface (the fine surface detail every plain material gets): it should be smooth moulded plastic.

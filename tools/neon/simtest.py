@@ -5,7 +5,7 @@ CLS = sys.argv[2] if len(sys.argv) > 2 else 'medium'
 SECS = int(sys.argv[3]) if len(sys.argv) > 3 else 330
 async def main():
     async with async_playwright() as p:
-        b = await p.chromium.launch(args=['--use-gl=swiftshader','--enable-webgl','--ignore-gpu-blocklist'])
+        b = await p.chromium.launch(channel='chromium', args=['--use-angle=d3d11','--enable-gpu','--ignore-gpu-blocklist','--enable-webgl'])
         ctx = await b.new_context(viewport={'width':640,'height':360}, service_workers='block')
         pg = await ctx.new_page()
         errs=[]

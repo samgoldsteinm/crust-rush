@@ -3,10 +3,10 @@ from playwright.async_api import async_playwright
 # usage: shots.py <map> <tag> <quality> "px,py,pz,tx,ty,tz;..."   (world coords: x, height, z)   or "j:<idx>,<back>,<up>,<ahead>[,<lat>]" for a view along the road
 MAP, TAG, Q, CAMS = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 REV = len(sys.argv) > 5 and sys.argv[5] == 'rev'
-SP='/tmp/claude-0/-home-claude/009aa3b6-e96f-505b-b230-9e07dd3a3292/scratchpad'
+SP='D:/crust-rush/scratch'
 async def main():
     async with async_playwright() as p:
-        b = await p.chromium.launch(args=['--use-gl=swiftshader','--enable-webgl','--ignore-gpu-blocklist'])
+        b = await p.chromium.launch(channel='chromium', args=['--use-angle=d3d11','--enable-gpu','--ignore-gpu-blocklist','--enable-webgl'])
         import os
         VW,VH=[int(v) for v in os.environ.get('VP','960x540').split('x')]
         ctx = await b.new_context(viewport={'width':VW,'height':VH}, service_workers='block')

@@ -1,10 +1,10 @@
 import asyncio, sys, glob
 from playwright.async_api import async_playwright
 MAP = sys.argv[1]
-SP='/tmp/claude-0/-home-claude/009aa3b6-e96f-505b-b230-9e07dd3a3292/scratchpad'
+SP='D:/crust-rush/scratch'
 async def main():
     async with async_playwright() as p:
-        b = await p.chromium.launch(args=['--use-gl=swiftshader','--enable-webgl','--ignore-gpu-blocklist'])
+        b = await p.chromium.launch(channel='chromium', args=['--use-angle=d3d11','--enable-gpu','--ignore-gpu-blocklist','--enable-webgl'])
         ctx = await b.new_context(viewport={'width':480,'height':270}, service_workers='block')
         pg = await ctx.new_page()
         await pg.goto('http://localhost:8771/webcopy6/index.html')

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """One-off engine patches for the neon cup (run once on crust-rush.html)."""
 import sys
-P='/home/claude/crust-rush.html'
+P='D:/crust-rush/source/crust-rush.html'
 s=open(P,encoding='utf-8').read()
 def rep(a,b,cnt=1):
     global s

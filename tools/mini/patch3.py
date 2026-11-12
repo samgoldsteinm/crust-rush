@@ -1,6 +1,6 @@
 # third engine patch (v153): stale pools on arena maps, smooth deck heights and a slope-aware camera on toy tracks,
 # toy tracks back to the first width, quicker steering on toy tracks
-p='/home/claude/crust-rush.html'; s=open(p).read()
+p='D:/crust-rush/source/crust-rush.html'; s=open(p).read()
 def rep(a,b,n=1):
     global s
     assert s.count(a)==n,(a[:70],s.count(a)); s=s.replace(a,b)

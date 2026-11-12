@@ -2,7 +2,7 @@
 """Put track pictures into the web game (MAP_SHOTS) and the PC build (assets/shots).
 usage: embed_shots.py <folder with <id>-<h|m|a>.jpg> [infos.json]   (infos: {id: {len, glide, loop, ramps, shorts, tunnel, surf}})"""
 import base64, json, os, re, shutil, sys
-P='/home/claude/crust-rush.html'; PC='/home/claude/crust-rush-godot/assets/shots'
+P='D:/crust-rush/source/crust-rush.html'; PC='D:/crust-rush/godot/assets/shots'
 src=sys.argv[1]; infos=json.load(open(sys.argv[2])) if len(sys.argv)>2 else {}
 s=open(P,encoding='utf-8').read()
 i=s.index('const MAP_SHOTS=')+len('const MAP_SHOTS='); e=s.index('\n',i)

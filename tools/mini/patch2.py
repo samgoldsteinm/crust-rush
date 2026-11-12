@@ -1,5 +1,5 @@
 # second engine patch for the toy tracks: the loop, the start gate, boosters, ramps, shortcut drawing
-p='/home/claude/crust-rush.html'; s=open(p).read()
+p='D:/crust-rush/source/crust-rush.html'; s=open(p).read()
 def rep(a,b,n=1):
     global s
     assert s.count(a)==n,(a[:60],s.count(a)); s=s.replace(a,b)

@@ -1,6 +1,6 @@
 """Build the GitHub Pages version of Crust Rush from the single-file source.
 
-Output layout (in /home/claude/crust-rush-app):
+Output layout (in D:/crust-rush/app):
   index.html                 page markup + small boot data
   css/style.<hash>.css       all styles
   js/game.<hash>.js          the game
@@ -12,9 +12,9 @@ Output layout (in /home/claude/crust-rush-app):
 Hashed names mean a changed file always gets a new URL, so a cached old copy can never be mixed with new code.
 """
 import json, re, os, shutil, hashlib, base64, subprocess, sys
-SRC = '/home/claude/crust-rush.html'
-APP = '/home/claude/crust-rush-app'
-GH = '/tmp/claude-0/gh'
+SRC = 'D:/crust-rush/source/crust-rush.html'
+APP = 'D:/crust-rush/app'
+GH = 'D:/crust-rush/source/build'
 HQ = GH + '/hq'           # higher-quality replacements: hq/tex/<name>.jpg, hq/shots/<id>-<k>.jpg
 SWVER = sys.argv[1] if len(sys.argv) > 1 else 'crust-rush-v32'
 
@@ -76,11 +76,11 @@ assert 'CAR_PACKS={formula:' not in game and 'base64,/9j' not in game
 
 css_rel = hashed('css', 'style', 'css', css.encode())
 game_rel = hashed('js', 'game', 'js', game.encode())
-three_rel = put('vendor/three-0.149.0.min.js', open('/tmp/claude-0/t/threejs/build/three.min.js', 'rb').read())
+three_rel = put('vendor/three-0.149.0.min.js', open(GH + '/vendor/three-0.149.0.min.js', 'rb').read())
 # newer three.js (r187) for the WebGPU work: the engine check page uses it now; the game itself still loads r149
 os.makedirs(f'{APP}/vendor/three-0.187.0', exist_ok=True)
 for fn in ('three.core.js', 'three.module.js', 'three.webgpu.js', 'three.tsl.js'):
-    put(f'vendor/three-0.187.0/{fn}', open(f'/tmp/claude-0/three-new/build/{fn}', 'rb').read())
+    put(f'vendor/three-0.187.0/{fn}', open(f'{GH}/vendor/three-0.187.0/{fn}', 'rb').read())
 shutil.copy(GH + '/gpu-check.html', f'{APP}/gpu-check.html')
 shutil.copy(GH + '/gpu-check.html', f'{APP}/engine-check.html')
 

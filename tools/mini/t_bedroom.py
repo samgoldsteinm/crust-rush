@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(0, '/home/claude/neon')
+sys.path.insert(0, 'D:/crust-rush/source/tools/neon')
 from gen import Track
 
 def make():
@@ -40,11 +40,11 @@ if __name__ == '__main__':
     import json
     t = make()
     print(t.check())
-    t.plot('/home/claude/mini/bedroom.png')
+    t.plot('D:/crust-rush/source/tools/mini/bedroom.png')
     d = t.export()
     d['tloops'] = [[round(t.frac(sg, f), 5), k] for sg, f, k in t.loops]
     import numpy as np
     for nm, (sg, f, _k) in [('loop', t.loops[0])]:
         i = int(t.frac(sg, f) * len(t.P)); print(nm, t.P[i][:2])
-    json.dump([d], open('/home/claude/mini/tracks.json', 'w'), separators=(',', ':'))
+    json.dump([d], open('D:/crust-rush/source/tools/mini/tracks.json', 'w'), separators=(',', ':'))
     print({k: (v if not isinstance(v, list) else len(v)) for k, v in d.items() if k not in ('blurb',)})

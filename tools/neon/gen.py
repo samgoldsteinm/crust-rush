@@ -239,14 +239,14 @@ def tracks():
 
 
 if __name__ == '__main__':
-    sys.path.insert(0, '/home/claude/neon')
+    sys.path.insert(0, 'D:/crust-rush/source/tools/neon')
     cmd = sys.argv[1] if len(sys.argv) > 1 else 'plot'
     ts = tracks()
     for t in ts:
         print(t.check())
         if cmd == 'plot':
-            t.plot('/home/claude/neon/%s.png' % t.id)
+            t.plot('D:/crust-rush/source/tools/neon/%s.png' % t.id)
     if cmd == 'js':
-        with open('/home/claude/neon/tracks.json', 'w') as f:
+        with open('D:/crust-rush/source/tools/neon/tracks.json', 'w') as f:
             json.dump([t.export() for t in ts], f, separators=(',', ':'))
         print('wrote tracks.json')

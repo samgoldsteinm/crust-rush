@@ -1,6 +1,6 @@
 import sys
 from PIL import Image
-SP='/tmp/claude-0/-home-claude/009aa3b6-e96f-505b-b230-9e07dd3a3292/scratchpad'
+SP='D:/crust-rush/scratch'
 tag=sys.argv[1]; n=int(sys.argv[2]); cols=int(sys.argv[3]) if len(sys.argv)>3 else 2
 ims=[Image.open(SP+'/neon_%s_%d.png'%(tag,i)).convert('RGB') for i in range(n)]
 w,h=ims[0].size; rows=(n+cols-1)//cols

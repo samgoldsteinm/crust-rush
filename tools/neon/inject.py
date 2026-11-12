@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Put the neon tracks (gen.py) and the neon code (neon.js) into crust-rush.html, between their markers."""
 import json, re, subprocess, sys
-sys.path.insert(0,'/home/claude/neon')
-subprocess.check_call([sys.executable,'/home/claude/neon/gen.py','js'])
-P='/home/claude/crust-rush.html'
+sys.path.insert(0,'D:/crust-rush/source/tools/neon')
+subprocess.check_call([sys.executable,'D:/crust-rush/source/tools/neon/gen.py','js'])
+P='D:/crust-rush/source/crust-rush.html'
 s=open(P,encoding='utf-8').read()
 def between(a,b,new):
     global s
@@ -16,12 +16,12 @@ def js(v):
     if isinstance(v,list): return '['+','.join(js(x) for x in v)+']'
     if isinstance(v,dict): return '{'+','.join(k+':'+js(x) for k,x in v.items())+'}'
     raise TypeError(v)
-ts=json.load(open('/home/claude/neon/tracks.json'))
+ts=json.load(open('D:/crust-rush/source/tools/neon/tracks.json'))
 out=''
 for t in ts:
     out+=',\n  '+js(t)
 between('/*NEON-MAPS-BEGIN*/','/*NEON-MAPS-END*/',out+'\n')
-code=open('/home/claude/neon/neon.js',encoding='utf-8').read()
+code=open('D:/crust-rush/source/tools/neon/neon.js',encoding='utf-8').read()
 assert all(ord(c)<0x10000 for c in code)
 between('/*NEON-BEGIN*/','/*NEON-END*/','\n'+code)
 open(P,'w',encoding='utf-8').write(s)

@@ -54,3 +54,9 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 3. `neon/chase.py` (the game's own camera round the lap) and `neon/shots.py` (free camera) for looks.
 4. One regular track as a regression (`simtest.py margherita medium 200`).
 5. PC: export from CI, `tests/tmp_neon` (AI race), `tests/tmp_cam` (pictures), then push.
+
+### 2026-11-12 (move to the Windows PC)
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| Risk: a build on Windows would change every published file | Git for Windows converts line endings on checkout (`core.autocrlf=true`), and the build hashes file contents | `core.autocrlf false` in the repo, files checked out again, `.gitattributes` with `* -text` on `source`; a fresh build then differs from `main` only in the version stamp | After cloning anywhere new, set this before the first build and check `git status` in `app` after building |
+| Scripts could not run on Windows | Cloud-workspace paths, a bash build script, the software renderer flag | `tools\port_paths.py` rewrote the paths to `D:\crust-rush`, `webtest.py` replaces `webtest.sh`, `py.cmd` sets UTF-8 and the browser path | Run scripts through `py.cmd`; plain `python` reads files as cp1252 and can corrupt the source |

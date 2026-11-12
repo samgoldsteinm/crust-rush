@@ -1,9 +1,9 @@
 import asyncio, sys
 from playwright.async_api import async_playwright
-SP='/tmp/claude-0/-home-claude/009aa3b6-e96f-505b-b230-9e07dd3a3292/scratchpad'
+SP='D:/crust-rush/scratch'
 async def main():
     async with async_playwright() as p:
-        b = await p.chromium.launch(args=['--use-gl=swiftshader','--enable-webgl','--ignore-gpu-blocklist'])
+        b = await p.chromium.launch(channel='chromium', args=['--use-angle=d3d11','--enable-gpu','--ignore-gpu-blocklist','--enable-webgl'])
         for nm, vw, vh in [('phone', 956, 440), ('desk', 1280, 720)]:
             ctx = await b.new_context(viewport={'width':vw,'height':vh}, service_workers='block', has_touch=(nm=='phone'))
             pg = await ctx.new_page()
