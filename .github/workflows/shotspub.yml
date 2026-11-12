@@ -1,0 +1,42 @@
+# Collects the pictures a "Track pictures" run made into one zip on a scratch pre-release (shots-tmp), so they can
+# be fetched and the best ones picked. Run by hand with the run number; mode "delete" removes the scratch release.
+name: Track pictures zip
+
+on:
+  workflow_dispatch:
+    inputs:
+      run:
+        description: "Track pictures run id"
+        required: true
+      mode:
+        description: "publish or delete"
+        default: "publish"
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Remove the scratch release
+        if: github.event.inputs.mode == 'delete'
+        run: gh release delete shots-tmp --yes --cleanup-tag || true
+      - uses: actions/download-artifact@v4
+        if: github.event.inputs.mode != 'delete'
+        with:
+          run-id: ${{ github.event.inputs.run }}
+          github-token: ${{ github.token }}
+          path: shots
+          merge-multiple: true
+      - name: Publish the zip
+        if: github.event.inputs.mode != 'delete'
+        run: |
+          ls shots | wc -l
+          (cd shots && zip -q -r ../shots.zip .)
+          gh release view shots-tmp > /dev/null 2>&1 || gh release create shots-tmp --prerelease --target godot --title "Track pictures (scratch)" --notes "Scratch files for picking the menu pictures. Not a game release."
+          gh release upload shots-tmp shots.zip --clobber
