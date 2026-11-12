@@ -118,3 +118,20 @@ Open items the user raised: booster housings near shortcut mouths (guarded in to
 - The user says they connected Blender, but no Blender tool or linked computer is visible in this session.
 - Not started: realism pass (plan above; touching the sun shadow map needs care: applyQuality, the frame-rate
   ladder's sm, snapSun all set its size), the other three tracks, the cup.
+
+## Work moved to the user's PC (2026-11-12 evening)
+- Everything lives in D:\crust-rush (C: is nearly full, keep work off it): app (branch main, the published web game),
+  source (branch source: crust-rush.html, build, tools, docs), godot (branch godot, PC), blender (model files),
+  scratch (test output), reference (contact sheets from the reference video, 9 frames each, 14 s apart).
+- Installed on the PC: Python 3.12 (%LOCALAPPDATA%\Programs\Python\Python312), ffmpeg, yt-dlp, Deno, Git (D:\git),
+  Blender 5.3 (D:\blender\blender.exe). Not yet set up: Node, Playwright, Godot; the build and test scripts still use
+  the cloud workspace's Linux paths and need pointing at D:\crust-rush.
+- Reference video (a toy-car racing game; take lighting and materials from it, never names or logos). What makes it
+  look real: one strong low sun with hard-edged warm patches and darker blue shade; glossy track that mirrors the
+  sky and lights at low angles (coloured streaks on the night track); plywood with grain, knots, layered edges,
+  bolts and scuffs; real trees, fence and buildings outside under a blooming sky; background blur in close shots,
+  streaks at speed; metallic kart paint with a dark contact shadow; white dashes along the track edges, seams,
+  coloured sections.
+- Agreed order for Bedroom Blitz: 1 sunlight through the window only, 2 room reflections on track and karts (undo the
+  earlier turned-down reflections), 3 wood and fabric rebuilt in Blender, 4 real view outside, 5 background blur on
+  Ultra, 6 edge dashes and coloured sections. Show before and after pictures after 1 and 2.
