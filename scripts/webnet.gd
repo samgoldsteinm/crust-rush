@@ -7,7 +7,7 @@ extends Node
 ## takes that and replays the controls the host hasn't seen yet, so steering is instant. Everything else is drawn as the
 ## host sends it. PC-to-PC races (ENet) are separate and unchanged.
 
-const PROTO := 97
+const PROTO := 98
 const TOP := "crustrush/v2/"
 const BROKERS := ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884/mqtt", "wss://test.mosquitto.org:8081/mqtt"]
 const STEP := 1.0 / 120.0
@@ -57,6 +57,8 @@ var seq := 0
 var hist: Array = []      # [seq, inp]
 var out_q: Array = []     # [seq, steer, brake, ev, ab, mul, nb]
 var unack: Array = []
+var hz0 := false            # the hazards' clock has its start from the host
+var world_hit := false      # this step a roller, a walker or the train got your kart (on your own screen)
 var ack_rx := 0
 var last_fl := 0
 var last_sn := 0
@@ -377,6 +379,8 @@ func _begin_load(c: Dictionary) -> void:
 	hist.clear()
 	out_q.clear()
 	unack.clear()
+	hz0 = false
+	world_hit = false
 	ack_rx = 0
 	last_sn = 0
 	host_gs = ""
@@ -437,7 +441,9 @@ func step(dt: float, inp: Dictionary) -> void:
 	var mq := 0 if float(inp["mul"]) == 0.0 else 1
 	var i2 := {"steer": stq, "brake": bool(inp["brake"]), "nb": bool(inp["nb"]), "mul": float(mq), "use": false, "back": false, "hold": false, "hold_sl": 1, "release": null}
 	seq += 1
-	hist.append([seq, i2])
+	# (the clock's reading and whether a roller, a walker or the train got this kart, with the control they go with)
+	hist.append([seq, i2, main.race.sim_time, world_hit])
+	world_hit = false
 	if hist.size() > 480:
 		hist.pop_front()
 	out_q.append([seq, stq, 1 if bool(inp["brake"]) else 0, ev if ev != "" else 0, ab, mq, 1 if bool(inp["nb"]) else 0])
@@ -586,8 +592,12 @@ func _reconcile(S: Dictionary, ack: int) -> void:
 		if int(h[0]) > ack:
 			keep.append(h)
 	hist = keep
+	var nfx: int = main.race.fx.size()
 	for h in hist:
 		k.step(h[1], STEP)
+		if h.size() > 3 and bool(h[3]):
+			main.race.spin_out(k, "meat", true)     # the world hit this side already showed: the host will find the same
+	main.race.fx.resize(nfx)
 	k.events.clear()
 	var e := Vector2(ox - k.x, oy - k.y).length()
 	if e > 3.0:
@@ -630,7 +640,29 @@ func _snap(d: Dictionary) -> void:
 		main._web_race_on()
 	if absf(race.race_time - float(d.get("rt", 0.0))) > 0.25:
 		race.race_time = float(d.get("rt", 0.0))
-	race.sim_time = maxf(race.sim_time, float(d.get("st", 0.0)) - 0.2)
+	# the shared clock (rollers, traffic, the train, walkers; web the same). It runs a little ahead of the host's, by
+	# exactly the time this PC's controls take to be played there: the host says which control it played last (ack) and
+	# what its clock read then, and this side knows what its own clock read when it made that control. The two are kept
+	# equal, so the world you drive through is the world the host tests your kart against.
+	var st := float(d.get("st", 0.0))
+	var he_st := -1.0
+	if main.state == "race" and mine != null and not mine.finished and d.get("ack") != null:
+		var ak := int(d["ack"])
+		for h in hist:
+			if int(h[0]) == ak:
+				he_st = float(h[2]) if h.size() > 2 else -1.0
+				break
+	if he_st >= 0.0:
+		var e := st - he_st
+		race.sim_time += e if absf(e) > 0.3 else e * 0.1
+	elif absf(race.sim_time - st) > 0.12:
+		race.sim_time = st
+	if host_gs == "countdown":
+		race.haz_t0 = st
+		hz0 = true
+	elif host_gs == "race" and not hz0:
+		race.haz_t0 = st - float(d.get("rt", 0.0))
+		hz0 = true
 	var kc: Array = d.get("kc", [])
 	for i in mini(kc.size(), race.karts.size()):
 		var k: Kart = race.karts[i]

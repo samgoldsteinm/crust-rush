@@ -170,7 +170,7 @@ static func stop(names: Array) -> void:
 	if names.size() > players.size():
 		players = names.duplicate()
 	var e := {"when": Time.get_datetime_string_from_system(false, true), "map": map_id, "role": "guest" if role == "client" else "host",
-		"players": players, "quality": quality, "ua": "PC (%s) Godot %s" % [OS.get_name(), Engine.get_version_info().get("string", "")],
+		"players": players, "quality": quality, "ua": "PC (%s) Godot %s · game %s p%d" % [OS.get_name(), Engine.get_version_info().get("string", ""), Menu._own_build(), WebNet.PROTO],
 		"secs": roundi((_now() - t0) / 1000.0), "rows": rows, "evs": evs}
 	var l := load_all()
 	l.push_front(e)

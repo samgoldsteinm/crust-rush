@@ -51,7 +51,172 @@ static func _waterfall(root: Node3D, T: TrackData) -> int:
 				m.roughness = 0.92
 				m.metallic_specular = 0.25
 				m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	var base := _waterfall_base(w)
+	if base != null:
+		root.add_child(base)
 	return cut
+
+
+## The waterfall model is a scanned slab of mountain: its edges curl up, so out in the bay it hung over the water as
+## a ragged plate with its underside showing (the web hides this with a higher sea and a bed of cobbles in front).
+## It gets a rock island to stand on: the model's own lowest points on a grid give a rock surface just under it
+## everywhere, and from its edges that surface falls away as cliffs into the sea. Drawing only.
+static func _waterfall_base(w: Node3D) -> MeshInstance3D:
+	const NX := 56
+	const NZ := 80
+	const MARGIN := 3.6          # model units of sea round the slab that the cliffs can fall across
+	const HX := 9.94 + MARGIN
+	const HZ := 14.77 + MARGIN
+	var cx := HX * 2.0 / NX
+	var cz := HZ * 2.0 / NZ
+	var lo := PackedFloat32Array()
+	lo.resize(NX * NZ)
+	lo.fill(1e9)
+	var any := false
+	for node in w.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		var rel := Transform3D.IDENTITY
+		var n: Node = mi
+		while n != null and n != w:
+			rel = (n as Node3D).transform * rel
+			n = n.get_parent()
+		for si in mi.mesh.get_surface_count():
+			var V: PackedVector3Array = mi.mesh.surface_get_arrays(si)[Mesh.ARRAY_VERTEX]
+			for v0 in V:
+				var v := rel * v0
+				var ix := int((v.x + HX) / cx)
+				var iz := int((v.z + HZ) / cz)
+				if ix < 0 or iz < 0 or ix >= NX or iz >= NZ:
+					continue
+				var q := iz * NX + ix
+				if v.y < lo[q]:
+					lo[q] = v.y
+					any = true
+	if not any:
+		return null
+	# a point of the grid sits at the corner of four cells: just under the lowest of them (and their neighbours)
+	var PX := NX + 1
+	var PZ := NZ + 1
+	var h := PackedFloat32Array()
+	h.resize(PX * PZ)
+	const DEEP := -0.9           # model units: well under the sea (the model's zero is 16 below it)
+	for iz in PZ:
+		for ix in PX:
+			var m := 1e9
+			for dz in range(-2, 2):
+				for dx in range(-2, 2):
+					var jx := ix + dx
+					var jz := iz + dz
+					if jx >= 0 and jz >= 0 and jx < NX and jz < NZ:
+						m = minf(m, lo[jz * NX + jx])
+			h[iz * PX + ix] = (m - 0.12) if m < 1e8 else -1e9
+	# away from the slab the rock falls as a cliff: two sweeps carry each height outwards, dropping with distance
+	const K := 1.25              # the cliffs' slope (rise over run)
+	var dd := [[-1, 0, cx], [0, -1, cz], [-1, -1, sqrt(cx * cx + cz * cz)], [1, -1, sqrt(cx * cx + cz * cz)]]
+	for sweep in 2:
+		var fwd := sweep == 0
+		for a in PZ:
+			var iz := a if fwd else PZ - 1 - a
+			for b in PX:
+				var ix := b if fwd else PX - 1 - b
+				var best := h[iz * PX + ix]
+				for d in dd:
+					var jx: int = ix + (int(d[0]) if fwd else -int(d[0]))
+					var jz: int = iz + (int(d[1]) if fwd else -int(d[1]))
+					if jx >= 0 and jz >= 0 and jx < PX and jz < PZ:
+						best = maxf(best, h[jz * PX + jx] - K * float(d[2]))
+				h[iz * PX + ix] = best
+	# a gap in the scan, or the sea just beside a tall crag: the rock there never stands higher than the lowest of
+	# the scan near it, so it fills in under the model and doesn't rise through it
+	var capd := h.duplicate()
+	for iz in PZ:
+		for ix in PX:
+			var here := false
+			var near := 1e9
+			for dz in range(-5, 5):
+				for dx in range(-5, 5):
+					var jx := ix + dx
+					var jz := iz + dz
+					if jx >= 0 and jz >= 0 and jx < NX and jz < NZ and lo[jz * NX + jx] < 1e8:
+						near = minf(near, lo[jz * NX + jx])
+						if dx >= -1 and dx <= 0 and dz >= -1 and dz <= 0:
+							here = true
+			if not here and near < 1e8:
+				capd[iz * PX + ix] = minf(h[iz * PX + ix], near - 0.12)
+	h = capd
+	# the surface (only where it comes up near the sea or above), roughened a little on the cliffs
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var idx := PackedInt32Array()
+	idx.resize(PX * PZ)
+	idx.fill(-1)
+	var nv := 0
+	for iz in PZ:
+		for ix in PX:
+			var y := maxf(h[iz * PX + ix], DEEP)
+			var x := -HX + ix * cx
+			var z := -HZ + iz * cz
+			var covered := false
+			for dz in range(-1, 1):
+				for dx in range(-1, 1):
+					var jx := ix + dx
+					var jz := iz + dz
+					if jx >= 0 and jz >= 0 and jx < NX and jz < NZ and lo[jz * NX + jx] < 1e8:
+						covered = true
+			if not covered and y > DEEP:
+				var nz := sin(x * 3.1 + z * 1.7) * 0.5 + sin(x * 7.3 - z * 5.1 + 1.3) * 0.3 + sin(z * 11.7 + x * 2.9) * 0.2
+				y += nz * 0.14
+				x += sin(z * 4.3 + 0.7) * cx * 0.22
+				z += sin(x * 3.7 + 2.1) * cz * 0.22
+			st.set_uv(Vector2(x, z) * 0.25)
+			st.add_vertex(Vector3(x, y, z))
+			idx[iz * PX + ix] = nv
+			nv += 1
+	var tris := 0
+	for iz in NZ:
+		for ix in NX:
+			var q00 := iz * PX + ix
+			var q10 := q00 + 1
+			var q01 := q00 + PX
+			var q11 := q01 + 1
+			if maxf(maxf(h[q00], h[q10]), maxf(h[q01], h[q11])) <= DEEP:
+				continue
+			st.add_index(idx[q00])
+			st.add_index(idx[q10])
+			st.add_index(idx[q11])
+			st.add_index(idx[q00])
+			st.add_index(idx[q11])
+			st.add_index(idx[q01])
+			tris += 2
+	if tris == 0:
+		return null
+	st.generate_normals()
+	var mesh := st.commit()
+	var mat := StandardMaterial3D.new()
+	var cc0 := "res://assets/hd/cc0/"
+	for nm in ["rock_boulder_dry", "gray_rocks", "cliff_side"]:
+		if ResourceLoader.exists(cc0 + nm + "_col.jpg"):
+			mat.albedo_texture = load(cc0 + nm + "_col.jpg")
+			if ResourceLoader.exists(cc0 + nm + "_nrm.jpg"):
+				mat.normal_enabled = true
+				mat.normal_texture = load(cc0 + nm + "_nrm.jpg")
+				mat.normal_scale = 1.2
+			break
+	mat.albedo_color = Color(0.44, 0.44, 0.47)      # the scan's own rock is a cool, darkish grey
+	mat.uv1_triplanar = true
+	mat.uv1_world_triplanar = true
+	mat.uv1_scale = Vector3.ONE * 0.011
+	mat.roughness = 0.94
+	mat.metallic_specular = 0.2
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	var mi2 := MeshInstance3D.new()
+	mi2.name = "hd_waterfall_base"
+	mi2.mesh = mesh
+	mi2.material_override = mat
+	mi2.transform = w.transform
+	mi2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mi2
 
 
 # ---------------------------------------------------------------- the glide canyon's ends

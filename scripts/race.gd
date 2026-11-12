@@ -41,6 +41,7 @@ const FLAT_T := 3.0
 const BURN_T := 2.0
 ## Olive's slick (web SLICK_SPIN, SLICK_T, OIL_T): a fast spin on the spot, then slippery tyres. oil_t counts down through both:
 ## above SLICK_T the spin is the fast one, at or below it the tyres are slick
+const SLICK_MAX := 60
 const SLICK_SPIN := 2.0
 const SLICK_T := 3.0
 const OIL_T := SLICK_SPIN + SLICK_T
@@ -204,7 +205,10 @@ func _setup_haz() -> void:
 	traffic.clear()
 	for c in T.haz.get("traffic", []):
 		var cd: Dictionary = c
-		traffic.append({"s": float(cd["s0"]), "s0": float(cd["s0"]), "lat": float(cd["lat"]), "latT": float(cd["lat"]), "laneT": float(cd["laneT"]), "v": float(cd["v"]), "len": float(cd["len"]), "x": 0.0, "y": 0.0, "ang": 0.0, "i": 0, "hide": false})
+		var ti := traffic.size()
+		var lat0: float = [-32.0, 30.0, 0.0][ti % 3]
+		traffic.append({"s": float(cd["s0"]), "s0": float(cd["s0"]), "lat": lat0, "latT": lat0, "v": float(cd["v"]), "len": float(cd["len"]), "x": 0.0, "y": 0.0, "ang": 0.0, "i": 0, "hide": false,
+			"sch": _hz_lanes(ti, lat0, 3.0 + ti * 2.0)})
 	rollers.clear()
 	for r in T.haz.get("rollers", []):
 		var rd: Dictionary = r
@@ -213,7 +217,8 @@ func _setup_haz() -> void:
 	walkers.clear()
 	for w in T.haz.get("walk", []):
 		var wd: Dictionary = w
-		walkers.append({"j": float(wd["j"]), "lat": float(wd["lat"]), "latT": 0.0, "v": float(wd["v"]), "ph": float(wd["ph"]), "pause": float(wd["pause"]), "H": float(wd["H"]), "along": 0.0, "x": 0.0, "y": 0.0, "face": 0.0, "hit_t": 0.0})
+		walkers.append({"j": float(wd["j"]), "lat": float(wd["lat"]), "latT": 0.0, "v": float(wd["v"]), "ph": float(wd["ph"]), "pause": float(wd["pause"]), "H": float(wd["H"]), "along": 0.0, "x": 0.0, "y": 0.0, "face": 0.0, "hit_t": 0.0,
+			"sch": _hz_walk(int(wd.get("hi", walkers.size())), float(wd["v"]))})
 	train = {}
 	var tr = T.haz.get("train")
 	if typeof(tr) == TYPE_DICTIONARY:
@@ -222,45 +227,139 @@ func _setup_haz() -> void:
 		for c in td["cars"]:
 			cars.append({"off": float(c["off"]), "L": float(c["L"]), "t": 9e9})
 		train = {"px": float(td["p"]["x"]), "py": float(td["p"]["y"]), "ux": float(td["ux"]), "uy": float(td["uy"]), "span": float(td["span"]), "len": float(td["len"]), "v": float(td["v"]),
-			"cars": cars, "state": "wait", "wait": 2.0 + rng.randf() * 2.0, "pos": -float(td["span"]) - float(td["len"]), "dir": 1.0}
+			"cars": cars, "state": "wait", "wait": 2.0, "pos": -float(td["span"]) - float(td["len"]), "dir": 1.0}
+		train["sch"] = _hz_train(train)
+	haz_t0 = 0.0     # (the clock itself is set back to zero with the race)
 	haz_pose()
+
+
+# ---------------------------------------------------------------- the hazards' shared clock (web hzNow, hzRand, hzLanes...)
+## Where the traffic, the train and the walkers are depends only on how long the race has run (sim_time since haz_t0),
+## never on dice rolled on one device: online, every screen then shows them in the same place. Each hazard's "dice"
+## are a fixed list made from its number and the track, the same list the web game makes (same generator, same
+## order of draws), so a PC and a browser agree too.
+var haz_t0 := 0.0
+
+
+func hz_now() -> float:
+	return maxf(0.0, sim_time - haz_t0)
+
+
+class _HzRand:
+	var s := 1
+	func _init(seed_: int) -> void:
+		s = posmod(seed_, 2147483646) + 1
+	func next() -> float:
+		s = s * 48271 % 2147483647
+		return float(s) / 2147483647.0
+
+
+## traffic: lane changes every 4 to 9 s (the first after lane_t0), easing across in 3 s; the list repeats.
+## [[t, lane]...], and the length of the whole list in seconds
+func _hz_lanes(i: int, lat0: float, lane_t0: float) -> Dictionary:
+	var R := _HzRand.new(T.N * 31 + i * 131 + 7)
+	var L: Array = [[0.0, lat0]]
+	var t := lane_t0
+	for k in 30:
+		var d := 4.0 + R.next() * 5.0
+		var v: float = [-34.0, -12.0, 12.0, 34.0][mini(3, int(floor(R.next() * 4.0)))]
+		L.append([t, lat0 if k == 29 else v])
+		t += d
+	return {"L": L, "T": t}
+
+
+static func _hz_lane_at(sch: Dictionary, t: float) -> float:
+	var L: Array = sch["L"]
+	var u := fmod(t, float(sch["T"]))
+	var i := 0
+	while i + 1 < L.size() and float(L[i + 1][0]) <= u:
+		i += 1
+	if i == 0:
+		return float(L[0][1])
+	var a := float(L[i - 1][1])
+	var b := float(L[i][1])
+	var f := minf(1.0, (u - float(L[i][0])) / 3.0)
+	f = f * f * (3.0 - 2.0 * f)
+	return a + (b - a) * f
+
+
+## walkers: stand a moment, cross to a new spot at their own pace, stand again; the list repeats (it ends where it
+## began). [[t, from, to, crossing time, standing time]...]
+func _hz_walk(i: int, v: float) -> Dictionary:
+	var R := _HzRand.new(T.N * 17 + i * 977 + 3)
+	var lat0 := (R.next() - 0.5) * T.RW * 1.6
+	var p0 := R.next() * 2.0
+	var L: Array = [[0.0, lat0, lat0, 0.0, p0]]
+	var t := p0
+	var prev := lat0
+	for k in 24:
+		var b := lat0 if k == 23 else (R.next() * 2.0 - 1.0) * (T.RW + 8.0)
+		var d := absf(b - prev) / v
+		var p := 0.4 + R.next() * 1.8
+		L.append([t, prev, b, d, p])
+		t += d + p
+		prev = b
+	return {"L": L, "T": t}
+
+
+static func _hz_walk_at(sch: Dictionary, t: float, w: Dictionary) -> void:
+	var L: Array = sch["L"]
+	var u := fmod(t, float(sch["T"]))
+	var i := 0
+	while i + 1 < L.size() and float(L[i + 1][0]) <= u:
+		i += 1
+	var e: Array = L[i]
+	var x := u - float(e[0])
+	if x < float(e[3]):
+		w["lat"] = float(e[1]) + (float(e[2]) - float(e[1])) * (x / float(e[3]))
+		w["latT"] = float(e[2])
+		w["pause"] = 0.0
+	else:
+		w["lat"] = float(e[2])
+		w["latT"] = float(e[2])
+		w["pause"] = float(e[4]) - (x - float(e[3])) + 0.001
+
+
+## the train: waits (2 to 4 s the first time, then 4 to 9 s), then runs through from one side or the other; the list
+## repeats. [[t, wait, direction]...]
+func _hz_train(tr: Dictionary) -> Dictionary:
+	var R := _HzRand.new(T.N * 13 + 101)
+	var run := (float(tr["span"]) * 2.0 + float(tr["len"]) + 10.0) / float(tr["v"])
+	var L: Array = []
+	var t := 0.0
+	for k in 48:
+		var w := (2.0 + R.next() * 2.0) if k == 0 else (4.0 + R.next() * 5.0)
+		var dir := 1.0 if R.next() < 0.5 else -1.0
+		L.append([t, w, dir])
+		t += w + run
+	return {"L": L, "T": t}
+
+
+func _hz_train_at(t: float) -> void:
+	var sch: Dictionary = train["sch"]
+	var L: Array = sch["L"]
+	var u := fmod(t, float(sch["T"]))
+	var i := 0
+	while i + 1 < L.size() and float(L[i + 1][0]) <= u:
+		i += 1
+	var e: Array = L[i]
+	var x := u - float(e[0])
+	train["dir"] = float(e[2])
+	if x < float(e[1]):
+		train["state"] = "wait"
+		train["wait"] = float(e[1]) - x
+		train["pos"] = -float(train["span"]) - float(train["len"])
+	else:
+		train["state"] = "run"
+		train["wait"] = 0.0
+		train["pos"] = -float(train["span"]) - float(train["len"]) + float(train["v"]) * (x - float(e[1]))
 
 
 ## web updateHazards + the rollers in update0: traffic cruising the road, rolling meatballs, walkers, the train
 func _hazards_tick(dt: float) -> void:
-	var racing := state == "race" or state == "menu"
-	var seg_l := T.L / T.N
-	for c in traffic:
-		if racing:
-			c["s"] = float(c["s"]) + float(c["v"]) * dt / seg_l
-		c["laneT"] = float(c["laneT"]) - dt
-		if float(c["laneT"]) <= 0.0:
-			c["laneT"] = 4.0 + rng.randf() * 5.0
-			c["latT"] = [-34.0, -12.0, 12.0, 34.0][rng.randi_range(0, 3)]
-		c["lat"] = float(c["lat"]) + (float(c["latT"]) - float(c["lat"])) * minf(1.0, dt * 0.6)
 	for w in walkers:
-		if float(w["pause"]) > 0.0:
-			w["pause"] = float(w["pause"]) - dt
-		else:
-			if absf(float(w["lat"]) - float(w["latT"])) < 2.0:
-				w["latT"] = (rng.randf() * 2.0 - 1.0) * (T.RW + 8.0)
-				w["pause"] = 0.4 + rng.randf() * 1.8
-			else:
-				w["lat"] = float(w["lat"]) + signf(float(w["latT"]) - float(w["lat"])) * float(w["v"]) * dt
 		if float(w["hit_t"]) > 0.0:
 			w["hit_t"] = float(w["hit_t"]) - dt
-	if not train.is_empty():
-		if train["state"] == "wait":
-			train["wait"] = float(train["wait"]) - dt
-			if float(train["wait"]) <= 0.0:
-				train["state"] = "run"
-				train["dir"] = 1.0 if rng.randf() < 0.5 else -1.0
-				train["pos"] = -float(train["span"]) - float(train["len"])
-		else:
-			train["pos"] = float(train["pos"]) + float(train["v"]) * dt
-			if float(train["pos"]) > float(train["span"]) + 10.0:
-				train["state"] = "wait"
-				train["wait"] = 4.0 + rng.randf() * 5.0
 	haz_pose()
 	_haz_hits()
 
@@ -273,7 +372,11 @@ func haz_pose() -> void:
 		r["lat"] = lat
 		r["x"] = T.px[j] + T.nx[j] * lat
 		r["y"] = T.py[j] + T.ny[j] * lat
+	var ht := hz_now()
+	var seg_l := T.L / T.N
 	for c in traffic:
+		c["s"] = float(c["s0"]) + float(c["v"]) * ht / seg_l
+		c["lat"] = _hz_lane_at(c["sch"], ht)
 		var P := T.track_at(float(c["s"]), float(c["lat"]))
 		c["x"] = P.x
 		c["y"] = P.y
@@ -281,6 +384,7 @@ func haz_pose() -> void:
 		c["i"] = int(P.z)
 		c["hide"] = T.seg_bad(int(P.z))
 	for w in walkers:
+		_hz_walk_at(w["sch"], ht, w)
 		w["along"] = sin(sim_time * 0.3 + float(w["ph"])) * 3.0
 		var P2 := T.track_at(float(w["j"]) + float(w["along"]), float(w["lat"]))
 		w["x"] = P2.x
@@ -288,6 +392,7 @@ func haz_pose() -> void:
 		var pa := T.ang_at(float(w["j"]) + float(w["along"]))
 		w["face"] = pa + (sin(sim_time + float(w["ph"])) * 0.6 if float(w["pause"]) > 0.0 else signf(float(w["latT"]) - float(w["lat"])) * PI / 2.0)
 	if not train.is_empty():
+		_hz_train_at(ht)
 		for c in train["cars"]:
 			c["t"] = (float(train["pos"]) + float(train["len"]) - float(c["off"])) * float(train["dir"]) if train["state"] == "run" else 9e9
 
@@ -295,59 +400,56 @@ func haz_pose() -> void:
 ## guests: keep the hazards moving between the host's pictures
 func haz_guest_step(dt: float) -> void:
 	sim_time += dt
-	var seg_l := T.L / T.N
-	for c in traffic:
-		c["s"] = float(c["s"]) + float(c["v"]) * dt / seg_l
-		c["lat"] = float(c["lat"]) + (float(c["latT"]) - float(c["lat"])) * minf(1.0, dt * 0.6)
-	if not train.is_empty() and train["state"] == "run":
-		train["pos"] = float(train["pos"]) + float(train["v"]) * dt
+	for w in walkers:
+		if float(w["hit_t"]) > 0.0:
+			w["hit_t"] = float(w["hit_t"]) - dt
 	haz_pose()
 
 
 func _haz_hits() -> void:
+	for k in karts:
+		haz_hits_kart(k)
+
+
+## the world's hazards against one kart (the host tests every kart; an online guest tests its own, on its own screen,
+## so the spin starts at once). True when it was spun out.
+func haz_hits_kart(k: Kart) -> bool:
+	var was := k.spin > 0.0
 	for r in rollers:
-		for k in karts:
-			if k.loop.is_empty() and k.z < 14.0 and (k.x - float(r["x"])) ** 2 + (k.y - float(r["y"])) ** 2 < 306.0:
-				spin_out(k, "meat", true)
+		if k.loop.is_empty() and k.z < 14.0 and (k.x - float(r["x"])) ** 2 + (k.y - float(r["y"])) ** 2 < 306.0:
+			spin_out(k, "meat", true)
 	for c in traffic:
-		if c["hide"]:
+		if c["hide"] or not k.loop.is_empty() or k.z > 12.0:
 			continue
 		var fx_ := cos(float(c["ang"]))
 		var fy := sin(float(c["ang"]))
 		var hl := float(c["len"]) * 0.55
-		for k in karts:
-			if not k.loop.is_empty() or k.z > 12.0:
-				continue
-			for o in [-hl, 0.0, hl]:
-				if _hz_bump(k, float(c["x"]) + fx_ * o, float(c["y"]) + fy * o, 15.0, ""):
-					break
-	if not train.is_empty() and train["state"] == "run":
+		for o in [-hl, 0.0, hl]:
+			if _hz_bump(k, float(c["x"]) + fx_ * o, float(c["y"]) + fy * o, 15.0, ""):
+				break
+	if not train.is_empty() and train["state"] == "run" and k.loop.is_empty() and k.z <= 18.0:
 		var ux: float = train["ux"]
 		var uy: float = train["uy"]
 		for c in train["cars"]:
 			var t: float = c["t"]
 			var x: float = float(train["px"]) + ux * t
 			var y: float = float(train["py"]) + uy * t
-			for k in karts:
-				if not k.loop.is_empty() or k.z > 18.0:
-					continue
-				var dx := k.x - x
-				var dy := k.y - y
-				var u := dx * ux + dy * uy
-				var v := dy * ux - dx * uy
-				if absf(u) < float(c["L"]) / 2.0 + 6.0 and absf(v) < 12.0:
-					var sg := signf(v) if v != 0.0 else 1.0
-					k.x += -uy * sg * (14.0 - absf(v))
-					k.y += ux * sg * (14.0 - absf(v))
-					spin_out(k, "wheel", true)
+			var dx := k.x - x
+			var dy := k.y - y
+			var u := dx * ux + dy * uy
+			var v := dy * ux - dx * uy
+			if absf(u) < float(c["L"]) / 2.0 + 6.0 and absf(v) < 12.0:
+				var sg := signf(v) if v != 0.0 else 1.0
+				k.x += -uy * sg * (14.0 - absf(v))
+				k.y += ux * sg * (14.0 - absf(v))
+				spin_out(k, "wheel", true)
 	for w in walkers:
-		for k in karts:
-			if not k.loop.is_empty() or k.z > float(w["H"]) * 0.8:
-				continue
-			if (k.x - float(w["x"])) ** 2 + (k.y - float(w["y"])) ** 2 < 225.0 and k.inv <= 0.0:
-				spin_out(k, "meat", true)
-				w["pause"] = 1.2
+		if not k.loop.is_empty() or k.z > float(w["H"]) * 0.8:
+			continue
+		if (k.x - float(w["x"])) ** 2 + (k.y - float(w["y"])) ** 2 < 225.0 and k.inv <= 0.0:
+			if spin_out(k, "meat", true):
 				w["hit_t"] = 0.6
+	return not was and k.spin > 0.0
 
 
 ## the hazards' state for an online picture, and back
@@ -1556,7 +1658,18 @@ func use_ability(k: Kart, back: bool) -> void:
 			k.ab_q = []
 			for n in 10:
 				k.ab_q.append([n * 0.25, func():
-					hazards.append({"id": _nid(), "x": k.x - cos(k.ma) * 22.0, "y": k.y - sin(k.ma) * 22.0, "t": 25.0, "born": 0.0, "owner": k, "armed": false, "olive": true})])
+					# Olive's slicks stay until someone drives into them (they used to dry up after 25 s); at most SLICK_MAX
+					# of one Olive's lie on the road, the oldest making way (web the same)
+					var mine := 0
+					var first: Dictionary = {}
+					for h0 in hazards:
+						if h0.get("olive", false) and h0.get("owner") == k and float(h0["t"]) > 0.0:
+							mine += 1
+							if first.is_empty():
+								first = h0
+					if mine >= SLICK_MAX and not first.is_empty():
+						first["t"] = 0.0
+					hazards.append({"id": _nid(), "x": k.x - cos(k.ma) * 22.0, "y": k.y - sin(k.ma) * 22.0, "t": 1.0e9, "born": 0.0, "owner": k, "armed": false, "olive": true})])
 			k.olive_t = OLIVE_T
 			k.ab_fx = OLIVE_T
 			k.ab_col = col

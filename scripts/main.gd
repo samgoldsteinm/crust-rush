@@ -1605,6 +1605,10 @@ func _web_physics(dt: float) -> void:
 		return
 	if state == "results":
 		return
+	# a roller, a walker or the train touching your kart shows on your own screen at once (the host, who decides,
+	# finds the same on the same control: the hazards run off the shared clock)
+	if state == "race" and not kart.finished and race.haz_hits_kart(kart):
+		web.world_hit = true
 	var o := _input_state()
 	web.step(dt, o)
 	_drain_events()

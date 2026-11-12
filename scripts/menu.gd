@@ -2376,7 +2376,63 @@ func close_modal(keep_keys := false, swap := false) -> void:
 			modal_closed.emit()
 
 
+## every control in a sheet that can take the highlight, in order
+static func _focusables(n: Node, out: Array) -> void:
+	if n is Control and (n as Control).focus_mode == Control.FOCUS_ALL and (n as Control).is_visible_in_tree():
+		out.append(n)
+	for c in n.get_children():
+		_focusables(c, out)
+
+
+static func _ctl_text(c: Control) -> String:
+	return (c as Button).text if c is Button else c.get_class()
+
+
 func show_modal(kind: String) -> void:
+	# the same sheet shown again (a friends' room updating itself every few seconds, Settings after a change): the
+	# highlight is your cursor, so it stays on the button it was on, and the page stays scrolled where it was
+	var keep_i := -1
+	var keep_t := ""
+	var keep_scroll := -1
+	if modal != null and modal_kind == kind and is_instance_valid(modal):
+		var fo := get_viewport().gui_get_focus_owner()
+		if fo != null and modal.is_ancestor_of(fo):
+			var L: Array = []
+			_focusables(modal, L)
+			keep_i = L.find(fo)
+			keep_t = _ctl_text(fo)
+		for c in modal.get_children():
+			if c is ScrollContainer:
+				keep_scroll = (c as ScrollContainer).scroll_vertical
+	_show_modal(kind)
+	if modal == null:
+		return
+	if keep_scroll > 0:
+		for c in modal.get_children():
+			if c is ScrollContainer:
+				var sc := c as ScrollContainer
+				(func():
+					if is_instance_valid(sc):
+						sc.scroll_vertical = keep_scroll).call_deferred()
+	if keep_i >= 0:
+		var L2: Array = []
+		_focusables(modal, L2)
+		if L2.is_empty():
+			return
+		# the same place in the sheet; if the list changed (a racer joined), the nearest button with the same words
+		var pick: Control = L2[mini(keep_i, L2.size() - 1)]
+		if _ctl_text(pick) != keep_t:
+			var bd := 1 << 30
+			for j in L2.size():
+				if _ctl_text(L2[j]) == keep_t and absi(j - keep_i) < bd:
+					bd = absi(j - keep_i)
+					pick = L2[j]
+		pick.grab_focus()
+		if pick is LineEdit:
+			(pick as LineEdit).caret_column = (pick as LineEdit).text.length()
+
+
+func _show_modal(kind: String) -> void:
 	close_modal(kind == "set", true)
 	modal_kind = kind
 	var m := Control.new()

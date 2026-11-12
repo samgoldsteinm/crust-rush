@@ -326,7 +326,7 @@ window.__exportHaz=function(){const G=new GLB();const top=[];const data={traffic
     kids.push(G.node('body',prims(collect(G,g,g.matrixWorld,{skip:o=>w.legs.some(l=>under(o,l)),visStop:null}))));
     w.legs.forEach((l,j)=>{const sp=new THREE.Matrix4().makeTranslation(l.position.x,l.position.y,l.position.z);kids.push(G.node('leg'+j,prims(collect(G,l,sp,{visStop:null})),{translation:l.position.toArray()}));});
     top.push(G.node('walk'+i,null,{children:kids}));undo();
-    data.walk.push({j:w.j,lat:w.lat,v:w.v,ph:w.ph,pause:w.pause,H:w.H,legs:w.legs.length});});
+    data.walk.push({hi:w.hi==null?i:w.hi,j:w.j,lat:w.lat,v:w.v,ph:w.ph,pause:w.pause,H:w.H,legs:w.legs.length});});
   if(HAZ.train){const tr=HAZ.train;tr.cars.forEach((c,i)=>{const g=c.g,undo=reset(g);top.push(G.node('wagon'+i,prims(collect(G,g,g.matrixWorld,{visStop:null}))));undo();});
     data.train={p:{x:tr.p.x,y:tr.p.y},ux:tr.ux,uy:tr.uy,span:tr.span,len:tr.len,v:tr.v,j:tr.j,cars:tr.cars.map(c=>({off:c.off,L:c.L,scale:c.g.scale.x})),lamps:tr.lamps.length};}
   const root=G.node('haz',null,{children:top});G.j.scenes[0].nodes.push(root);const bytes=G.glb();return {b64:u8ToB64(bytes),data,stats:Object.assign(G.stats,{bytes:bytes.length})};};
