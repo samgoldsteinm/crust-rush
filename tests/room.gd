@@ -49,6 +49,9 @@ func _run() -> void:
 		for j in 20:
 			if bt != "":
 				main.state = "race"   # so the boost streaks at the screen's edges show (the race itself is held still)
+				if OS.get_environment("CR_MBLUR") != "":
+					main.mblur_on = true
+					main.kart.speed = main.kart.base_max * float(OS.get_environment("CR_MBLUR"))   # motion blur and wind at this share of top speed
 				for k in main.race.karts:
 					k.boost = 1.4
 					k.b_pk = 1.6

@@ -2830,7 +2830,7 @@ func _settings_panel() -> Control:
 				["Finished models", "Trees, palms, bushes, rocks and the ground as finished models: leafy crowns that sway in the wind, bark, stone and a cheese surface with real depth. Far away, and when off, the web game's own shapes. Balanced and Ultra; applies from the next race.", "hd", on_off, "1" if hd_on else "0"],
 				["Look", "Vivid: a darker base tone with a stronger sun, deeper shadows and richer colour, so lit faces and light sources stand out. Classic: the softer, brighter balance. Applies from the next race.", "look", [["vivid", "Vivid"], ["classic", "Classic"]], look],
 				["Ambient occlusion", "Soft contact shading in corners and crevices, computed every frame. The single most expensive effect: turn it off to run Ultra's detail at a higher frame rate.", "ao", on_off, "1" if ao_on else "0"],
-				["Motion blur", "The edges of the picture streak with speed; your kart and the road ahead stay sharp.", "mblur", on_off, "1" if mblur_on else "0"],
+				["Motion blur", "The edges of the picture streak with speed and wind lines rush past; your kart and the road ahead stay sharp.", "mblur", on_off, "1" if mblur_on else "0"],
 				["Background blur", "On the toy tracks the far side of the room goes soft, like a close-up photo of a model; the track ahead stays sharp. Ultra.", "dof", on_off, "1" if dof_on else "0"],
 				["Sharpening", "When the 3D view is drawn below screen size to hold the frame rate, a sharpening pass brings the detail back. Turn off if you prefer a softer picture.", "sharp", on_off, "1" if sharpen_on else "0"],
 				["Scenery distance", "How far away trackside props are drawn.", "scenery", [["0", "Near"], ["1", "Normal"], ["2", "Far"]], str(scenery)],
