@@ -74,10 +74,13 @@ function toyBedroom(def){const U=TM.U,X=695,Y=833,H=868,M=TM;
   /* the oak boards are a texture pair made by tools/blender/oak_tex.py (every board its own length, tone and ring figure; relief for the grain, the bevels and the gaps): one tile is 1.92 m. The drawn wood stays as the stand-in if the pictures are missing */
   const oak=typeof PROP_TEX!=='undefined'&&PROP_TEX.tex_toy_oak&&PROP_TEX.tex_toy_oak_n,fm=oak?M.mat('oakfloor',()=>{const c=propTex('tex_toy_oak'),n=propTex('tex_toy_oak_n',false);for(const t of [c,n])t.wrapS=t.wrapT=THREE.RepeatWrapping;return new THREE.MeshStandardMaterial({map:c,normalMap:n,normalScale:new THREE.Vector2(.9,.9),roughness:.4,metalness:0,envMapIntensity:.75});}):M.wood('floor','#b08556','#4a2f18',{planks:8,knots:1,rough:.46,env:.55,bump:1.4}),fg=new THREE.PlaneGeometry(2*X,2*Y,1,1);fg.rotateX(-Math.PI/2);M.uvw(fg,oak?192:96,true);const fl=new THREE.Mesh(fg,fm);fl.position.y=-.1;fl.receiveShadow=true;fl.userData.noLift=true;world.add(fl);
   /* walls (the window in the north wall, the door in the south wall), ceiling, skirting boards */
-  const wall=M.paint('wall','#e9e3d8',.92),wall2=M.paint('wall2','#93a8a6',.92),win=[-370,150,330,764],dr=[-300,-14,0,712];
+  /* painted walls: smooth, with the fine stipple a roller leaves (2 mm) instead of the cloudy mottling Ultra gives plain materials, which read as noise on a big flat wall. The names stay toy_pt_wall*, which the PC looks for */
+  const stip=T2(heightToNormal(M.can('stipple',256,256,(g,w,h,r)=>{for(let y=0;y<h;y+=2)for(let x=0;x<w;x+=2){const v=112+r()*32;g.fillStyle='rgb('+v+','+v+','+v+')';g.fillRect(x,y,2,2);}}),1.1),7,7,true),
+    wallM=(key,col)=>M.mat('pt_'+key,()=>{const m=new THREE.MeshStandardMaterial({color:col,roughness:.9,metalness:0,envMapIntensity:.4,normalMap:stip,normalScale:new THREE.Vector2(.35,.35)});m.userData.noHQ=true;return m;}),
+    wall=wallM('wall','#e9e3d8'),wall2=wallM('wall2','#93a8a6'),win=[-370,150,330,764],dr=[-300,-14,0,712];
   sunBeam([[win[0],win[1],win[2],win[3],-Y-12*U,-Y]],win[3]/sunDir.y+160);
   toyWall('x',-Y,-X,X,H,[win[0],win[1],win[2],win[3]],wall,-1);toyWall('x',Y,-X,X,H,[dr[0],dr[1],dr[2],dr[3]],wall,1);toyWall('z',-X,-Y,Y,H,null,wall,-1);toyWall('z',X,-Y,Y,H,null,wall2,1);
-  const cg=new THREE.PlaneGeometry(2*X,2*Y);cg.rotateX(Math.PI/2);const ce=new THREE.Mesh(cg,M.paint('ceiling','#f4f1ea',.95));ce.position.y=H;ce.userData.noLift=true;world.add(ce);
+  const cg=new THREE.PlaneGeometry(2*X,2*Y);cg.rotateX(Math.PI/2);const ce=new THREE.Mesh(cg,wallM('ceiling','#f4f1ea'));ce.position.y=H;ce.userData.noLift=true;world.add(ce);
   const sk=M.paint('skirting','#f6f4ee',.5),sb=(x0,x1,z0,z1)=>{const b=new THREE.Mesh(M.slab(Math.abs(x1-x0)||1.6*U,10*U,Math.abs(z1-z0)||1.6*U,.3*U,.3*U,2),sk);b.position.set((x0+x1)/2,5*U,(z0+z1)/2);b.userData.noLift=true;b.receiveShadow=true;world.add(b);};
   sb(-X,X,-Y+.8*U,-Y+.8*U);sb(-X,dr[0]-9*U,Y-.8*U,Y-.8*U);sb(dr[1]+9*U,X,Y-.8*U,Y-.8*U);sb(-X+.8*U,-X+.8*U,-Y,Y);sb(X-.8*U,X-.8*U,-Y,Y);
   /* the window, the view outside, curtains on a rod */
