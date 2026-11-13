@@ -235,4 +235,7 @@ before the launch and the hairpins, a stronger bloom at the window.
   textures; background blur on Ultra (item 5); then the other three rooms and the cup.
 - Web v164 (Blender-built dresser and nightstand) published. PC rebuild for v164 is commit 0044c08 in D:/crust-rush/godot,
   pushed automatically once build 5d0f5b6 and the v164 export (8896bb4) have both succeeded; check pc-build.json afterwards.
+- Web v165: walnut desk top (generated texture), background blur on toy tracks (Ultra, item 5 of the realism list; engine
+  patch 9, Settings > Background blur), and the toy-track handling change (engine patch 10: TURN 2.64, DRIN, DROUT;
+  NET_PROTO 103). PC: the same blur (CameraAttributesPractical far blur, `_toy_dof`), DRIN/DROUT from the export, PROTO 103.
 

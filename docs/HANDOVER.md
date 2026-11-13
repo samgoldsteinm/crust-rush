@@ -22,6 +22,15 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### 2026-11-13 (web v165, PC with PROTO 103)
+Handling on toy tracks, from the user's play-test of Bedroom Blitz ("turning a little too sharp"; "drift exit a little quicker";
+"enter and exit drift slightly faster than the other tracks... probably how all the toy tracks have to be"):
+- TURN 2.64 on toy tracks (x1.2; it was x1.3). DRIN 2.6 (a drift builds to full in 0.38 s; 1.75 elsewhere). DROUT 0.6 (a factor on
+  the times that end a drift: 0.18 s with the stick straight instead of 0.3 s, 0.3 s instead of 0.5 s with the button held, grip back
+  after 0.15 s instead of 0.25 s). All three are set in `loadMap0` from the toy flag, so every toy track gets them.
+- PC reads TURN, DRIN and DROUT from the exported track (`glbexport.js`, `track.gd`), so the numbers can only differ if the export is stale.
+- Still to be judged by the user: how it feels. The self-driving races pass either way; they cannot judge feel.
+
 ### 2026-11-12 late night (web v157, PC build with PROTO 102)
 | What broke | Why | Fix | Keep it fixed |
 |---|---|---|---|
