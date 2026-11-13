@@ -49,6 +49,9 @@ async def main():
         await pg.route('**/*', route)
         await pg.goto(f'http://127.0.0.1:{PORT}/index.html', wait_until='domcontentloaded', timeout=300000)
         await pg.wait_for_function("document.getElementById('menu')&&!document.getElementById('menu').hidden", timeout=900000)
+        # the room models built in Blender (packs named toy_*) download after the menu is up: wait for them, or the
+        # track would be exported with the simpler code-built stand-ins
+        await pg.wait_for_function("__ev(`Object.keys(PROP_PACKS).filter(k=>k.startsWith('toy_')).every(k=>PROP_PACKS[k].b||PROP_PACKS[k].d)`)", timeout=900000)
         await pg.evaluate("__ev('window.CR_GLB_EMISSIVE=1')")
         await pg.evaluate('src=>__ev(src)', EXP)
         print('booted', round(time.time() - t0), 's', flush=True)
