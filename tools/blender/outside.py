@@ -138,7 +138,7 @@ JAC.hide_render = True
 stand(Y.neighbour(), -2.5, 23.0); stand(Y.neighbour(), 21.5, 2.6, -90); stand(Y.neighbour(), -24.5, 4.4, 90)
 for (rc, sd, x, y, sink) in ((15, 5, 5.0, .5, 0), (13, 8, -1.2, .3, 0), (17, 3, 1.4, .32, 0), (14, 12, 6.3, .3, 0), (16, 21, -8.6, .34, 0)) + tuple((13 + sd % 5, sd, gx, 6.62, .10) for gx, sd in ((-6.9, 2), (-5.9, 6), (-4.9, 9), (-2.6, 13), (-1.5, 17))):
     stand(Y.pot(sd % 3 + 1, sd), x, y, -math.degrees(sd), rc / 10.8, sink)
-stand(Y.pipe(), -3.6, 5.71); stand(Y.gnome(), 2.2, 4.3, -math.degrees(2.6)); stand(Y.wcan(), 4.5, 1.72, -math.degrees(2.4)); stand(Y.hose(), -2.4, .35)
+stand(Y.pipe(), -3.6, 5.71); stand(Y.gnome(), 2.3, 3.6, -math.degrees(2.6)); stand(Y.wcan(), 4.5, 1.72, -math.degrees(2.4)); stand(Y.hose(), -2.4, .35)
 # (the game turns things by an angle about its up axis, which runs the other way from Blender's Z seen from above: hence the minus signs)
 
 # ---- dress the materials for a still picture
