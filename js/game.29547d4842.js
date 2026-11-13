@@ -4286,7 +4286,7 @@ function loadMap0(mi,rev){
   const def=MAPS[mi],th=THEMES[def.theme];seed=1000+mi*7919;CURID=def.id;VAR=Math.max(0,MAPS.filter(m=>m.theme===def.theme).indexOf(def));TUNNEL=null;TUN_RANGE=null;TERR=null;curRev=!!rev;
   RW=def.rw||63;LS=RW/63;CURB=def.rw?RW+7:73;WALLD=def.rw?RW+11:93;TOYT=!!def.toy;TURN=TOYT?2.64:2.2;/* a toy track's bends are tight: karts turn 20% quicker on it (30% was too sharp) */DRIN=TOYT?2.6:1.75;DROUT=TOYT?.6:1;BOXR=TOYT?2:4;BOXCD=TOYT?.6:0;SLICKN=TOYT?7:10;/* toy tracks are short and narrow: item boxes come back sooner and a kart takes one box of a row, Olive's trail is shorter *//* and drifts start and end quicker there: one quick bend after another */
   /* the Neon Cup is the hardest: its rivals are a little quicker, slow less for corners and use their boosts and items sooner */
-  for(const k in DIFFS0){const d=DIFFS0[k],o=DIFFS[k],h=!!def.neon&&!def.toy;o.skill=d.skill.map(v=>h?v+.025:v);o.corner=d.corner*(h?.85:1);o.boost=Math.min(1,d.boost+(h?.15:0));o.delay=d.delay.map(v=>h?v*.8:v);}
+  for(const k in DIFFS0){const d=DIFFS0[k],o=DIFFS[k],h=!!def.neon&&!def.toy,t=!!def.toy;/* Neon tracks: sharper rivals. Toy tracks: easier ones (small, fast tracks where items and specials come close together) */o.skill=d.skill.map(v=>h?v+.025:t?v-.03:v);o.ahead=d.ahead*(t?.97:1);o.behind=t?1+(d.behind-1)*.6:d.behind;o.corner=d.corner*(h?.85:t?1.25:1);o.boost=Math.min(1,d.boost+(h?.15:0))*(t?.7:1);o.delay=d.delay.map(v=>h?v*.8:t?v*1.5:v);o.abw=t?1.8:1;}
   T=makeTrack(def,curRev);track=T.pts;N=T.N;RIM=def.R-38;buildGrid();markDecks();
   if(!def.toy)for(let j=0;j<N;j++){const b=track[j].bend;if(Math.abs(b)>.42){const sd=-Math.sign(b);for(let o=-7;o<=7;o++)track[(j+o+N)%N].wall=sd;}}
   SHORTS=[];makeHills(def);
@@ -5810,7 +5810,7 @@ function abilityTick(dt){for(const k of karts){if(state==='race'&&!k.finished&&!
     if(k.fireT>0){k.fireT-=dt;k.fireAcc=(k.fireAcc||0)+dt;if(k.fireAcc>.12){k.fireAcc=0;hazards.push({x:k.x-Math.cos(k.ma)*16,y:k.y-Math.sin(k.ma)*16,t:2.2,born:0,owner:k,armed:false,kind:'fire',mesh:fireMesh()});}}
     if(k.megaT>0)k.megaT-=dt;if(k.flatT>0)k.flatT-=dt;if(k.flatImm>0)k.flatImm-=dt;if(k.pestoT>0)k.pestoT-=dt;if(k.chiliT>0)k.chiliT-=dt;if(k.oliveT>0)k.oliveT-=dt;if(k.abFx>0)k.abFx-=dt;
     /* rivals fire their ability when it makes sense */
-    if(!isHuman(k)&&!k.isPlayer&&k.abC>=1&&state==='race'){k.abWait=(k.abWait==null?1+Math.random()*4:k.abWait)-dt;if(k.abWait<=0){const id=abilKey(k),st=standCache,i=st.indexOf(k);let go=true;
+    if(!isHuman(k)&&!k.isPlayer&&k.abC>=1&&state==='race'){k.abWait=(k.abWait==null?(1+Math.random()*4)*(DIFFS[player?aiKey():'normal'].abw||1):k.abWait)-dt;if(k.abWait<=0){const id=abilKey(k),st=standCache,i=st.indexOf(k);let go=true;
       if(id==='pineapple')go=karts.some(o=>o!==k&&(o.x-k.x)**2+(o.y-k.y)**2<70*70);else if(id==='anchovy'||id==='pep')go=i>0;else if(id==='olive')go=i<st.length-1;
       if(go){useAbility(k);k.abWait=null;}else k.abWait=.8;}}}}
 let _fireProto=null;function fireMesh(){if(!_fireProto){_fireProto=new THREE.Group();for(let i=0;i<3;i++){const c=new THREE.Mesh(KG.flame,flameMat);c.scale.set(3,3+i,3);c.position.set((i-1)*2.5,3,0);_fireProto.add(c);}
@@ -6774,12 +6774,21 @@ function updateDriverDetail(){const el=$('drvDetail');if(!el||!PORTRAITS[selecte
 
 /* ================= GARAGE ================= */
 const garage=$('garage');let gR=null,gS=null,gC=null,gModel=null,garageOpen=false,gRot=.6,gDrag=null,gW=0,gH=0;
+/* the 0..12 bars of a build (PC KartBuilder._bars): all of it, or the vehicle on its own (the body, and a bike's built-in wheels) */
+function statBarsOf(b,all){const o=[0,0,0,0,0],bd=BODIES[b.b],bike=!!(bd.bike&&bd.bw);[bd,wheelOf(b),GLIDERS[b.g]].forEach((p,k)=>{if(!all&&(k===2||(k===1&&!bike)))return;for(let i=0;i<5;i++)o[i]+=p.st[i]*STAT_W[k];});return o.map(r=>clamp(Math.round(STAT_MID+statSoft(r)*1.5),0,STAT_BARS));}
+/* a vehicle's own stats as plain values, for its card: they are what it is, not a change to anything */
+function valueChips(bars){return bars.map((v,i)=>'<em class="nt">'+STAT_SHORT[i]+' '+v+'</em>').join('');}
+/* the stats panel for a build: the vehicle's bars, what the wheels and glider add (green) and take away (red), and that change as a number */
+function showStats(b){const base=statBarsOf(b,false),tot=statBarsOf(b,true);$('gStats').querySelectorAll('.st-row').forEach((r,i)=>{const n=base[i],t=tot[i];
+    r.querySelectorAll('i').forEach((c,j)=>{c.classList.toggle('on',j<Math.min(n,t));c.classList.toggle('gain',j>=n&&j<t);c.classList.toggle('loss',j>=t&&j<n);c.classList.toggle('mid',j===STAT_MID-1);});
+    const d=r.querySelector('.st-d'),ch=t-n;d.textContent=ch?(ch>0?'+':'\u2212')+Math.abs(ch):'';d.className='st-d'+(ch>0?' up':ch<0?' dn':'');});}
 function partChips(st){const out=[];st.forEach((v,i)=>{if(v)out.push('<em class="'+(v>0?'up':'dn')+'">'+(v>0?'+':'−')+Math.abs(v)+' '+STAT_SHORT[i]+'</em>');});return out.length?out.join(''):'<em class="nt">NEUTRAL</em>';}
 function saveBuild(){store.set('crust-build',JSON.stringify(playerBuild));}
 function buildSummary(){const lv=playerBuild.t&&livOf(playerBuild.t);return BODIES[playerBuild.b].name+(lv?' · '+lv.name:'')+' · '+wheelOf(playerBuild).name+(BODIES[playerBuild.b].bike?' (built in)':'')+' · '+GLIDERS[playerBuild.g].name+(statsOn?'':' · stats off');}
 function buildGarage(){
   const mk=(wrap,list,key,idx)=>list.forEach((p,j)=>{const i=idx?idx[j]:j;const b=document.createElement('button');b.type='button';b.className='part';b.dataset.i=i;
-    b.innerHTML='<b>'+p.name+'</b><span class="pd">'+p.desc+'</span><span class="chips">'+partChips(p.st)+'</span>';b.onclick=()=>{playerBuild[key]=i;if(key==='b'&&playerBuild.t&&!liveriesFor(BODIES[i].id).some(l=>l.id===playerBuild.t))playerBuild.t='';saveBuild();refreshGarage(true);if(key==='b')SFX.rev(ENG_PROF[ENG_BODY[BODIES[i].id]||'std']);};wrap.appendChild(b);});
+    b.innerHTML='<b>'+p.name+'</b><span class="pd">'+p.desc+'</span><span class="chips">'+(key==='b'?valueChips(statBarsOf({b:i,w:0,g:0},false)):partChips(p.st))+'</span>';
+    /* pointing at a part shows the build it would make */b.onpointerenter=()=>showStats(Object.assign({},playerBuild,{[key]:i}));b.onpointerleave=()=>showStats(playerBuild);b.onclick=()=>{playerBuild[key]=i;if(key==='b'&&playerBuild.t&&!liveriesFor(BODIES[i].id).some(l=>l.id===playerBuild.t))playerBuild.t='';saveBuild();refreshGarage(true);if(key==='b')SFX.rev(ENG_PROF[ENG_BODY[BODIES[i].id]||'std']);};wrap.appendChild(b);});
   {const ki=[],ci=[],bi=[];BODIES.forEach((p,i)=>(p.bike?bi:CAR_BODIES.includes(p.id)?ci:ki).push(i));mk($('pKart'),ki.map(i=>BODIES[i]),'b',ki);mk($('pCar'),ci.map(i=>BODIES[i]),'b',ci);mk($('pBike'),bi.map(i=>BODIES[i]),'b',bi);}mk($('pWheel'),WHEELS,'w');mk($('pGlider'),GLIDERS,'g');$('pGlider').addEventListener('click',()=>{gGlT=3.2;});
   PAINTS.forEach((c,i)=>{const b=document.createElement('button');b.type='button';b.className='pw'+(c?'':' drv');b.dataset.i=i;b.setAttribute('aria-label',PAINT_NAMES[i]);b.title=PAINT_NAMES[i];if(c)b.style.background=c;
     b.onclick=()=>{playerBuild.p=i;playerBuild.t='';saveBuild();refreshGarage(true);};$('pPaint').appendChild(b);});
@@ -6822,9 +6831,7 @@ function refreshGarage(rebuild){setTimeout(panelMore,0);
       f.onclick=e=>{e.stopPropagation();toggleFav(bid,lv.id);refreshGarage(false);};b.appendChild(f);}
     b.onclick=()=>{if(livLocked(lv)){const a=achOf(lv.lock);achToast(null,'<b>'+lv.name+'</b> unlocks with <b>'+(a?a.name:'an achievement')+'</b>'+(a?': '+a.d:''));return;}playerBuild.t=lv.id;saveBuild();refreshGarage(true);};tw.appendChild(b);}
   const ds=$('pPaint').querySelector('.drv');if(ds)ds.style.background=RACERS[selected].color;
-  const st=statRaw(playerBuild);
-  $('gStats').querySelectorAll('.st-row').forEach((r,i)=>{const sv=statSoft(st[i]),v=clamp(Math.round(STAT_MID+sv*1.4),1,STAT_BARS);r.querySelectorAll('i').forEach((c,j)=>{c.classList.toggle('on',j<v);c.classList.toggle('mid',j===STAT_MID-1);});
-    const d=r.querySelector('.st-d'),n=v-STAT_MID;d.textContent=n?(n>0?'+':'−')+Math.abs(n):'0';d.className='st-d'+(n>0?' up':n<0?' dn':'');});
+  showStats(playerBuild);
   $('gStats').classList.toggle('off',!statsOn);
   document.querySelectorAll('#statSeg button').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.s==='1')===statsOn)));
   $('statNote').textContent=statsOn?'Parts change how your kart drives, and CPU karts use their parts too. Each strength comes with a drawback.':'Stats are off. Every kart drives the same and parts only change the look.';
