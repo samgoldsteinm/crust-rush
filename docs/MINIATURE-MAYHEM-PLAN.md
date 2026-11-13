@@ -215,4 +215,11 @@ before the launch and the hairpins, a stronger bloom at the window.
   their own level (NET_PROTO 102). PC brought level with web v157: window-only sun (walls and ceiling cast, shadows reach
   across the room), glossy track with a reflection probe of the room, warm fill light, traps at road height with the level
   rule, PROTO 102, track export re-run for v156 (it now waits for the Blender models).
+- Web v158 (curtains built in Blender, hung as cloth; side monitor moved clear of them) and v159 (rug with a fringe and a
+  curling corner) published. Blender models so far: bed, curtain, rug. PC: build eec44e5 (PROTO 102, room as web v156) was
+  pushed; the track export has to be re-run for v159 and the PC rebuilt after it (push a change to maps.yml with [quick],
+  wait for the export, then push any PC change without [quick]).
+- Still to do from the agreed list: wood and fabric textures (3), real view outside with trees (4), background blur on
+  Ultra (5); the remaining Blender models (tools/blender/README.md); then Kitchen Chaos, Garage Overdrive, Backyard Mega
+  Circuit and the cup.
 
