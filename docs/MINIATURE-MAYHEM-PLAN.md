@@ -362,3 +362,15 @@ before the launch and the hairpins, a stronger bloom at the window.
 
 
 - 2026-11-13: web v177 and PC build 9720f082 are level (all four toy tracks, the cup, the six cars, the Blender garage pieces, the scanned surfaces).
+
+## Web v178 (2026-11-13): the garage's walls
+- Painted brickwork from a Poly Haven scan (CC0, `painted_brick`, 1.8 m to the repeat, 2048 px): `ph_tex.py gbrick`.
+  `M.gbrick()` in models.js; `toyGarage` clones it as `pt_wallg` for the four walls and as `gbandbrick` (tinted grey) for
+  the band round their foot. `toyWall(..., tile)` lays a texture by room position so the courses meet everywhere.
+- Three wall fittings built in Blender (`garage.py -- gelec gladder grack`): the electrics by the door to the house
+  (consumer unit, conduit, a switch, sockets), an aluminium ladder hung on the east wall, a rail of garden tools on the west
+  wall. `M.gfit(name)` gives the model, or nothing until its pack has arrived; each one's back is the wall's plane.
+- `crlib.py` gained `tube` (a round pipe along points, corners rounded) and `bounds` / `joined` (does a part really touch
+  its neighbour: a few millimetres' gap shows as a floating part in the game).
+- Looks only: nothing a kart can touch changed, so no new online version.
+

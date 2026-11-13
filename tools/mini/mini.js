@@ -61,8 +61,10 @@ function toyShade(x0,x1,y0,y1,a,h){const c=TM.can('aoshade',64,64,(g,w,hh)=>{con
   m=TM.mat('aoshade'+a,()=>new THREE.MeshBasicMaterial({map:TM.tex(c,'aoshade'),transparent:true,opacity:a,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1})),p=new THREE.Mesh(new THREE.PlaneGeometry((x1-x0)*1.25,(y1-y0)*1.25),m);
   p.rotation.x=-Math.PI/2;p.position.set((x0+x1)/2,(h||0)+.35,-(y0+y1)/2);p.userData.noLift=true;p.userData.noMerge=true;p.renderOrder=1;world.add(p);}
 /* a wall with a rectangular opening: four pieces round the hole. ax 'x' runs along x at z=at, 'z' runs along z at x=at */
-function toyWall(ax,at,a0,a1,H,hole,m,face){const T=12*TM.U,mk=(u0,u1,v0,v1)=>{if(u1-u0<1||v1-v0<1)return;const g=TM.uvw(ax==='x'?new THREE.BoxGeometry(u1-u0,v1-v0,T):new THREE.BoxGeometry(T,v1-v0,u1-u0),120),b=new THREE.Mesh(g,m);
-    if(ax==='x')b.position.set((u0+u1)/2,(v0+v1)/2,at+face*T/2);else b.position.set(at+face*T/2,(v0+v1)/2,(u0+u1)/2);b.receiveShadow=true;b.castShadow=true;b.userData.noLift=true;world.add(b);};
+function toyWall(ax,at,a0,a1,H,hole,m,face,tile){const T=12*TM.U,mk=(u0,u1,v0,v1)=>{if(u1-u0<1||v1-v0<1)return;const g=ax==='x'?new THREE.BoxGeometry(u1-u0,v1-v0,T):new THREE.BoxGeometry(T,v1-v0,u1-u0),c=ax==='x'?[(u0+u1)/2,(v0+v1)/2,at+face*T/2]:[at+face*T/2,(v0+v1)/2,(u0+u1)/2];
+    /* with `tile` (cm) the texture is laid by where the wall stands in the room, not from each piece's own middle: courses of brick run on round the window and round the corners */
+    if(tile){g.translate(c[0],c[1],c[2]);TM.uvw(g,tile);g.translate(-c[0],-c[1],-c[2]);}else TM.uvw(g,120);const b=new THREE.Mesh(g,m);
+    b.position.set(c[0],c[1],c[2]);b.receiveShadow=true;b.castShadow=true;b.userData.noLift=true;world.add(b);};
   if(!hole){mk(a0,a1,0,H);return;}const [h0,h1,y0,y1]=hole;mk(a0,h0,0,H);mk(h1,a1,0,H);mk(h0,h1,0,y0);mk(h0,h1,y1,H);}
 /* ---- Bedroom Blitz: a teenager's bedroom, 4.0 x 4.8 m ---- */
 function toyBedroom(def){const U=TM.U,X=695,Y=833,H=868,M=TM;
@@ -191,9 +193,9 @@ function toyShell(o){const U=TM.U,M=TM,X=o.X,Y=o.Y,H=o.H,win=o.win,dr=o.dr;
   const fg=new THREE.PlaneGeometry(2*X,2*Y,1,1);fg.rotateX(-Math.PI/2);M.uvw(fg,o.tile,true);const fl=new THREE.Mesh(fg,o.floor);fl.position.y=-.1;fl.receiveShadow=true;fl.userData.noLift=true;world.add(fl);
   const stip=T2(heightToNormal(M.can('stipple',256,256,(g,w,h,r)=>{for(let y=0;y<h;y+=2)for(let x=0;x<w;x+=2){const v=112+r()*32;g.fillStyle='rgb('+v+','+v+','+v+')';g.fillRect(x,y,2,2);}}),1.1),7,7,true),
     wallM=(key,col)=>M.mat('pt_'+key,()=>{const m=new THREE.MeshStandardMaterial({color:col,roughness:.9,metalness:0,envMapIntensity:.4,normalMap:stip,normalScale:new THREE.Vector2(.35,.35)});m.userData.noHQ=true;return m;}),
-    W=o.walls.map((c,i)=>wallM('wall'+o.key+i,c));/* named toy_pt_wall..., which the PC looks for */
+    W=o.walls.map((c,i)=>typeof c==='string'?wallM('wall'+o.key+i,c):c);/* (a room may bring its own wall material: the garage's brick) *//* named toy_pt_wall..., which the PC looks for */
   sunBeam([[win[0],win[1],win[2],win[3],-Y-12*U,-Y]],win[3]/sunDir.y+160);
-  toyWall('x',-Y,-X,X,H,win,W[0],-1);toyWall('x',Y,-X,X,H,dr||null,W[1],1);toyWall('z',-X,-Y,Y,H,null,W[2],-1);toyWall('z',X,-Y,Y,H,null,W[3],1);
+  toyWall('x',-Y,-X,X,H,win,W[0],-1,o.wallTile);toyWall('x',Y,-X,X,H,dr||null,W[1],1,o.wallTile);toyWall('z',-X,-Y,Y,H,null,W[2],-1,o.wallTile);toyWall('z',X,-Y,Y,H,null,W[3],1,o.wallTile);
   const cg=new THREE.PlaneGeometry(2*X,2*Y);cg.rotateX(Math.PI/2);const ce=new THREE.Mesh(cg,wallM('ceiling','#f4f1ea'));ce.position.y=H;ce.userData.noLift=true;world.add(ce);
   const sk=M.paint('skirting','#f6f4ee',.5),sb=(x0,x1,z0,z1)=>{const b=new THREE.Mesh(M.slab(Math.abs(x1-x0)||1.6*U,10*U,Math.abs(z1-z0)||1.6*U,.3*U,.3*U,2),sk);b.position.set((x0+x1)/2,5*U,(z0+z1)/2);b.userData.noLift=true;b.receiveShadow=true;world.add(b);};
   if(!o.noSkirt){if(!o.noNorthSkirt)sb(-X,X,-Y+.8*U,-Y+.8*U);sb(-X,dr[0]-9*U,Y-.8*U,Y-.8*U);sb(dr[1]+9*U,X,Y-.8*U,Y-.8*U);sb(-X+.8*U,-X+.8*U,-Y,Y);sb(X-.8*U,X-.8*U,-Y,Y);}
@@ -236,9 +238,12 @@ function toyStain(x,y,d,a,rot){const m=TM.mat('goil'+a,()=>new THREE.MeshBasicMa
    The garage is at the east end of the house: the door to the house is in its west wall, the big door in the south wall,
    and its window looks north onto the same garden as the bedroom's and the kitchen's (view 'g'). */
 function toyGarage(def){const U=TM.U,X=695,Y=833,H=868,M=TM,win=[-420,80,430,764],top=312;
-  toyShell({key:'g',X,Y,H,win,dr:null,walls:['#e6e3db','#e6e3db','#e6e3db','#e6e3db'],floor:M.gconcrete(),tile:typeof PROP_TEX!=='undefined'&&PROP_TEX.tex_toy_concrete?110:240,env:[-60,400,-80],noSkirt:true,light:'tube',view:'g'});
+  /* the walls: painted brickwork from a scan (tools/blender/ph_tex.py, gbrick), 1.8 m to the repeat; plain paint until it is there */
+  const gb=M.gbrick(),bw=gb?M.mat('pt_wallg',()=>{const m=gb.clone();m.userData.noHQ=true;return m;}):'#e6e3db';
+  toyShell({key:'g',X,Y,H,win,dr:null,walls:[bw,bw,bw,bw],wallTile:gb?180:0,floor:M.gconcrete(),tile:typeof PROP_TEX!=='undefined'&&PROP_TEX.tex_toy_concrete?110:240,env:[-60,400,-80],noSkirt:true,light:'tube',view:'g'});
   /* a grey band painted round the foot of the walls, as garages have */
-  {const bm=M.paint('gband','#8f9499',.7),bd=(x0,x1,z0,z1)=>{const b=new THREE.Mesh(new THREE.BoxGeometry(Math.abs(x1-x0)||.5*U,100*U,Math.abs(z1-z0)||.5*U),bm);b.position.set((x0+x1)/2,50*U,(z0+z1)/2);b.userData.noLift=true;b.receiveShadow=true;world.add(b);};
+  {const bm=gb?M.mat('gbandbrick',()=>{const m=gb.clone();m.color.set('#a9afb8');m.roughness=.7;m.userData.noHQ=true;return m;}):M.paint('gband','#8f9499',.7),bd=(x0,x1,z0,z1)=>{const g=new THREE.BoxGeometry(Math.abs(x1-x0)||.5*U,100*U,Math.abs(z1-z0)||.5*U),c=[(x0+x1)/2,50*U,(z0+z1)/2];
+      if(gb){g.translate(c[0],c[1],c[2]);M.uvw(g,180);g.translate(-c[0],-c[1],-c[2]);}/* the same bricks as the wall behind it, course for course */const b=new THREE.Mesh(g,bm);b.position.set(c[0],c[1],c[2]);b.userData.noLift=true;b.receiveShadow=true;world.add(b);};
     bd(-X,X,-Y+.25*U,-Y+.25*U);bd(-X+.25*U,-X+.25*U,-Y,Y);bd(X-.25*U,X-.25*U,-Y,Y);bd(-X,-560,Y-.25*U,Y-.25*U);bd(560,X,Y-.25*U,Y-.25*U);}
   /* ---- the big door, the door to the house ---- */
   toyPut(M.gdoor(318,214),0,-Y+3*U,Math.PI);toyPut(M.door(),-X+2.4*U,-560,Math.PI/2);
@@ -247,7 +252,9 @@ function toyGarage(def){const U=TM.U,X=695,Y=833,H=868,M=TM,win=[-420,80,430,764
   toyPut(M.gbench(101),305,725.5,0);TOYF.push([130,480,-833,-618,top]);
   /* on the bench, clear of the track (it takes x 543..633 on the east arm and y 681..771 on the north arm) */
   toyPut(M.gvice(),175,650,0,top);toyPut(M.paintcan('#c9573b'),436,803,1,top);toyPut(M.mug({color:'#3f6f8f'}),270,806,2,top);toyPut(M.sodacan(),666,806,0,top);toyPut(M.paintcan('#e9e3d2'),668,560,2,top);
-  toyPut(M.pegboard(110,70),X-1*U,640,-Math.PI/2,400);toyPut(M.gsign(0),330,Y-.6*U,0,520);toyPut(M.gsign(2),560,Y-.6*U,0,640);toyPut(M.gsign(1),-X+.6*U,-200,Math.PI/2,640);toyPut(M.clock(),-X+.6*U,-560,Math.PI/2,770);
+  toyPut(M.pegboard(110,70),X-1*U,640,-Math.PI/2,400);toyPut(M.gsign(0),330,Y-.6*U,0,520);toyPut(M.gsign(2),560,Y-.6*U,0,640);toyPut(M.gsign(1),-X+.6*U,-120,Math.PI/2,700);toyPut(M.clock(),-X+.6*U,-560,Math.PI/2,770);
+  /* ---- on the walls, built in Blender (tools/blender/garage.py): the electrics by the door to the house, a ladder hung on the east wall, garden tools on a rail ---- */
+  toyPut(M.gfit('gelec'),-X,-300,Math.PI/2);toyPut(M.gfit('gladder'),X,-100,-Math.PI/2,677);toyPut(M.gfit('grack'),-X,430,Math.PI/2);
   /* ---- the rest of the furniture ---- */
   toyPut(M.gchest(),-582,746,0);toyPut(M.gtyres(4),-252,576,0);toyPut(M.gshelf(),-625,100,Math.PI/2);
   toyPut(M.carton(44,34,30),640,-760,.1);toyPut(M.carton(36,30,24),648,-764,-.2,30*U);toyPut(M.carton(50,36,28),-600,-770,.06);

@@ -67,10 +67,16 @@ There is no live Blender connection: Blender 5.3 (D:\blender\blender.exe) is run
 - `outside.py [-- k]`: ONE garden for the whole house; the argument picks the window it is seen from.
 
 - `garage.py`: the garage's six large models in one script (`-- <name>` builds one): gbench, gbenchn, gchest, gshelf, gtyres, gdoor.
-- `ph_tex.py` (no Blender): CC0 photo-scanned surface textures from Poly Haven into the texture store (lawn, concrete, paving, planks); read in the game with `surfTex`.
+  Also three things for its walls: gelec (the electrics), gladder (a hung ladder), grack (garden tools on a rail); the wall is the plane Y = 0.
+- `ph_tex.py` (no Blender): CC0 photo-scanned surface textures from Poly Haven into the texture store (lawn, concrete, paving, planks, gbrick for the garage's walls, brick, slate, bark, soil); read in the game with `surfTex`.
 - Cars (not room models; they go into CAR_PACKS, not PROP_PACKS): `car_inspect.py`, `car_rules.py`, `car_convert.py`,
   `car_all.sh`, `car_sheet.py`, `car_pack.py`. The steps are in docs/HANDOVER.md under web v173, "How a car gets in".
   Outputs are in `D:/crust-rush/blender/cars/<id>/`.
+
+## Blender first (the user's instruction, 2026-11-13)
+"From now on if you can make something better in blender than with code I want you to": a new or reworked model is built
+here. Code-built geometry in models.js is the stand-in while a pack loads, and stays where code is as good (flat walls, track).
+Check joints with `joined(a, b)` from crlib: parts must overlap, not merely come near.
 
 ## To do (most visible first)
 desk, floor lamp, sneakers, backpack, books,

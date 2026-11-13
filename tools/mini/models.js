@@ -426,7 +426,7 @@ M.grocery=function(){const G=grp(),W=28*U,D=16*U,H=36*U;add(G,uvw(slab(W,H,D,1*U
    Code-built at real size like the rest; the larger ones are stand-ins for Blender models where a pack of that name exists. */
 const gMats=()=>({gwood:woodTex('ash',.5,()=>wood('oak','#b98a58','#5a3a1c',{rough:.5})),gsteel:paint('gsteel','#3d4248',.5),
   gred:mat('gred',()=>phy({color:'#b3261c',roughness:.3,clearcoat:.8,clearcoatRoughness:.15,envMapIntensity:.8})),gchrome:metal('gchrome','#c9ccd2',.25),gblack:plastic('gblack','#0e0f11',.5),
-  grubber:mat('grubber',()=>std({color:'#3a3a3c',roughness:.88,envMapIntensity:.25}))/* lighter than real rubber: the baked shade in the tyres' vertices darkens it again */,ggalv:metal('ggalv','#9aa0a6',.5),gdoor:paint('gdoor','#e9e6de',.45),gboard:paint('gboard','#c9b48e',.8)});
+  grubber:mat('grubber',()=>std({color:'#3a3a3c',roughness:.88,envMapIntensity:.25}))/* lighter than real rubber: the baked shade in the tyres' vertices darkens it again */,ggalv:metal('ggalv','#9aa0a6',.5),galu:mat('galu',()=>std({color:'#c6cace',roughness:.42,metalness:.3,envMapIntensity:.8}))/* bright aluminium (a ladder, conduit): mostly paint-like, or it only mirrors the dim room */,gdoor:paint('gdoor','#e9e6de',.45),gboard:paint('gboard','#c9b48e',.8)});
 /* sealed concrete: a mottled grey slab with fine cracks and one saw-cut joint each way per repeat (2.4 m) */
 M.gconcrete=function(){return surfTex('concrete',.7,.4,.9,()=>mat('gconcrete',()=>{const S=1024,c=can('gconcrete',S,S,(g,W,H,r)=>{g.fillStyle='#b3b1aa';g.fillRect(0,0,W,H);
     for(let i=0;i<120;i++){const x=r()*W,y=r()*H,rad=30+r()*140,gr=g.createRadialGradient(x,y,0,x,y,rad),d=r()<.5;gr.addColorStop(0,d?'rgba(60,58,54,.05)':'rgba(240,238,230,.06)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(x-rad,y-rad,rad*2,rad*2);}
@@ -435,6 +435,8 @@ M.gconcrete=function(){return surfTex('concrete',.7,.4,.9,()=>mat('gconcrete',()
     g.fillStyle='rgba(30,28,26,.55)';g.fillRect(0,0,W,4);g.fillRect(0,0,4,H);g.fillStyle='rgba(255,255,255,.10)';g.fillRect(0,4,W,2);g.fillRect(4,0,2,H);}),
     b=can('gconcreteb',512,512,(g,W,H,r)=>{g.fillStyle='#808080';g.fillRect(0,0,W,H);for(let i=0;i<5000;i++){const v=100+r()*56;g.fillStyle='rgb('+v+','+v+','+v+')';g.fillRect(r()*W,r()*H,2,2);}g.fillStyle='#303030';g.fillRect(0,0,W,3);g.fillRect(0,0,3,H);});
     const m=std({map:T2(c,1,1),normalMap:T2(heightToNormal(b,1.2),1,1,true),normalScale:new THREE.Vector2(.45,.45),roughness:.62,metalness:0,envMapIntensity:.45});m.userData.noHQ=true;return m;}));};
+/* painted brickwork for the walls, from a scan (null until the pictures are there) */
+M.gbrick=function(){return surfTex('gbrick',.86,.3,1.15,()=>null);};
 /* a workbench, len x 62 cm and 90 cm high: a thick wooden top on a steel frame with a lower shelf; its long side runs along x */
 M.gbench=function(len){const K=gMats(),G=grp(),L=len*U,D=62*U,Hh=90*U,tt=5*U;
   add(G,uvw(slab(L,tt,D,.8*U,.5*U,3),90),K.gwood,0,Hh-tt/2,0);
@@ -521,6 +523,8 @@ function gPk(name){const K=gMats(),m={};for(const k in K)m[k]=[K[k],k==='gwood'?
   M.gchest=()=>pkReady('gchest')?gPk('gchest'):c0();
   M.gtyres=n=>(n||4)===4&&pkReady('gtyres')?gPk('gtyres'):t0(n);
   M.gdoor=(w,h)=>w===318&&h===214&&pkReady('gdoor')?gPk('gdoor'):d0(w,h);}
+/* a fitting for a wall, Blender-built only (gelec, gladder, grack): nothing until its pack has arrived. Its back is the plane z = 0 */
+M.gfit=name=>pkReady(name)?gPk(name):grp();
 /* an oil stain for the floor (lay it with toyStain) */
 M.stainCan=function(){return can('goil',256,256,(g,W,H,r)=>{g.clearRect(0,0,W,H);for(let i=0;i<26;i++){const a=r()*6.283,d=r()*70,x=128+Math.cos(a)*d,y=128+Math.sin(a)*d*.8,rad=14+r()*42,gr=g.createRadialGradient(x,y,0,x,y,rad);gr.addColorStop(0,'rgba(22,18,14,.5)');gr.addColorStop(.6,'rgba(22,18,14,.28)');gr.addColorStop(1,'rgba(22,18,14,0)');g.fillStyle=gr;g.fillRect(x-rad,y-rad,rad*2,rad*2);}});};
 /* ============ Backyard Mega Circuit: the garden's things (sizes in cm; the garden itself is laid out in mini.js, toyYard) ============ */

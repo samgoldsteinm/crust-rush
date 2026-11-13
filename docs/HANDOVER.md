@@ -22,6 +22,19 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### 2026-11-13 (web v178): the garage's walls are painted brick, with fittings built in Blender
+
+Standing instruction from the user, same day: "From now on if you can make something better in blender than with code I
+want you to". New or reworked models go through tools/blender first; code-built geometry stays only as the stand-in while
+a pack loads, or where code is honestly as good (flat walls, the track).
+
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| (asked for) the garage's walls were flat paint | One colour and a fine stipple | A scan of painted brickwork (`ph_tex.py`, key gbrick, turned from pale blue to off-white), on the walls and, tinted grey, on the band round their foot | `M.gbrick()`; the wall material must keep a name starting `toy_pt_wall` (the PC finds the room by it) |
+| Brick courses would not have met round the window or at the corners | `toyWall` laid each piece's texture from that piece's own middle | With a `tile` it lays the texture by where the piece stands in the room (`wallTile` in `toyShell`) | Any patterned wall: pass `wallTile`; plain paint does not need it |
+| The grey band came out charcoal | A grey tint multiplies the scan, which is already darker than white | A lighter tint (#a9afb8) | A tint over a texture wants to be lighter than the colour you are after |
+| The hung ladder and the conduit were nearly black | Full metal indoors mirrors only the dim room | Their own material `galu`: mostly paint-like, a little metal | Bright bare metal indoors: low metalness |
+
 ### 2026-11-13 (web v176 and v177): Blender-built garage pieces; photo-scanned surfaces
 
 Both are written up in docs/MINIATURE-MAYHEM-PLAN.md ("Web v176", "Web v177"). One PC release covers the two.

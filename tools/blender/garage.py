@@ -6,6 +6,10 @@ Sizes are fixed by the track and by the code-built stand-ins in tools/mini/model
   gshelf   steel shelving, 150 x 40 x 180 cm, boards at 8, 50, 92, 134 and 176 cm (the game stands the tins and boxes on them)
   gtyres   four car tyres in a stack (the spiral goes round it): 58 cm across, 20 cm wide each
   gdoor    the sectional garage door seen from inside, 318 x 214 cm
+Things on the walls (the wall is the plane Y = 0 behind them; the game stands them against a wall at any height):
+  gelec    the electrics: a consumer unit at 1.6 m, conduit up to the ceiling, a run to a switch and one to a double socket
+  gladder  an aluminium ladder, 2.3 m, hung flat on two hooks
+  grack    a wooden rail with pegs: a broom, a spade and a rake hanging from it
 Materials are keys for the game's own (gMats in tools/mini/models.js). Front is -Y.
 Run: D:/blender/blender.exe --background --python D:/crust-rush/source/tools/blender/garage.py [-- name ...]
 """
@@ -23,7 +27,7 @@ def want(n): return not ONLY or n in ONLY
 
 def mats():
     return dict(wood=mat('gwood', hexcol('#dcc096'), .5), steel=mat('gsteel', hexcol('#3d4248'), .5), red=mat('gred', hexcol('#b3261c'), .3), chrome=mat('gchrome', hexcol('#c9ccd2'), .25, metal=1.0),
-                black=mat('gblack', hexcol('#0e0f11'), .5), rubber=mat('grubber', hexcol('#1c1c1c'), .9), galv=mat('ggalv', hexcol('#9aa0a6'), .5, metal=1.0), door=mat('gdoor', hexcol('#e9e6de'), .45), board=mat('gboard', hexcol('#c9b48e'), .8))
+                black=mat('gblack', hexcol('#0e0f11'), .5), rubber=mat('grubber', hexcol('#1c1c1c'), .9), galv=mat('ggalv', hexcol('#9aa0a6'), .5, metal=1.0), door=mat('gdoor', hexcol('#e9e6de'), .45), board=mat('gboard', hexcol('#c9b48e'), .8), alu=mat('galu', hexcol('#c3c7cc'), .4, metal=.5))
 
 
 # ---------------- the workbench (two lengths)
@@ -130,3 +134,67 @@ if want('gdoor'):
     P.append(rod('shaft', .014, W + .10, (0, -.09, H + .16), M['galv'])); P.append(rod('spring', .035, 1.1, (-.5, -.09, H + .16), M['steel'], 'X', 18))
     for sx in (-1, 1): P.append(rod(f'drum{sx}', .06, .05, (sx * (W / 2 + .01), -.09, H + .16), M['galv'], 'X', 20))
     finish_model('gdoor', P, 8.5, views=((-20, 12),))
+
+# ---------------- on the walls: the electrics
+if want('gelec'):
+    s = reset(); M = mats(); P = []
+    # the consumer unit: a steel box with a lid, a row of breakers behind a window in it
+    P.append(box('unit', (.38, .10, .30), (0, -.05, 1.60), M['door'], .008, 3)); P.append(box('lid', (.34, .012, .26), (0, -.104, 1.60), M['door'], .006, 2))
+    P.append(box('slot', (.27, .006, .075), (0, -.111, 1.615), M['black'], .002, 1))
+    for i in range(12):
+        P.append(box(f'brk{i}', (.0175, .016, .062), (-.118 + i * .0215, -.118, 1.615), M['door'] if i else M['red'], .0015, 1)); P.append(box(f'tog{i}', (.009, .012, .016), (-.118 + i * .0215, -.128, 1.622 + (.006 if i % 5 else -.006)), M['black'], .001, 1))
+    P.append(box('label', (.20, .002, .03), (0, -.111, 1.515), M['board'], 0))
+    # conduit: two up to the ceiling, one across to a switch, one down to a double socket
+    R = .0105; y = -.02
+    for k, x in enumerate((-.10, -.04)): P.append(tube(f'up{k}', [(x, y, 1.75), (x, y, 2.50)], R, M['alu']))
+    P.append(tube('across', [(.19, y, 1.66), (.80, y, 1.66), (.80, y, 1.36)], R, M['alu'], .04))
+    P.append(tube('down', [(.10, y, 1.45), (.10, y, 1.06)], R, M['alu']))
+    P.append(tube('on', [(.10 + .075, y, 1.00), (.55, y, 1.00), (.55, y, .52)], R, M['alu'], .04))
+    for (x, z, hz) in ((-.10, 2.0, 0), (-.04, 2.0, 0), (-.10, 2.38, 0), (-.04, 2.38, 0), (.45, 1.66, 1), (.80, 1.5, 0), (.10, 1.25, 0), (.36, 1.00, 1), (.55, .76, 0)):   # saddle clips
+        P.append(box(f'clip{x}{z}', (.012, .026, .05) if hz else (.05, .026, .012), (x, y - .001, z), M['alu'], .002, 1))
+    # the switch, the double socket, a single socket at the end of the lower run
+    P.append(box('switch', (.086, .04, .086), (.80, -.02, 1.317), M['door'], .006, 2)); P.append(box('rocker', (.022, .008, .04), (.80, -.043, 1.317), M['door'], .002, 1))
+    P.append(box('sock', (.15, .042, .088), (.10, -.021, 1.016), M['door'], .006, 2))
+    for sx in (-1, 1):
+        for (dx, dz) in ((0, .012), (-.011, -.008), (.011, -.008)): P.append(box(f'pin{sx}{dx}', (.006, .004, .009), (.10 + sx * .037 + dx, -.043, 1.012 + dz), M['black'], 0))
+        P.append(box(f'srk{sx}', (.012, .008, .016), (.10 + sx * .066, -.044, 1.04), M['door'], .001, 1))
+    P.append(box('sock2', (.088, .042, .088), (.55, -.021, .477), M['door'], .006, 2))
+    for (dx, dz) in ((0, .012), (-.011, -.008), (.011, -.008)): P.append(box(f'pin2{dx}', (.006, .004, .009), (.55 + dx, -.043, .473 + dz), M['black'], 0))
+    finish_model('gelec', P, 4.2, views=((-25, 8),), floor=False)
+
+# ---------------- an aluminium ladder hung flat on two hooks (its length along X)
+if want('gladder'):
+    s = reset(); M = mats(); P = []; L = 2.30; Z0 = 0.0     # the lower rail's middle is the model's zero height
+    for k, z in enumerate((Z0, Z0 + .36)):
+        P.append(box(f'rail{k}', (L, .026, .066), (0, -.045, z), M['alu'], .004, 2))
+        for sx in (-1, 1): P.append(box(f'cap{k}{sx}', (.03, .032, .072), (sx * (L / 2 + .012), -.045, z), M['black'], .005, 2))
+    for i in range(8):
+        x = -L / 2 + .16 + i * (L - .32) / 7
+        P.append(box(f'rung{i}', (.03, .024, .36), (x, -.045, Z0 + .18), M['alu'], .006, 2))
+    for sx in (-1, 1):                                      # the hooks: a plate on the wall, an arm, an upturned end
+        x = sx * .72
+        P.append(box(f'plate{sx}', (.04, .006, .16), (x, -.003, Z0 + .30), M['steel'], .002, 1))
+        P.append(tube(f'hook{sx}', [(x, -.006, Z0 + .35), (x, -.006, Z0 + .312), (x, -.085, Z0 + .312), (x, -.085, Z0 + .36)], .007, M['steel'], .015))
+        for dz in (.25, .36): P.append(rod(f'screw{sx}{dz}', .006, .004, (x, -.007, Z0 + dz), M['chrome'], 'Y', 8))
+    finish_model('gladder', P, 5.5, views=((-25, 10),), floor=False)
+
+# ---------------- a rail of pegs with garden tools (the rail's middle is 1.75 m up; the tools hang to within 25 cm of the floor)
+if want('grack'):
+    s = reset(); M = mats(); P = []; ZR = 1.75
+    P.append(box('rail', (1.00, .022, .09), (0, -.011, ZR), M['wood'], .004, 2))
+    for i, x in enumerate((-.43, -.33, -.05, .05, .31, .41)): P.append(bar(f'peg{i}', (x, -.02, ZR), (x, -.115, ZR + .025), .008, .008, M['steel'], 10))
+    for x in (-.46, .46): P.append(rod(f'scr{x}', .007, .004, (x, -.023, ZR), M['chrome'], 'Y', 8))
+    # a broom, head up, resting on two pegs
+    bx = -.38; P.append(rod('bhandle', .0125, 1.32, (bx, -.065, ZR - .64), M['wood'], 'Z', 12)); P.append(box('bhead', (.30, .05, .05), (bx, -.065, ZR + .045), M['wood'], .008, 2))
+    P.append(box('bristle', (.29, .042, .10), (bx, -.065, ZR + .12), M['board'], .006, 1))
+    # a spade, hanging by its handle
+    sx_ = 0.0; P.append(rod('shandle', .016, .74, (sx_, -.065, ZR - .43), M['wood'], 'Z', 12))
+    P.append(tube('sgrip', [(sx_ - .05, -.065, ZR - .075), (sx_ - .05, -.065, ZR + .012), (sx_ + .05, -.065, ZR + .012), (sx_ + .05, -.065, ZR - .075)], .011, M['wood'], .02)); P.append(box('syoke', (.12, .026, .03), (sx_, -.065, ZR - .075), M['wood'], .008, 2))
+    P.append(rod('ssocket', .02, .16, (sx_, -.065, ZR - .86), M['steel'], 'Z', 12))
+    bl = box('sblade', (.19, .006, .29), (sx_, -.058, ZR - 1.08), M['galv'], 0); P.append(bl)
+    for v in bl.data.vertices:                              # a blade narrows to its edge
+        if v.co.z < ZR - 1.08: v.co.x = sx_ + (v.co.x - sx_) * .72
+    # a rake, head up
+    rx = .36; P.append(rod('rhandle', .0125, 1.38, (rx, -.065, ZR - .66), M['wood'], 'Z', 12)); P.append(box('rhead', (.36, .014, .022), (rx, -.065, ZR + .04), M['steel'], .003, 1))
+    for i in range(13): P.append(tube(f'tine{i}', [(rx - .168 + i * .028, -.065, ZR + .04), (rx - .168 + i * .028, -.065, ZR + .075), (rx - .168 + i * .028, -.10, ZR + .10)], .003, M['steel'], .012, 6, 3))
+    finish_model('grack', P, 4.6, views=((-25, 8),), floor=False)

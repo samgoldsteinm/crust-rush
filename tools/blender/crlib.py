@@ -268,6 +268,39 @@ def bar(name, p0, p1, r0, r1, m, verts=12):
     o = bpy.context.object; o.name = name; o.rotation_euler = d.to_track_quat('Z', 'Y').to_euler(); o.data.materials.append(m); smooth(o); return o
 
 
+def tube(name, pts, r, m, fillet=.03, verts=10, steps=5, caps=True):
+    """a round tube along the points `pts`, its corners rounded to radius `fillet` (a pipe, a conduit, a bent rail)"""
+    P = [Vector(p) for p in pts]; out = [P[0]]
+    for i in range(1, len(P) - 1):
+        a, b, c = P[i - 1], P[i], P[i + 1]; u = (a - b); v = (c - b); f = min(fillet, u.length * .45, v.length * .45)
+        if f < 1e-5 or u.normalized().dot(v.normalized()) < -.9999: out.append(b); continue
+        p0 = b + u.normalized() * f; p1 = b + v.normalized() * f
+        for k in range(steps + 1):
+            t = k / steps; out.append((1 - t) ** 2 * p0 + 2 * t * (1 - t) * b + t * t * p1)
+    out.append(P[-1])
+    cu = bpy.data.curves.new(name, 'CURVE'); cu.dimensions = '3D'; sp = cu.splines.new('POLY'); sp.points.add(len(out) - 1)
+    for q, p in zip(sp.points, out): q.co = (*p, 1)
+    cu.bevel_depth = r; cu.bevel_resolution = max(1, verts // 4 - 1); cu.use_fill_caps = caps
+    o = bpy.data.objects.new(name, cu); bpy.context.scene.collection.objects.link(o)
+    active(o); bpy.ops.object.convert(target='MESH'); o = bpy.context.object; o.data.materials.append(m); smooth(o)
+    return o
+
+
+def bounds(o):
+    """world-space box of an object: (lo, hi) as Vectors (modifiers not applied)"""
+    vs = [o.matrix_world @ v.co for v in o.data.vertices]
+    return Vector((min(v.x for v in vs), min(v.y for v in vs), min(v.z for v in vs))), Vector((max(v.x for v in vs), max(v.y for v in vs), max(v.z for v in vs)))
+
+
+def joined(a, b, slack=.0005):
+    """do two parts' boxes meet on all three axes? Prints a warning when they only come near: a gap of a few millimetres
+    shows as a part floating free once the model is in the game"""
+    bpy.context.view_layer.update()
+    la, ha = bounds(a); lb, hb = bounds(b); gap = max(max(la[i], lb[i]) - min(ha[i], hb[i]) for i in range(3))
+    if gap > slack: print(f'GAP WARNING {a.name} <-> {b.name}: {gap * 1000:.1f} mm apart')
+    return gap <= slack
+
+
 def export(name, objs):
     os.makedirs(f'{OUT}/{name}', exist_ok=True)
     for o in objs:
