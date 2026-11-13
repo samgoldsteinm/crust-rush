@@ -229,7 +229,7 @@ window.__placeBW=function(b,w){const m=buildKart({ri:0,b,w,g:0,p:0,t:'',hq:0});r
     return {i,front:front.has(yaw),x:ys.x,y:ys.y,z:ys.z,r:q.r,s:wh?wh.scale.toArray():[1,1,1],axle:ax};});
   const v=a=>a?(a.isVector3?a.toArray():a):null;
   return {L:B.position.y,glY:m.gl?m.gl.position.y:0,bub:m.bub?{x:m.bub.position.x,y:m.bub.position.y,z:m.bub.position.z,s:m.bub.scale.x}:null,wheels:wl,top:m.top,axF:m.axF,axR:m.axR,axW:m.axW,sf:m.sf,hover:m.hover,bike:m.bike,
-    fxL:(m.fxL||[]).map(v),fxP:(m.fxP||[]).map(v),smoke:v(m.smoke),flames:(m.flames||[]).map((f,i)=>({i,inner:i%2===1,x:f.position.x,y:f.position.y,z:f.position.z,fl:f.userData.fl}))};};
+    fxL:(m.fxL||[]).map(v),fxP:(m.fxP||[]).map(v),smoke:v(m.smoke),flames:(m.flames||[]).filter(f=>!f.userData.glow).map((f,i)=>({i,inner:i%2===1,x:f.position.x,y:f.position.y,z:f.position.z,fl:f.userData.fl})),fglow:(m.flames||[]).filter(f=>f.userData.glow).map(f=>[f.position.x,f.position.y,f.position.z])[0]||null};};
 /* the driver's seat for one body and one racer (a 4x4 matrix in kart space) */
 window.__placeDrv=function(b,ri){const m=buildKart({ri,b,w:0,g:0,p:0,t:'',hq:0});reset(m);return rel(m.drv,m.g).toArray();};
 /* the shared livery textures: race numbers and decals */
@@ -254,7 +254,7 @@ window.__exportKart=function(spec){const G=new GLB();const m=buildKart(spec);con
   const bytes=G.glb();return {livery:livStats,b64:u8ToB64(bytes),meta:{scale:KS*(m.sf||1),sf:m.sf||1,KS,wheels,axF:m.axF,axR:m.axR,axW:m.axW,top:m.top,bike:!!m.bike,hover:m.hover||0,drvY:m.drvY||0,
       fxL:(m.fxL||[]).map(v=>[v.x,v.y,v.z]),fxP:(m.fxP||[]).map(v=>[v.x,v.y,v.z]),smoke:m.smoke?[m.smoke.x,m.smoke.y,m.smoke.z]:null,
       bub:m.bub?{x:m.bub.position.x,y:m.bub.position.y,z:m.bub.position.z,s:m.bub.scale.x}:null,
-      flames:(m.flames||[]).map((f,i)=>{const w=new THREE.Vector3();f.getWorldPosition(w);return {i,inner:i%2===1,x:w.x,y:w.y,z:w.z,fl:f.userData.fl||null,lx:f.position.x};}),
+      flames:(m.flames||[]).filter(f=>!f.userData.glow).map((f,i)=>{const w=new THREE.Vector3();f.getWorldPosition(w);return {i,inner:i%2===1,x:w.x,y:w.y,z:w.z,fl:f.userData.fl||null,lx:f.position.x};}),
       tiltPos:[m.tilt.position.x,m.tilt.position.y,m.tilt.position.z]},stats:Object.assign(G.stats,{bytes:bytes.length})};};
 
 window.__exportData=function(step){step=step||10;const def=MAPS[mapIdx];const R=def.R;
@@ -264,7 +264,7 @@ window.__exportData=function(step){step=step||10;const def=MAPS[mapIdx];const R=
   const hemi=(()=>{let h=null;scene.traverse(o=>{if(o.isHemisphereLight&&!h)h=o;});return h;})();
   const amb=(()=>{let h=null;scene.traverse(o=>{if(o.isAmbientLight&&!h)h=o;});return h;})();
   const fog=scene.fog;const bg=scene.background&&scene.background.isColor?scene.background:null;
-  return {map:def.id,name:def.name,R,RIM,N,RW,CURB,WALLD,KS,BASE0,ACCEL,TURN,DRIN:(typeof DRIN!=='undefined'?DRIN:1.75),DROUT:(typeof DROUT!=='undefined'?DROUT:1),BOXR:(typeof BOXR!=='undefined'?BOXR:4),BOXCD:(typeof BOXCD!=='undefined'?BOXCD:0),SLICKN:(typeof SLICKN!=='undefined'?SLICKN:10),LAPS:(def.laps||3),LS:(typeof LS!=='undefined'?LS:1),toy:!!def.toy,KERB_H,STEP,classMul:CLASSES.medium.mul,
+  return {map:def.id,name:def.name,R,RIM,N,RW,CURB,WALLD,KS,BASE0,ACCEL,TURN,DRIN:(typeof DRIN!=='undefined'?DRIN:1.75),DROUT:(typeof DROUT!=='undefined'?DROUT:1),BOXR:(typeof BOXR!=='undefined'?BOXR:4),BOXCD:(typeof BOXCD!=='undefined'?BOXCD:0),SLICKN:(typeof SLICKN!=='undefined'?SLICKN:10),LAPS:(def.laps||3),LS:(typeof LS!=='undefined'?LS:1),toy:!!def.toy,neon:!!def.neon&&!def.toy,KERB_H,STEP,classMul:CLASSES.medium.mul,
     track:tr,ramps:ramps.map(r=>({j:r.j,len:r.len,h:r.h,w:r.w,glide:!!r.glide})),pads:pads.map(p=>({j:p.j,lat:p.lat,w:p.w||16})),
     obstacles:obstacles.filter(o=>!o.ghost&&!o.mesh?.userData?.dyn).map(o=>({x:+o.x.toFixed(2),y:+o.y.toFixed(2),r:o.r,h:o.h})),
     grid:karts.map(k=>({x:+k.x.toFixed(3),y:+k.y.toFixed(3),a:+k.a.toFixed(5),wy:+k.wy.toFixed(3),player:k===player})),
