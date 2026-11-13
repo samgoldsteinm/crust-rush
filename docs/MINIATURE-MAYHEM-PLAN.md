@@ -250,4 +250,9 @@ before the launch and the hairpins, a stronger bloom at the window.
   PC: item rules (PROTO 104) and `abw`; needs the export for v167 (diffs) before its build.
 - Web v168: new boost flames, stronger motion blur, rainbow boost streaks on Neon tracks (patch 14). PC: the same
   (flame.gdshader, post.gdshader); needs the export (tracks for the `neon` flag, garage for `fglow`) before its build.
+- 2026-11-13: web v170 and PC build 807fdc66 are level. Since v168: motion blur at its original strength with wind lines
+  (patch 15), no black dots in the flames on phones and boost sparks that stay with the kart (patch 16). Next web stamp v171.
+  Waiting on the user: how the toy-track handling feels, whether 200cc on Bedroom Blitz is winnable now, whether the flames are
+  clean on their phone, and whether the flame glow on the road shows on PC (too faint to confirm in a local picture).
+  Next work: remaining Blender models, fabric textures, then Kitchen Chaos, Garage Overdrive, Backyard Mega Circuit and the cup.
 
