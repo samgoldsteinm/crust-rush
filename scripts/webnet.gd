@@ -7,7 +7,7 @@ extends Node
 ## takes that and replays the controls the host hasn't seen yet, so steering is instant. Everything else is drawn as the
 ## host sends it. PC-to-PC races (ENet) are separate and unchanged.
 
-const PROTO := 100
+const PROTO := 102
 const TOP := "crustrush/v2/"
 const BROKERS := ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884/mqtt", "wss://test.mosquitto.org:8081/mqtt"]
 const STEP := 1.0 / 120.0
@@ -735,6 +735,7 @@ func _snap(d: Dictionary) -> void:
 				continue
 			var hd := {"id": int(r[0]), "x": float(r[13]) if r.size() > 14 else float(r[2]), "y": float(r[14]) if r.size() > 14 else float(r[4]), "t": 9.0, "born": 1.0,
 				"armed": r.size() <= 14 or int(r[12]) != 0, "owner": race.karts[int(r[11])] if r.size() > 14 and r[11] != null and int(r[11]) >= 0 and int(r[11]) < race.karts.size() else null}
+			hd["ny"] = float(r[3]) - 0.12   # the height the host drew it at: the road it lies on
 			var hk := String(r[10]) if r.size() > 10 and r[10] is String else "oil"
 			if hk == "olive":
 				hd["olive"] = true
@@ -1347,7 +1348,7 @@ func _snapshot() -> void:
 			var kind := "olive" if bool(hd.get("olive", false)) else String(hd.get("kind", "oil"))
 			var x2 := float(hd["x"])
 			var y2 := float(hd["y"])
-			hz.append([int(hd["id"]), "oil" if kind == "olive" else kind, snappedf(x2, 0.01), snappedf(T.ground(x2, y2), 0.01), snappedf(y2, 0.01), 0, 0, 0, 1, 1, kind,
+			hz.append([int(hd["id"]), "oil" if kind == "olive" else kind, snappedf(x2, 0.01), snappedf(race.haz_ground(hd) + 0.12, 0.01), snappedf(y2, 0.01), 0, 0, 0, 1, 1, kind,
 				race.karts.find(hd.get("owner")) if hd.get("owner") != null else -1, 1, snappedf(x2, 0.01), snappedf(y2, 0.01)])
 		base["h"] = hz
 	NetLog.sent_snap(guests_open().map(func(c): return int(c["pid"]) + 1))

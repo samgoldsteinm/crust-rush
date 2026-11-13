@@ -2186,11 +2186,70 @@ func _wheel(p: Dictionary, dt: float) -> bool:
 	return float(p["t"]) <= 0.0
 
 
+## Traps stay on the road they were dropped on (web hazEy, pGround, sameLvl). `ti` is the road point a trap lies on:
+## its owner's while the owner is still beside it (a spiral passes over itself, so the nearest stretch of road is not
+## always the right one), else the nearest, the upper one where two cross. A host's copy brings its own height (`ny`).
+func haz_ti(h: Dictionary) -> int:
+	if h.has("ti"):
+		return int(h["ti"])
+	var x := float(h["x"])
+	var y := float(h["y"])
+	var j := -1
+	var o = h.get("owner")
+	if o != null and (o.x - x) ** 2 + (o.y - y) ** 2 < 3600.0:
+		j = o.idx
+	if j < 0:
+		var bd := 1.0e9
+		for i in T.N:
+			var d := (T.px[i] - x) ** 2 + (T.py[i] - y) ** 2 - (T.ey[i] if T.multi else 0.0) * 0.01
+			if d < bd:
+				bd = d
+				j = i
+	h["ti"] = j
+	return j
+
+
+## the height of the road under a trap (the ground plus the raised road on multi-level tracks)
+func haz_ground(h: Dictionary) -> float:
+	var x := float(h["x"])
+	var y := float(h["y"])
+	if not T.multi:
+		return T.ground(x, y)
+	if h.has("ny"):
+		return float(h["ny"])
+	var ti := haz_ti(h)
+	var best := ti
+	var bd := 1.0e18
+	for o in range(-8, 13):
+		var j := (ti + o + T.N) % T.N
+		var d := (T.px[j] - x) ** 2 + (T.py[j] - y) ** 2
+		if d < bd:
+			bd = d
+			best = j
+	h["ti"] = best
+	return T.ground(x, y) + T.ey[best]
+
+
+## the road's slope under a trap, along the road: [slope, tx, ty], for laying it along a ramp
+func haz_slope(h: Dictionary) -> Array:
+	if not T.multi or h.has("ny"):
+		return [0.0, 1.0, 0.0]
+	var j := haz_ti(h)
+	var sl := T.L / float(T.N)
+	return [(T.ey[(j + 1) % T.N] - T.ey[(j - 1 + T.N) % T.N]) / (2.0 * sl), T.tx[j], T.ty[j]]
+
+
+func same_lvl(k: Kart, h: Dictionary) -> bool:
+	return not T.multi or absf(k.wy - haz_ground(h)) < 18.0
+
+
 func _hazards(dt: float) -> void:
 	var i := hazards.size() - 1
 	while i >= 0:
 		var h: Dictionary = hazards[i]
 		cur_p = h
+		if T.multi and not h.has("ti") and not h.has("ny"):
+			haz_ti(h)   # on its first step, while its owner is still beside it
 		# web: a trap dropped over the glide's shaft falls away at once
 		if float(h["born"]) == 0.0 and not T.glide.is_empty() and T.pit(float(h["x"]), float(h["y"])) > 1.0 and T.ground(float(h["x"]), float(h["y"])) < T.glide_y(float(h["x"]), float(h["y"])) - 20.0:
 			h["t"] = 0.0
@@ -2202,7 +2261,8 @@ func _hazards(dt: float) -> void:
 		for k in karts:
 			if not k.loop.is_empty() or (k == o and not bool(h["armed"])):
 				continue
-			if (k.x - float(h["x"])) ** 2 + (k.y - float(h["y"])) ** 2 < 200.0 and k.inv <= 0.0:
+			# only karts on the trap's own level: one on an upper road no longer catches karts driving underneath
+			if (k.x - float(h["x"])) ** 2 + (k.y - float(h["y"])) ** 2 < 200.0 and k.inv <= 0.0 and same_lvl(k, h):
 				if h.get("olive", false):
 					if k.air or k.glide or k.shield > 0.0 or k.rush > 0.0 or ab_inv(k) or k.oil_t > 4.5:
 						continue

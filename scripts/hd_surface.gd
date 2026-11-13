@@ -42,9 +42,18 @@ static var _relief_cache := {}
 static var _shaders := {}
 
 
+## A toy racing set's plastic (the track, its walls, the piers, the dashes: materials named toy_toy...) is smooth and
+## glossy: it takes no mottling or grain, and keeps its own material so its lacquer shine survives (the web game marks
+## the same materials noHQ).
+static func _moulded(m: StandardMaterial3D) -> bool:
+	return String(m.resource_name).begins_with("toy_toy")
+
+
 ## opaque, lit, with a picture of its own; not the ground (it has its own finish), not glowing, not triplanar
 static func _pictured(m: StandardMaterial3D) -> bool:
 	if m.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED or m.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+		return false
+	if _moulded(m):
 		return false
 	if m.albedo_texture == null or m.detail_enabled or m.normal_enabled or m.uv1_triplanar:
 		return false
@@ -78,6 +87,8 @@ static func _relief(m: StandardMaterial3D) -> ShaderMaterial:
 ## opaque, lit, no picture of its own, not glowing, not already finished (the ground has its own)
 static func _plain(m: StandardMaterial3D) -> bool:
 	if m.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED or m.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+		return false
+	if _moulded(m):
 		return false
 	if m.albedo_texture != null or m.detail_enabled or m.normal_enabled:
 		return false

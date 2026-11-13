@@ -72,7 +72,7 @@ game's own pictures.
 - `scripts/ach.gd`, `scripts/ghost.gd` — achievements, records, the best-run ghost.
 - `scripts/netlog.gd` — the network log of online races.
 - `scripts/webnet.gd`, `scripts/mqtt.gd` — cross-play with the browser version: the web game's room codes, relay and
-  race messages (version 97), as guest or host.
+  race messages (version 102), as guest or host.
 - `scripts/music.gd`, `scripts/sfx.gd` — the soundtrack and the sound effects (an engine voice per kind of kart body,
   pitched through the gears like the web's: louder when you work it, a soft hum at a steady speed).
 - `scripts/track.gd` — track data exported from the web game.

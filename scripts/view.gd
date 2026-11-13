@@ -822,7 +822,7 @@ func _draw_projectiles(al: float, dt: float) -> void:
 		var type: String = pd["type"]
 		var x := float(pd["x"])
 		var y := float(pd["y"])
-		if pd.has("px") and String(pd.get("ph", "")) == "":
+		if pd.has("px") and str(pd.get("ph", "")) == "":   # "ph" is a word on some items and a number on others: String() of a number is an error and stopped every thrown item being drawn
 			x = lerpf(float(pd["px"]), x, al)
 			y = lerpf(float(pd["py"]), y, al)
 		if not proj_nodes.has(id):
@@ -1036,7 +1036,7 @@ func _draw_hazards() -> void:
 			var fn: Node3D = haz_nodes[id]["n"]
 			var fxx := float(hd["x"])
 			var fyy := float(hd["y"])
-			var fg := T.ground(fxx, fyy)
+			var fg := race.haz_ground(hd)
 			fn.position = Vector3(fxx, fg + 0.12, fyy)
 			fn.rotation.y = float(hd["born"]) * 0.05
 			fn.scale = Vector3.ONE * maxf(0.01, minf(1.0, float(hd["t"]) * 1.4)) * (1.0 + sin(time * 20.0 + fxx) * 0.1)
@@ -1086,8 +1086,14 @@ func _draw_hazards() -> void:
 		var r: Node3D = hn["n"]
 		var x := float(hd["x"])
 		var y := float(hd["y"])
-		r.position = Vector3(x, T.ground(x, y) + 0.12, y)
-		r.rotation.y = float(hd["born"]) * 0.05
+		# on the road it was dropped on, at any height (it used to lie on the floor underneath), and along its slope
+		r.position = Vector3(x, race.haz_ground(hd) + 0.12, y)
+		var hs: Array = race.haz_slope(hd)
+		if absf(float(hs[0])) > 0.02:
+			var up := Vector3(-float(hs[1]) * float(hs[0]), 1.0, -float(hs[2]) * float(hs[0])).normalized()
+			r.quaternion = Quaternion(Vector3.UP, up) * Quaternion(Vector3.UP, float(hd["born"]) * 0.05)
+		else:
+			r.rotation = Vector3(0.0, float(hd["born"]) * 0.05, 0.0)
 		r.scale = Vector3.ONE * maxf(0.01, minf(1.0, float(hd["born"]) * 5.0))
 		(hn["warn"] as Node3D).position.y = 13.0 + bob
 	for id in haz_nodes.keys():

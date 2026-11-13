@@ -48,6 +48,8 @@ var fin_t := 0.0
 var cam_a := 0.0
 var cam_base := Vector3.ZERO
 var cam_look := Vector3.ZERO
+var toy_room := AABB()   # a toy track's room (its walls and ceiling), for the sun's shadow range
+var toy_room_on := false
 var cam_sb := 0.0   # toy tracks: how much higher the road behind the kart is, and the slope ahead (eased)
 var cam_sa := 0.0
 var cam_snap := true
@@ -385,6 +387,10 @@ func _build_world() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.ambient_light_sky_contribution = 0.25
 	env.ambient_light_color = _hex(L.get("hemiSky"), Color(1, 0.89, 0.77))
+	if T.toy:
+		# a room is lit from below as much as from above (the floor throws the light back up, warm): the web game's
+		# fill is a cool sky colour over a warm floor colour, so here the two are mixed
+		env.ambient_light_color = env.ambient_light_color.lerp(_hex(L.get("hemiGround"), Color(0.7, 0.58, 0.48)), 0.45)
 	# Settings > Look: Vivid (a darker base, a stronger sun, more contrast and colour) or Classic (web applyLook)
 	var night := T.theme == "night"
 	var vivid := look != "classic"
@@ -463,6 +469,11 @@ func _build_world() -> void:
 	# toy tracks: the room's walls and ceiling throw no shadow (all settings)
 	if track != null and T.toy:
 		print("toy room: %d" % HdToy.upgrade(track))
+		if track.has_meta("toy_room"):
+			toy_room = track.get_meta("toy_room")
+			toy_room_on = true
+			_toy_sun()
+			HdToy.add_probe(world, track, env.ambient_light_color, env.ambient_light_energy)
 	if track != null and T.theme == "night":
 		var nn := HdNeon.upgrade(track)
 		if nn > 0:
@@ -3313,7 +3324,24 @@ func _apply_quality() -> void:
 		sun.directional_shadow_fade_start = 0.9
 		sun.light_angular_distance = 0.0
 		sun.shadow_blur = 1.2
+	_toy_sun()
 	vp.msaa_3d = _msaa()
+
+
+## A toy track's room: the walls and the ceiling keep the sun out, so the sun's shadows have to reach right across the
+## room (four ranges, the nearest still sharp round the karts) instead of a few hundred units round the camera, and
+## they stay on at every graphics setting: without them the whole room would stand in full sun.
+func _toy_sun() -> void:
+	if not toy_room_on or sun == null:
+		return
+	sun.shadow_enabled = true
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+	sun.directional_shadow_max_distance = toy_room.size.length() * 1.05
+	sun.directional_shadow_split_1 = 0.07
+	sun.directional_shadow_split_2 = 0.2
+	sun.directional_shadow_split_3 = 0.5
+	sun.directional_shadow_blend_splits = true
+	sun.directional_shadow_fade_start = 0.95
 
 
 func _save_settings() -> void:
