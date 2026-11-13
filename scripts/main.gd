@@ -379,6 +379,14 @@ func _build_world() -> void:
 	sm.set_shader_parameter("hor_col", _hex(S.get("hor"), Color(1, 0.7, 0.54)))
 	sm.set_shader_parameter("bot_col", _hex(S.get("bot"), Color(0.16, 0.44, 0.52)))
 	sm.set_shader_parameter("sun_col", _hex(S.get("sunCol"), Color(1, 0.85, 0.63)))
+	if T.toy and T.toyenv == null and typeof(L.get("bg")) == TYPE_STRING:
+		# a toy track out of doors (the Backyard: it names no room to photograph for reflections): the web game shows its
+		# plain sky colour there, not the theme's sunset
+		var skyc := _hex(L.get("bg"), Color(0.66, 0.8, 0.95))
+		sm.set_shader_parameter("top_col", skyc.darkened(0.2))
+		sm.set_shader_parameter("hor_col", skyc.lightened(0.4))
+		sm.set_shader_parameter("bot_col", skyc.lightened(0.25))
+		sm.set_shader_parameter("sun_col", Color(1, 0.96, 0.86))
 	sky.sky_material = sm
 	sky.radiance_size = Sky.RADIANCE_SIZE_64
 	env.sky = sky
