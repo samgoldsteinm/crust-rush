@@ -423,7 +423,7 @@ M.grocery=function(){const G=grp(),W=28*U,D=16*U,H=36*U;add(G,uvw(slab(W,H,D,1*U
    Code-built at real size like the rest; the larger ones are stand-ins for Blender models where a pack of that name exists. */
 const gMats=()=>({gwood:woodTex('ash',.5,()=>wood('oak','#b98a58','#5a3a1c',{rough:.5})),gsteel:paint('gsteel','#3d4248',.5),
   gred:mat('gred',()=>phy({color:'#b3261c',roughness:.3,clearcoat:.8,clearcoatRoughness:.15,envMapIntensity:.8})),gchrome:metal('gchrome','#c9ccd2',.25),gblack:plastic('gblack','#0e0f11',.5),
-  grubber:mat('grubber',()=>std({color:'#151515',roughness:.92,envMapIntensity:.15})),ggalv:metal('ggalv','#9aa0a6',.5),gdoor:paint('gdoor','#e9e6de',.45),gboard:paint('gboard','#c9b48e',.8)});
+  grubber:mat('grubber',()=>std({color:'#3a3a3c',roughness:.88,envMapIntensity:.25}))/* lighter than real rubber: the baked shade in the tyres' vertices darkens it again */,ggalv:metal('ggalv','#9aa0a6',.5),gdoor:paint('gdoor','#e9e6de',.45),gboard:paint('gboard','#c9b48e',.8)});
 /* sealed concrete: a mottled grey slab with fine cracks and one saw-cut joint each way per repeat (2.4 m) */
 M.gconcrete=function(){return mat('gconcrete',()=>{const S=1024,c=can('gconcrete',S,S,(g,W,H,r)=>{g.fillStyle='#b3b1aa';g.fillRect(0,0,W,H);
     for(let i=0;i<120;i++){const x=r()*W,y=r()*H,rad=30+r()*140,gr=g.createRadialGradient(x,y,0,x,y,rad),d=r()<.5;gr.addColorStop(0,d?'rgba(60,58,54,.05)':'rgba(240,238,230,.06)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(x-rad,y-rad,rad*2,rad*2);}
@@ -455,9 +455,10 @@ M.paintcan=function(col){const G=grp(),K=gMats(),R=8.5*U,Hh=19*U,c=col||'#2f6f9f
   add(G,new THREE.TorusGeometry(R+.6*U,.22*U,5,20,Math.PI),K.gchrome,0,Hh-3*U,0,0,0,0).rotation.set(-1.15,0,0);return G;};
 /* steel shelving, 150 x 40 x 180 cm: four angle posts, five boards, and the usual things kept on them */
 M.gshelf=function(){const K=gMats(),G=grp(),W=150*U,D=40*U,Hh=180*U,r=rng(31);
+  const ys=[8,50,92,134,176];if(pkReady('gshelf'))G.add(gPk('gshelf'));else{
   for(const sx of [-1,1])for(const sz of [-1,1]){add(G,box(3.4*U,Hh,.5*U),K.ggalv,sx*(W/2-1.7*U),Hh/2,sz*(D/2-.25*U));add(G,box(.5*U,Hh,3.4*U),K.ggalv,sx*(W/2-.25*U),Hh/2,sz*(D/2-1.7*U));}
-  const ys=[8,50,92,134,176];for(const y of ys){add(G,uvw(slab(W-1.5*U,1.8*U,D-1.5*U,.3*U,.2*U,1),80),K.gboard,0,y*U,0);for(const sz of [-1,1])add(G,box(W-1*U,3.4*U,.5*U),K.ggalv,0,y*U-1.2*U,sz*(D/2-.25*U));for(const sx of [-1,1])add(G,box(.5*U,3.4*U,D-1*U),K.ggalv,sx*(W/2-.25*U),y*U-1.2*U,0);}
-  for(const sx of [-1,1])add(G,box(.5*U,2.6*U,Math.hypot(D,40*U)),K.ggalv,sx*(W/2-.6*U),28*U,0,Math.atan2(40*U,D)*sx,0,0);
+  for(const y of ys){add(G,uvw(slab(W-1.5*U,1.8*U,D-1.5*U,.3*U,.2*U,1),80),K.gboard,0,y*U,0);for(const sz of [-1,1])add(G,box(W-1*U,3.4*U,.5*U),K.ggalv,0,y*U-1.2*U,sz*(D/2-.25*U));for(const sx of [-1,1])add(G,box(.5*U,3.4*U,D-1*U),K.ggalv,sx*(W/2-.25*U),y*U-1.2*U,0);}
+  for(const sx of [-1,1])add(G,box(.5*U,2.6*U,Math.hypot(D,40*U)),K.ggalv,sx*(W/2-.6*U),28*U,0,Math.atan2(40*U,D)*sx,0,0);}
   const cols=['#2f6f9f','#c9573b','#e9e3d2','#3f7a4a','#d8a83a','#5a3d7a'],put=(o,x,lv,z,ry)=>{o.position.set(x*U,ys[lv]*U+.9*U,(z||0)*U);o.rotation.y=ry||0;G.add(o);};
   let x=-62;for(let i=0;i<6;i++){put(M.paintcan(cols[i%cols.length]),x,1,-4+r()*8,r()*6);if(i<3&&r()<.8){const o=M.paintcan(cols[(i+3)%cols.length]);o.position.set(x*U,ys[1]*U+19.9*U,(-2+r()*4)*U);G.add(o);}x+=19+r()*3;}
   put(M.carton(44,32,26),-48,0,0,.04);put(M.carton(36,30,22),0,0,0,-.06);put(M.carton(40,30,30),44,0,0,.05);put(M.carton(50,32,24),-44,2,0,-.03);put(M.gtoolbox(),16,2,0,.1);put(M.jerry('#b3261c'),56,2,0,1.5);
@@ -509,6 +510,14 @@ M.gsign=function(kind){const G=grp(),c=can('gsign'+kind,512,256,(g,W,H)=>{const 
     else if(kind===2){g.fillStyle='#f3efe4';g.fillRect(0,0,W,H);g.strokeStyle='#16171a';g.lineWidth=10;round(12,12,W-24,H-24,26);g.stroke();g.fillStyle='#16171a';g.font='900 150px Arial Black,Impact,sans-serif';g.fillText('CR 08',W/2,182);}
     else{g.fillStyle='#b3261c';g.fillRect(0,0,W,H);g.strokeStyle='#f3efe4';g.lineWidth=8;round(14,14,W-28,H-28,22);g.stroke();g.fillStyle='#f3efe4';g.font='900 96px Arial Black,Impact,sans-serif';g.fillText('PIT LANE',W/2,128);g.font='700 44px Arial,sans-serif';g.fillText('←  crew only  →',W/2,196);}}),
     m=mat('gsign'+kind,()=>std({map:tex(c,'gsign'+kind),roughness:.35,metalness:.3,envMapIntensity:.6}));add(G,box(60*U,30*U,.5*U),m,0,0,.25*U);return G;};
+/* the large ones as built in Blender (tools/blender/garage.py), once their packs have arrived; until then, and for
+   any other size, the code-built ones above */
+function gPk(name){const K=gMats(),m={};for(const k in K)m[k]=[K[k],k==='gwood'?90:k==='gboard'?80:40];return pk(name,m);}
+{const b0=M.gbench,c0=M.gchest,t0=M.gtyres,d0=M.gdoor;
+  M.gbench=len=>{const n=len===116?'gbench':len===101?'gbenchn':null;return n&&pkReady(n)?gPk(n):b0(len);};
+  M.gchest=()=>pkReady('gchest')?gPk('gchest'):c0();
+  M.gtyres=n=>(n||4)===4&&pkReady('gtyres')?gPk('gtyres'):t0(n);
+  M.gdoor=(w,h)=>w===318&&h===214&&pkReady('gdoor')?gPk('gdoor'):d0(w,h);}
 /* an oil stain for the floor (lay it with toyStain) */
 M.stainCan=function(){return can('goil',256,256,(g,W,H,r)=>{g.clearRect(0,0,W,H);for(let i=0;i<26;i++){const a=r()*6.283,d=r()*70,x=128+Math.cos(a)*d,y=128+Math.sin(a)*d*.8,rad=14+r()*42,gr=g.createRadialGradient(x,y,0,x,y,rad);gr.addColorStop(0,'rgba(22,18,14,.5)');gr.addColorStop(.6,'rgba(22,18,14,.28)');gr.addColorStop(1,'rgba(22,18,14,0)');g.fillStyle=gr;g.fillRect(x-rad,y-rad,rad*2,rad*2);}});};
 /* ============ Backyard Mega Circuit: the garden's things (sizes in cm; the garden itself is laid out in mini.js, toyYard) ============ */

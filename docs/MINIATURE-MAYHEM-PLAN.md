@@ -332,3 +332,13 @@ before the launch and the hairpins, a stronger bloom at the window.
 - Still open: Blender versions of the garage's and the yard's large models; fabric textures and the smaller bedroom models
   (tools/blender/README.md); a play-test by the user of all four tracks' feel.
 
+## Web v176 (2026-11-13): the garage's large things built in Blender
+- `tools/blender/garage.py` builds `gbench` (116 cm), `gbenchn` (101 cm), `gchest`, `gshelf` (frame and boards; the game still
+  stands the tins and boxes on it), `gtyres` (four, with real tread blocks) and `gdoor`; each has its check picture in
+  `blender/<name>/`. Packed with `pack_glb.py`; the game uses them through `gPk` in models.js when their pack has arrived and
+  the size asked for is the model's, and its code-built ones otherwise. Materials are the keys of `gMats`.
+- The tyres' tread blocks are plain boxes: bevelled ones made that one pack 736 KB (406 KB now). The rubber's colour in the
+  game is lighter than real rubber because the shade baked into the vertices darkens it again (it came out pure black).
+- outside.py's goal now has stays leaning back from its top corners like the Backyard track's; the garage's view re-rendered.
+- Still code-built: everything in the yard, the garage's small things, and the bedroom's remaining ones (tools/blender/README.md).
+

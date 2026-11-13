@@ -66,6 +66,7 @@ There is no live Blender connection: Blender 5.3 (D:\blender\blender.exe) is run
 - `kitchen.py`: the kitchen's seven models in one script (`-- <name>` builds one). Uses `finish_model`, `rod` and `bar` from crlib.
 - `outside.py [-- k]`: ONE garden for the whole house; the argument picks the window it is seen from.
 
+- `garage.py`: the garage's six large models in one script (`-- <name>` builds one): gbench, gbenchn, gchest, gshelf, gtyres, gdoor.
 - Cars (not room models; they go into CAR_PACKS, not PROP_PACKS): `car_inspect.py`, `car_rules.py`, `car_convert.py`,
   `car_all.sh`, `car_sheet.py`, `car_pack.py`. The steps are in docs/HANDOVER.md under web v173, "How a car gets in".
   Outputs are in `D:/crust-rush/blender/cars/<id>/`.

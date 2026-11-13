@@ -100,8 +100,8 @@ for z in (.45, 1.45): box(f'railE{z}', (8.8, .04, .09), (13.2, 7.035, GROUND + z
 for i in range(5, 9): box(f'post{i}', (.09, .09, 1.9), (i * 2.2, 7.06, GROUND + .95), fw, .004, 1)
 # east of the bedroom, seen from the garage only: a small football goal and a ball left on the lawn
 gm2 = mat('goal', (.92, .92, .9), .4)
-for gx in (8.6, 10.6): box(f'goalpost{gx}', (.06, .06, 1.3), (gx, 5.6, GROUND + .65), gm2, 0); box(f'goalstay{gx}', (.04, .8, .04), (gx, 6.0, GROUND + .02), gm2, 0)
-box('goalbar', (2.06, .06, .06), (9.6, 5.6, GROUND + 1.3), gm2, 0)
+for gx in (8.6, 10.6): box(f'goalpost{gx}', (.06, .06, 1.3), (gx, 5.6, GROUND + .65), gm2, 0); bar(f'goalstay{gx}', (gx, 5.6, GROUND + 1.3), (gx, 6.3, GROUND + .02), .025, .025, gm2)   # leaning back from the top corner, as the Backyard track's goal (the track leaves the goal under one)
+box('goalbar', (2.06, .06, .06), (9.6, 5.6, GROUND + 1.3), gm2, 0); box('goalback', (2.06, .05, .05), (9.6, 6.3, GROUND + .025), gm2, 0)
 bpy.ops.mesh.primitive_uv_sphere_add(radius=.11, location=(7.4, 3.9, GROUND + .11)); bpy.context.object.data.materials.append(mat('fball', (.9, .9, .9), .5)); bpy.ops.object.shade_smooth()
 # a neighbour's house beyond it
 wallm = mat('siding', hexcol('#e6dcc8'), .8); roofm = mat('roof', hexcol('#5d6470'), .7); glassm = mat('pane', (.03, .05, .08), .08)
