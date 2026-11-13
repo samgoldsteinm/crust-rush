@@ -116,7 +116,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .seg button{border:0;background:transparent;border-radius:9px;padding:10px 4px;font-weight:700;font-size:15px;color:var(--muted)}
 .seg button[aria-pressed="true"]{background:var(--sauce);color:var(--cream)}
 .seg-note{margin:6px 2px 0;font-size:13px;color:var(--muted)}
-.seg2{grid-template-columns:repeat(2,1fr)}.seg3{grid-template-columns:repeat(3,1fr)}.seg4{grid-template-columns:repeat(4,1fr)}.seg4 button{font-size:14px}
+.seg2{grid-template-columns:repeat(2,1fr)}.seg3{grid-template-columns:repeat(3,1fr)}.seg4{grid-template-columns:repeat(4,1fr)}.seg5{grid-template-columns:repeat(5,1fr)}.seg5 button{font-size:12px;padding-left:2px;padding-right:2px}.seg4 button{font-size:14px}
 .maps{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:8px}
 .mapc{padding:4px;gap:4px}.mapc b{font-size:12px}.mapc canvas{aspect-ratio:16/10}
 .mapc i{display:block;height:3px;border-radius:2px;margin:0 4px 2px}
