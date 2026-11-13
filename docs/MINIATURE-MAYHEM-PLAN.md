@@ -227,4 +227,10 @@ before the launch and the hairpins, a stronger bloom at the window.
   the rug and the garden.
 - Web v161: oak floorboards from a generated texture pair (first part of item 3). Note: a push that only changes README.md
   does NOT start the PC build (pc.yml ignores it): the rebuild needs a change to a script.
+- Web v162 (Blender-built gaming chair) and v163 (smooth painted walls with a fine stipple, named toy_pt_wall* as before)
+  published. Blender models so far: bed, curtain, rug, chair; pictures: the garden outside, the oak floor.
+  PC: build 5d0f5b6 carries the room as of web v161; a rebuild for v163 follows it (commit prepared in D:\crust-rush\godot,
+  to be pushed only after build 5d0f5b6 has finished, so the two builds cannot replace the download in the wrong order).
+- Next: desk, dresser, nightstand, floor lamp, sneakers, backpack and the small things in Blender; walnut and painted-board
+  textures; background blur on Ultra (item 5); then the other three rooms and the cup.
 
