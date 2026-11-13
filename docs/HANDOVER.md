@@ -22,6 +22,14 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### 2026-11-13 (web v169): motion blur back to its original strength, wind lines instead (looks only, patch 15)
+The user on v168: the rainbow effect on Neon tracks is "perfect", do not change it; the stronger blur was not wanted ("dial the
+motion blur back to how it originally was... add more wind screen effects so it feels more immersive instead of increasing the blur").
+- Blur strength is .07 again with its original falloff (web final pass, PC post.gdshader). Do not raise it again.
+- Wind lines (`wind()` in both shaders), shown only with Settings > Motion blur on: two layers of fine pale lines flowing outward,
+  driven by the same speed value as the blur (`mb`), kept off the middle of the screen, and switched off while the Neon rainbow
+  streaks show (`1 - rbw*spd`), so that effect is exactly as it was.
+
 ### 2026-11-13 (web v168): boost flames, stronger motion blur, rainbow streaks on Neon tracks (looks only, patch 14)
 The user gave reference pictures from another kart racer for the flames: take the idea (a blue jet at the pipe, yellow then orange,
 ragged licks, a glow on the road), never its art, names or characters.
