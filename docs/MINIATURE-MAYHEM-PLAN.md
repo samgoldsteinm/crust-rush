@@ -225,4 +225,6 @@ before the launch and the hairpins, a stronger bloom at the window.
 - Web v160: the view outside the bedroom window is a garden rendered in Blender (item 4 of the realism list). PC build
   eec44e5 is public (PROTO 102, room as web v156); it still needs the export for v160 and a rebuild to get the curtains,
   the rug and the garden.
+- Web v161: oak floorboards from a generated texture pair (first part of item 3). Note: a push that only changes README.md
+  does NOT start the PC build (pc.yml ignores it): the rebuild needs a change to a script.
 
