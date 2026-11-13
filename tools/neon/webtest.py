@@ -2,7 +2,7 @@
 usage: webtest.py            build with the version stamp below
 The stamp is the NEXT version to publish: bump it straight after each release."""
 import glob, os, shutil, socket, subprocess, sys
-VERSION = 'crust-rush-v178'
+VERSION = 'crust-rush-v179'
 R = 'D:/crust-rush'
 SRC, APP, SP = R + '/source/crust-rush.html', R + '/app', R + '/scratch'
 NODE = R + '/tools/node/node.exe'
