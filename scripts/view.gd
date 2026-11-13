@@ -615,7 +615,9 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 		var ed := absf(float(v.get("axR", 10.0))) + 4.0
 		var esd := (randf() - 0.5) * 5.0
 		var eft := clampi(k.f_tier, 0, 3)
-		fx.spawn_a(x - cos(era) * ed - sin(era) * esd, z + 2.2 + randf() * 2.0, y - sin(era) * ed + cos(era) * esd, -cos(era) * (14.0 + randf() * 22.0), 5.0 + randf() * 12.0, -sin(era) * (14.0 + randf() * 22.0), FLAMEC[eft][randi() % 2], 0.45, 0.1, 0.22 + randf() * 0.16, -10.0, 1.5)
+		# they travel with the kart and fall back from it slowly (left standing, they hung in the air as a trail of big dots)
+		var evv := maxf(0.0, k.speed) * 0.86 - (14.0 + randf() * 22.0)
+		fx.spawn_a(x - cos(era) * ed - sin(era) * esd, z + 2.2 + randf() * 2.0, y - sin(era) * ed + cos(era) * esd, cos(era) * evv, 5.0 + randf() * 12.0, sin(era) * evv, FLAMEC[eft][randi() % 2], 0.45, 0.08, 0.2 + randf() * 0.14, -10.0, 0.4)
 	var gt := g.global_transform
 	var rma: float = v["rma"]
 	if k.burn_t > 0.0:
@@ -695,7 +697,10 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 		if on and (k == me and i % 3 == 0 or (k != me and i == 0 and randf() < 0.5 and _near_cam(x, y, 160.0))):
 			for pv in v["fxP"]:
 				var tp2: Vector3 = gt * (pv as Vector3)
-				fx.spawn_a(tp2.x, tp2.y, tp2.z, -cos(k.ma) * 30.0 + (randf() - 0.5) * 6.0, (randf() - 0.2) * 6.0, -sin(k.ma) * 30.0 + (randf() - 0.5) * 6.0, Color("#ff7a1a") if randf() < 0.5 else Color("#ffd36b"), 2.2, 0.4, 0.25, 0.0, 2.0)
+				# the sparks leave the pipes backwards at 30 relative to the kart (web v170): thrown out at 30 over the ground
+				# they were left standing in the air, a trail of dots between you and your kart
+				var bv := maxf(0.0, k.speed) * 0.9 - 30.0
+				fx.spawn_a(tp2.x, tp2.y, tp2.z, cos(k.ma) * bv + (randf() - 0.5) * 6.0, (randf() - 0.2) * 6.0, sin(k.ma) * bv + (randf() - 0.5) * 6.0, Color("#ff7a1a") if randf() < 0.5 else Color("#ffd36b"), 1.5, 0.3, 0.22, 0.0, 0.5)
 		if v["smoke"] != null and i == 0 and randf() < 0.3:
 			var sm: Vector3 = gt * (v["smoke"] as Vector3)
 			fx.spawn_n(sm.x, sm.y, sm.z, (randf() - 0.5) * 4.0, 8.0 + randf() * 6.0, (randf() - 0.5) * 4.0, Color("#9a918a"), 2.5, 9.0, 1.4, -1.0, 1.5)
