@@ -23,7 +23,8 @@ hard = []; soft = []
 # ---- frame (head of the bed at +Y, foot at -Y)
 for sx in (-1, 1):
     for sy in (-1, 1):
-        hard.append(frustum(f'leg{sx}{sy}', .032, .022, LEG, (sx * (W / 2 - .05), sy * (L / 2 - .05), 0), oak))
+        # legs right at the frame's corners: the track runs under the bed and a leg set further in stands on its edge
+        hard.append(frustum(f'leg{sx}{sy}', .032, .022, LEG, (sx * (W / 2 - .005), sy * (L / 2 - .05), 0), oak))
     hard.append(box(f'rail{sx}', (.032, L + .04, RAIL), (sx * (W / 2 + .012), 0, LEG + RAIL / 2 - .01), oak, .006))
 hard.append(box('footrail', (W + .056, .032, RAIL), (0, -L / 2 - .012, LEG + RAIL / 2 - .01), oak, .006))
 hard.append(box('slats', (W, L, .02), (0, 0, TOP - .01), slat, 0))
@@ -63,7 +64,9 @@ soft += cases
 
 # ---- the duvet: a quilt dropped onto the bed; it hangs over both sides and a little over the foot
 DL = L * .74
-dv = grid('duvet', W + .56, DL, 78, 60, (0, -L / 2 + DL / 2 - .13, PZ + .07), duvet)
+# the bed stands with its -X side against the wall (the room turns it half round): there the duvet stops at the mattress edge
+# instead of hanging over, so nothing reaches into the wall
+dv = grid('duvet', W + .30, DL, 66, 60, (.13, -L / 2 + DL / 2 - .13, PZ + .07), duvet)
 round_corners(dv, .2); rumple(dv, .012, .16, 3)
 cloth(dv, mass=.4, tension=14, bending=1.6, self_col=True, dist=.008, quality=10, damp=8)
 # the cloth lands on the mattress, the pillows and ONE smooth block the size of the frame. Colliding with the rails, legs and slats
@@ -81,9 +84,9 @@ active(band); bpy.ops.object.transform_apply(location=True, rotation=True, scale
 # a throw dropped across the foot, a little askew
 bpy.context.scene.frame_set(1)
 collider(dv); collider(band)
-th = grid('throw', W + .42, .58, 70, 22, (.04, -L / 2 + .52, PZ + .17), throw)
+th = grid('throw', W + .20, .58, 62, 22, (.09, -L / 2 + .52, PZ + .17), throw)
 rumple(th, .016, .09, 7)
-th.rotation_euler = (0, 0, math.radians(5)); apply_scale(th)
+th.rotation_euler = (0, 0, math.radians(3)); apply_scale(th)
 cloth(th, mass=.2, tension=10, bending=.25, self_col=True, dist=.006, quality=10, damp=8)
 simulate(60)
 freeze(th); relax(th, .4, 1); solidify(th, .012, 1.0); freeze(th); smooth(th)

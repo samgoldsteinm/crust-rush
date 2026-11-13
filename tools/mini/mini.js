@@ -13,9 +13,8 @@ function toyColAt(def,j){j=((j%N)+N)%N;const f=(curRev?(N-j)%N:j)/N;for(const q 
 /* runs of one colour between two points of the lap: [[from,to,colour],...] */
 function toyRuns(def,j0,j1){const out=[];let a=j0,k=toyColAt(def,j0);for(let j=j0+1;j<=j1;j++){const c=j<j1?toyColAt(def,j):null;if(c!==k){out.push([a,j,k]);a=j;k=c;}}return out;}
 function toyPlasticTex(key){const c=cnv(256,512),g=c.getContext('2d');g.fillStyle=TOYCOL[key||'orange'];g.fillRect(0,0,256,512);
-  /* one smooth piece of plastic: the joint where two pieces clip together, and a white dash along each edge */
+  /* one smooth piece of plastic: the only line is the joint where two pieces clip together (the white dashes are on the walls: toyRails) */
   g.fillStyle='rgba(0,0,0,.4)';g.fillRect(0,0,256,3);g.fillStyle='rgba(255,255,255,.28)';g.fillRect(0,3,256,2);
-  g.fillStyle='rgba(255,255,255,.95)';for(const x of [15,232]){g.beginPath();g.roundRect(x,190,9,150,4);g.fill();}
   for(let i=0;i<500;i++){g.fillStyle='rgba('+(Math.random()<.5?'255,255,255':'0,0,0')+','+(Math.random()*.04)+')';g.fillRect(Math.random()*256,Math.random()*512,1+Math.random()*3,1);}return c;}
 const TOYW=()=>WALLD+4,TOYOR=key=>!key||key==='orange'?TM.mat('toyorange',()=>toySmooth(new THREE.MeshPhysicalMaterial({color:'#ff6a12',roughness:.34,clearcoat:1,clearcoatRoughness:.07,envMapIntensity:1,side:THREE.DoubleSide}))):TM.mat('toyplastic_'+key,()=>toySmooth(new THREE.MeshPhysicalMaterial({color:TOYCOL[key],roughness:.34,clearcoat:1,clearcoatRoughness:.07,envMapIntensity:1,side:THREE.DoubleSide}))),TOYBL=()=>TM.mat('toyblue',()=>toySmooth(new THREE.MeshPhysicalMaterial({color:'#1769d6',roughness:.35,clearcoat:.5,clearcoatRoughness:.25})));
 /* moulded plastic is smooth: it takes none of the fine surface speckle Ultra gives plain materials */
@@ -28,9 +27,15 @@ function toyRailQuad(pos,A,B,s){const quad=(a,b,c,d)=>pos.push(...a,...b,...c,..
   if(s>0){quad(A[0],B[0],B[1],A[1]);quad(A[1],B[1],B[2],A[2]);quad(A[2],B[2],B[3],A[3]);}else{quad(A[0],A[1],B[1],B[0]);quad(A[1],A[2],B[2],B[1]);quad(A[2],A[3],B[3],B[2]);}}
 function toyRailMesh(pos,key){if(!pos.length)return;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.computeVertexNormals();const rm=new THREE.Mesh(g,TOYOR(key));rm.castShadow=true;rm.receiveShadow=true;rm.userData.noLift=true;rm.userData.noMerge=true;/* kept out of the merged scenery, which would swap its glossy plastic for a plain batch material */world.add(rm);}
 /* the raised edges of the main track, left open where a shortcut leaves or joins and where the loop takes over */
-function toyRails(def){const W=TOYW(),by={},H=4.2,TH=3,P=j=>track[((j%N)+N)%N],at=(p,o,h)=>{const x=p.x+p.nx*o,z=p.y+p.ny*o;return [x,(p.ey||0)+h,z];},sec=(p,s)=>[at(p,W*s,0),at(p,W*s,H),at(p,(W+TH)*s,H),at(p,(W+TH)*s,-1.6)];
-  for(const s of [-1,1])for(let j=0;j<N;j++){const p=P(j),q=P(j+1);if(p.cut)continue;const k=toyColAt(def,j),pos=by[k]||(by[k]=[]);if((p.ey||0)>2||!SHORTS.length){toyRailQuad(pos,sec(p,s),sec(q,s),s);continue;}toyRailClip(pos,sec(p,s),sec(q,s),s,toyOffShort);}
-  for(const k in by)toyRailMesh(by[k],k);}
+function toyRails(def){const W=TOYW(),by={},dash=[],sp=T.L/N,H=4.2,TH=3,P=j=>track[((j%N)+N)%N],at=(p,o,h)=>{const x=p.x+p.nx*o,z=p.y+p.ny*o;return [x,(p.ey||0)+h,z];},sec=(p,s)=>[at(p,W*s,0),at(p,W*s,H),at(p,(W+TH)*s,H),at(p,(W+TH)*s,-1.6)];
+  for(const s of [-1,1])for(let j=0;j<N;j++){const p=P(j),q=P(j+1);if(p.cut)continue;const k=toyColAt(def,j),pos=by[k]||(by[k]=[]),open=(p.ey||0)<=2&&SHORTS.length&&(toyOffShort(p.x+p.nx*W*s,p.y+p.ny*W*s)<3||toyOffShort(q.x+q.nx*W*s,q.y+q.ny*W*s)<3);
+    /* a white dash on the wall every 120 units, 36 long: along its top and down its inner face */
+    if(!open&&(j*sp)%120<36){const q4=(a,b,c,d)=>dash.push(...a,...b,...c,...a,...c,...d);q4(at(p,(W+.4)*s,H+.05),at(p,(W+TH-.4)*s,H+.05),at(q,(W+TH-.4)*s,H+.05),at(q,(W+.4)*s,H+.05));q4(at(p,(W-.05)*s,1),at(p,(W-.05)*s,3.5),at(q,(W-.05)*s,3.5),at(q,(W-.05)*s,1));}
+    if((p.ey||0)>2||!SHORTS.length){toyRailQuad(pos,sec(p,s),sec(q,s),s);continue;}toyRailClip(pos,sec(p,s),sec(q,s),s,toyOffShort);}
+  for(const k in by)toyRailMesh(by[k],k);
+  if(dash.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(dash,3));g.computeVertexNormals();
+    const dm=new THREE.Mesh(g,TM.mat('toydash',()=>toySmooth(new THREE.MeshPhysicalMaterial({color:'#f6f5f0',roughness:.4,clearcoat:.6,clearcoatRoughness:.2,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}))));
+    dm.receiveShadow=true;dm.userData.noLift=true;dm.userData.noMerge=true;world.add(dm);}}
 /* raised track: the thin underside of the plastic and blue piers down to whatever is underneath (the floor, a desk, a stack of books) */
 function toyDecks(def){const W=TOYW()+3,inGl=j=>GLIDE&&j>=GLIDE.j0&&j<GLIDE.j1,P=j=>track[((j%N)+N)%N],unds={};
   for(let j=0;j<N;j++){const p=P(j),q=P(j+1);if(inGl(j)||inGl(j+1))continue;const pe=p.ey||0,qe=q.ey||0;if(pe<1.5&&qe<1.5)continue;const c=(t,o,h)=>[t.x+t.nx*o,h,t.y+t.ny*o],kc=toyColAt(def,j),und=unds[kc]||(unds[kc]=[]);
@@ -85,7 +90,8 @@ function toyBedroom(def){const U=TM.U,X=695,Y=833,H=868,M=TM;
   toyPut(M.deskmat(),-110,738,0,deskTop);toyPut(M.monitor({screen:'game'}),-110,792,0,deskTop+.4*U);/* far enough from the wall that its angled screen clears the curtain */toyPut(M.monitor({arm:true,screen:'desk'}),-338,748,.42,deskTop);toyPut(M.keyboard(),-118,712,0,deskTop+.4*U);toyPut(M.mouse(),-22,706,.1,deskTop+.4*U);
   toyPut(M.pc(),150,733,Math.PI/2*0,deskTop);toyPut(M.mug({color:'#2f5d8a'}),-262,712,.6,deskTop);toyPut(M.sodacan(),30,776,0,deskTop);toyPut(M.books(4,5),-428,770,.3,deskTop);toyPut(M.plant({seed:4}),-452,792,0,deskTop).scale.setScalar(.5);
   /* the chair is pushed back to one side, clear of the sunlight that falls across the floor */toyPut(M.chair({turn:-.5}),-345,372,Math.PI+.35);toyPut(M.floorlamp(),460,455,0);
-  toyPut(M.bed(),431.5,-469,Math.PI);toyPut(M.nightstand(),88,-760,Math.PI);toyPut(M.mug(),70,-756,2,52*U);toyPut(M.books(2,9),104,-764,.2,52*U);
+  /* the bed stands clear of the east wall and of the wall behind its headboard (it used to reach into both); its legs are at the frame's corners, just outside the track that runs underneath */
+  toyPut(M.bed(),412,-460,Math.PI);toyPut(M.nightstand(),50,-760,Math.PI);toyPut(M.mug(),32,-756,2,52*U);toyPut(M.books(2,9),66,-764,.2,52*U);
   toyPut(M.dresser(),-617,268,Math.PI/2);TOYF.push([-695,-539,-476,-60,156]);
   /* the start of the climb rests on a stack of books */
   /* placed from the track's real height (not a straight-line guess, which put the top book through the road): the lowest point of the
@@ -98,11 +104,11 @@ function toyBedroom(def){const U=TM.U,X=695,Y=833,H=868,M=TM;
   toyPut(M.bin(),300,770,0);toyPut(M.carton(42,32,22),250,-770,.1);toyPut(M.carton(30,24,18),630,-780,-.2);toyPut(M.plant({seed:15}),-345,-790,0);
   /* the small things left lying about: they show how small the karts are */
   toyPut(M.skateboard(),-60,-470,.5,4.2);toyPut(M.ball(),-300,-560,0);toyPut(M.ball({kind:'tennis'}),-330,470,0);toyPut(M.cube({seed:5}),214,-196,.6);toyPut(M.bricks({seed:3,n:10,spread:8}),-200,236,0);toyPut(M.bricks({seed:8,n:7,spread:7}),-646,-792,0);
-  toyPut(M.pencils({seed:2,n:3}),-300,300,0);toyPut(M.pencils({seed:6,n:2,spread:10}),150,330,0);toyPut(M.backpack(),142,-604,-1.2);toyPut(M.controller(),-292,728,.4,deskTop);toyPut(M.cube({seed:9}),196,706,.3,deskTop);
+  toyPut(M.pencils({seed:2,n:3}),-300,300,0);toyPut(M.pencils({seed:6,n:2,spread:10}),150,330,0);toyPut(M.backpack(),96,-604,-1.2);toyPut(M.controller(),-292,728,.4,deskTop);toyPut(M.cube({seed:9}),196,706,.3,deskTop);
   toyPut(M.setbox(),-130,-722,.15);toyPut(M.trackpiece(),-150,-722,.9,38.4);toyPut(M.trackpiece({l:22}),-248,-664,-.4);
   toyPut(M.poster(50,70,0),-689,268,Math.PI/2,430);toyPut(M.poster(42,60,1),689,-250,-Math.PI/2,500);toyPut(M.poster(42,60,2),689,-430,-Math.PI/2,470);toyPut(M.shelf(),689,250,-Math.PI/2,520);
   /* where furniture keeps the light off the floor */
-  toyShade(168,695,-833,-137,.5);toyShade(-470,224,555,833,.34);toyShade(-695,-539,60,476,.3);toyShade(-415,-275,302,442,.22);toyShade(10,165,-833,-690,.3);}
+  toyShade(139,685,-826,-126,.5);toyShade(-470,224,555,833,.34);toyShade(-695,-539,60,476,.3);toyShade(-415,-275,302,442,.22);toyShade(-28,127,-833,-690,.3);}
 /* ---- the pieces of the racing set ---- */
 /* the loop: the same full loop the other cups have, scaled to the toy track. The road swings left into it and comes out on the right */
 function toyLoops(def){LOOP_DH=5;for(const q of def.tloops||[]){const j=nfj(q[0]),p=track[j];LOOPS.push({j,p:{x:p.x,y:p.y,tx:p.tx,ty:p.ty,nx:p.nx,ny:p.ny,ang:p.ang},g0:groundAt(p.x,p.y)+(p.ey||0),W:WALLD,S:54,lat0:-54,shift:108,full:true,sc:q[1]||LS});}

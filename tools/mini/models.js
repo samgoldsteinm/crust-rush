@@ -155,7 +155,7 @@ M.bed=function(o){o=o||{};
   if(pkReady('bed'))return pk('bed',{oak:[wood('oak','#b98a58','#5a3a1c',{rough:.5}),80],slats:[paint('slats','#8a6a48',.8),80],linen:[fabric('linen','#b9b2a4',{ws:3,ns:.8}),40],sheet:[fabric('sheet','#f2efe8',{ws:2,ns:.35,rough:.9}),60],
     duvet:[fabric('duvet',o.duvet||'#3d5a80',{ws:4,ns:.9}),50],duvet2:[fabric('duvet2','#e8e2d6',{ws:4,ns:.8}),50],pillow:[fabric('pillow','#fbfaf6',{ws:2,ns:.4,rough:.9}),45],cushion:[fabric('cushion','#e07a3a',{ws:5,ns:1}),30],throw:[fabric('throw','#d9a441',{ws:6,ns:1.2}),35]});
   const G=grp(),W=152*U,L=203*U,leg=28*U,rail=9*U,mh=24*U,oak=wood('oak','#b98a58','#5a3a1c',{rough:.5}),top=leg+rail;
-  for(const sx of [-1,1])for(const sz of [-1,1]){const lg=add(G,cyl(3.2*U,2.2*U,leg,14),oak,sx*(W/2-5*U),leg/2,sz*(L/2-5*U));lg.userData.leg=1;}
+  for(const sx of [-1,1])for(const sz of [-1,1]){const lg=add(G,cyl(3.2*U,2.2*U,leg,14),oak,sx*(W/2-.5*U),leg/2,sz*(L/2-5*U));lg.userData.leg=1;}
   for(const sx of [-1,1])add(G,uvw(slab(3.2*U,rail+6*U,L+4*U,.8*U,.4*U,2),80,true),oak,sx*(W/2+1.2*U),leg+(rail+6*U)/2-1*U,0);
   add(G,uvw(slab(W+5.6*U,rail+6*U,3.2*U,.8*U,.4*U,2),80),oak,0,leg+(rail+6*U)/2-1*U,L/2+1.2*U);add(G,box(W,2*U,L),paint('slats','#8a6a48',.8),0,leg+rail-1*U,0);
   /* headboard: an oak frame holding three padded panels */
