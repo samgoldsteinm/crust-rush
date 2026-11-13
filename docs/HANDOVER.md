@@ -24,6 +24,21 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### 2026-11-13 (web v182): Balloon Battle, first playable build (web, off line)
+
+The owner's brief: docs/NEXT-MODES-BRIEF.md. The plan, what is built and what is still owed (the PC port first):
+docs/BALLOON-BATTLE-PLAN.md. Code: `tools/mini/battle.js` (injected with mini.js), `patch19.py` and `patch20.py` (the engine's
+hooks, all behind `BATTLE` or mode `'bb'`), `toyBattle` in mini.js, `tools/blender/battle.py`, `tools/mini/t_battle.py`.
+
+| What broke while building it | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| Karts left the table over its rim | A kart in the air, or on the raised route, is above a low rim | The table stands in an alcove: tall walls on three sides; over the open front edge is a fall, which costs a balloon | A wall that must hold everybody has to be taller than anything a kart can stand on or jump from |
+| CPU drivers stood still for a minute | The test for "stuck" read the speedometer; a kart sliding along a wall or shunting has speed | Stuck is judged by where the kart is: under 14 units in a second, four seconds running, and it is set down on open table | Judge stuck by position |
+| A "Lap 2" banner in a battle | Driving round the middle of the arena passes the ring of track points the engine still keeps | Lap banners are off in a battle | New read-outs tied to the lap: check them in a battle |
+| Re-storing a model changed the built game | See the entry below (`tables._num`) | | |
+
+Online version: unchanged by this (108). Battle is off line only; hosting or joining a friends' race leaves the mode.
+
 ### 2026-11-13 (source only, after web v181): the assets moved out of the source file
 
 The source file had reached 73 MB (GitHub refuses a file over 100 MB) because every model, texture and picture was written

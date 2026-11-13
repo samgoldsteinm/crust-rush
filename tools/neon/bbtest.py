@@ -12,6 +12,8 @@ async def main():
         pg.on('console', lambda m: errs.append('console:'+m.text[:300]) if m.type == 'error' and 'GPU' not in m.text and 'WebGL' not in m.text else None)
         await pg.goto('http://localhost:8771/webcopy6/index.html')
         await pg.wait_for_function("document.getElementById('menu')&&!document.getElementById('menu').hidden", timeout=600000)
+        if len(sys.argv) > 2:                                # the menu with the mode chosen, as a player gets there
+            await pg.click('#modeSeg button[data-m="bb"]'); await pg.wait_for_timeout(2500); await pg.screenshot(path=f'{SP}/bb_menu.png')
         await pg.evaluate("(q)=>__ev(`qKey='${q}';applyQuality();mode='bb';introSkip=true;goRace(MAPS.findIndex(m=>m.battle))`)", os.environ.get('Q', 'ultra'))
         await pg.wait_for_function("document.getElementById('raceLd').hidden", timeout=900000)
         for i in range(400):
@@ -33,6 +35,7 @@ async def main():
         for i in range(SECS // 20):
             r = json.loads(await pg.evaluate("__ev(`__ff(20)`)")); print(r, flush=True)
             if r['over']: break
+        if len(sys.argv) > 2: await pg.wait_for_timeout(5000); await pg.screenshot(path=f'{SP}/bb_res.png')   # the results
         print('errors', errs[:8])
         await b.close()
 asyncio.run(main())

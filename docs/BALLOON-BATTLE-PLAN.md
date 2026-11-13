@@ -73,3 +73,22 @@ the work. Update it as things are built.
 - Not done: step 3 (projectiles still ride the dummy ring: `pepWall`, `homeStep`, `railSync`, `trackAt` uses in `itemsProj` and
   the older item code need a battle branch; `battleProjWall` is ready for them), the real arena models, results polish,
   pictures, tests, the PC port, friends' races.
+- 2026-11-13, web v182: PLAYABLE on the web, off line against seven CPU drivers. Done: the arena as a height field with the
+  one-step wall rule; the prep table in a tiled alcove (walls on three sides, the open front has only the table's raised
+  edge: go over it and you lose a balloon and are set back on the table); the arena's models built in Blender to the
+  collision shapes (`tools/blender/battle.py`: bbtable, bbbins, bbboxes, bbblock, bbprops; `bMats` / `bPk` in models.js);
+  balloons, hits, score, clock, respawn, results by points; the items' battle behaviour (patch20.py: free flight, bounce
+  off walls, straight homing, levels, the freezer by distance, the pizza cutter at the leader, no drivers' specials);
+  CPU drivers (targets, feelers, ramps between levels, unsticking); the menu's fourth mode and its note; the loading
+  screen and results name the mode; lap read-outs, the minimap and the wrong-way sign are hidden; friends' races leave the
+  mode (`bbNoNet`).
+- Tests: `py.cmd tools/neon/bbtest.py 185 [shots]` runs a whole round fast and prints scores, balloons, the longest any
+  kart stood still, bad numbers and karts off the table; with `shots` it photographs the menu, the round and the results.
+  Last run: about 15 to 25 pops a round, nobody stuck over 4 s, no errors.
+- NOT done, in this order: (1) a play-test by the owner (feel, arena size, three minutes, five balloons, how hard the CPU
+  drivers are); (2) the PC port: battle.js into GDScript beside race.gd's `ai_input`, `use_item`, `spin_out`, the arena's
+  shapes exported with the track (maps.yml index 24), menu and HUD; (3) friends' races (host decides hits and scores; a
+  new online version); (4) last kart standing as a second rule set; (5) polish: a picture for the loading screen, the
+  results' "Race again" wording, a sound for a pop, flour and sauce on the table, something on the walls (a shelf, an
+  order rail), CPU drivers that use the raised route on purpose.
+

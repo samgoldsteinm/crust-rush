@@ -831,7 +831,7 @@ body.pad .ph{display:grid}.ph.a{background:#3fa641}.ph.b{background:#d93a2f}.ph.
     <section class="step st-home" data-step="home">
       <div class="home-brand"><h1 class="logo">Crust Rush</h1><p class="tag">Kart racing on giant pizzas. Pick a mode, choose your driver, build your ride and drift your way to the trophy.</p><button id="tipsBtn" class="tips-cta" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16a8 8 0 1 1 16 0" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M12 16l4.5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="16" r="1.8" fill="currentColor"/></svg><span>Best setup for your device</span><i class="tips-dot" id="tipsDot" hidden></i></button></div>
       <div class="home-panel">
-        <section><h2 class="label">Mode</h2><div class="seg seg3" id="modeSeg"><button data-m="gp">Grand Prix</button><button data-m="single">Single race</button><button data-m="lss">Last Slice</button><button data-m="bb" hidden>Balloon Battle</button></div><p class="seg-note" id="modeNote" hidden></p></section>
+        <section><h2 class="label">Mode</h2><div class="seg seg4" id="modeSeg"><button data-m="gp">Grand Prix</button><button data-m="single">Single race</button><button data-m="lss">Last Slice</button><button data-m="bb">Balloon Battle</button></div><p class="seg-note" id="modeNote" hidden></p></section>
         <section><h2 class="label">Speed class</h2><div class="seg seg4" id="clsSeg"><button data-c="small">50cc</button><button data-c="medium">100cc</button><button data-c="large">200cc</button><button data-c="reverse">Reverse</button></div><p class="seg-note" id="clsNote"></p></section>
         <div class="m-tools"><button id="howBtn" class="iconbtn" type="button" aria-label="How to play"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M9.3 9.2a2.8 2.8 0 1 1 3.9 2.6c-.8.4-1.2 1-1.2 1.9v.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.4" r="1.3" fill="currentColor"/></svg><span>How to play</span></button><button id="recBtn" class="iconbtn" type="button" aria-label="Records"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v4.5a5 5 0 0 1-10 0z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M7 5H4a3 3 0 0 0 3 4M17 5h3a3 3 0 0 1-3 4M12 12.5V17M8 20.5h8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>Records</span></button><button id="achBtn" class="iconbtn" type="button" aria-label="Achievements"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2.5h8l-1.6 6.2h-4.8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="15" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="m12 12 1 2 2.2.3-1.6 1.5.4 2.2-2-1.1-2 1.1.4-2.2-1.6-1.5L11 14z" fill="currentColor"/></svg><span>Awards</span></button><button id="setBtn" class="iconbtn" type="button" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8zm8.3 4.9.1-1.5-.1-1.5 2-1.6-2-3.4-2.4 1a8 8 0 0 0-2.6-1.5L14.9 2h-3.8l-.4 2.5A8 8 0 0 0 8.1 6l-2.4-1-2 3.4 2 1.6-.1 1.5.1 1.5-2 1.6 2 3.4 2.4-1a8 8 0 0 0 2.6 1.5l.4 2.5h3.8l.4-2.5a8 8 0 0 0 2.6-1.5l2.4 1 2-3.4z" fill="currentColor"/></svg><span>Settings</span></button></div>
         <button id="toDriver" class="cta" type="button">Choose driver <span aria-hidden="true">›</span></button>
@@ -4860,7 +4860,7 @@ function sPk(name,cut,rough,tex,tint){tex=tex||name;/* tex: the pictures' name w
 M.sPk=sPk;
 function yPk(name){return pkReady(name)?pk(name,yMats()):null;}
 /* ---- the Balloon Battle arena's models (tools/blender/battle.py), built in the arena's own place: put each at (0,0). bPk(name) or null ---- */
-const bMats=()=>({bsteel:[mat('bbsteel',()=>{const m=std({color:'#c2c6ca',roughness:.38,metalness:.25,envMapIntensity:.9});m.userData.noHQ=true;return m;}),60],
+const bMats=()=>({bsteel:[mat('bbsteel',()=>{const m=std({color:'#a4a9af',roughness:.38,metalness:.25,envMapIntensity:.9});m.userData.noHQ=true;return m;}),60],
   bcard:[paint('bbcard','#c79a5e',.85),40],bcardin:[paint('bbcardin','#e3d3b4',.9),40],bwood:[woodTex('ash',.5,()=>wood('oak','#b98a58','#5a3a1c',{rough:.5})),80],bwoodd:[woodTex('walnut',.4,()=>wood('walnut','#6b4428','#2c1608',{rough:.42})),60],
   bplate:[mat('bbplate',()=>phy({color:'#f4f1ea',roughness:.2,clearcoat:.6,clearcoatRoughness:.2,envMapIntensity:.7})),40],bcheese:[paint('bbcheese','#f1e8c8',.6),40],
   bsauce:[mat('bbsauce',()=>phy({color:'#b3261c',roughness:.22,clearcoat:.5,envMapIntensity:.7})),40],bpep:[paint('bbpep','#a8321e',.5),40],bolive:[mat('bbolive',()=>phy({color:'#1c1a17',roughness:.25,clearcoat:.6,envMapIntensity:.8})),40],
@@ -5231,10 +5231,10 @@ function buildToy(def){TOYF=[];TOYP=[];TOYB=[];if(def.look==='bedroom')toyBedroo
 /* ---- Prep Table Showdown: the Balloon Battle arena (the shapes that are its floor and walls: bbArena in battle.js) ----
    A pizzeria's steel prep table, at the toy scale: the table top is the floor, the kitchen's own floor is 90 cm below. */
 function toyBattle(def){const U=TM.U,M=TM;battleSetup(def);
-  renderer.toneMappingExposure=.98;hemi.color.set('#dfe6f0');hemi.groundColor.set('#b9a892');hemi.intensity=.62;sun.color.set('#fff0d8');sun.intensity=2.2;sunDir.set(-.25,.82,-.5).normalize();rimL.intensity=.16;rimL.color.set('#cfe0ff');
+  renderer.toneMappingExposure=.98;hemi.color.set('#dfe6f0');hemi.groundColor.set('#b9a892');hemi.intensity=.5;sun.color.set('#fff0d8');sun.intensity=1.8;sunDir.set(-.25,.82,-.5).normalize();rimL.intensity=.16;rimL.color.set('#cfe0ff');
   scene.fog=new THREE.Fog('#d8cfc0',6000,30000);scene.background=new THREE.Color('#d9d2c6');Object.assign(POST.grade,{sat:1.04,con:1.05,tint:[1.01,1,.985],vig:.16,bloom:.2,thr:.97});TOYENV=null;
   const add=(g,m,x,y,z,cast)=>{const o=new THREE.Mesh(g,m);o.position.set(x,y,z);o.castShadow=cast!==false;o.receiveShadow=true;o.userData.noLift=true;world.add(o);return o;},
-    steel=M.mat('bbsteel',()=>{const m=new THREE.MeshStandardMaterial({color:'#c2c6ca',roughness:.38,metalness:.25,envMapIntensity:.9});m.userData.noHQ=true;return m;}),
+    steel=M.mat('bbsteel',()=>{const m=new THREE.MeshStandardMaterial({color:'#a4a9af',roughness:.38,metalness:.25,envMapIntensity:.9});m.userData.noHQ=true;return m;}),
     K={rim:steel,bin:M.mat('bbbin',()=>new THREE.MeshStandardMaterial({color:'#aeb3b8',roughness:.3,metalness:.3,envMapIntensity:.9})),lid:M.paint('bbcard','#c79a5e',.85),boxes:M.paint('bbcard','#c79a5e',.85),board:M.paint('bbwood','#b98a58',.6),bread:M.paint('bbwood','#b98a58',.6),
       mill:M.paint('bbmill','#5a3a22',.45),pin:M.paint('bbpin','#d9b98a',.5),plates:M.paint('bbplate','#f4f1ea',.3)};
   /* the table top, and the kitchen floor far below it */
@@ -5333,8 +5333,9 @@ function battleAI(k,dt){const A=k.bbA||(k.bbA={t:0,tx:0,tz:0,stuck:0,rev:0,fire:
   if(f0)d=fl&&!fr?1.2:fr&&!fl?-1.2:(d>=0?1.2:-1.2);else if(fl)d+=.5;else if(fr)d-=.5;
   o.steer=clamp(d*2.2,-1,1);
   /* stuck against something: back off, turning the other way */
-  if(Math.abs(k.speed)<14&&k.spin<=0){A.stuck+=dt;A.jam=(A.jam||0)+dt;}else{A.stuck=Math.max(0,A.stuck-dt*2);if(Math.abs(k.speed)>60)A.jam=0;}if(A.stuck>.9){A.rev=.9;A.stuck=0;}
-  if(A.jam>4.5){A.jam=0;k.bbOut=.01;return o;}/* wedged for good: set down again on open table, nothing lost */
+  if(Math.abs(k.speed)<14&&k.spin<=0)A.stuck+=dt;else A.stuck=Math.max(0,A.stuck-dt*2);if(A.stuck>.9){A.rev=.9;A.stuck=0;}
+  /* going nowhere for four seconds, whatever the speedometer says (sliding along a wall, shunting back and forth): set down again on open table, nothing lost */
+  A.pt=(A.pt||0)+dt;if(A.pt>=1){A.pt=0;if(A.px!=null&&Math.hypot(k.x-A.px,k.y-A.pz)<14&&k.spin<=0)A.jam=(A.jam||0)+1;else A.jam=0;A.px=k.x;A.pz=k.y;if(A.jam>=4){A.jam=0;A.px=null;k.bbOut=.01;return o;}}
   if(A.rev>0){A.rev-=dt;o.brake=true;o.steer=-o.steer;}
   /* use what it holds */
   A.fire-=dt;if(k.item&&A.fire<=0&&k.spin<=0&&!(k.roll>0)){const it=k.item;let go=false,back=false;
@@ -5344,7 +5345,7 @@ function battleAI(k,dt){const A=k.bbA||(k.bbA={t:0,tx:0,tz:0,stuck:0,rev:0,fire:
     if(go){o.use=true;o.back=back;A.fire=.8+((k.bbI*13)%5)*.2;}}
   return o;}
 /* ---- balloons: a bunch tied to the back of each kart, one bob apart; a popped one bursts ---- */
-function bbBalloons(){if(BB.grp)scene.remove(BB.grp);BB.grp=new THREE.Group();scene.add(BB.grp);const g=new THREE.SphereGeometry(2.2,14,10);g.scale(1,1.22,1);const sg=new THREE.CylinderGeometry(.07,.07,1,4);sg.translate(0,.5,0);
+function bbBalloons(){if(BB.grp)scene.remove(BB.grp);BB.grp=new THREE.Group();scene.add(BB.grp);const g=new THREE.SphereGeometry(1.9,14,10);g.scale(1,1.22,1);const sg=new THREE.CylinderGeometry(.07,.07,1,4);sg.translate(0,.5,0);
   const sm=new THREE.MeshBasicMaterial({color:'#f4f1ea'});for(const k of karts){const c=BB_COL[k.bbI%8],m=new THREE.MeshStandardMaterial({color:c,roughness:.25,metalness:0,envMapIntensity:.9}),G=new THREE.Group();G.userData.b=[];
     for(let i=0;i<BB_START;i++){const b=new THREE.Mesh(g,m),s=new THREE.Mesh(sg,sm);b.castShadow=true;G.add(b);G.add(s);G.userData.b.push({b,s,ph:i*1.9+k.bbI});}k.bbG=G;BB.grp.add(G);}}
 function bbPop(k){const y=(k.wy||0)+16;burst(k.x,y,k.y,22,[BB_COL[k.bbI%8],'#ffffff','#ffe066'],80,2.6);spawnRing(k.x,y,k.y,BB_COL[k.bbI%8],18,.3,false);if(near(k)>0&&SFX.bump)SFX.bump(near(k)*.8);}
@@ -5364,7 +5365,7 @@ function battleSetup(def){BB.shapes=bbArena();BB.spawn=[[-300,-90],[300,60],[-12
   BB.ramps=[{foot:[-346,184],top:[-205,184]},{foot:[307,-184],top:[307,-48]}];
   for(const [x,z] of [[-90,-40],[150,60],[-10,-238],[-200,-238],[200,-238],[0,192],[306,120],[-320,-120]])boxes.push({x,y:z,r:0,sv:boxes.length*3,gy:battleG(x,z),dbl:false});}
 /* on every map load: leaving the arena takes its balloons and its scoreboard away; the HUD's lap and place read-outs are hidden in a battle */
-function battleLoad(){if(!document.getElementById('bbCss')){const st=document.createElement('style');st.id='bbCss';st.textContent='body.battle #posNum,body.battle #posSuf,body.battle #tbProg,body.battle #hudLap,body.battle #lapBars,body.battle #hudPB,body.battle #hudTime,body.battle #mini,body.battle #wrong,body.battle #abilBtn{display:none!important}';document.head.appendChild(st);}
+function battleLoad(){if(!document.getElementById('bbCss')){const st=document.createElement('style');st.id='bbCss';st.textContent='body.battle #posNum,body.battle #posSuf,body.battle #tbProg,body.battle #hudLap,body.battle #lapBars,body.battle #hudPB,body.battle #hudTime,body.battle #mini,body.battle #wrong,body.battle #abilBtn,body.battle .lapbox{display:none!important}';document.head.appendChild(st);}
   document.body.classList.toggle('battle',BATTLE);if(!BATTLE){if(BB.grp){scene.remove(BB.grp);BB.grp=null;}if(BB.el)BB.el.hidden=true;BB.shapes=[];}}
 /* ---- thrown things in the arena (the engine's hooks: patch20.py) ----
    p.bh is the level a thrown thing is on: it follows the ground down a drop and up a ramp, and anything higher than a step is a wall */
@@ -5377,6 +5378,8 @@ function bbHome(p,tg,dt,want,tr){let v=Math.hypot(p.vx,p.vy)||want;v+=(want-v)*M
 function bbTarget(k,back){let best=null,bs=1e9;for(const o of karts){if(o===k||o.bbOut>0||!(o.bal>0))continue;const d=Math.hypot(o.x-k.x,o.y-k.y),a=Math.abs(angDiff(Math.atan2(o.y-k.y,o.x-k.x),k.a+(back?Math.PI:0))),sc=d*(a<.9?1:2.5)+(Math.abs((o.wy||0)-(k.wy||0))>14?400:0);if(sc<bs){bs=sc;best=o;}}return best;}
 /* the pizza cutter's mark: whoever is winning (not the thrower) */
 function bbLeader(k){for(const o of bbRank())if(o!==k&&!(o.bbOut>0))return o;return null;}
+/* Balloon Battle is played off line for now: starting or joining a friends' race leaves the mode and its arena */
+function bbNoNet(){if(mode!=='bb')return;mode='single';try{store.set('crust-mode',mode);}catch(e){}if(MAPS[mapIdx].battle){mapIdx=0;loadMap(0,false);resetRace(true);}try{refreshMenu();}catch(e){}}
 /*MINI-END*/
 /*NEON-BEGIN*/
 /* ================= NEON CUP: tracks laid out by hand (straights and arcs, with a road height for each direction), with their own
@@ -7924,7 +7927,7 @@ function hud(dt,time){try{tdTick();}catch(e){}if(BENCH.pending){if(state==='intr
   if(!player)return;hud.pf=(hud.pf||0)+1;if(hud.pf%60===1){const el=$('tbProg');hud.pw=el?Math.max(0,el.clientWidth-16):0;}if(hud.pf%3===0)for(const k of karts){if(!k.pm)continue;const f=Math.max(0,Math.min(1,(k.finished?LAPS*N:k.prog)/(LAPS*N)));const v=(f*(hud.pw||0)).toFixed(0);if(k.pm._v!==v){k.pm._v=v;k.pm.style.transform='translateX('+v+'px)';}}
   const pos=standCache.indexOf(player)+1;if(pos&&String(pos)!==lastPos){lastPos=String(pos);posNum.textContent=pos;posSuf.textContent=suf(pos);}
   const lap=clamp(Math.floor(Math.max(0,player.prog)/N)+1,1,LAPS);const ls=lap+'/'+LAPS;if(ls!==lastLap){lastLap=ls;hudLap.textContent=ls;lapBars.forEach((b,i)=>b.classList.toggle('on',i<lap));}
-  if(state==='race'&&!player.finished&&lap>lapShown){lapShown=lap;const sp=recLap(lap);showBanner((lap===LAPS?'Final lap':'Lap '+lap)+(sp?' · '+sp:''),sp?2:1.4,true);SFX.lap(lap===LAPS);if(lap===LAPS)try{musFinalLap();}catch(e){}}
+  if(state==='race'&&!BATTLE&&!player.finished&&lap>lapShown){lapShown=lap;const sp=recLap(lap);showBanner((lap===LAPS?'Final lap':'Lap '+lap)+(sp?' · '+sp:''),sp?2:1.4,true);SFX.lap(lap===LAPS);if(lap===LAPS)try{musFinalLap();}catch(e){}}
   const fastUi=time-(hud.ut||0)>.032||player.finished;if(fastUi)hud.ut=time;
   const ts=fmt(player.finished?player.finishTime:raceTime);if(ts!==lastTimeStr&&fastUi){lastTimeStr=ts;hudTime.textContent=ts;}
   const sv=Math.round(Math.max(0,player.speed)*(CFG.units==='kmh'?1.062:.66));if(sv!==lastSpd&&(fastUi||sv===0)){lastSpd=sv;spd.textContent=sv;}if(fastUi){const ga=Math.min(100,Math.max(0,player.speed)/(BASE_MAX*1.58)*100).toFixed(0);if(ga!==hud.ga){hud.ga=ga;gVal.style.strokeDasharray=ga+' 100';}}
@@ -7957,7 +7960,7 @@ const paint=()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
 let raceLoading=false;
 async function goRace(mi){if(raceLoading)return;if(NET.role&&!NET.fromNet){if(NET.role==='host'&&NET.conns.some(c=>c.open)){netHostPrepare(mi);return;}if(NET.role==='guest'){netShowLobby();return;}}NET.fromNet=false;if(!NET.role||!NET.conns.some(c=>c.open))NET.cfg=null;raceLoading=true;const rev=!!CLASSES[clsKey].rev,L=$('raceLd'),bar=$('rlBar'),txt=$('rlTxt'),m=MAPS[mi];try{MUS.nextMap=mi;}catch(e){}
   const step=async(p,t)=>{bar.style.width=p+'%';if(t)txt.textContent=t;await paint();};
-  try{$('rlBg').style.backgroundImage=MAP_SHOTS[m.id]?'url('+shotURL(m.id,'h')+')':'';$('rlName').textContent=m.name;$('rlSub').textContent=(gp?CUPS[gp.cup].name+' · race '+(gp.race+1)+' of 4'+(CLASSES[clsKey].rev?' · reverse':''):mode==='lss'?'Last Slice Standing':'Single race')+' · '+CLASSES[clsKey].label;
+  try{$('rlBg').style.backgroundImage=MAP_SHOTS[m.id]?'url('+shotURL(m.id,'h')+')':'';$('rlName').textContent=m.name;$('rlSub').textContent=(gp?CUPS[gp.cup].name+' · race '+(gp.race+1)+' of 4'+(CLASSES[clsKey].rev?' · reverse':''):mode==='bb'?'Balloon Battle':mode==='lss'?'Last Slice Standing':'Single race')+' · '+CLASSES[clsKey].label;
     L.classList.remove('out');L.hidden=false;state='loading';await step(8,'Rolling out the dough…');
     if(m.toy&&!NET.role&&typeof PROP_PACKS!=='undefined'&&(mi!==mapIdx||rev!==curRev)){/* a toy room's models are built in Blender and arrive after the menu: hold the loading screen for them (10 s at most; never on line) */
       const late=()=>Object.keys(PROP_PACKS).some(k=>k.startsWith('toy_')&&k.endsWith('_hq')&&!(PROP_PACKS[k].b||PROP_PACKS[k].d)),t0=performance.now();
@@ -8271,7 +8274,7 @@ $('howBtn').onclick=()=>{menu.hidden=true;howOv.hidden=false;howOv.scrollTop=0;}
 addEventListener('keydown',e=>{if(e.code!=='Escape')return;if(!setOv.hidden)closeSettings();else if(!howOv.hidden)$('howDone').onclick();else if(!$('tipsOv').hidden)$('tipsDone').onclick();else if(!$('recOv').hidden)$('recDone').onclick();else if(!$('achOv').hidden)closeAch();else if(garageOpen)closeGarage();else if(state==='race'||state==='countdown'||state==='paused')togglePause();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&(state==='race'||state==='countdown'))togglePause();});
 document.querySelectorAll('#clsSeg button').forEach(b=>b.onclick=()=>{clsKey=b.dataset.c;store.set('crust-cls',clsKey);refreshMenu();});
-document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{mode=b.dataset.m;store.set('crust-mode',mode);{const bi=MAPS.findIndex(m=>m.battle),want=mode==='bb'?bi:mapIdx===bi?0:mapIdx;if(want!==mapIdx&&mode!=='gp'){mapIdx=want;loadMap(want,false);resetRace(true);}}if(mode==='gp'){const t=CUP_TRACKS[cupIdx][0];if(t!==mapIdx){mapIdx=t;loadMap(t,false);resetRace(true);}}refreshMenu();});
+document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{if(b.dataset.m==='bb'&&NET.role)return;/* Balloon Battle is off line only for now */mode=b.dataset.m;store.set('crust-mode',mode);{const bi=MAPS.findIndex(m=>m.battle),want=mode==='bb'?bi:mapIdx===bi?0:mapIdx;if(want!==mapIdx&&mode!=='gp'){mapIdx=want;loadMap(want,false);resetRace(true);}}if(mode==='gp'){const t=CUP_TRACKS[cupIdx][0];if(t!==mapIdx){mapIdx=t;loadMap(t,false);resetRace(true);}}refreshMenu();});
 document.querySelectorAll('#qual button').forEach(b=>b.onclick=()=>{qKey=b.dataset.q;store.set('crust-q',qKey);applyQuality();refreshMenu();});
 function applyQuality(){const q=QUAL[qKey];LIVQ.value=q.hqAll?2:qKey==='sharp'?1:0;{sunBox();rimL.intensity=q.hqAll?.28:0;}renderer.shadowMap.type=q.soft?THREE.PCFSoftShadowMap:THREE.PCFShadowMap;sun.shadow.mapSize.set(q.sm,q.sm);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
   /* shaders only need rebuilding when something baked into them changes (the shadow filter, the surface-detail level); every other
@@ -9176,7 +9179,7 @@ function rtcOnHost(ch,d){if(!window.RTCPeerConnection||!d.sdp||d.sdp.type!=='off
     pc.setRemoteDescription(d.sdp).then(()=>pc.createAnswer()).then(a=>pc.setLocalDescription(a)).then(()=>rtcGather(pc,ice.length>3?4000:2500)).then(()=>{NET.natMe=rtcNat(pc);if(ch.pc===pc)ch.send({t:'rtc',id:d.id,nat:NET.natMe,sdp:pc.localDescription.toJSON()});}).catch(()=>{});}catch(e){}});}
 const netFast=()=>NET.conns.length>0&&NET.conns.every(c=>!c.open||c.direct);
 /* ---------- hosting ---------- */
-async function netHost(){rtcIce();netReset();NET.role='host';NET.me=0;const R=new NetRelay();NET.relay=R;
+async function netHost(){bbNoNet();rtcIce();netReset();NET.role='host';NET.me=0;const R=new NetRelay();NET.relay=R;
   await R.start();if(NET.relay!==R)throw new Error('Cancelled.');
   let code='';for(let i=0;i<4;i++)code+=NET_ALPHA[Math.floor(Math.random()*NET_ALPHA.length)];NET.code=code;R.sub(NET_TOP+'r/'+code);
   NET.pl=[{id:0,name:netName(),ready:true,ri:selected,build:playerBuild}];let nextId=1;
@@ -9222,7 +9225,7 @@ function netMaybeGo(){if(NET.role!=='host'||state!=='netwait')return;const open=
   netAll({t:'go'});netGo();}
 /* ---------- joining ---------- */
 async function netJoin(code){rtcIce();code=String(code||'').trim().toUpperCase();if(code.length<4)throw new Error('Enter the 4-letter room code.');
-  netReset();NET.role='guest';const R=new NetRelay();NET.relay=R;await R.start();if(NET.relay!==R)throw new Error('Cancelled.');
+  bbNoNet();netReset();NET.role='guest';const R=new NetRelay();NET.relay=R;await R.start();if(NET.relay!==R)throw new Error('Cancelled.');
   let c;try{c=await R.knock(NET_TOP+'r/'+code,40000);}catch(e){if(e.message==='notfound')throw new Error('Could not find room '+code+'. Check the code, and make sure the host still has the room screen open. If they switched apps, ask them to come back to the game, then try again.');throw e;}
   if(NET.relay!==R)throw new Error('Cancelled.');
   NET.conns=[c];NET.code=code;c.on('data',netOnGuest);c.on('close',()=>netLost(c.why||'Lost the connection to the host.'));

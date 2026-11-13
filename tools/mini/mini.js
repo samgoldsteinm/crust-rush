@@ -356,10 +356,10 @@ function buildToy(def){TOYF=[];TOYP=[];TOYB=[];if(def.look==='bedroom')toyBedroo
 /* ---- Prep Table Showdown: the Balloon Battle arena (the shapes that are its floor and walls: bbArena in battle.js) ----
    A pizzeria's steel prep table, at the toy scale: the table top is the floor, the kitchen's own floor is 90 cm below. */
 function toyBattle(def){const U=TM.U,M=TM;battleSetup(def);
-  renderer.toneMappingExposure=.98;hemi.color.set('#dfe6f0');hemi.groundColor.set('#b9a892');hemi.intensity=.62;sun.color.set('#fff0d8');sun.intensity=2.2;sunDir.set(-.25,.82,-.5).normalize();rimL.intensity=.16;rimL.color.set('#cfe0ff');
+  renderer.toneMappingExposure=.98;hemi.color.set('#dfe6f0');hemi.groundColor.set('#b9a892');hemi.intensity=.5;sun.color.set('#fff0d8');sun.intensity=1.8;sunDir.set(-.25,.82,-.5).normalize();rimL.intensity=.16;rimL.color.set('#cfe0ff');
   scene.fog=new THREE.Fog('#d8cfc0',6000,30000);scene.background=new THREE.Color('#d9d2c6');Object.assign(POST.grade,{sat:1.04,con:1.05,tint:[1.01,1,.985],vig:.16,bloom:.2,thr:.97});TOYENV=null;
   const add=(g,m,x,y,z,cast)=>{const o=new THREE.Mesh(g,m);o.position.set(x,y,z);o.castShadow=cast!==false;o.receiveShadow=true;o.userData.noLift=true;world.add(o);return o;},
-    steel=M.mat('bbsteel',()=>{const m=new THREE.MeshStandardMaterial({color:'#c2c6ca',roughness:.38,metalness:.25,envMapIntensity:.9});m.userData.noHQ=true;return m;}),
+    steel=M.mat('bbsteel',()=>{const m=new THREE.MeshStandardMaterial({color:'#a4a9af',roughness:.38,metalness:.25,envMapIntensity:.9});m.userData.noHQ=true;return m;}),
     K={rim:steel,bin:M.mat('bbbin',()=>new THREE.MeshStandardMaterial({color:'#aeb3b8',roughness:.3,metalness:.3,envMapIntensity:.9})),lid:M.paint('bbcard','#c79a5e',.85),boxes:M.paint('bbcard','#c79a5e',.85),board:M.paint('bbwood','#b98a58',.6),bread:M.paint('bbwood','#b98a58',.6),
       mill:M.paint('bbmill','#5a3a22',.45),pin:M.paint('bbpin','#d9b98a',.5),plates:M.paint('bbplate','#f4f1ea',.3)};
   /* the table top, and the kitchen floor far below it */

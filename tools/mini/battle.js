@@ -78,8 +78,9 @@ function battleAI(k,dt){const A=k.bbA||(k.bbA={t:0,tx:0,tz:0,stuck:0,rev:0,fire:
   if(f0)d=fl&&!fr?1.2:fr&&!fl?-1.2:(d>=0?1.2:-1.2);else if(fl)d+=.5;else if(fr)d-=.5;
   o.steer=clamp(d*2.2,-1,1);
   /* stuck against something: back off, turning the other way */
-  if(Math.abs(k.speed)<14&&k.spin<=0){A.stuck+=dt;A.jam=(A.jam||0)+dt;}else{A.stuck=Math.max(0,A.stuck-dt*2);if(Math.abs(k.speed)>60)A.jam=0;}if(A.stuck>.9){A.rev=.9;A.stuck=0;}
-  if(A.jam>4.5){A.jam=0;k.bbOut=.01;return o;}/* wedged for good: set down again on open table, nothing lost */
+  if(Math.abs(k.speed)<14&&k.spin<=0)A.stuck+=dt;else A.stuck=Math.max(0,A.stuck-dt*2);if(A.stuck>.9){A.rev=.9;A.stuck=0;}
+  /* going nowhere for four seconds, whatever the speedometer says (sliding along a wall, shunting back and forth): set down again on open table, nothing lost */
+  A.pt=(A.pt||0)+dt;if(A.pt>=1){A.pt=0;if(A.px!=null&&Math.hypot(k.x-A.px,k.y-A.pz)<14&&k.spin<=0)A.jam=(A.jam||0)+1;else A.jam=0;A.px=k.x;A.pz=k.y;if(A.jam>=4){A.jam=0;A.px=null;k.bbOut=.01;return o;}}
   if(A.rev>0){A.rev-=dt;o.brake=true;o.steer=-o.steer;}
   /* use what it holds */
   A.fire-=dt;if(k.item&&A.fire<=0&&k.spin<=0&&!(k.roll>0)){const it=k.item;let go=false,back=false;
@@ -89,7 +90,7 @@ function battleAI(k,dt){const A=k.bbA||(k.bbA={t:0,tx:0,tz:0,stuck:0,rev:0,fire:
     if(go){o.use=true;o.back=back;A.fire=.8+((k.bbI*13)%5)*.2;}}
   return o;}
 /* ---- balloons: a bunch tied to the back of each kart, one bob apart; a popped one bursts ---- */
-function bbBalloons(){if(BB.grp)scene.remove(BB.grp);BB.grp=new THREE.Group();scene.add(BB.grp);const g=new THREE.SphereGeometry(2.2,14,10);g.scale(1,1.22,1);const sg=new THREE.CylinderGeometry(.07,.07,1,4);sg.translate(0,.5,0);
+function bbBalloons(){if(BB.grp)scene.remove(BB.grp);BB.grp=new THREE.Group();scene.add(BB.grp);const g=new THREE.SphereGeometry(1.9,14,10);g.scale(1,1.22,1);const sg=new THREE.CylinderGeometry(.07,.07,1,4);sg.translate(0,.5,0);
   const sm=new THREE.MeshBasicMaterial({color:'#f4f1ea'});for(const k of karts){const c=BB_COL[k.bbI%8],m=new THREE.MeshStandardMaterial({color:c,roughness:.25,metalness:0,envMapIntensity:.9}),G=new THREE.Group();G.userData.b=[];
     for(let i=0;i<BB_START;i++){const b=new THREE.Mesh(g,m),s=new THREE.Mesh(sg,sm);b.castShadow=true;G.add(b);G.add(s);G.userData.b.push({b,s,ph:i*1.9+k.bbI});}k.bbG=G;BB.grp.add(G);}}
 function bbPop(k){const y=(k.wy||0)+16;burst(k.x,y,k.y,22,[BB_COL[k.bbI%8],'#ffffff','#ffe066'],80,2.6);spawnRing(k.x,y,k.y,BB_COL[k.bbI%8],18,.3,false);if(near(k)>0&&SFX.bump)SFX.bump(near(k)*.8);}
@@ -109,7 +110,7 @@ function battleSetup(def){BB.shapes=bbArena();BB.spawn=[[-300,-90],[300,60],[-12
   BB.ramps=[{foot:[-346,184],top:[-205,184]},{foot:[307,-184],top:[307,-48]}];
   for(const [x,z] of [[-90,-40],[150,60],[-10,-238],[-200,-238],[200,-238],[0,192],[306,120],[-320,-120]])boxes.push({x,y:z,r:0,sv:boxes.length*3,gy:battleG(x,z),dbl:false});}
 /* on every map load: leaving the arena takes its balloons and its scoreboard away; the HUD's lap and place read-outs are hidden in a battle */
-function battleLoad(){if(!document.getElementById('bbCss')){const st=document.createElement('style');st.id='bbCss';st.textContent='body.battle #posNum,body.battle #posSuf,body.battle #tbProg,body.battle #hudLap,body.battle #lapBars,body.battle #hudPB,body.battle #hudTime,body.battle #mini,body.battle #wrong,body.battle #abilBtn{display:none!important}';document.head.appendChild(st);}
+function battleLoad(){if(!document.getElementById('bbCss')){const st=document.createElement('style');st.id='bbCss';st.textContent='body.battle #posNum,body.battle #posSuf,body.battle #tbProg,body.battle #hudLap,body.battle #lapBars,body.battle #hudPB,body.battle #hudTime,body.battle #mini,body.battle #wrong,body.battle #abilBtn,body.battle .lapbox{display:none!important}';document.head.appendChild(st);}
   document.body.classList.toggle('battle',BATTLE);if(!BATTLE){if(BB.grp){scene.remove(BB.grp);BB.grp=null;}if(BB.el)BB.el.hidden=true;BB.shapes=[];}}
 /* ---- thrown things in the arena (the engine's hooks: patch20.py) ----
    p.bh is the level a thrown thing is on: it follows the ground down a drop and up a ramp, and anything higher than a step is a wall */
@@ -122,3 +123,5 @@ function bbHome(p,tg,dt,want,tr){let v=Math.hypot(p.vx,p.vy)||want;v+=(want-v)*M
 function bbTarget(k,back){let best=null,bs=1e9;for(const o of karts){if(o===k||o.bbOut>0||!(o.bal>0))continue;const d=Math.hypot(o.x-k.x,o.y-k.y),a=Math.abs(angDiff(Math.atan2(o.y-k.y,o.x-k.x),k.a+(back?Math.PI:0))),sc=d*(a<.9?1:2.5)+(Math.abs((o.wy||0)-(k.wy||0))>14?400:0);if(sc<bs){bs=sc;best=o;}}return best;}
 /* the pizza cutter's mark: whoever is winning (not the thrower) */
 function bbLeader(k){for(const o of bbRank())if(o!==k&&!(o.bbOut>0))return o;return null;}
+/* Balloon Battle is played off line for now: starting or joining a friends' race leaves the mode and its arena */
+function bbNoNet(){if(mode!=='bb')return;mode='single';try{store.set('crust-mode',mode);}catch(e){}if(MAPS[mapIdx].battle){mapIdx=0;loadMap(0,false);resetRace(true);}try{refreshMenu();}catch(e){}}

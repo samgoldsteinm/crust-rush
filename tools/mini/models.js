@@ -596,7 +596,7 @@ function sPk(name,cut,rough,tex,tint){tex=tex||name;/* tex: the pictures' name w
 M.sPk=sPk;
 function yPk(name){return pkReady(name)?pk(name,yMats()):null;}
 /* ---- the Balloon Battle arena's models (tools/blender/battle.py), built in the arena's own place: put each at (0,0). bPk(name) or null ---- */
-const bMats=()=>({bsteel:[mat('bbsteel',()=>{const m=std({color:'#c2c6ca',roughness:.38,metalness:.25,envMapIntensity:.9});m.userData.noHQ=true;return m;}),60],
+const bMats=()=>({bsteel:[mat('bbsteel',()=>{const m=std({color:'#a4a9af',roughness:.38,metalness:.25,envMapIntensity:.9});m.userData.noHQ=true;return m;}),60],
   bcard:[paint('bbcard','#c79a5e',.85),40],bcardin:[paint('bbcardin','#e3d3b4',.9),40],bwood:[woodTex('ash',.5,()=>wood('oak','#b98a58','#5a3a1c',{rough:.5})),80],bwoodd:[woodTex('walnut',.4,()=>wood('walnut','#6b4428','#2c1608',{rough:.42})),60],
   bplate:[mat('bbplate',()=>phy({color:'#f4f1ea',roughness:.2,clearcoat:.6,clearcoatRoughness:.2,envMapIntensity:.7})),40],bcheese:[paint('bbcheese','#f1e8c8',.6),40],
   bsauce:[mat('bbsauce',()=>phy({color:'#b3261c',roughness:.22,clearcoat:.5,envMapIntensity:.7})),40],bpep:[paint('bbpep','#a8321e',.5),40],bolive:[mat('bbolive',()=>phy({color:'#1c1a17',roughness:.25,clearcoat:.6,envMapIntensity:.8})),40],

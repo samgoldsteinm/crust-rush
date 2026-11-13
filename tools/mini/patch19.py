@@ -22,9 +22,9 @@ rep("k.m.g.visible=true;}resetRace(false);", "k.m.g.visible=true;}resetRace(fals
 rep("itemsRender(time,dt);", "itemsRender(time,dt);battleRender(time);")
 rep("player.wrongT=back?player.wrongT+dt:0;", "player.wrongT=back&&!BATTLE?player.wrongT+dt:0;")
 # the menu: a fourth mode with its one arena; the arena is in no cup and no track list.
-# The button is HIDDEN (and the row still three wide) until the mode is finished: to show it, drop `hidden` and make the row seg4.
+# (The button was hidden, and the row three wide, until the mode was ready: web v182.)
 rep('<div class="seg seg3" id="modeSeg"><button data-m="gp">Grand Prix</button><button data-m="single">Single race</button><button data-m="lss">Last Slice</button></div>',
-    '<div class="seg seg3" id="modeSeg"><button data-m="gp">Grand Prix</button><button data-m="single">Single race</button><button data-m="lss">Last Slice</button><button data-m="bb" hidden>Balloon Battle</button></div>')
+    '<div class="seg seg4" id="modeSeg"><button data-m="gp">Grand Prix</button><button data-m="single">Single race</button><button data-m="lss">Last Slice</button><button data-m="bb">Balloon Battle</button></div>')
 rep("mode=b.dataset.m;store.set('crust-mode',mode);if(mode==='gp'){", "mode=b.dataset.m;store.set('crust-mode',mode);{const bi=MAPS.findIndex(m=>m.battle),want=mode==='bb'?bi:mapIdx===bi?0:mapIdx;if(want!==mapIdx&&mode!=='gp'){mapIdx=want;loadMap(want,false);resetRace(true);}}if(mode==='gp'){")
 rep("const mapCatOf=m=>m.special?'sp':String(m.cup);", "const mapCatOf=m=>m.battle?'bb':m.special?'sp':String(m.cup);")
 rep("MAPS.some(m=>m.special)?[['sp'", "MAPS.some(m=>m.special&&!m.battle)?[['sp'")
@@ -34,5 +34,11 @@ rep("{const mn=$('modeNote');if(mn){mn.hidden=mode!=='lss';mn.textContent='Last 
 rep("$('startBtn').textContent=mode==='gp'?'Start Grand Prix':", "$('startBtn').textContent=mode==='bb'?'Start battle':mode==='gp'?'Start Grand Prix':")
 rep("resList.innerHTML=st.map((k,i)=>row(k,i,mode==='lss'?", "resList.innerHTML=st.map((k,i)=>row(k,i,BATTLE?(k.bbS||0)+((k.bbS||0)===1?' point':' points'):mode==='lss'?")
 rep("cupIdx=(+(store.get('crust-cup')||0)||0)%CUPS.length,gp=null,raceDone=false;", "cupIdx=(+(store.get('crust-cup')||0)||0)%CUPS.length,gp=null,raceDone=false;{const bi=MAPS.findIndex(m=>m.battle);if(mode==='bb')mapIdx=bi<0?0:bi;else if(MAPS[mapIdx].battle)mapIdx=0;}/* the battle arena is only ever loaded in its own mode */")
+# (added later the same day) no battle in a friends' race: the mode's button does nothing while on line, and hosting or joining leaves the mode
+rep("document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{mode=b.dataset.m;", "document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{if(b.dataset.m==='bb'&&NET.role)return;/* Balloon Battle is off line only for now */mode=b.dataset.m;")
+rep("async function netHost(){rtcIce();netReset();NET.role='host';", "async function netHost(){bbNoNet();rtcIce();netReset();NET.role='host';")
+rep("  netReset();NET.role='guest';const R=new NetRelay();", "  bbNoNet();netReset();NET.role='guest';const R=new NetRelay();")
+rep("if(state==='race'&&!player.finished&&lap>lapShown){lapShown=lap;", "if(state==='race'&&!BATTLE&&!player.finished&&lap>lapShown){lapShown=lap;")   # no lap banners: circling the middle of the arena is not a lap
+rep("mode==='lss'?'Last Slice Standing':'Single race')+' · '+CLASSES[clsKey].label;", "mode==='bb'?'Balloon Battle':mode==='lss'?'Last Slice Standing':'Single race')+' · '+CLASSES[clsKey].label;")   # the loading screen names the mode
 open(p, 'w', encoding='utf-8', newline='').write(s)
 print('patched')
