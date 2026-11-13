@@ -22,6 +22,13 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### 2026-11-13 (web v170): black dots in the boost flames on phones (patch 16)
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| Black dots and blobs in the boost flames on an iPhone (the user's screenshot; never seen on the PC's graphics card) | `flameGeo` closes the flame to a point at its tip, where the triangles have no area; `computeVertexNormals` gave 30 vertices of the inner flame a not-a-number direction, the shader's brightness came from it, and phones draw not-a-number as black (the glow pass spreads it into blobs). A desktop card silently drops such pixels | Directions are set from the shape (always defined); the shader works its own out from the vertex position; colour and alpha are clamped before drawing | Never call `computeVertexNormals` on a shape with a closed point. Any new shader: clamp what goes into `pow` and what comes out. Desktop pictures cannot show this fault: check the mesh for bad numbers (`scratchpad/nancheck.py` did) |
+| A trail of large glowing dots hung in the air between the camera and a boosting kart | The boost sparks (an older effect) and the new embers were thrown backwards at a fixed speed over the ground, so the kart drove away from them and they sat near the camera, drawn large | Both now leave the pipes at that speed relative to the kart (web and PC) | Particles meant to stay with a kart must inherit its speed |
+The PC's flame shader never had the first fault (its mesh is built with defined directions).
+
 ### 2026-11-13 (web v169): motion blur back to its original strength, wind lines instead (looks only, patch 15)
 The user on v168: the rainbow effect on Neon tracks is "perfect", do not change it; the stronger blur was not wanted ("dial the
 motion blur back to how it originally was... add more wind screen effects so it feels more immersive instead of increasing the blur").
