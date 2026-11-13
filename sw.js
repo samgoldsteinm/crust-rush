@@ -1,6 +1,6 @@
 // Crust Rush service worker: installs the game as an app and keeps every file for offline play.
 // Game files have their content hash in the name, so a saved copy never goes stale; only the page itself is re-checked.
-const VERSION = 'crust-rush-v175';
+const VERSION = 'crust-rush-v176';
 const SHELL = [
   "./",
   "./index.html",
@@ -84,6 +84,12 @@ const SHELL = [
   "./assets/geo/toy_kchair_hq.25b0a0d513.bin",
   "./assets/geo/toy_kstool_hq.c0ad2a60e3.bin",
   "./assets/geo/toy_kshelf_hq.eff3f3348d.bin",
+  "./assets/geo/toy_gbench_hq.41b97837c5.bin",
+  "./assets/geo/toy_gbenchn_hq.9394561d55.bin",
+  "./assets/geo/toy_gchest_hq.5956c44215.bin",
+  "./assets/geo/toy_gshelf_hq.f5a63aad05.bin",
+  "./assets/geo/toy_gtyres_hq.14114f2da6.bin",
+  "./assets/geo/toy_gdoor_hq.360668b0d0.bin",
   "./assets/tex/tex_ar_arena.f7dc7fc88b.jpg",
   "./assets/tex/tex_ar_track.579b73460a.jpg",
   "./assets/tex/tex_ar_glow.67ce84a9df.jpg",
@@ -118,7 +124,7 @@ const SHELL = [
   "./assets/tex/tex_toy_ash.48f1005fba.jpg",
   "./assets/tex/tex_toy_ash_n.b8d9b9f2f6.jpg",
   "./assets/tex/tex_toy_outsidek.a53be7df8e.jpg",
-  "./assets/tex/tex_toy_outsideg.55e0f396c8.jpg",
+  "./assets/tex/tex_toy_outsideg.a079acb48c.jpg",
   "./assets/shots/margherita-h.3e4a083708.jpg",
   "./assets/shots/margherita-m.15a3940147.jpg",
   "./assets/shots/margherita-a.04a971fcaf.jpg",
@@ -192,7 +198,7 @@ const SHELL = [
   "./assets/shots/backyard-m.846a829d3a.jpg",
   "./assets/shots/backyard-a.caccfcfff5.jpg",
   "./css/style.765bacee07.css",
-  "./js/game.23dce9e4d2.js",
+  "./js/game.68658d154d.js",
   "./vendor/three-0.149.0.min.js"
 ];
 
