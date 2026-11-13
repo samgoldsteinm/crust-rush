@@ -63,7 +63,10 @@ function pk(name,mats){const id='toy_'+name+'_hq',G=grp(),geos=propGeos(id);
 /* ============ the desk and what stands on it ============ */
 const M={};
 /* a gaming desk: 200 x 80 cm walnut top on a black steel frame, 75 cm high */
-M.desk=function(o){o=o||{};const W=(o.w||200)*U,D=(o.d||80)*U,H=(o.h||75)*U,G=grp(),top=wood('walnut','#6b4428','#2c1608',{rough:.42,env:.6}),steel=mat('desksteel',()=>std({color:'#17181a',roughness:.55,metalness:.6,envMapIntensity:.6}));
+/* a wood from a generated texture pair (tools/blender/oak_tex.py), if the pictures are there: colour tex_toy_<key>, relief tex_toy_<key>_n */
+function woodTex(key,rough,fallback){if(typeof PROP_TEX==='undefined'||!PROP_TEX['tex_toy_'+key]||!PROP_TEX['tex_toy_'+key+'_n'])return fallback();
+  return mat('woodt_'+key,()=>{const c=propTex('tex_toy_'+key),n=propTex('tex_toy_'+key+'_n',false);for(const t of [c,n])t.wrapS=t.wrapT=THREE.RepeatWrapping;return std({map:c,normalMap:n,normalScale:new THREE.Vector2(.7,.7),roughness:rough,metalness:0,envMapIntensity:.7});});}
+M.desk=function(o){o=o||{};const W=(o.w||200)*U,D=(o.d||80)*U,H=(o.h||75)*U,G=grp(),top=woodTex('walnut',.36,()=>wood('walnut','#6b4428','#2c1608',{rough:.42,env:.6})),steel=mat('desksteel',()=>std({color:'#17181a',roughness:.55,metalness:.6,envMapIntensity:.6}));
   add(G,uvw(slab(W,3*U,D,2.5*U,.5*U,4),90),top,0,H-1.5*U,0);
   const T=6*U,t=3*U,legH=H-3*U;for(const sx of [-1,1]){const x=sx*(W/2-14*U);/* a frame at each end: two posts, a foot and a rail under the top */
     for(const sz of [-1,1])add(G,slab(T,legH-t,t,.6*U,.3*U,2),steel,x,(legH-t)/2+t*.5,sz*(D/2-9*U));

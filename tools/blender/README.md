@@ -58,7 +58,8 @@ There is no live Blender connection: Blender 5.3 (D:\blender\blender.exe) is run
 - `oak_tex.py` (no Blender: numpy and Pillow): the oak floor as a tiling texture pair, `tex_toy_oak` (colour) and
   `tex_toy_oak_n` (relief), one tile 1.92 m. Every board has its own length, tone and ring figure; the relief carries the
   grain, the bevels and the gaps. Built from noise shaped in frequency space, so it repeats without a seam. First part of
-  realism-list item 3; the same approach will do walnut (desk), painted board (dresser) and woven fabric.
+  realism-list item 3. `oak_tex.py walnut` makes the desk's top the same way (`tex_toy_walnut`, `_n`: eight full-length staves
+  in a 0.9 m tile, flush joints); `woodTex(key,rough,fallback)` in models.js turns such a pair into a material.
 
 ## To do (most visible first)
 desk, floor lamp, sneakers, backpack, books,
