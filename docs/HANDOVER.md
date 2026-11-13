@@ -38,6 +38,25 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   there and put their full addresses in the game's table. Needs the owner to create the repository; an hour's work after.
   A further route for very large worlds (Sandbox): per-region asset repositories, loaded only when a region is entered.
 
+### 2026-11-13 (web v188): Sandbox, the first slice: free driving in the back garden
+
+The owner chose passage-joined regions for Sandbox (docs/SANDBOX-PLAN.md has their words and what they ask of a passage).
+Built: the mode itself, on one region. How it works, file by file, is in docs/SANDBOX-PLAN.md ("How Sandbox works").
+- What was tested (`py.cmd tools/neon/sbtest.py`, passes at Fast and Ultra): the kart driven straight at the house wall,
+  the three fences, the shed from two sides, the tree under the spiral, a flowerpot, the pipe's side and a post under the
+  high track stops at each, not before and not inside; it crosses the lawn, the patio, the goal mouth and the track where
+  it lies on the grass; steered along the whole track it follows the track's own heights (260 up the tree and down), rides
+  the loop and collects coins; driven off the top of the spiral it falls to the lawn. The mode starts and ends cleanly
+  (one kart in, eight back in the menu). Also run in the Safari engine at phone size.
+- Regressions after it: Backyard, Kitchen and Margherita races (8 finish, 0 respawns, 0 stuck), Balloon Battle, the phone session.
+| What broke while building it | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| After falling off the high track the camera hung 130 units up and the kart's body stayed tilted | The camera's rise with the track's slope, the drawn ground under the kart and the body's tilt all read the height of the kart's lap point; off the track that is only the last one it was on | In Sandbox all three read `sbG`; the camera's slope rise is skipped while `k.sbOff` | Anything new that reads `track[k.idx]` for looks needs a Sandbox case |
+| Crossing the track's edge threw the kart 15 units up | The engine's crest rule launched it (`big` air, light gravity) | In Sandbox that launch is never `big` and starts at 22, not 42 | |
+| Coins could not be seen | Sized and spaced in metres of garden; a kart is 12 units | A trail is a coin every 45 units; coins are 4 units across the radius | Think in kart lengths |
+- Not done yet (in the plan): the other three rooms, the door passages, the map, the clock, things to do, the shop,
+  the PC port, friends in Sandbox. Things in the garden do not move when hit (the football is a wall).
+
 ### 2026-11-13 (web v187): a phone's second toy race had a black track; start banners went blank on phones
 
 The owner, with a phone screenshot of Bedroom Blitz: "The track is showing up the wrong color on the hot wheels tracks".
@@ -68,9 +87,10 @@ How it was laid out without guessing: a pocket turtle in garden metres (scratch 
 against the landmarks' coordinates before the real generator closed the lap; the two straights it solves must not be parallel.
 
 ### Where web and PC stand (2026-11-13, end of the session)
-- Web v187 (online 109). PC build 06c70bde = web v186 (online 109): PC and web race together. v187 is a web-only fix (phones).
+- Web v188 (online 109). PC build 06c70bde = web v186 (online 109): PC and web race together. v187 (phone fix) and v188
+  (Sandbox, first slice) are web only; nothing that moves a kart in a race changed.
 - Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
-  (docs/BALLOON-BATTLE-PLAN.md). Sandbox is planned, not begun (docs/SANDBOX-PLAN.md).
+  (docs/BALLOON-BATTLE-PLAN.md). Sandbox: the first slice (the back garden) is on the web (v188); docs/SANDBOX-PLAN.md.
 - Not checked by eye on the PC: the Blender garden, the garage's open door and front yard, the leaf cards and tree pictures.
   The PC build compiled and its own checks passed; nobody has looked at those scenes in it yet (the exported tracks could
   not be fetched to this machine: there is no `gh` here).
@@ -387,6 +407,7 @@ so the PC build of that push does not publish), and runs are watched through the
 2. `neon/simtest.py <track> medium 230` and `reverse`: all 8 finish, 0 respawns, 0 stuck.
 3. `neon/chase.py` (the game's own camera round the lap) and `neon/shots.py` (free camera) for looks.
 4. One regular track as a regression (`simtest.py margherita medium 200`).
+4c. Sandbox: `neon/sbtest.py` (any change to the kart's physics, the toy tracks, the garden or battle.js): SANDBOX TEST passed.
 4b. A phone session: `neon/phonetest.py bedroom kitchen bedroom margherita grid bedroom` (any change to textures, materials,
     scenery caches or track loading): PHONE TEST passed, and look at `scratch/phone_*.png` for the repeat visits.
 5. PC: export from CI, `tests/tmp_neon` (AI race), `tests/tmp_cam` (pictures), then push.

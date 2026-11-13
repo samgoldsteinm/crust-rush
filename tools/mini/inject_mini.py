@@ -17,7 +17,7 @@ def js(v):
     raise TypeError(v)
 ts=json.load(open('D:/crust-rush/source/tools/mini/tracks.json'))
 between('/*MINI-MAPS-BEGIN*/','/*MINI-MAPS-END*/',''.join(',\n  '+js(t) for t in ts)+'\n')
-code=open('D:/crust-rush/source/tools/mini/models.js',encoding='utf-8',newline='').read()+'\n'+open('D:/crust-rush/source/tools/mini/mini.js',encoding='utf-8',newline='').read()+'\n'+open('D:/crust-rush/source/tools/mini/battle.js',encoding='utf-8',newline='').read()
+code=open('D:/crust-rush/source/tools/mini/models.js',encoding='utf-8',newline='').read()+'\n'+open('D:/crust-rush/source/tools/mini/mini.js',encoding='utf-8',newline='').read()+'\n'+open('D:/crust-rush/source/tools/mini/battle.js',encoding='utf-8',newline='').read()+'\n'+open('D:/crust-rush/source/tools/mini/sandbox.js',encoding='utf-8',newline='').read()
 assert all(ord(c)<0x10000 for c in code)
 between('/*MINI-BEGIN*/','/*MINI-END*/','\n'+code)
 open(P,'w',encoding='utf-8',newline='').write(s)

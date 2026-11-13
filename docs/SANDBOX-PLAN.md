@@ -110,3 +110,35 @@ PC: every milestone is ported after the web's has been driven by the owner (as a
   Waiting on nothing to start milestone 1.
 - 2026-11-13 (later): the owner chose passage-joined regions, with seamless driving through the passages (see the decision
   above). The scale gateway needs no separate answer: it is a passage.
+- 2026-11-13 (web v188): THE FIRST SLICE IS IN THE GAME. Sandbox is the fifth mode in the menu; its world for now is the
+  back garden. See "How Sandbox works" below.
+
+## How Sandbox works (web v188; read before touching it)
+- Files: `tools/mini/sandbox.js` (all of it), `tools/mini/patch22.py` (the engine's hooks and what each is for),
+  `tools/neon/sbtest.py` (the test), `battle.js` (hands each call over when `SBX` is set).
+- A REGION IS A TRACK'S OWN WORLD, loaded exactly as for a race (same memory, same pictures; the race is untouched).
+  Sandbox changes only what is under the one kart: `sbG(x,z,height)` is the ground and `sbWalls` the walls, in place of the
+  lap's. The ground is the floor, the track as a ribbon with its real heights (a grid of lap points, `sbHashTrack`; it
+  crosses over itself, so the level is chosen by the kart's own height), and the region's things (`SB_REG[id].shapes()`:
+  boxes and cylinders with a top and, where you can pass beneath, an underside). One rule makes every wall: nothing
+  climbs a step higher than `SB_STEP`, and what is overhead is not in the way. The track's raised edge is a 4-unit bump:
+  you drive on and off the track anywhere it lies on the ground (the brief's "natural access points"; no rail of a race
+  is changed), and where it is high you fall off its side. The track's posts are solid (`TOYPOSTS`).
+- `SBX` is on only between `startRace` (mode 'sb', off line, a region exists for the track) and `toMenu`/the next
+  `loadMap`. `BATTLE` is on with it, so Balloon Battle's hooks carry it. One kart; no clock, lap, finish, ghost, rivals.
+- Coins: gold ones in trails (a run of six every 3 m of track; lines and rings on open ground), back 40 s after being
+  taken; pepperoni coins (10 each, six in the garden, one of them in the air off the high track) are found once and saved.
+  The save is one record, `crust-sb` = {c: coins, r: {region:name: 1}}. No shop yet: prices come after the owner has played
+  (the brief: "Set prices after checking how quickly coins accumulate in normal play").
+- The camera stops short of solid things (`sbCam`); the kart's body and the camera read Sandbox's ground, not a lap point.
+- To add a region: an entry in `SB_REG` (name, shapes in the room's own measure, coin lines, rare coins), and cases in
+  `sbtest.py`. The garden's list is in garden metres, the same numbers as `toyYard` and `clearcheck.py backyard`.
+
+## HOME is four regions joined by its doors (changed 2026-11-13, by me, for the phone)
+The first plan made the whole house one region. Each room alone loads 150 to 300 MB of pictures on a phone (the reason
+`freeCanvases` exists), so four at once would get the tab killed on the owner's iPhone. With the owner's choice of
+passages, each room is a region and its doors are the passages: the back door (garden to kitchen), the hall (kitchen,
+bedroom, garage), the garage's open door (to the front street). Milestone 1 becomes:
+  1a. the back garden (done, v188)   1b. the other three rooms' things and coins   1c. the door passages, seamless
+  (loadMap split into slices that run while you drive through; the bar is in "DECIDED BY THE OWNER" above).
+Next after 1b/1c: the map (milestone 2), which needs at least two regions to be worth opening.

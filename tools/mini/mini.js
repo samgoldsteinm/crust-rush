@@ -4,7 +4,7 @@
    held up by blue plastic piers. Layout data comes from /home/claude/mini (same fields as the Neon Cup's tracks). */
 const TU=3.47;const tcm=v=>v*TU;
 /* the furniture a track can stand on: boxes in room coordinates [x0,x1,z0,z1,top] */
-let TOYF=[],TOYP=[],TOYB=[],TOYENV=null;/* TOYENV: where the room is photographed from for its reflections [x,height,z] *//* TOYP: places where a pier must stand (on a stack of books, say) */
+let TOYF=[],TOYP=[],TOYB=[],TOYENV=null,TOYPOSTS=[];/* TOYPOSTS: where the track's posts stand [x,z,top], for Sandbox, where they are solid *//* TOYENV: where the room is photographed from for its reflections [x,height,z] *//* TOYP: places where a pier must stand (on a stack of books, say) */
 function toyUnder(x,z,below){let h=0;for(const b of TOYF)if(x>=b[0]&&x<=b[1]&&z>=b[2]&&z<=b[3]&&b[4]<=below+.5&&b[4]>h)h=b[4];return h;}
 /* The set comes in coloured sections, the way toy track does. TOYSEC lists them per room as [from,to,colour] in fractions of
    the lap (the lap as it is laid out, whichever way it is raced); everything else is orange. Looks only: the race never reads it. */
@@ -53,6 +53,7 @@ function toyDecks(def){if(def.battle)return;const W=TOYW()+3,inGl=j=>GLIDE&&j>=G
     last=j;beam.push({x:p.x,y:e-3.4,z:p.y,ry:-p.ang});
     /* a pier that rests on something (a stack of books) keeps its posts close in, so both stand on it */const po=force?20:W-7;for(const sd of [-1,1]){const x=p.x+p.nx*po*sd,z=p.y+p.ny*po*sd,b2=toyUnder(x,z,e-2),hh=e-5-b2;if(hh<2)continue;post.push({x,y:b2+hh/2,z,sy:hh,ry:-p.ang});foot.push({x,y:b2+1,z,ry:-p.ang});}
     const h=e-5-base;for(let y=base+34;y<e-24&&h>60;y+=42)tie.push({x:p.x,y,z:p.y,ry:-p.ang});}
+  TOYPOSTS=post.map(q=>[q.x,q.z,q.y+q.sy/2]);
   const blue=TOYBL();instBatch(new THREE.CylinderGeometry(2.6,3.6,1,4,1).rotateY(Math.PI/4),blue,post,true);instBatch(new THREE.BoxGeometry(8,3.4,2*W+4),blue,beam,true);instBatch(new THREE.CylinderGeometry(6,7.5,2,14),blue,foot,true);instBatch(new THREE.BoxGeometry(2.2,2.2,2*W-14),blue,tie,true);instBatch(new THREE.BoxGeometry(7,3.4,30),blue,arm,true);}
 /* put a model in the room: design coordinates (x east, y north), y0 its height off the floor, ry its turn */
 function toyPut(o,x,y,ry,y0){o.position.set(x,y0||0,-y);o.rotation.y=ry||0;o.userData.noLift=true;o.traverse(q=>{if(q.isMesh){q.castShadow=q.userData.cast!==false&&!q.material.transparent;q.receiveShadow=true;}});world.add(o);return o;}
