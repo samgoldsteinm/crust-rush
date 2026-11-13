@@ -22,7 +22,12 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
-### 2026-11-13 (web v180): real trees (a photo-scanned tree's leaves and pictures)
+### 2026-11-13 (web v180, online version 108): real trees; Garage Overdrive's bench end and spiral
+
+PC build 1f2fd8dc is level with web v179 (online 107). v180 changes the garage's track heights, so the online version is 108 on
+web: the PC needs `PROTO := 108` in scripts/webnet.gd, a track export and a build before PC and web can race together again.
+
+### (the same build, continued)
 
 Second step toward the user's "hyper realism". The trees come from one photo-scanned tree (Poly Haven `jacaranda_tree`, CC0):
 `tools/blender/treecards.py` renders it, `treecards_pack.py` lays out and stores the two sheets, `yard.py -- ytreec` builds the
@@ -33,6 +38,9 @@ garden tree that carries the leaf sprays as cut-out cards, and `outside.py` stan
 | The first leaf sprays were grey, then blue | A mesh copied out of the scan lost its texture coordinates; lit by the sky alone a picture is blue | The sprays are the whole tree seen through a thin camera slab (near and far limits), under plain white light with no tone curve | To cut a piece out of a big scan, clip with the camera; do not rebuild the mesh |
 | The leaf cards were black and cream blobs | Lit by the game's sun, cards shadow one another to black and catch it flat to cream; averaged-down copies of the picture fill the holes between leaves | The cards are drawn unlit with the shade and tone baked into their vertices, and the picture has no smaller copies (`generateMipmaps=false`) | Cut-out foliage: unlit, baked shade, no mip levels |
 | The crown looked like round pads | Each spray was a thick ball of the crown, solid green with a faded rim | A slab 64 cm deep at the crown's face: single fronds with sky between | A spray must have holes in it |
+| GitHub warned on push: `crust-rush.html` is over 70 MB (its limit for one file is 100 MB) | Every model, texture and track picture lives in the one source file as text; this session's scans and models added about 11 MB | Four unused packs dropped (the leaf-polygon trees, the modelled gnome and ball), the brick relief map stored at 1024 | Before adding assets run a size count (CAR_PACKS 25 MB, MAP_SHOTS 22, PROP_TEX 17, PROP_PACKS 8 in Nov 2026). Drop a model's pack when a better one replaces it. If the file nears 90 MB the big tables must move out of it into `build/` files: ask the owner first, it changes how the source is edited |
+| Garage Overdrive: karts sank into the workbench just before its end (reported by the user with pictures) | The drop to the spiral began 98 units before the bench ended, so the road went down through the bench top | The lap is level to 14 units past the bench's end (`s6a` in t_garage.py), then drops; the ramp stands on the bench's last stretch; the drop ends at 200, not 170, to keep the slope under .46 | A road on furniture stays level until it is past the furniture's edge. `tools/neon/probe.py` reads any kart value during a race: here the least height over the bench must be the road's own 314 |
+| The tyre stack and a fuel can stood in the spiral's edges (reported by the user) | Placed by eye; the stack's 58 cm tyres left 5 units to the inner rail | Smaller tyres (the stack is scaled .78), the can and two paint tins moved, the corner cartons smaller | `py.cmd tools/mini/clearcheck.py garage` measures every loose thing against the lap: run it after moving anything or changing the layout, and add new things to its list |
 | The window views would not render | A stray leading space in a script edit | Fixed; the three views were rendered again | Run a script edit's file through Blender before walking away |
 
 Also in this build, switched off: the first hooks for Balloon Battle (`tools/mini/battle.js`, `patch19.py`; the mode's button is

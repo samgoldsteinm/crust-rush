@@ -251,22 +251,22 @@ function toyGarage(def){const U=TM.U,X=695,Y=833,H=868,M=TM,win=[-420,80,430,764
   toyPut(M.gbench(116),587.5,631.5,Math.PI/2);TOYF.push([480,695,-833,-430,top]);
   toyPut(M.gbench(101),305,725.5,0);TOYF.push([130,480,-833,-618,top]);
   /* on the bench, clear of the track (it takes x 543..633 on the east arm and y 681..771 on the north arm) */
-  toyPut(M.gvice(),175,650,0,top);toyPut(M.paintcan('#c9573b'),436,803,1,top);toyPut(M.mug({color:'#3f6f8f'}),270,806,2,top);toyPut(M.sodacan(),666,806,0,top);toyPut(M.paintcan('#e9e3d2'),668,560,2,top);
+  toyPut(M.gvice(),168,643,0,top);toyPut(M.paintcan('#c9573b'),436,803,1,top);toyPut(M.mug({color:'#3f6f8f'}),270,806,2,top);toyPut(M.sodacan(),666,806,0,top);toyPut(M.paintcan('#e9e3d2'),668,560,2,top);
   toyPut(M.pegboard(110,70),X-1*U,640,-Math.PI/2,400);toyPut(M.gsign(0),330,Y-.6*U,0,520);toyPut(M.gsign(2),560,Y-.6*U,0,640);toyPut(M.gsign(1),-X+.6*U,-120,Math.PI/2,700);toyPut(M.clock(),-X+.6*U,-560,Math.PI/2,770);
   /* ---- on the walls, built in Blender (tools/blender/garage.py): the electrics by the door to the house, a ladder hung on the east wall, garden tools on a rail ---- */
   toyPut(M.gfit('gelec'),-X,-300,Math.PI/2);toyPut(M.gfit('gladder'),X,-100,-Math.PI/2,677);toyPut(M.gfit('grack'),-X,430,Math.PI/2);
   /* ---- the rest of the furniture ---- */
-  toyPut(M.gchest(),-582,746,0);toyPut(M.gtyres(4),-252,576,0);toyPut(M.gshelf(),-625,100,Math.PI/2);
-  toyPut(M.carton(44,34,30),640,-760,.1);toyPut(M.carton(36,30,24),648,-764,-.2,30*U);toyPut(M.carton(50,36,28),-600,-770,.06);
+  toyPut(M.gchest(),-582,746,0);toyPut(M.gtyres(4),-252,576,0).scale.setScalar(.78);/* smaller tyres (45 cm): at full size the stack touched the spiral's inner edge. tools/mini/clearcheck.py garage measures every loose thing against the lap */toyPut(M.gshelf(),-625,100,Math.PI/2);
+  toyPut(M.carton(36,28,26),646,-774,.1);toyPut(M.carton(30,24,20),650,-776,-.2,26*U);toyPut(M.carton(50,36,28),-600,-770,.06);
   /* ---- on the floor, in the pockets the track leaves ---- */
-  toyPut(M.gjack(),-170,-20,.5);toyPut(M.jerry('#4a5a3a'),-40,470,.4);toyPut(M.paintcan('#e9e3d2'),30,520,1);toyPut(M.paintcan('#2f6f9f'),-10,560,2);
+  toyPut(M.gjack(),-170,-20,.5);toyPut(M.jerry('#4a5a3a'),70,430,.4);toyPut(M.paintcan('#e9e3d2'),40,530,1);toyPut(M.paintcan('#2f6f9f'),10,580,2);/* (the can stood in the spiral's outer edge) */
   toyPut(M.cone(),330,-420,0);toyPut(M.cone(),400,-250,0);toyPut(M.cone(),-520,-640,0);toyPut(M.gtyres(1),360,330,0).rotation.z=0;toyPut(M.gtoolbox(),330,60,-.5);
   toyPut(M.ball({kind:'tennis'}),-560,420,0);toyPut(M.bricks({seed:9,n:8,spread:8}),420,160,0);toyPut(M.cube({seed:3}),-90,-480,.4);
   toyPut(M.setbox(),120,-470,-.15);toyPut(M.trackpiece({l:22}),250,-520,.5);toyPut(M.skateboard(),-560,-300,1.4);
   /* oil where the car stands, and drips by the door */
   toyStain(330,-60,330,.55,.4);toyStain(250,300,220,.4,2);toyStain(-120,-420,200,.35,1);toyStain(60,60,150,.3,3);
   /* where furniture keeps the light off the floor */
-  toyShade(480,695,430,833,.4);toyShade(130,480,618,833,.38);toyShade(-700,-464,666,826,.34);toyShade(-695,-556,-160,360,.34);toyShade(-360,-144,468,684,.3);}
+  toyShade(480,695,430,833,.4);toyShade(130,480,618,833,.38);toyShade(-700,-464,666,826,.34);toyShade(-695,-556,-160,360,.34);toyShade(-340,-164,488,664,.3);}
 /* ---- Backyard Mega Circuit: the whole back garden, 25 x 7 m, as tools/blender/outside.py draws it for the windows ----
    Garden coordinates in metres: x east from the bedroom window, y north from the house wall (0) to the back fence (7).
    The numbers match tools/mini/t_backyard.py. Outdoors: no window sun (TOYSUN stays empty), the ordinary sun and shadows. */

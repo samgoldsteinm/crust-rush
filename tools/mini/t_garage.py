@@ -25,7 +25,9 @@ def make():
     s3 = t.S(149, h=314)                        # north along the workbench
     a4 = t.A(110, 90, h=314)                    # left, onto its return along the north wall
     s5 = t.S(250, h=314)                        # west along the north wall
-    s6 = t.S(480, h=170)                        # off the end of the bench: the jump, and down
+    s6a = t.S(112, h=314)                       # still on the bench: level right to its end (the bench's west end is at x = 130; this ends at 116).
+                                                # It used to start down 98 units before the end, and karts sank into the bench top
+    s6 = t.S(368, h=200)                        # off the end of the bench: the jump, and down (to 200: any lower is steeper than the plank)
     a7 = t.A(150, 450, h=0)                     # a wide spiral round the stack of tyres, one and a quarter turns down to the floor
     s8 = t.S(250, h=0)                          # south along the west side
     a9 = t.A(120, 90, h=0)                      # the chicane across the middle of the floor
@@ -41,7 +43,7 @@ def make():
     t.build(close=(s18, s16))                   # the two straights whose lengths are solved so the lap closes (they must not be parallel)
     for seg, f in [(s2, .04), (s8, .1), (s16, .2)]:
         t.pad(seg, f, 0, 10)
-    for seg, f in [(s6, .1), (s14, .45)]:
+    for seg, f in [(s6a, .62), (s14, .45)]:       # the first ramp stands on the bench's last 40 units: the bench's end is the jump
         t.ramp(seg, f)
     for seg, f in [(s5, .6), (s8, .5), (s12, .5)]:
         t.box(seg, f)
