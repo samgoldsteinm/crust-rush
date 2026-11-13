@@ -1,5 +1,5 @@
 """Oak floorboards as a tiling texture pair (colour and surface relief) for the toy-track rooms.
-usage: py.cmd tools/blender/oak_tex.py [oak|walnut]   -> D:/crust-rush/blender/<kind>/<kind>_c.jpg, <kind>_n.jpg and a preview
+usage: py.cmd tools/blender/oak_tex.py [oak|walnut|ash]   -> D:/crust-rush/blender/<kind>/<kind>_c.jpg, <kind>_n.jpg and a preview
 One tile is 1.92 m square: 16 boards 12 cm wide running along U, each cut to its own length, with its own tone, its own
 growth rings (arched "cathedral" figure where the cut passes near the heart, straight lines where it does not), fine
 streaks and open pores along the grain, a small bevel at every edge and a dark gap between boards.
@@ -15,7 +15,9 @@ KIND = sys.argv[1] if len(sys.argv) > 1 else 'oak'
 # oak: floorboards (16 boards of 12 cm in a 1.92 m tile, cut to length, bevelled, with gaps)
 # walnut: a glued table top (8 full-length staves of 11 cm in a 0.9 m tile, dark, flush joints that barely show)
 K_ = {'oak': dict(S=1536, rows=16, cut=True, tone=(.5, .86), dark=(128, 86, 50), light=(226, 190, 142), bev=.16, gap=.55, rbev=1.5, rgap=1.0, cup=.25, seed=20261112),
-      'walnut': dict(S=1024, rows=8, cut=False, tone=(.3, .8), dark=(54, 31, 18), light=(142, 92, 56), bev=0.0, gap=.86, rbev=0.0, rgap=.18, cup=0.0, seed=20261113)}[KIND]
+      'walnut': dict(S=1024, rows=8, cut=False, tone=(.3, .8), dark=(54, 31, 18), light=(142, 92, 56), bev=0.0, gap=.86, rbev=0.0, rgap=.18, cup=0.0, seed=20261113),
+      # ash: a pale butcher-block top (kitchen worktop and table): twelve narrow staves in a 0.9 m tile, flush joints
+      'ash': dict(S=1024, rows=12, cut=False, tone=(.45, .9), dark=(176, 136, 92), light=(238, 212, 172), bev=0.0, gap=.9, rbev=0.0, rgap=.14, cup=0.0, seed=20261114)}[KIND]
 OUT = 'D:/crust-rush/blender/' + KIND
 os.makedirs(OUT, exist_ok=True)
 S = K_['S']                    # pixels per tile

@@ -63,6 +63,9 @@ There is no live Blender connection: Blender 5.3 (D:\blender\blender.exe) is run
   realism-list item 3. `oak_tex.py walnut` makes the desk's top the same way (`tex_toy_walnut`, `_n`: eight full-length staves
   in a 0.9 m tile, flush joints); `woodTex(key,rough,fallback)` in models.js turns such a pair into a material.
 
+- `kitchen.py`: the kitchen's seven models in one script (`-- <name>` builds one). Uses `finish_model`, `rod` and `bar` from crlib.
+- `outside.py [-- k]`: ONE garden for the whole house; the argument picks the window it is seen from.
+
 ## To do (most visible first)
 desk, floor lamp, sneakers, backpack, books,
 plant, monitors, keyboard and mouse, PC tower, door and window frames, shelf, posters, bin, cartons, skateboard,

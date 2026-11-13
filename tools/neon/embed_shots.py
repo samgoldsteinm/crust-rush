@@ -4,7 +4,7 @@ usage: embed_shots.py <folder with <id>-<h|m|a>.jpg> [infos.json]   (infos: {id:
 import base64, json, os, re, shutil, sys
 P='D:/crust-rush/source/crust-rush.html'; PC='D:/crust-rush/godot/assets/shots'
 src=sys.argv[1]; infos=json.load(open(sys.argv[2])) if len(sys.argv)>2 else {}
-s=open(P,encoding='utf-8').read()
+s=open(P,encoding='utf-8',newline='').read()
 i=s.index('const MAP_SHOTS=')+len('const MAP_SHOTS='); e=s.index('\n',i)
 line=s[i:e].rstrip(); assert line.endswith(';'); D=json.loads(line[:-1])
 n=0
@@ -16,5 +16,5 @@ for f in sorted(os.listdir(src)):
 for mid,inf in infos.items():
     D.setdefault(mid,{})['i']=inf
 s=s[:i]+json.dumps(D,separators=(',',':'))+';'+s[e:]
-open(P,'w',encoding='utf-8').write(s)
+open(P,'w',encoding='utf-8',newline='').write(s)
 print('embedded',n,'pictures; maps:',len(D))

@@ -236,6 +236,38 @@ def check_render(name, objs, size=(1600, 1000), views=((35, 22),), samples=96, d
     return outs
 
 
+def finish_model(name, parts, dist, lift=.3, views=((-30, 18),), floor=True):
+    """the last steps every model shares: apply transforms and modifiers, real-size UVs (unless a part is marked keep_uv),
+    baked shade with a floor underneath, a check picture, the GLB"""
+    os.makedirs(f'{OUT}/{name}', exist_ok=True)
+    bpy.context.view_layer.update()
+    for o in parts:
+        active(o); bpy.ops.object.transform_apply(location=True, rotation=True, scale=True); freeze(o); smooth(o)
+        if not o.get('keep_uv'): uv_box(o)
+    fl = None
+    if floor:
+        bpy.ops.mesh.primitive_plane_add(size=8, location=(0, 0, -.0005)); fl = bpy.context.object; fl.data.materials.append(mat('_floor', (.5, .5, .5)))
+    bake_ao(parts)
+    if fl: bpy.data.objects.remove(fl)
+    for o in parts: soften_ao(o, 1, lift)
+    print('CHECK', check_render(name, parts, views=views, dist=dist))
+    export(name, parts)
+
+
+def rod(name, r, length, loc, m, axis='X', verts=14):
+    """a round bar along X, Y or Z, centred on loc"""
+    rot = {'X': (0, math.pi / 2, 0), 'Y': (math.pi / 2, 0, 0), 'Z': (0, 0, 0)}[axis]
+    bpy.ops.mesh.primitive_cylinder_add(vertices=verts, radius=r, depth=length, location=loc, rotation=rot)
+    o = bpy.context.object; o.name = name; o.data.materials.append(m); smooth(o); return o
+
+
+def bar(name, p0, p1, r0, r1, m, verts=12):
+    """a tapered round bar from point p0 (radius r0) to point p1 (radius r1)"""
+    a = Vector(p0); b = Vector(p1); d = b - a
+    bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=r0, radius2=r1, depth=d.length, location=(a + b) / 2)
+    o = bpy.context.object; o.name = name; o.rotation_euler = d.to_track_quat('Z', 'Y').to_euler(); o.data.materials.append(m); smooth(o); return o
+
+
 def export(name, objs):
     os.makedirs(f'{OUT}/{name}', exist_ok=True)
     for o in objs:

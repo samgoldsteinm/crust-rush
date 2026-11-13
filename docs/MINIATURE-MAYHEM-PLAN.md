@@ -256,3 +256,23 @@ before the launch and the hairpins, a stronger bloom at the window.
   clean on their phone, and whether the flame glow on the road shows on PC (too faint to confirm in a local picture).
   Next work: remaining Blender models, fabric textures, then Kitchen Chaos, Garage Overdrive, Backyard Mega Circuit and the cup.
 
+## Kitchen Chaos (web v172, 2026-11-13): the second toy track
+- Layout: `tools/mini/t_kitchen.py` (it adds its entry to tracks.json; `inject_mini.py` runs the bedroom's script, then this one).
+  Lap 7106 units, 4 laps. Start on the worktop (y 720, height 314) -> right -> a bridge down to the kitchen table (262) -> west along
+  the table and off its end -> spiral R=150, 1.25 turns round a bar stool at (-460,-210) -> south along the west wall -> east along
+  the south wall with the loop at (-92,-620) -> shortcut across the SE corner -> north up the east side (jump) -> west, climbing
+  under the bridge -> a 180 degree turn R=140 onto the worktop. The two closing straights must not be parallel (s15 east, s11 north).
+- Room: `toyKitchen` in mini.js, built on `toyShell` (the shell every further indoor room should use: floor, walls, window,
+  door, ceiling, sun, reflections spot) and `toyTiles` (checked floor, white wall tiles). Coloured sections: bridge and table
+  yellow, spiral red, climb blue. Furniture from `tools/blender/kitchen.py` (kcounter, kwallcab, kfridge, ktable, kchair, kstool,
+  kshelf), each with a plain block as stand-in until its model has arrived. New small props: fruitbowl, plates, grocery, clock,
+  posters 3 and 4. Worktop, table and shelf use the new `ash` wood texture.
+- The user's notes while it was being built: different wall art from the bedroom (done: posters 3, 4 and a clock); the fridge's
+  small door goes on top (done); and ALL ROOMS ARE IN ONE HOUSE: the windows must look onto the same outside from where each room
+  is. `tools/blender/outside.py` is now ONE garden scene (fence, neighbour's house, trees, a shed, a washing line); each room's
+  picture is that scene from its own window: bedroom at x=0 (`tex_toy_outside`), kitchen 7 m west (`tex_toy_outsidek`, view 'k').
+  Garage and backyard must follow: the backyard track is this garden, with the house's north wall and both windows in it.
+- Tests: races forward, reverse and 200cc (8 finish, 0 respawns, 0 stuck), chase camera on bridge, table and spiral, box check 44
+  layouts. Menu pictures for kitchen and fresh ones for the bedroom (scratch/menupics, embed_shots.py).
+- PC: needs `maps.yml` to export track 21 as well, then the usual release.
+

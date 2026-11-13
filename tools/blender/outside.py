@@ -12,6 +12,9 @@ from mathutils import Vector
 from crlib import *
 
 NAME = 'outside'
+# which window the garden is seen from: '' the bedroom's; 'k' the kitchen's, 7 m further west along the same wall. Run with:  ... --python outside.py -- k
+VIEW = sys.argv[sys.argv.index('--') + 1] if '--' in sys.argv and len(sys.argv) > sys.argv.index('--') + 1 else ''
+DX = -7.0 if VIEW == 'k' else 0.0
 s = reset()
 os.makedirs(f'{OUT}/{NAME}', exist_ok=True)
 rs = np.random.RandomState(11)
@@ -83,10 +86,10 @@ nt.links.new(nz.outputs[0], ramp.inputs[0]); nt.links.new(ramp.outputs[0], bs.in
 lawn.data.materials.append(gm)
 # a board fence across the back of the garden
 fw = mat('fencewood', hexcol('#9a7650'), .85); fws = [fw, mat('fencewood2', hexcol('#8a6844'), .9), mat('fencewood3', hexcol('#a9855c'), .85)]
-for i in range(-70, 71):
+for i in range(-150, 71):    # far enough left for the kitchen's view too
     h = 1.78 + rs.rand() * .05
     box(f'board{i}', (.118, .02, h), (i * .125, 7.0 + rs.rand() * .006, GROUND + h / 2), fws[rs.randint(3)], .003, 1)
-for z in (.45, 1.45): box(f'rail{z}', (17.6, .04, .09), (0, 7.035, GROUND + z), fw, 0)
+for z in (.45, 1.45): box(f'rail{z}', (27.8, .04, .09), (-5.0, 7.035, GROUND + z), fw, 0)
 for i in range(-4, 5): box(f'post{i}', (.09, .09, 1.9), (i * 2.2, 7.06, GROUND + .95), fw, .004, 1)
 # a neighbour's house beyond it
 wallm = mat('siding', hexcol('#e6dcc8'), .8); roofm = mat('roof', hexcol('#5d6470'), .7); glassm = mat('pane', (.03, .05, .08), .08)
@@ -115,7 +118,18 @@ so = bpy.data.objects.new('sun', sun); s.collection.objects.link(so); so.rotatio
 
 # ---- the camera: from inside the room, through the 3.9 x 2.75 m plane 3.1 m ahead whose middle is 1.64 m up
 cam = bpy.data.cameras.new('cam'); co = bpy.data.objects.new('cam', cam); s.collection.objects.link(co); s.camera = co
-co.location = (0, -3.1, 1.0); co.rotation_euler = (Vector((0, 0, 1.64)) - co.location).to_track_quat('-Z', 'Y').to_euler()
+# ONE garden for the whole house: every room's window looks onto this same scene from its own place along the north wall, so the
+# rooms agree about what is outside (the shed, the washing line, the fence, the neighbour's house, the trees). The bedroom's window
+# is at x = 0, the kitchen's 7 m to the west (x = -7). The Backyard track is to be built as this garden.
+if True:
+    shm = mat('shed', hexcol('#7a5b3c'), .85); box('shed', (2.4, 1.9, 2.0), (-11.2, 5.4, GROUND + 1.0), shm, .01, 1)
+    bpy.ops.mesh.primitive_cone_add(vertices=4, radius1=1.95, radius2=0, depth=.8, location=(-11.2, 5.4, GROUND + 2.4), rotation=(0, 0, math.radians(45))); rf2 = bpy.context.object; rf2.scale = (1.05, .82, 1); rf2.data.materials.append(roofm)
+    box('sheddoor', (.8, .04, 1.7), (-11.2, 4.44, GROUND + .85), mat('sheddoor', hexcol('#5c4630'), .8), .01, 1)
+    for px in (-8.2, -3.4): box(f'pole{px}', (.05, .05, 2.0), (px, 4.2, GROUND + 1.0), mat('pole', (.75, .75, .75), .5), 0)
+    box('line', (4.8, .01, .01), (-5.8, 4.2, GROUND + 1.95), mat('pole', (.75, .75, .75), .5), 0)
+    for k, (px, cc) in enumerate(((-7.2, '#d9534f'), (-6.3, '#f4f1ea'), (-5.3, '#4f86c6'), (-4.4, '#f0c040'))):
+        box(f'cloth{k}', (.62, .012, .62 + .1 * (k % 2)), (px, 4.2, GROUND + 1.6 - .05 * (k % 2)), mat(f'cloth{k}', hexcol(cc), .9), 0)
+co.location = (DX, -3.1, 1.25 if VIEW == 'k' else 1.0); co.rotation_euler = (Vector((DX + (.5 if VIEW == 'k' else 0), 0, 1.64)) - co.location).to_track_quat('-Z', 'Y').to_euler()
 cam.sensor_fit = 'HORIZONTAL'; cam.angle = 2 * math.atan(1.95 / 3.17); cam.clip_end = 500
 s.render.resolution_x, s.render.resolution_y = 2048, 1444
 s.cycles.samples = 160; s.cycles.use_denoising = True
@@ -126,7 +140,7 @@ s.view_settings.exposure = -2.75
 try: s.view_settings.look = 'AgX - Medium High Contrast'
 except Exception: pass
 s.render.image_settings.file_format = 'JPEG'; s.render.image_settings.quality = 88
-s.render.filepath = f'{OUT}/{NAME}/outside.jpg'
+s.render.filepath = f'{OUT}/{NAME}/outside{VIEW}.jpg'
 bpy.ops.render.render(write_still=True)
-bpy.ops.wm.save_as_mainfile(filepath=f'{OUT}/{NAME}/outside.blend')
+bpy.ops.wm.save_as_mainfile(filepath=f'{OUT}/{NAME}/outside{VIEW}.blend')
 print('RENDERED', s.render.filepath, s.view_settings.view_transform)

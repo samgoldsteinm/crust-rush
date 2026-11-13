@@ -8,7 +8,7 @@ let TOYF=[],TOYP=[],TOYB=[],TOYENV=null;/* TOYENV: where the room is photographe
 function toyUnder(x,z,below){let h=0;for(const b of TOYF)if(x>=b[0]&&x<=b[1]&&z>=b[2]&&z<=b[3]&&b[4]<=below+.5&&b[4]>h)h=b[4];return h;}
 /* The set comes in coloured sections, the way toy track does. TOYSEC lists them per room as [from,to,colour] in fractions of
    the lap (the lap as it is laid out, whichever way it is raced); everything else is orange. Looks only: the race never reads it. */
-const TOYCOL={orange:'#ff6a12',red:'#e3271d',yellow:'#f6c41f',blue:'#1f55c8'},TOYSEC={bedroom:[[.073,.253,'red'],[.347,.514,'yellow'],[.783,.938,'blue']]};
+const TOYCOL={orange:'#ff6a12',red:'#e3271d',yellow:'#f6c41f',blue:'#1f55c8'},TOYSEC={bedroom:[[.073,.253,'red'],[.347,.514,'yellow'],[.783,.938,'blue']],kitchen:[[.079,.26,'yellow'],[.26,.426,'red'],[.789,.976,'blue']]};
 function toyColAt(def,j){j=((j%N)+N)%N;const f=(curRev?(N-j)%N:j)/N;for(const q of TOYSEC[def.look]||[])if(f>=q[0]&&f<q[1])return q[2];return 'orange';}
 /* runs of one colour between two points of the lap: [[from,to,colour],...] */
 function toyRuns(def,j0,j1){const out=[];let a=j0,k=toyColAt(def,j0);for(let j=j0+1;j<=j1;j++){const c=j<j1?toyColAt(def,j):null;if(c!==k){out.push([a,j,k]);a=j;k=c;}}return out;}
@@ -181,5 +181,53 @@ function toyRoomEnv(){const P=TOYENV;if(P&&world)try{sunShadeAll();const rt=new 
     try{for(let i=0;i<2;i++){renderer.shadowMap.needsUpdate=true;cc.update(renderer,scene);const pm=new THREE.PMREMGenerator(renderer),e=pm.fromCubemap(rt.texture).texture;pm.dispose();if(scene.environment)scene.environment.dispose();scene.environment=e;}}
     finally{for(let i=0;i<lit.length;i+=2)lit[i].material.color.copy(lit[i+1]);hid.forEach(g=>g.visible=true);scene.remove(cc);rt.dispose();}}catch(e){console.warn('room reflections',e);}
   applyEnvProbe();}
-function buildToy(def){TOYF=[];TOYP=[];TOYB=[];if(def.look==='bedroom')toyBedroom(def);}
+/* The shell an indoor toy room is built in: floor, four painted walls (a window in the north wall, a door in the south wall), ceiling,
+   skirting, the view outside, the afternoon sun through the window and the spot the room is photographed from for its reflections.
+   o: {key, X, Y, H (half width, half length, height), win:[x0,x1,y0,y1], dr:[x0,x1,y0,y1], walls:[north,south,west,east], floor:material, tile:cm, env:[x,height,z]}
+   (the bedroom was built before this existed and keeps its own copy of these steps) */
+function toyShell(o){const U=TM.U,M=TM,X=o.X,Y=o.Y,H=o.H,win=o.win,dr=o.dr;
+  renderer.toneMappingExposure=.98;hemi.color.set('#cfdcf0');hemi.groundColor.set('#b3937a');hemi.intensity=.54;sun.color.set('#ffdcaa');sun.intensity=2.7;sunDir.set(-.1,.56,-.82).normalize();rimL.intensity=.16;rimL.color.set('#cfe0ff');
+  scene.fog=new THREE.Fog('#d8cfc0',6000,30000);scene.background=new THREE.Color('#bcd6f2');Object.assign(POST.grade,{sat:1.04,con:1.05,tint:[1.01,1,.985],vig:.16,bloom:.22,thr:.97});
+  const fg=new THREE.PlaneGeometry(2*X,2*Y,1,1);fg.rotateX(-Math.PI/2);M.uvw(fg,o.tile,true);const fl=new THREE.Mesh(fg,o.floor);fl.position.y=-.1;fl.receiveShadow=true;fl.userData.noLift=true;world.add(fl);
+  const stip=T2(heightToNormal(M.can('stipple',256,256,(g,w,h,r)=>{for(let y=0;y<h;y+=2)for(let x=0;x<w;x+=2){const v=112+r()*32;g.fillStyle='rgb('+v+','+v+','+v+')';g.fillRect(x,y,2,2);}}),1.1),7,7,true),
+    wallM=(key,col)=>M.mat('pt_'+key,()=>{const m=new THREE.MeshStandardMaterial({color:col,roughness:.9,metalness:0,envMapIntensity:.4,normalMap:stip,normalScale:new THREE.Vector2(.35,.35)});m.userData.noHQ=true;return m;}),
+    W=o.walls.map((c,i)=>wallM('wall'+o.key+i,c));/* named toy_pt_wall..., which the PC looks for */
+  sunBeam([[win[0],win[1],win[2],win[3],-Y-12*U,-Y]],win[3]/sunDir.y+160);
+  toyWall('x',-Y,-X,X,H,win,W[0],-1);toyWall('x',Y,-X,X,H,dr,W[1],1);toyWall('z',-X,-Y,Y,H,null,W[2],-1);toyWall('z',X,-Y,Y,H,null,W[3],1);
+  const cg=new THREE.PlaneGeometry(2*X,2*Y);cg.rotateX(Math.PI/2);const ce=new THREE.Mesh(cg,wallM('ceiling','#f4f1ea'));ce.position.y=H;ce.userData.noLift=true;world.add(ce);
+  const sk=M.paint('skirting','#f6f4ee',.5),sb=(x0,x1,z0,z1)=>{const b=new THREE.Mesh(M.slab(Math.abs(x1-x0)||1.6*U,10*U,Math.abs(z1-z0)||1.6*U,.3*U,.3*U,2),sk);b.position.set((x0+x1)/2,5*U,(z0+z1)/2);b.userData.noLift=true;b.receiveShadow=true;world.add(b);};
+  if(!o.noNorthSkirt)sb(-X,X,-Y+.8*U,-Y+.8*U);sb(-X,dr[0]-9*U,Y-.8*U,Y-.8*U);sb(dr[1]+9*U,X,Y-.8*U,Y-.8*U);sb(-X+.8*U,-X+.8*U,-Y,Y);sb(X-.8*U,X-.8*U,-Y,Y);
+  const wcx=(win[0]+win[1])/2,wW=(win[1]-win[0])/U,wH=(win[3]-win[2])/U;toyPut(M.window(wW,wH),wcx,Y+4*U,0,win[2]);const out=M.outside(wW*2.6,wH*2.2,o.view);out.position.set(wcx,win[2]+wH*U*.55,-Y-60*U);out.userData.noLift=true;out.userData.envGain=6;world.add(out);TOYENV=o.env;
+  toyPut(M.door(),(dr[0]+dr[1])/2,-Y+1*U,Math.PI,0);
+  {const g=new THREE.Group();M.add(g,M.cyl(17*U,17*U,2*U,32),M.paint('ceilrose','#f1eee6',.6),0,-1*U,0);M.add(g,new THREE.SphereGeometry(15*U,28,12,0,6.283,Math.PI/2,Math.PI/2),M.mat('ceilglass',()=>new THREE.MeshStandardMaterial({color:'#fffaf0',emissive:'#fff1d6',emissiveIntensity:.35,roughness:.4})),0,-2*U,0);toyPut(g,0,0,0,H);}}
+/* a tiled surface: n x n tiles per texture in two colours with sunk grout lines; glossy, so it shows the window */
+function toyTiles(key,c1,c2,grout,n,rough){return TM.mat('tiles_'+key,()=>{const S=512,q=S/n,c=TM.can('tile_'+key,S,S,(g,w,h,r)=>{for(let j=0;j<n;j++)for(let i=0;i<n;i++){g.fillStyle=(i+j)%2?c2:c1;g.fillRect(i*q,j*q,q,q);for(let k=0;k<160;k++){g.fillStyle='rgba('+(r()<.5?'255,255,255':'0,0,0')+','+r()*.04+')';g.fillRect(i*q+r()*q,j*q+r()*q,2+r()*10,2+r()*10);}}
+      g.fillStyle=grout;for(let i=0;i<=n;i++){g.fillRect(i*q-2,0,4,S);g.fillRect(0,i*q-2,S,4);}}),
+    b=TM.can('tileb_'+key,S,S,(g)=>{g.fillStyle='#b0b0b0';g.fillRect(0,0,S,S);g.fillStyle='#404040';for(let i=0;i<=n;i++){g.fillRect(i*q-3,0,6,S);g.fillRect(0,i*q-3,S,6);}}),
+    m=new THREE.MeshStandardMaterial({map:T2(c,1,1),normalMap:T2(heightToNormal(b,1.6),1,1,true),normalScale:new THREE.Vector2(.6,.6),roughness:rough,metalness:0,envMapIntensity:.8});m.userData.noHQ=true;return m;});}
+/* ---- Kitchen Chaos: a kitchen, 4.0 x 4.8 m. The numbers match tools/mini/t_kitchen.py ---- */
+function toyKitchen(def){const U=TM.U,X=695,Y=833,H=868,M=TM,win=[-250,250,400,764],dr=[330,616,0,712],top=312,tab=260;
+  toyShell({key:'k',X,Y,H,win,dr,walls:['#ece7dc','#ece7dc','#ece7dc','#c9d6c8'],floor:toyTiles('kfloor','#ebe5d6','#93a09c','#6f6a62',2,.3),tile:60,env:[-150,400,-330],noNorthSkirt:true,view:'k'});
+  /* white tiles on the wall behind the worktop, up to the wall cabinets and under the window */
+  {const tm=toyTiles('ksplash','#f6f5f0','#f1efe8','#c9c6bd',4,.22),pl=(x0,x1,y0,y1)=>{const g=new THREE.PlaneGeometry(x1-x0,y1-y0);const uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*(x1-x0)/(40*U),uv.getY(i)*(y1-y0)/(40*U));const m=new THREE.Mesh(g,tm);m.position.set((x0+x1)/2,(y0+y1)/2,-Y+.6);m.userData.noLift=true;m.receiveShadow=true;world.add(m);};
+    pl(-X,win[0]-9*U,top,503);pl(win[0]-9*U,win[1]+9*U,top,win[2]-3*U);pl(win[1]+9*U,440,top,503);}
+  /* ---- furniture ---- */
+  toyPut(M.kcounter(),-147.5,725.5,0);TOYF.push([-695,400,-833,-618,top]);
+  toyPut(M.kwallcab(),-487,776,0,503);{const wc=M.kwallcab();wc.scale.x=.45;toyPut(wc,345,776,0,503);}
+  toyPut(M.kfridge(),567.5,715,0);
+  toyPut(M.ktable(),0,-1,0);TOYF.push([-278,278,-138,140,tab]);
+  toyPut(M.kchair(),-140,196,.08);toyPut(M.kchair(),44,204,-.12);toyPut(M.kchair(),-140,-218,Math.PI-.1);toyPut(M.kchair(),118,-230,Math.PI+.22);
+  toyPut(M.kstool(),-460,-210,.4);toyPut(M.kshelf(),-643,200,Math.PI/2);
+  /* on the worktop, behind the track; on the table, clear of it; on the fridge */
+  toyPut(M.mug({color:'#c9573b'}),-560,798,.6,top);toyPut(M.plant({seed:7}),-640,792,0,top).scale.setScalar(.5);toyPut(M.sodacan(),-330,804,0,top);toyPut(M.books(3,12),60,800,.2,top);toyPut(M.mug(),150,806,2.1,top);
+  toyPut(M.fruitbowl(),-150,70,0,tab);toyPut(M.plates(5),-30,84,0,tab);toyPut(M.mug({color:'#2f5d8a'}),70,104,1,tab);toyPut(M.carton(30,24,18),560,716,.15,180*U);
+  /* on the floor: a runner in front of the worktop, the bin, shopping by the back door, things left lying about */
+  toyPut(M.rug({w:55,l:150}),-110,562,Math.PI/2);toyPut(M.bin(),640,520,0);toyPut(M.grocery(),236,-774,.2);toyPut(M.grocery(),150,-766,-.3);toyPut(M.carton(42,32,22),640,-762,.1);
+  toyPut(M.ball({kind:'tennis'}),360,-60,0);toyPut(M.bricks({seed:4,n:9,spread:8}),-640,-690,0);toyPut(M.cube({seed:7}),-250,-300,.5);toyPut(M.pencils({seed:3,n:3}),330,250,0);
+  toyPut(M.setbox(),-370,-772,.1);toyPut(M.trackpiece({l:22}),-200,-752,-.5);
+  /* the kitchen has its own wall art: a market print, a lettered print, and a clock over the door */
+  toyPut(M.poster(50,70,3),689,-150,-Math.PI/2,470);toyPut(M.poster(42,60,4),-689,-430,Math.PI/2,440);toyPut(M.clock(),40,-Y+.6*U,Math.PI,560);
+  /* where furniture keeps the light off the floor */
+  toyShade(-278,278,-140,138,.4);toyShade(-695,400,560,833,.34);toyShade(440,695,590,833,.4);toyShade(-695,-591,44,356,.3);toyShade(-520,-400,-270,-150,.2);}
+function buildToy(def){TOYF=[];TOYP=[];TOYB=[];if(def.look==='bedroom')toyBedroom(def);else if(def.look==='kitchen')toyKitchen(def);}
 function toyScenery(def){toyRails(def);TOYB.forEach(j=>toyBooster(j));/* the motor housings go on last, once the shortcuts are known */}
