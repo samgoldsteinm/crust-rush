@@ -9,7 +9,8 @@ extends Node
 ## engine voice per kart body and its tuning (web ENG_BODY / ENG_PROF): [pitch, gears, voice, unused, level]
 const ENG_BODY := {"delivery": "v8", "formula": "race", "interceptor": "race", "hyper": "race", "onyx": "race", "roadster": "race", "scissor": "race",
 	"gt": "race", "coupe": "race", "muscle": "v8", "monster": "v8", "suv": "v8", "rocket": "jet", "bike_rocket": "jet", "bike_moto": "bike", "bike_mx": "bike",
-	"bike_neutron": "bike", "bike_june": "hum", "oven": "chug", "chariot": "chug"}
+	"bike_neutron": "bike", "bike_june": "hum", "oven": "chug", "chariot": "chug",
+	"skywing": "race", "megagt": "race", "megawatt": "race", "endur": "race", "slip": "race", "retrogt": "race"}
 const ENG_PROF := {"std": [1.0, true, "pulse", 1.0, 1.0], "race": [1.55, true, "scream", 1.0, 0.8], "v8": [0.62, true, "v8", 1.0, 1.15],
 	"jet": [2.2, false, "hum", 1.0, 0.7], "bike": [1.25, true, "pulse", 1.0, 0.95], "hum": [3.1, false, "hum", 1.0, 0.6], "chug": [0.8, true, "v8", 1.0, 1.1]}
 const ENG_BASE := 46.0     # every voice's loop is built on this fundamental
