@@ -469,9 +469,10 @@ func _drive(inp: Dictionary, dt: float, brake_in: bool, d_press: bool, trick_now
 		var sl2 := absf(ang_diff(a, ma))
 		var st_abs := absf(st_in if human else steer)
 		var up := human and not brake_in and d_hold > 0.35 and not air
-		if d_time > (0.0 if up else (0.3 if human else 0.45)) and st_abs < (0.6 if up else (0.15 if human else 0.3)) and (human or sl2 < 0.14):
+		# T.DROUT: on toy tracks a drift ends sooner (web DROUT, 0.6 there): one quick bend follows another
+		if d_time > (0.0 if up else (0.3 * T.DROUT if human else 0.45)) and st_abs < (0.6 if up else (0.15 if human else 0.3)) and (human or sl2 < 0.14):
 			s_t += dt
-			if s_t > (0.016 if up else ((0.5 if brake_in else 0.3) if human else 0.3)):
+			if s_t > (0.016 if up else ((0.5 if brake_in else 0.3) * T.DROUT if human else 0.3)):
 				d_rel = true
 		else:
 			s_t = 0.0
@@ -488,9 +489,9 @@ func _drive(inp: Dictionary, dt: float, brake_in: bool, d_press: bool, trick_now
 				events.append("boost%d" % tr)
 			drift = 0
 			charge = 0.0
-			grip_t = 0.25
+			grip_t = 0.25 * T.DROUT
 		else:
-			d_amt = minf(1.0, d_amt + dt * 1.75)
+			d_amt = minf(1.0, d_amt + dt * T.DRIN)   # how fast a drift builds (web DRIN: 1.75, 2.6 on toy tracks)
 			var da := d_amt * d_amt * (3.0 - 2.0 * d_amt)
 			a += steer * T.TURN * (tf_n + (tf_d - tf_n) * da) * dt * dir
 			speed -= 3.0 * dt

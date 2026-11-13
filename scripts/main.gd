@@ -2830,6 +2830,7 @@ func _settings_panel() -> Control:
 				["Look", "Vivid: a darker base tone with a stronger sun, deeper shadows and richer colour, so lit faces and light sources stand out. Classic: the softer, brighter balance. Applies from the next race.", "look", [["vivid", "Vivid"], ["classic", "Classic"]], look],
 				["Ambient occlusion", "Soft contact shading in corners and crevices, computed every frame. The single most expensive effect: turn it off to run Ultra's detail at a higher frame rate.", "ao", on_off, "1" if ao_on else "0"],
 				["Motion blur", "The edges of the picture streak with speed; your kart and the road ahead stay sharp.", "mblur", on_off, "1" if mblur_on else "0"],
+				["Background blur", "On the toy tracks the far side of the room goes soft, like a close-up photo of a model; the track ahead stays sharp. Ultra.", "dof", on_off, "1" if dof_on else "0"],
 				["Sharpening", "When the 3D view is drawn below screen size to hold the frame rate, a sharpening pass brings the detail back. Turn off if you prefer a softer picture.", "sharp", on_off, "1" if sharpen_on else "0"],
 				["Scenery distance", "How far away trackside props are drawn.", "scenery", [["0", "Near"], ["1", "Normal"], ["2", "Far"]], str(scenery)],
 				["Frame rate", "Auto runs as fast as your monitor shows (with G-SYNC or FreeSync, up to its refresh rate), so the graphics card works flat out. A cap lets it rest between frames: 90 still feels smooth and takes a good share of the load off.", "fps", [["0", "Auto"], ["60", "60"], ["90", "90"], ["120", "120"], ["144", "144"]], str(fps_cap)],
@@ -3118,6 +3119,7 @@ func _reset_settings() -> void:
 	ao_on = true
 	sharpen_on = true
 	mblur_on = false
+	dof_on = true
 	scenery = 1
 	fps_cap = 0
 	res_scale = 1.0
@@ -3162,6 +3164,7 @@ var look := "vivid"
 var ao_on := true
 var sharpen_on := true
 var mblur_on := false   # Settings > Motion blur
+var dof_on := true      # Settings > Background blur (toy tracks, Ultra)
 var mb_fx := 0.0
 var scenery := 1          # 0 near, 1 normal, 2 far
 var fps_counter := false
@@ -3247,6 +3250,9 @@ func _apply_setting(key: String, val: String) -> void:
 			_apply_res()
 		"mblur":
 			mblur_on = val == "1"
+		"dof":
+			dof_on = val == "1"
+			_toy_dof()
 		"scenery":
 			scenery = int(val)
 		"look":
@@ -3342,6 +3348,23 @@ func _toy_sun() -> void:
 	sun.directional_shadow_split_3 = 0.5
 	sun.directional_shadow_blend_splits = true
 	sun.directional_shadow_fade_start = 0.95
+	_toy_dof()
+
+
+## Background blur on toy tracks (web v165, Ultra): things far across the room go soft, as in a close-up photograph of a
+## miniature; everything within a few seconds' drive stays sharp. Settings > Graphics > Background blur.
+func _toy_dof() -> void:
+	if cam == null:
+		return
+	if T != null and T.toy and dof_on and quality >= 2:
+		var ca := CameraAttributesPractical.new()
+		ca.dof_blur_far_enabled = true
+		ca.dof_blur_far_distance = 420.0
+		ca.dof_blur_far_transition = 1800.0
+		ca.dof_blur_amount = 0.055
+		cam.attributes = ca
+	else:
+		cam.attributes = null
 
 
 func _save_settings() -> void:
@@ -3351,7 +3374,7 @@ func _save_settings() -> void:
 	cf.set_value("gfx", "res", res_scale)
 	cf.set_value("snd", "vol", sfx_vol)
 	cf.set_value("snd", "level", snd_level)
-	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "mblur_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "mblur_on", "dof_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
 		cf.set_value("opt", k2, get(k2))
 	cf.set_value("opt", "stats_on", KartBuilder.stats_on)
 	Keys.save_to(cf)
@@ -3378,7 +3401,7 @@ func _load_settings() -> void:
 	res_scale = float(cf.get_value("gfx", "res", res_scale))
 	sfx_vol = float(cf.get_value("snd", "vol", 1.0))
 	snd_level = float(cf.get_value("snd", "level", 1.0))
-	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "mblur_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "mblur_on", "dof_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
 		var vv = cf.get_value("opt", k2, get(k2))
 		if typeof(vv) == typeof(get(k2)):
 			set(k2, vv)

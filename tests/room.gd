@@ -25,6 +25,8 @@ func _run() -> void:
 	cam.near = 1.6
 	cam.far = 22000.0
 	add_child(cam)
+	main._toy_dof()
+	cam.attributes = main.cam.attributes   # the game camera's own settings (background blur on toy tracks)
 	var dir := ProjectSettings.globalize_path("res://build/shots")
 	DirAccess.make_dir_recursive_absolute(dir)
 	var tag := OS.get_environment("CR_TAG")

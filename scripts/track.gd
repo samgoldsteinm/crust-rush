@@ -17,6 +17,8 @@ var KS := 1.76
 var BASE0 := 170.5
 var ACCEL := 110.0
 var TURN := 2.2
+var DRIN := 1.75    # how fast a drift builds to full (web DRIN; 2.6 on toy tracks)
+var DROUT := 1.0    # a factor on the times that end a drift and bring the grip back (web DROUT; 0.6 on toy tracks)
 var LAPS := 3
 var laps0 := 3          # the track's own lap count (toy tracks run more, shorter laps)
 var LS := 1.0           # the road's width against the usual one: lane positions are scaled by it
@@ -122,6 +124,8 @@ func _read(d: Dictionary) -> void:
 	BASE0 = d["BASE0"]
 	ACCEL = d["ACCEL"]
 	TURN = d["TURN"]
+	DRIN = float(d.get("DRIN", 1.75))
+	DROUT = float(d.get("DROUT", 1.0))
 	LAPS = int(d["LAPS"])
 	laps0 = LAPS
 	LS = float(d.get("LS", 1.0))
