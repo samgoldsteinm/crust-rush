@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Put the Miniature Mayhem tracks and code (mini.js) into crust-rush.html, between their markers."""
 import json, subprocess, sys
-for t in ('t_bedroom.py','t_kitchen.py'):   # each writes its own entry into tracks.json (the bedroom first: it starts the list)
+for t in ('t_bedroom.py','t_kitchen.py','t_garage.py'):   # each writes its own entry into tracks.json (the bedroom first: it starts the list)
     subprocess.check_call([sys.executable,'D:/crust-rush/source/tools/mini/'+t],stdout=subprocess.DEVNULL)
 P='D:/crust-rush/source/crust-rush.html'
 s=open(P,encoding='utf-8',newline='').read()

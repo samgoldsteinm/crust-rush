@@ -14,7 +14,7 @@ from crlib import *
 NAME = 'outside'
 # which window the garden is seen from: '' the bedroom's; 'k' the kitchen's, 7 m further west along the same wall. Run with:  ... --python outside.py -- k
 VIEW = sys.argv[sys.argv.index('--') + 1] if '--' in sys.argv and len(sys.argv) > sys.argv.index('--') + 1 else ''
-DX = -7.0 if VIEW == 'k' else 0.0
+DX = -7.0 if VIEW == 'k' else 8.0 if VIEW == 'g' else 0.0   # 'g': the garage, at the east end of the house
 s = reset()
 os.makedirs(f'{OUT}/{NAME}', exist_ok=True)
 rs = np.random.RandomState(11)
@@ -91,6 +91,18 @@ for i in range(-150, 71):    # far enough left for the kitchen's view too
     box(f'board{i}', (.118, .02, h), (i * .125, 7.0 + rs.rand() * .006, GROUND + h / 2), fws[rs.randint(3)], .003, 1)
 for z in (.45, 1.45): box(f'rail{z}', (27.8, .04, .09), (-5.0, 7.035, GROUND + z), fw, 0)
 for i in range(-4, 5): box(f'post{i}', (.09, .09, 1.9), (i * 2.2, 7.06, GROUND + .95), fw, .004, 1)
+# the fence carries on east past the garage (its own random numbers, so the boards the other views see stay as they were)
+rs2 = np.random.RandomState(77)
+for i in range(71, 140):
+    h = 1.78 + rs2.rand() * .05
+    box(f'board{i}', (.118, .02, h), (i * .125, 7.0 + rs2.rand() * .006, GROUND + h / 2), fws[rs2.randint(3)], .003, 1)
+for z in (.45, 1.45): box(f'railE{z}', (8.8, .04, .09), (13.2, 7.035, GROUND + z), fw, 0)
+for i in range(5, 9): box(f'post{i}', (.09, .09, 1.9), (i * 2.2, 7.06, GROUND + .95), fw, .004, 1)
+# east of the bedroom, seen from the garage only: a small football goal and a ball left on the lawn
+gm2 = mat('goal', (.92, .92, .9), .4)
+for gx in (8.6, 10.6): box(f'goalpost{gx}', (.06, .06, 1.3), (gx, 5.6, GROUND + .65), gm2, 0); box(f'goalstay{gx}', (.04, .8, .04), (gx, 6.0, GROUND + .02), gm2, 0)
+box('goalbar', (2.06, .06, .06), (9.6, 5.6, GROUND + 1.3), gm2, 0)
+bpy.ops.mesh.primitive_uv_sphere_add(radius=.11, location=(7.4, 3.9, GROUND + .11)); bpy.context.object.data.materials.append(mat('fball', (.9, .9, .9), .5)); bpy.ops.object.shade_smooth()
 # a neighbour's house beyond it
 wallm = mat('siding', hexcol('#e6dcc8'), .8); roofm = mat('roof', hexcol('#5d6470'), .7); glassm = mat('pane', (.03, .05, .08), .08)
 HX, HY = -2.5, 23.0
@@ -129,7 +141,7 @@ if True:
     box('line', (4.8, .01, .01), (-5.8, 4.2, GROUND + 1.95), mat('pole', (.75, .75, .75), .5), 0)
     for k, (px, cc) in enumerate(((-7.2, '#d9534f'), (-6.3, '#f4f1ea'), (-5.3, '#4f86c6'), (-4.4, '#f0c040'))):
         box(f'cloth{k}', (.62, .012, .62 + .1 * (k % 2)), (px, 4.2, GROUND + 1.6 - .05 * (k % 2)), mat(f'cloth{k}', hexcol(cc), .9), 0)
-co.location = (DX, -3.1, 1.25 if VIEW == 'k' else 1.0); co.rotation_euler = (Vector((DX + (.5 if VIEW == 'k' else 0), 0, 1.64)) - co.location).to_track_quat('-Z', 'Y').to_euler()
+co.location = (DX, -3.1, 1.25 if VIEW in ('k', 'g') else 1.0); co.rotation_euler = (Vector((DX + (.5 if VIEW == 'k' else -.4 if VIEW == 'g' else 0), 0, 1.64)) - co.location).to_track_quat('-Z', 'Y').to_euler()
 cam.sensor_fit = 'HORIZONTAL'; cam.angle = 2 * math.atan(1.95 / 3.17); cam.clip_end = 500
 s.render.resolution_x, s.render.resolution_y = 2048, 1444
 s.cycles.samples = 160; s.cycles.use_denoising = True

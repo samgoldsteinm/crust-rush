@@ -22,6 +22,16 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### 2026-11-13 (web v174): Garage Overdrive, the third toy track
+
+All of it is in docs/MINIATURE-MAYHEM-PLAN.md under "Garage Overdrive". PC: `maps.yml` exports tracks 0..22.
+
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| The road on the workbench could not be seen: karts drove on bare wood between the rails | The track's height there was 312, exactly the bench top's | 314 | A track lying on furniture is 2 above the surface (the kitchen's worktop 312 / track 314, table 260 / 262) |
+| The glossy track washed out to white along the plank | The strip lights' glow (1.6) goes into the room's reflection picture | .55 | Anything that glows in a toy room is also in its reflections: keep emissive strengths under 1 |
+| A vice and a toolbox stood on the track | Placed by eye on the bench | Moved; the strips the track takes are written in `toyGarage` | Look at a fixed-camera picture of every surface the track crosses before publishing |
+
 ### 2026-11-13 (web v173, PC with PROTO 105): six new cars from the user's models; the flame tip had no position
 
 **The six cars** (Cars tab of the garage; ids `skywing`, `megagt`, `megawatt`, `endur`, `slip`, `retrogt`; names Skywing,

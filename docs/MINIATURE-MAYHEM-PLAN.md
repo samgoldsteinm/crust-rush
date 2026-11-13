@@ -276,3 +276,31 @@ before the launch and the hairpins, a stronger bloom at the window.
   layouts. Menu pictures for kitchen and fresh ones for the bedroom (scratch/menupics, embed_shots.py).
 - PC: needs `maps.yml` to export track 21 as well, then the usual release.
 
+## Garage Overdrive (web v174, 2026-11-13): the third toy track
+- Layout: `tools/mini/t_garage.py` (inject_mini.py now runs bedroom, kitchen, garage). Lap 6427 units, 4 laps. Start on the
+  floor in front of the garage door (y -700) heading east, with the loop -> left up the east side on a long plank (1040 long:
+  any shorter is steeper than the bedroom's steepest, .44) -> the workbench (314, two above its top of 312, as in the kitchen)
+  -> left along its return on the north wall -> a jump off the bench's end -> spiral R=150, 1.25 turns round a stack of tyres at
+  (-252,576) -> south down the west side -> a chicane across the middle of the floor -> past the door to the house -> the line.
+- Room: `toyGarage` in mini.js on `toyShell`, which gained `dr:null` (no door in the south wall), `noSkirt`, `light:'tube'`.
+  The room is the same 4.0 x 4.8 m as the other two ON PURPOSE: the toy-track engine (sun box, shadow radius, arena radius
+  1160) was tuned for that size. Concrete floor (`M.gconcrete`), a grey band round the walls, a sectional door on the south wall,
+  the door to the house on the WEST wall, oil stains (`toyStain`). Coloured sections: plank and bench yellow, spiral red,
+  chicane blue.
+- THE HOUSE, west to east: kitchen (its window 7 m west of the bedroom's), bedroom, garage (8 m east). All three windows are
+  in the north wall and look onto the one garden of `tools/blender/outside.py`; the garage's picture is `-- g`
+  (`tex_toy_outsideg`): the neighbour's house off to the left, the fence carried on east, and a small football goal and a ball
+  that only this window sees. The Backyard track must contain all of it: shed and washing line in the west, the close tree
+  in the middle, the goal in the east, the fence along the back, the house's north wall with three windows along the front.
+- Things: all code-built in models.js under "Garage Overdrive" (`gbench`, `gvice`, `gchest`, `gshelf`, `paintcan`, `gtoolbox`,
+  `jerry`, `gtyres`, `gdoor`, `gjack`, `cone`, `pegboard`, `tubelight`, `gsign`, `stainCan`). Blender versions of the big
+  ones (bench, cabinet, shelving, tyres, door) are still to do; each would replace its builder the way the kitchen's did.
+  The signs say PIT LANE, SLOW DOWN RACING IN PROGRESS and CR 08: made up, no real brand.
+- Found while building: (1) the road on the bench was invisible because the track sat at 312, the bench top's own height: a
+  track on a surface goes 2 above it. (2) Strip lights at emissive 1.6 put two glaring streaks into the room's reflection
+  picture and washed the glossy yellow track out to white: .55 now. (3) A vice and a toolbox on the bench stood on the track:
+  the comment in toyGarage gives the strips the track takes.
+- Tests: races forward, 200cc and reverse (8 finish, 0 respawns, 0 stuck), box check 46 layouts, the other two rooms load,
+  PC export of track 22 and the PC smoke race pass. Menu pictures in scratch/menupics_g.
+- Left for the cup: Backyard Mega Circuit, then the Miniature Mayhem Cup of the four.
+

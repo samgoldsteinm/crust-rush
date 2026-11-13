@@ -8,7 +8,7 @@ let TOYF=[],TOYP=[],TOYB=[],TOYENV=null;/* TOYENV: where the room is photographe
 function toyUnder(x,z,below){let h=0;for(const b of TOYF)if(x>=b[0]&&x<=b[1]&&z>=b[2]&&z<=b[3]&&b[4]<=below+.5&&b[4]>h)h=b[4];return h;}
 /* The set comes in coloured sections, the way toy track does. TOYSEC lists them per room as [from,to,colour] in fractions of
    the lap (the lap as it is laid out, whichever way it is raced); everything else is orange. Looks only: the race never reads it. */
-const TOYCOL={orange:'#ff6a12',red:'#e3271d',yellow:'#f6c41f',blue:'#1f55c8'},TOYSEC={bedroom:[[.073,.253,'red'],[.347,.514,'yellow'],[.783,.938,'blue']],kitchen:[[.079,.26,'yellow'],[.26,.426,'red'],[.789,.976,'blue']]};
+const TOYCOL={orange:'#ff6a12',red:'#e3271d',yellow:'#f6c41f',blue:'#1f55c8'},TOYSEC={bedroom:[[.073,.253,'red'],[.347,.514,'yellow'],[.783,.938,'blue']],kitchen:[[.079,.26,'yellow'],[.26,.426,'red'],[.789,.976,'blue']],garage:[[.126,.452,'yellow'],[.452,.635,'red'],[.674,.916,'blue']]};
 function toyColAt(def,j){j=((j%N)+N)%N;const f=(curRev?(N-j)%N:j)/N;for(const q of TOYSEC[def.look]||[])if(f>=q[0]&&f<q[1])return q[2];return 'orange';}
 /* runs of one colour between two points of the lap: [[from,to,colour],...] */
 function toyRuns(def,j0,j1){const out=[];let a=j0,k=toyColAt(def,j0);for(let j=j0+1;j<=j1;j++){const c=j<j1?toyColAt(def,j):null;if(c!==k){out.push([a,j,k]);a=j;k=c;}}return out;}
@@ -193,13 +193,13 @@ function toyShell(o){const U=TM.U,M=TM,X=o.X,Y=o.Y,H=o.H,win=o.win,dr=o.dr;
     wallM=(key,col)=>M.mat('pt_'+key,()=>{const m=new THREE.MeshStandardMaterial({color:col,roughness:.9,metalness:0,envMapIntensity:.4,normalMap:stip,normalScale:new THREE.Vector2(.35,.35)});m.userData.noHQ=true;return m;}),
     W=o.walls.map((c,i)=>wallM('wall'+o.key+i,c));/* named toy_pt_wall..., which the PC looks for */
   sunBeam([[win[0],win[1],win[2],win[3],-Y-12*U,-Y]],win[3]/sunDir.y+160);
-  toyWall('x',-Y,-X,X,H,win,W[0],-1);toyWall('x',Y,-X,X,H,dr,W[1],1);toyWall('z',-X,-Y,Y,H,null,W[2],-1);toyWall('z',X,-Y,Y,H,null,W[3],1);
+  toyWall('x',-Y,-X,X,H,win,W[0],-1);toyWall('x',Y,-X,X,H,dr||null,W[1],1);toyWall('z',-X,-Y,Y,H,null,W[2],-1);toyWall('z',X,-Y,Y,H,null,W[3],1);
   const cg=new THREE.PlaneGeometry(2*X,2*Y);cg.rotateX(Math.PI/2);const ce=new THREE.Mesh(cg,wallM('ceiling','#f4f1ea'));ce.position.y=H;ce.userData.noLift=true;world.add(ce);
   const sk=M.paint('skirting','#f6f4ee',.5),sb=(x0,x1,z0,z1)=>{const b=new THREE.Mesh(M.slab(Math.abs(x1-x0)||1.6*U,10*U,Math.abs(z1-z0)||1.6*U,.3*U,.3*U,2),sk);b.position.set((x0+x1)/2,5*U,(z0+z1)/2);b.userData.noLift=true;b.receiveShadow=true;world.add(b);};
-  if(!o.noNorthSkirt)sb(-X,X,-Y+.8*U,-Y+.8*U);sb(-X,dr[0]-9*U,Y-.8*U,Y-.8*U);sb(dr[1]+9*U,X,Y-.8*U,Y-.8*U);sb(-X+.8*U,-X+.8*U,-Y,Y);sb(X-.8*U,X-.8*U,-Y,Y);
+  if(!o.noSkirt){if(!o.noNorthSkirt)sb(-X,X,-Y+.8*U,-Y+.8*U);sb(-X,dr[0]-9*U,Y-.8*U,Y-.8*U);sb(dr[1]+9*U,X,Y-.8*U,Y-.8*U);sb(-X+.8*U,-X+.8*U,-Y,Y);sb(X-.8*U,X-.8*U,-Y,Y);}
   const wcx=(win[0]+win[1])/2,wW=(win[1]-win[0])/U,wH=(win[3]-win[2])/U;toyPut(M.window(wW,wH),wcx,Y+4*U,0,win[2]);const out=M.outside(wW*2.6,wH*2.2,o.view);out.position.set(wcx,win[2]+wH*U*.55,-Y-60*U);out.userData.noLift=true;out.userData.envGain=6;world.add(out);TOYENV=o.env;
-  toyPut(M.door(),(dr[0]+dr[1])/2,-Y+1*U,Math.PI,0);
-  {const g=new THREE.Group();M.add(g,M.cyl(17*U,17*U,2*U,32),M.paint('ceilrose','#f1eee6',.6),0,-1*U,0);M.add(g,new THREE.SphereGeometry(15*U,28,12,0,6.283,Math.PI/2,Math.PI/2),M.mat('ceilglass',()=>new THREE.MeshStandardMaterial({color:'#fffaf0',emissive:'#fff1d6',emissiveIntensity:.35,roughness:.4})),0,-2*U,0);toyPut(g,0,0,0,H);}}
+  if(dr)toyPut(M.door(),(dr[0]+dr[1])/2,-Y+1*U,Math.PI,0);
+  if(o.light==='tube'){for(const y of [-380,330])toyPut(M.tubelight(),0,y,0,H);}else{const g=new THREE.Group();M.add(g,M.cyl(17*U,17*U,2*U,32),M.paint('ceilrose','#f1eee6',.6),0,-1*U,0);M.add(g,new THREE.SphereGeometry(15*U,28,12,0,6.283,Math.PI/2,Math.PI/2),M.mat('ceilglass',()=>new THREE.MeshStandardMaterial({color:'#fffaf0',emissive:'#fff1d6',emissiveIntensity:.35,roughness:.4})),0,-2*U,0);toyPut(g,0,0,0,H);}}
 /* a tiled surface: n x n tiles per texture in two colours with sunk grout lines; glossy, so it shows the window */
 function toyTiles(key,c1,c2,grout,n,rough){return TM.mat('tiles_'+key,()=>{const S=512,q=S/n,c=TM.can('tile_'+key,S,S,(g,w,h,r)=>{for(let j=0;j<n;j++)for(let i=0;i<n;i++){g.fillStyle=(i+j)%2?c2:c1;g.fillRect(i*q,j*q,q,q);for(let k=0;k<160;k++){g.fillStyle='rgba('+(r()<.5?'255,255,255':'0,0,0')+','+r()*.04+')';g.fillRect(i*q+r()*q,j*q+r()*q,2+r()*10,2+r()*10);}}
       g.fillStyle=grout;for(let i=0;i<=n;i++){g.fillRect(i*q-2,0,4,S);g.fillRect(0,i*q-2,S,4);}}),
@@ -229,5 +229,36 @@ function toyKitchen(def){const U=TM.U,X=695,Y=833,H=868,M=TM,win=[-250,250,400,7
   toyPut(M.poster(50,70,3),689,-150,-Math.PI/2,470);toyPut(M.poster(42,60,4),-689,-430,Math.PI/2,440);toyPut(M.clock(),40,-Y+.6*U,Math.PI,560);
   /* where furniture keeps the light off the floor */
   toyShade(-278,278,-140,138,.4);toyShade(-695,400,560,833,.34);toyShade(440,695,590,833,.4);toyShade(-695,-591,44,356,.3);toyShade(-520,-400,-270,-150,.2);}
-function buildToy(def){TOYF=[];TOYP=[];TOYB=[];if(def.look==='bedroom')toyBedroom(def);else if(def.look==='kitchen')toyKitchen(def);}
+/* an oil stain on the floor, about d units across */
+function toyStain(x,y,d,a,rot){const m=TM.mat('goil'+a,()=>new THREE.MeshBasicMaterial({map:TM.tex(TM.stainCan(),'goil'),transparent:true,opacity:a,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1})),p=new THREE.Mesh(new THREE.PlaneGeometry(d,d),m);
+  p.rotation.x=-Math.PI/2;p.rotation.z=rot||0;p.position.set(x,.3,-y);p.userData.noLift=true;p.userData.noMerge=true;p.renderOrder=1;world.add(p);}
+/* ---- Garage Overdrive: a single garage, 4.0 x 4.8 m. The numbers match tools/mini/t_garage.py ----
+   The garage is at the east end of the house: the door to the house is in its west wall, the big door in the south wall,
+   and its window looks north onto the same garden as the bedroom's and the kitchen's (view 'g'). */
+function toyGarage(def){const U=TM.U,X=695,Y=833,H=868,M=TM,win=[-420,80,430,764],top=312;
+  toyShell({key:'g',X,Y,H,win,dr:null,walls:['#e6e3db','#e6e3db','#e6e3db','#e6e3db'],floor:M.gconcrete(),tile:240,env:[-60,400,-80],noSkirt:true,light:'tube',view:'g'});
+  /* a grey band painted round the foot of the walls, as garages have */
+  {const bm=M.paint('gband','#8f9499',.7),bd=(x0,x1,z0,z1)=>{const b=new THREE.Mesh(new THREE.BoxGeometry(Math.abs(x1-x0)||.5*U,100*U,Math.abs(z1-z0)||.5*U),bm);b.position.set((x0+x1)/2,50*U,(z0+z1)/2);b.userData.noLift=true;b.receiveShadow=true;world.add(b);};
+    bd(-X,X,-Y+.25*U,-Y+.25*U);bd(-X+.25*U,-X+.25*U,-Y,Y);bd(X-.25*U,X-.25*U,-Y,Y);bd(-X,-560,Y-.25*U,Y-.25*U);bd(560,X,Y-.25*U,Y-.25*U);}
+  /* ---- the big door, the door to the house ---- */
+  toyPut(M.gdoor(318,214),0,-Y+3*U,Math.PI);toyPut(M.door(),-X+2.4*U,-560,Math.PI/2);
+  /* ---- the workbench: along the east wall and returning along the north wall; the track runs along both ---- */
+  toyPut(M.gbench(116),587.5,631.5,Math.PI/2);TOYF.push([480,695,-833,-430,top]);
+  toyPut(M.gbench(101),305,725.5,0);TOYF.push([130,480,-833,-618,top]);
+  /* on the bench, clear of the track (it takes x 543..633 on the east arm and y 681..771 on the north arm) */
+  toyPut(M.gvice(),175,650,0,top);toyPut(M.paintcan('#c9573b'),436,803,1,top);toyPut(M.mug({color:'#3f6f8f'}),270,806,2,top);toyPut(M.sodacan(),666,806,0,top);toyPut(M.paintcan('#e9e3d2'),668,560,2,top);
+  toyPut(M.pegboard(110,70),X-1*U,640,-Math.PI/2,400);toyPut(M.gsign(0),330,Y-.6*U,0,520);toyPut(M.gsign(2),560,Y-.6*U,0,640);toyPut(M.gsign(1),-X+.6*U,-200,Math.PI/2,640);toyPut(M.clock(),-X+.6*U,-560,Math.PI/2,770);
+  /* ---- the rest of the furniture ---- */
+  toyPut(M.gchest(),-582,746,0);toyPut(M.gtyres(4),-252,576,0);toyPut(M.gshelf(),-625,100,Math.PI/2);
+  toyPut(M.carton(44,34,30),640,-760,.1);toyPut(M.carton(36,30,24),648,-764,-.2,30*U);toyPut(M.carton(50,36,28),-600,-770,.06);
+  /* ---- on the floor, in the pockets the track leaves ---- */
+  toyPut(M.gjack(),-170,-20,.5);toyPut(M.jerry('#4a5a3a'),-40,470,.4);toyPut(M.paintcan('#e9e3d2'),30,520,1);toyPut(M.paintcan('#2f6f9f'),-10,560,2);
+  toyPut(M.cone(),330,-420,0);toyPut(M.cone(),400,-250,0);toyPut(M.cone(),-520,-640,0);toyPut(M.gtyres(1),360,330,0).rotation.z=0;toyPut(M.gtoolbox(),330,60,-.5);
+  toyPut(M.ball({kind:'tennis'}),-560,420,0);toyPut(M.bricks({seed:9,n:8,spread:8}),420,160,0);toyPut(M.cube({seed:3}),-90,-480,.4);
+  toyPut(M.setbox(),120,-470,-.15);toyPut(M.trackpiece({l:22}),250,-520,.5);toyPut(M.skateboard(),-560,-300,1.4);
+  /* oil where the car stands, and drips by the door */
+  toyStain(330,-60,330,.55,.4);toyStain(250,300,220,.4,2);toyStain(-120,-420,200,.35,1);toyStain(60,60,150,.3,3);
+  /* where furniture keeps the light off the floor */
+  toyShade(480,695,430,833,.4);toyShade(130,480,618,833,.38);toyShade(-700,-464,666,826,.34);toyShade(-695,-556,-160,360,.34);toyShade(-360,-144,468,684,.3);}
+function buildToy(def){TOYF=[];TOYP=[];TOYB=[];if(def.look==='bedroom')toyBedroom(def);else if(def.look==='kitchen')toyKitchen(def);else if(def.look==='garage')toyGarage(def);}
 function toyScenery(def){toyRails(def);TOYB.forEach(j=>toyBooster(j));/* the motor housings go on last, once the shortcuts are known */}
