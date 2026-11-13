@@ -1,0 +1,88 @@
+# Next two game modes: the owner's brief, word for word (2026-11-13)
+
+Kept here so the brief survives between sessions. These are the user's own words; nothing below is a decision of mine.
+Order given: first the reminder about the rooms, then Balloon Battle, then Sandbox ("definitely a bigger project").
+The standing rules in `docs/HANDOVER.md` still apply to both (web and PC agree on anything that moves a kart; nothing that
+risks online play; no copyrighted names or logos; test before publishing; a new version for each major update).
+
+## The reminder
+"Remember these scenes are supposed to be hyper realism"
+
+## Balloon Battle
+"Also let's add a new game mode
+
+How Balloon Battle works
+
+The mode is called Balloon Battle. Each kart starts with balloons tied to its back, and drivers can go anywhere in the arena. You grab item boxes, hunt down opponents, and try to pop their balloons while protecting your own. You might chase somebody with a red shell, then drop a banana in a narrow passage when another driver gets behind you. The balloons also tell you at a glance how close a rival is to losing their last one.
+
+Classic Mario Kart played it as last kart standing. In Mario Kart 8 Deluxe, it's a timed score battle. You start with five balloons and earn a point each time you pop a rival's balloon. Lose all of yours and you respawn with three, but your score gets cut in half. Whoever has the most points when time expires wins.
+
+What the maps are like
+
+Balloon Battle usually takes place in a compact, purpose-built arena. There are no laps or required direction of travel. Drivers approach each other head-on, cross paths from the side, and double back during a chase. The visual theme can vary widely. Some courses are flat and divided by colorful walls, while others look like stunt stadiums with ramps and elevated routes.
+
+For your pizza racing game, picture a battle on a pizzeria prep table. The open middle gives you room to spot a rival and line up a shot. A pizza box with its lid propped open forms a ramp onto a raised route. Along the edge, gaps between ingredient bins give you cover and a way to cut across the table. If someone chases you around a bin, they can see where you went and take the other side to meet you at the exit. That ability to intercept someone mid-chase is what makes the layout feel like a battle arena.
+It will require a new map exclusively for the game mode"
+
+## Sandbox / Free Roam
+"This is another game mode for us to work on, definitely a bigger project but it will be worth it on completion
+
+Build a Sandbox / Free Roam mode that connects every existing track into one large, driveable world. Keep the tracks themselves the same. The new content is the world around them: the roads that lead to each track, the land beside them, and the places players have seen during races but have never been able to reach. Use Mario Kart World's free roam as inspiration, and build the locations, activities, and rewards around our game's own identity.
+
+1. Keep the tracks intact and open up their surroundings
+
+Inspect the actual map roster and sketch how the locations fit together before implementing the world. Preserve each track's racing surface, corners, jumps, elevation, landmarks, and race layout. In Sandbox, create natural access points so I can drive onto a familiar track, follow part of it, and leave through an opening to explore somewhere new. Keep Sandbox access points separate from the barriers and checkpoint logic used during normal races and Grand Prix.
+
+Give each region places worth driving around off the main route. For example, if I've always been able to see a building across a fence during a race, Sandbox could let me take a service road around the block, enter its yard, and look back at the track from the other side. I want to recognize the exact corner I've raced before and get a genuinely new view of it. Build open yards, side streets, overlooks, and usable terrain where they fit the setting. A network of narrow connector roads alone won't deliver that feeling.
+
+2. Make the geography and boundaries believable
+
+Choose neighboring regions based on their terrain, architecture, scale, and visual themes. Give each track a recognizable approach and let players see landmarks before reaching them. The approach to the Tron-style region, for example, could pass through a power facility where illuminated strips gradually appear in the pavement before the full neon track comes into view. Preserve believable Hot Wheels proportions in any toy-scale locations. Build loops, forks, and shortcuts so players can leave a region by a different route than they entered.
+
+Every place that stops the vehicle should have a visible, believable reason. Use an anchored fence that meets a building or retaining wall at the ends, a solid building with a clear footprint, a rocky embankment, or a raised edge with a guardrail where the drop is closed to vehicles. Match collision closely to the visible object. If a fence ends and there's a kart-width opening onto driveable ground, let me drive through it. If that area has to be closed, finish the fence or place a believable physical obstacle there. Apply the same rule to the outer edge of the world.
+
+Check barriers from the chase camera in both directions and with the smallest kart or bike. Watch for places where the vehicle stops a few feet before a wall, catches on empty space beside a post, or hits an invisible border across terrain that looks open. A player exploring for secrets should be able to trust what they see.
+
+3. Add a proper Sandbox world map and fast travel
+
+* Controller: Pressing Select during Sandbox opens the world map directly while driving. Use the equivalent View/Back/Minus input through the project's existing controller mappings. Pressing Select again or using Back should return me to driving.
+* Mobile: When I pause Sandbox, add a Map option directly under Resume. Tapping it opens the same world map. Back should return to the pause menu, with Resume ready to use.
+* Map layout: Show the actual world from above. Label every section using its in-game name, draw the recognizable track layouts and connecting roads, and show my current position and facing direction. I should be able to open the map at a fork, see which road reaches the region I want, close it, and make the turn. Keep labels legible on a phone and support controller navigation throughout.
+* Fast travel: Place clearly marked fast-travel points in selected sections. Make ordinary region labels visually distinct from selectable destinations so it's obvious where I can travel. Selecting a destination should show its name and let me confirm. Load its road surface and collision, then place my vehicle on clear ground facing a useful exit or landmark. Every destination must also be reachable by driving.
+* Online behavior: Opening the map or pause menu should affect only my controls. Fast travel should move only my vehicle and update my position for the other players. If I fast travel during a timed delivery or driving challenge, end that attempt cleanly so teleporting can't complete the objective.
+
+4. Use one smooth day/night cycle
+
+Give the whole world a shared clock. If I leave a track at sunset, drive through two regions, or fast travel, the time of day should remain consistent. Gradually blend the sky, sun angle, ambient light, fog, shadows, and artificial lighting. Preserve the character of each location through local lighting. A neon district can glow during the day, and a brightly lit kitchen can have windows looking out onto a dark landscape.
+
+Check these transitions at driving speed. Roads, barriers, coins, and exits need to stay readable at dusk and at night. Pay particular attention to tunnel exits and region boundaries where sudden exposure, fog, or sky changes would be obvious.
+
+5. Reward curiosity with coins, secrets, and short challenges
+
+Use regular coins to lead players along satisfying driving lines. Put rarer collectible coins in places that reward exploration or skill. The newly accessible surroundings are ideal for this. Let me spot a coin on a loading dock from the racecourse, then work out which side street reaches the ramp behind it. Leave room for discovery on the world map so region labels and fast-travel markers don't give away every secret.
+
+Add optional activities that start and finish in the world. Include a pizza delivery between two regions with a safe route and a riskier shortcut, a drift or jump challenge built around the existing handling, and hidden Easter eggs specific to individual maps. Show the objective and coin reward when an activity starts, offer a quick retry, and save unique discoveries. Tune rewards so exploring a new section feels worthwhile.
+
+6. Add coin-based kart and car unlocks
+
+Create several new kart styles with noticeably different silhouettes from the driving camera. A low delivery kart, a retro open-wheel racer, or a chunky utility kart could work. Inspect the garage and choose designs that add variety to the current lineup. Match the modeling, materials, wheel detail, and livery quality of the best existing vehicles.
+
+Also choose two actual cars from the ones I most recently added and make them coin unlocks. Give one an attainable early price and make the other a longer-term goal. Preserve ownership for players who already earned or purchased them. Use the existing garage, currency, and save systems wherever possible. Let players preview a locked vehicle, see its price and their balance, unlock it, and equip it. Set prices after checking how quickly coins accumulate in normal play.
+
+7. Optimize for smooth 60 FPS driving
+
+Use the Three.js optimization techniques and quality settings already working in the project. Stream the world around the player, preload in the direction of travel, and keep distant landmarks visible at an appropriate level of detail. Account for open terrain and shortcuts when predicting where the player might go. Someone driving straight across a yard or making a sudden U-turn still needs the ground, barriers, and nearby scenery ready in time.
+
+Profile frame times during full-speed crossings, sharp turns toward a new region, map opening and closing, fast travel, and sustained drives through several regions. Check memory after revisiting areas. Test supported mobile and desktop settings, including the highest quality preset. Report the devices or environments tested and the slowest sections observed.
+
+8. Support online free roam if the project can support it
+
+Inspect the multiplayer and hosting setup early. Let players share a world, meet up at a named section, cruise together, or split up and explore independently. Synchronize vehicle movement and the world clock. Keep coins, challenge rewards, garage ownership, and unique collectibles per player. Each client should stream the areas it needs even when players are on opposite sides of the world.
+
+Test with two actual sessions. Have one player open the map while the other keeps driving, fast travel to another region, then meet back up by road. Verify reconnects and reward persistence. If online play depends on unavailable hosting or backend work, finish the single-player experience and identify exactly what remains.
+
+9. Verify the complete experience in-game
+
+Start from the normal menu and reach every track by driving. Use the world map to navigate at least one unfamiliar route. Test Select on controller, verify that Map sits directly beneath Resume on mobile, and fast travel to every marked destination. Drive along region edges and through apparent gaps to check that visible scenery and collision agree. Complete a challenge, find a hidden coin, buy a vehicle, restart, and equip it. Finally, run the original race and Grand Prix modes to verify their layouts and rules still work.
+
+When finished, summarize the connected regions using their actual names, the areas players can explore for the first time, the fast-travel destinations, the new kart unlocks and prices, the two recent cars selected, measured performance, and what you verified online."

@@ -236,7 +236,7 @@ def check_render(name, objs, size=(1600, 1000), views=((35, 22),), samples=96, d
     return outs
 
 
-def finish_model(name, parts, dist, lift=.3, views=((-30, 18),), floor=True):
+def finish_model(name, parts, dist, lift=.3, views=((-30, 18),), floor=True, after=None):
     """the last steps every model shares: apply transforms and modifiers, real-size UVs (unless a part is marked keep_uv),
     baked shade with a floor underneath, a check picture, the GLB"""
     os.makedirs(f'{OUT}/{name}', exist_ok=True)
@@ -250,8 +250,22 @@ def finish_model(name, parts, dist, lift=.3, views=((-30, 18),), floor=True):
     bake_ao(parts)
     if fl: bpy.data.objects.remove(fl)
     for o in parts: soften_ao(o, 1, lift)
+    for o in parts: tint(o)
+    if after: after(parts)                                  # (a model's own last touch before the picture and the export: custom normals, say)
     print('CHECK', check_render(name, parts, views=views, dist=dist))
     export(name, parts)
+
+
+def tint(o):
+    """multiply the baked shade by a colour: o['tint'] = (r, g, b) for the whole part (one board a little darker than the
+    next), and/or a per-vertex colour layer called 'Tint' (leaves of many greens). The game multiplies its material by this."""
+    me = o.data; t = o.get('tint'); lay = me.color_attributes.get('Tint')
+    if t is None and lay is None: return
+    n = len(me.vertices); c = np.zeros(n * 4, dtype=np.float32); me.color_attributes['Col'].data.foreach_get('color', c); c = c.reshape(n, 4)
+    if t is not None: c[:, :3] *= np.array(list(t), dtype=np.float32)
+    if lay is not None:
+        q = np.zeros(n * 4, dtype=np.float32); lay.data.foreach_get('color', q); c[:, :3] *= q.reshape(n, 4)[:, :3]
+    me.color_attributes['Col'].data.foreach_set('color', c.ravel()); me.update()
 
 
 def rod(name, r, length, loc, m, axis='X', verts=14):
@@ -283,6 +297,77 @@ def tube(name, pts, r, m, fillet=.03, verts=10, steps=5, caps=True):
     cu.bevel_depth = r; cu.bevel_resolution = max(1, verts // 4 - 1); cu.use_fill_caps = caps
     o = bpy.data.objects.new(name, cu); bpy.context.scene.collection.objects.link(o)
     active(o); bpy.ops.object.convert(target='MESH'); o = bpy.context.object; o.data.materials.append(m); smooth(o)
+    return o
+
+
+def prism(name, poly, axis, a0, a1, m, bev=0, seg=1):
+    """a flat outline pushed straight through: `poly` is a list of 2D points, extruded along `axis` from a0 to a1.
+    axis 'X': the points are (y, z); 'Y': (x, z); 'Z': (x, y). No rotations anywhere, so nothing can end up on the wrong axis
+    (roof slopes, lapped boards, gutters, barge boards)."""
+    put = {'X': lambda u, v, a: (a, u, v), 'Y': lambda u, v, a: (u, a, v), 'Z': lambda u, v, a: (u, v, a)}[axis]
+    n = len(poly); V = [put(u, v, a0) for u, v in poly] + [put(u, v, a1) for u, v in poly]
+    F = [tuple(range(n)), tuple(range(n, 2 * n))] + [(i, (i + 1) % n, n + (i + 1) % n, n + i) for i in range(n)]
+    me = bpy.data.meshes.new(name); me.from_pydata(V, [], F); me.update()
+    o = bpy.data.objects.new(name, me); bpy.context.scene.collection.objects.link(o); me.materials.append(m)
+    bm = bmesh.new(); bm.from_mesh(me); bmesh.ops.recalc_face_normals(bm, faces=bm.faces); bm.to_mesh(me); bm.free()
+    if bev: bevel(o, bev, seg)
+    return o
+
+
+def turn(o, deg, at=(0, 0, 0)):
+    """turn an object about the vertical through the origin by `deg`, then move it by `at`; the transform is applied at once"""
+    from mathutils import Matrix
+    bpy.context.view_layer.update()
+    o.matrix_world = Matrix.Translation(Vector(at)) @ Matrix.Rotation(math.radians(deg), 4, 'Z') @ o.matrix_world
+    active(o); bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    return o
+
+
+# the planks of the timber scan (blender/tex/planks.jpg, 1 m square, boards running across it): each (from, to) is one
+# board's band, as fractions from the picture's bottom, clear of the joints
+PLANK_BANDS = [(1 - .205, 1 - .07), (1 - .33, 1 - .225), (1 - .44, 1 - .35), (1 - .63, 1 - .50), (1 - .765, 1 - .655), (1 - .92, 1 - .805)]
+
+
+def uv_plank(o, along, across, band, shift=0.0):
+    """give a board its own plank of the scan: its length (axis `along`, 0 1 or 2) runs along the picture at real size,
+    its width (axis `across`) fills one band. The game uses these with a tile of 100 cm (pk leaves them as they are)."""
+    me = o.data
+    if not me.uv_layers: me.uv_layers.new(name='UVMap')
+    uv = me.uv_layers.active.data; lo, hi = bounds(o); w0, w1 = lo[across], hi[across]; b0, b1 = PLANK_BANDS[band % len(PLANK_BANDS)]
+    for l in me.loops:
+        c = o.matrix_world @ me.vertices[l.vertex_index].co
+        uv[l.index].uv = (c[along] + shift, b0 + (c[across] - w0) / max(1e-6, w1 - w0) * (b1 - b0))
+    o['keep_uv'] = 1
+    return o
+
+
+def lathe(name, prof, seg, m, loc=(0, 0, 0)):
+    """a shape turned about the vertical: `prof` is a list of (radius, height) from one end to the other (a pot, a can, a hat).
+    A radius of 0 closes the end."""
+    V = []; F = []; n = len(prof)
+    for (r, z) in prof:
+        for k in range(seg): a = 2 * math.pi * k / seg; V.append((loc[0] + r * math.cos(a), loc[1] + r * math.sin(a), loc[2] + z))
+    for i in range(n - 1):
+        for k in range(seg): F.append((i * seg + k, i * seg + (k + 1) % seg, (i + 1) * seg + (k + 1) % seg, (i + 1) * seg + k))
+    me = bpy.data.meshes.new(name); me.from_pydata(V, [], F); me.update()
+    bm = bmesh.new(); bm.from_mesh(me); bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6); bmesh.ops.recalc_face_normals(bm, faces=bm.faces); bm.to_mesh(me); bm.free()
+    o = bpy.data.objects.new(name, me); bpy.context.scene.collection.objects.link(o); me.materials.append(m); smooth(o)
+    return o
+
+
+def ball(name, r, loc, m, scale=(1, 1, 1), seg=16, rings=10):
+    """a ball, or with `scale` an egg or a bun shape, centred on loc"""
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=r, segments=seg, ring_count=rings, location=loc)
+    o = bpy.context.object; o.name = name; o.scale = scale; apply_scale(o); o.data.materials.append(m); smooth(o)
+    return o
+
+
+def mesh(name, V, F, m, smooth_=True):
+    """a part from its corners and faces, its faces turned to look outward"""
+    me = bpy.data.meshes.new(name); me.from_pydata([tuple(v) for v in V], [], F); me.update()
+    bm = bmesh.new(); bm.from_mesh(me); bmesh.ops.recalc_face_normals(bm, faces=bm.faces); bm.to_mesh(me); bm.free()
+    o = bpy.data.objects.new(name, me); bpy.context.scene.collection.objects.link(o); me.materials.append(m)
+    if smooth_: smooth(o)
     return o
 
 

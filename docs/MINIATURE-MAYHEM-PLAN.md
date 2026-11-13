@@ -374,3 +374,35 @@ before the launch and the hairpins, a stronger bloom at the window.
   its neighbour: a few millimetres' gap shows as a floating part in the game).
 - Looks only: nothing a kart can touch changed, so no new online version.
 
+## Web v179 (2026-11-13): the back garden modelled in Blender
+- `tools/blender/yardlib.py`: one function per model, each built at the origin in the garden's own directions (X east, Y north,
+  so nothing needs turning when it is placed). `yard.py -- <name>` exports one (bake, check picture, GLB), `pack_glb.py`
+  packs it. `outside.py` builds the WHOLE garden from the same functions and renders the three window views (`''`, `k`, `g`),
+  the sky (`sky`) and a check picture from above (`top`). So the Backyard track and the rooms' windows show the same things.
+- The models (pack names): yfence, yfenceb (one 2.125 m bay of close-board fence each; twelve along the back, three down each
+  side stretched to 7 m; a bay's post is at its west end); yshed; ygoal (with a net between the crossbar and the back bar; the
+  sides stay open for the track); ywash (four cloths dropped as cloth); ytree (5 000 leaves) and ytreef (a 10 m tree, scaled,
+  for the eleven beyond the fences); yhouse (eaves, gutter, downpipes, roof slope, back door, lamp, in garden coordinates);
+  yneigh (the neighbour's house; three of them); ypot1..3; ywcan; yhose (with the tap on the wall); ygnome; ypipe; yball;
+  ytuft (instanced about 400 times along the fences and round things, never within 75 units of the track's middle).
+- In the game: `yMats` and `yPk(name)` in models.js; `toyYard` uses each pack when it has arrived and its old code-built
+  stand-in until then. Boards carry their own plank of the timber scan (`uv_plank`; tile 100 leaves the model's own texture
+  coordinates alone). Each board's and each leaf's own tone is in the vertex colours (`tint`).
+- The house's back wall is a brick scan (`brick`); roofs use `slate`, trunks `bark`, the flower bed `soil` (ph_tex.py).
+- The sky: `tex_toy_sky` on a dome 16 000 units out (`toy_outsidesky`, drawn unlit and without fog on both platforms).
+- Looks only. The track, its furniture boxes (TOYF) and every collider are unchanged: no new online version.
+- PC: needs the track export re-run (maps.yml) so the new models come with it; `main.gd` raises the camera's reach on the
+  outdoor toy track.
+- Photo-scanned models (Poly Haven, CC0): `ph_model.py <id>` downloads one, `scan_inspect.py` lists what is in it, `scan.py`
+  thins it, sizes it and exports it with its own colour and relief pictures (`tex_toy_s_<name>`, `_n`); `sPk(name)` in
+  models.js. In the garden: sgnome (in place of the modelled gnome), sball, shose (on the house wall).
+- Textures with holes: `put_tex.py` keeps a picture that has alpha as a PNG (256 colours, the holes filled with the
+  picture's average colour so no dark edges); the build names the file by what it is; `texSrc` gives it the right type.
+  `sMat(name, true)` cuts the holes out (`alphaTest`), and the PC export carries that. Nothing shipped uses it yet.
+- The three window views were rendered again from the new scene (the same fence, shed, tree, pots and neighbour as the track).
+- Next for realism (the user: "hyper realism"): real trees. `jacaranda_tree` (CC0 scan, 3.9 million triangles) is
+  downloaded: use it whole in the window renders, as picture cards for the trees beyond the fences, and its leaf
+  sprays as cut-out cards on the garden tree's own boughs. Lawn in the window renders is too dark (tint it up).
+  More scans worth using: planter_box_01..03, planter_pot_clay, potted_plant_01/02/04, metal_tool_chest, metal_toolbox,
+  bench_vice_01, ladder_sectioned_01, cardboard_box_01 (garage), grass_bermuda_01 (lawn edge).
+

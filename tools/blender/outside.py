@@ -1,25 +1,36 @@
-"""The view out of the bedroom window, rendered as one picture (the game hangs it a little way beyond the glass).
-A back garden seen from inside: lawn, a board fence, a tree close by and more beyond the fence, a neighbour's house,
-and a sky with the sun where the game's sun is (ahead and a little to the left, 34 degrees up), so the trees are lit
-from behind the way the room's sunlight says they should be. Original scene: no real place, no brands.
-The picture covers a 3.9 x 2.75 m plane seen from 3.1 m inside the room (what the code-built backdrop covered).
-Run: D:/blender/blender.exe --background --python D:/crust-rush/source/tools/blender/outside.py   -> blender/outside/outside.jpg
+"""The whole back garden as ONE Blender scene, built from the same models the Backyard Mega Circuit shows (yardlib.py),
+standing where the track's garden has them (toyYard in tools/mini/mini.js; the numbers here and there must agree).
+Rendered from it:
+  (no argument)  the view out of the bedroom window   -> blender/outside/outside.jpg   (tex_toy_outside)
+  -- k           out of the kitchen window, 7 m west   -> outsidek.jpg                  (tex_toy_outsidek)
+  -- g           out of the garage window, 7.5 m east  -> outsideg.jpg                  (tex_toy_outsideg)
+  -- sky         the sky alone, all round, for the dome over the Backyard track -> sky.jpg (tex_toy_sky, 4096 wide)
+  -- top         a check picture of the garden from above the house             -> top.jpg
+Each window picture covers a 3.9 x 2.75 m plane seen from 3.1 m inside the room (the game hangs it a little way beyond the
+glass). The sun is where the game's sun is (ahead and a little to the left, 34 degrees up), so the trees are lit from
+behind the way the rooms' sunlight says. Original scene: no real place, no brands.
+Run: D:/blender/blender.exe --background --python D:/crust-rush/source/tools/blender/outside.py [-- k|g|sky|top]
+then: py.cmd tools/blender/put_tex.py tex_toy_outside<view> D:/crust-rush/blender/outside/outside<view>.jpg 1792 82
+      py.cmd tools/blender/put_tex.py tex_toy_sky D:/crust-rush/blender/outside/sky.jpg 4096 80
+Garden coordinates, metres: x east with the bedroom window at 0, y north from the house wall (0) to the back fence (7).
+The rooms' floors are 35 cm above the lawn: GROUND.
 """
 import sys, math, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bpy
-from mathutils import Vector
+from mathutils import Vector, Matrix
 from crlib import *
+import yardlib as Y
 
 NAME = 'outside'
-# which window the garden is seen from: '' the bedroom's; 'k' the kitchen's, 7 m further west along the same wall. Run with:  ... --python outside.py -- k
 VIEW = sys.argv[sys.argv.index('--') + 1] if '--' in sys.argv and len(sys.argv) > sys.argv.index('--') + 1 else ''
-DX = -7.0 if VIEW == 'k' else 8.0 if VIEW == 'g' else 0.0   # 'g': the garage, at the east end of the house
+DX = -7.0 if VIEW == 'k' else 8.0 if VIEW == 'g' else 0.0
 s = reset()
 os.makedirs(f'{OUT}/{NAME}', exist_ok=True)
-rs = np.random.RandomState(11)
 GROUND = -.35
 TO_SUN = Vector((-.1, .82, .56)).normalized()          # the game's sun (-.1, .56, -.82) in Blender axes: +Y is out of the window
+TEX = f'{OUT}/tex'
+W0, W1 = Y.W0, Y.W1
 
 
 def nodes(m):
@@ -28,94 +39,39 @@ def nodes(m):
     return m.node_tree
 
 
-def leaf_material():
-    m = bpy.data.materials.new('leaf'); nt = nodes(m); nt.nodes.clear()
+def stand(parts, x, y, deg=0.0, scale=1.0, sink=0.0):
+    """stand a model (as yardlib built it at the origin) in the garden at (x, y), turned and scaled"""
+    bpy.context.view_layer.update()
+    T = Matrix.Translation((x, y, GROUND - sink)) @ Matrix.Rotation(math.radians(deg), 4, 'Z') @ Matrix.Diagonal((scale if not isinstance(scale, tuple) else scale[0], scale if not isinstance(scale, tuple) else scale[1], scale if not isinstance(scale, tuple) else scale[2], 1))
+    for o in parts:
+        o.matrix_world = T @ o.matrix_world
+        if not o.get('keep_uv') and not o.data.uv_layers: uv_box(o)
+    return parts
+
+
+def picture(m, file, tile=1.0, tint=(1, 1, 1), rough=.9, attr=None):
+    """dress a material for the render: a tiling picture from blender/tex laid by the model's own texture coordinates
+    (metres), multiplied by a colour, and by the vertices' own tones where a model has them"""
+    nt = nodes(m); bs = nt.nodes['Principled BSDF']; im = nt.nodes.new('ShaderNodeTexImage'); im.image = bpy.data.images.load(f'{TEX}/{file}', check_existing=True)
+    tc = nt.nodes.new('ShaderNodeTexCoord'); mp = nt.nodes.new('ShaderNodeMapping'); mp.inputs['Scale'].default_value = (1 / tile, 1 / tile, 1)
+    nt.links.new(tc.outputs['UV'], mp.inputs['Vector']); nt.links.new(mp.outputs[0], im.inputs['Vector'])
+    mul = nt.nodes.new('ShaderNodeMix'); mul.data_type = 'RGBA'; mul.blend_type = 'MULTIPLY'; mul.inputs[0].default_value = 1; mul.inputs[7].default_value = (*tint, 1)
+    nt.links.new(im.outputs['Color'], mul.inputs[6]); nt.links.new(mul.outputs[2], bs.inputs['Base Color']); bs.inputs['Roughness'].default_value = rough
+
+
+def leaf_material(m):
+    """leaves let the light through: lit from behind, they glow. Each leaf's own green comes from the 'Tint' layer."""
+    nt = nodes(m); nt.nodes.clear()
     out = nt.nodes.new('ShaderNodeOutputMaterial'); mix = nt.nodes.new('ShaderNodeMixShader'); d = nt.nodes.new('ShaderNodeBsdfDiffuse'); t = nt.nodes.new('ShaderNodeBsdfTranslucent')
-    col = nt.nodes.new('ShaderNodeVertexColor'); col.layer_name = 'Col'
-    mul = nt.nodes.new('ShaderNodeMix'); mul.data_type = 'RGBA'; mul.blend_type = 'MULTIPLY'; mul.inputs[0].default_value = 1
-    mul.inputs[6].default_value = (*hexcol('#5f9a3c'), 1); nt.links.new(col.outputs['Color'], mul.inputs[7])
-    nt.links.new(mul.outputs[2], d.inputs['Color'])
-    mul2 = nt.nodes.new('ShaderNodeMix'); mul2.data_type = 'RGBA'; mul2.blend_type = 'MULTIPLY'; mul2.inputs[0].default_value = 1
-    mul2.inputs[6].default_value = (*hexcol('#c4e25a'), 1); nt.links.new(col.outputs['Color'], mul2.inputs[7]); nt.links.new(mul2.outputs[2], t.inputs['Color'])
-    mix.inputs[0].default_value = .6;   # lit from behind, leaves glow: more of the light passes through than bounces back
+    col = nt.nodes.new('ShaderNodeVertexColor'); col.layer_name = 'Tint'
+    for sh, hx in ((d, '#5f9a3c'), (t, '#c4e25a')):
+        mul = nt.nodes.new('ShaderNodeMix'); mul.data_type = 'RGBA'; mul.blend_type = 'MULTIPLY'; mul.inputs[0].default_value = 1
+        mul.inputs[6].default_value = (*hexcol(hx), 1); nt.links.new(col.outputs['Color'], mul.inputs[7]); nt.links.new(mul.outputs[2], sh.inputs['Color'])
+    mix.inputs[0].default_value = .6
     nt.links.new(d.outputs[0], mix.inputs[1]); nt.links.new(t.outputs[0], mix.inputs[2]); nt.links.new(mix.outputs[0], out.inputs['Surface'])
-    return m
 
 
-LEAF = leaf_material(); BARK = mat('bark', hexcol('#5a4636'), .95)
-
-
-def tree(x, y, height, crown, seed, leaf=.085, n_leaf=9000):
-    """a broadleaf tree: a trunk, a handful of boughs, and a crown made of thousands of small leaves in clumps"""
-    r = np.random.RandomState(seed); parts = []
-    th = height * .42
-    bpy.ops.mesh.primitive_cone_add(vertices=14, radius1=height * .028, radius2=height * .014, depth=th, location=(x, y, GROUND + th / 2)); tr = bpy.context.object; tr.data.materials.append(BARK); smooth(tr); parts.append(tr)
-    clumps = []
-    top = Vector((x, y, GROUND + th))
-    for i in range(9):
-        a = i / 9 * 6.283 + r.rand(); up = .35 + r.rand() * .55; ln = crown * (.55 + r.rand() * .5)
-        d = Vector((math.cos(a) * (1 - up * .6), math.sin(a) * (1 - up * .6), up)).normalized(); end = top + d * ln
-        mid = (top + end) / 2
-        bpy.ops.mesh.primitive_cone_add(vertices=8, radius1=height * .012, radius2=height * .004, depth=ln, location=mid); b = bpy.context.object
-        b.rotation_euler = d.to_track_quat('Z', 'Y').to_euler(); b.data.materials.append(BARK); smooth(b); parts.append(b)
-        for k in range(4):
-            c = top + d * ln * (.45 + .2 * k) + Vector(r.randn(3)) * crown * .16
-            clumps.append((c, crown * (.3 + r.rand() * .22)))
-    clumps.append((top + Vector((0, 0, crown * .75)), crown * .5))
-    # leaves: small quads scattered through each clump, denser towards its outside, facing every way
-    V = []; F = []; C = []
-    per = n_leaf // len(clumps)
-    for c, rad in clumps:
-        p = r.randn(per, 3); p /= np.linalg.norm(p, axis=1, keepdims=True); p *= (rad * (.55 + .45 * r.rand(per, 1) ** .5)); p[:, 2] *= .8
-        for q in p:
-            ctr = c + Vector(q); n = Vector(r.randn(3)).normalized(); t = n.orthogonal().normalized(); b2 = n.cross(t)
-            sz = leaf * (.7 + r.rand() * .6); i0 = len(V)
-            V += [ctr - t * sz, ctr - b2 * sz * .42, ctr + t * sz, ctr + b2 * sz * .42]            # a pointed leaf, not a square
-            F.append((i0, i0 + 1, i0 + 2, i0 + 3)); sh = .55 + r.rand() * .6; C += [(sh * (.9 + r.rand() * .2), sh, sh * (.8 + r.rand() * .3), 1)] * 4
-    me = bpy.data.meshes.new('leaves'); me.from_pydata([tuple(v) for v in V], [], F); me.update()
-    ca = me.color_attributes.new('Col', 'FLOAT_COLOR', 'POINT'); ca.data.foreach_set('color', np.array(C, dtype=np.float32).ravel())
-    o = bpy.data.objects.new('leaves', me); bpy.context.collection.objects.link(o); me.materials.append(LEAF)
-    return parts + [o]
-
-
-# ---- the garden
-bpy.ops.mesh.primitive_plane_add(size=160, location=(0, 60, GROUND)); lawn = bpy.context.object
-gm = bpy.data.materials.new('grass'); nt = nodes(gm); bs = nt.nodes['Principled BSDF']; nz = nt.nodes.new('ShaderNodeTexNoise'); nz.inputs['Scale'].default_value = 1.6
-ramp = nt.nodes.new('ShaderNodeValToRGB'); ramp.color_ramp.elements[0].color = (*hexcol('#3f7a2c'), 1); ramp.color_ramp.elements[1].color = (*hexcol('#7fb24a'), 1)
-nt.links.new(nz.outputs[0], ramp.inputs[0]); nt.links.new(ramp.outputs[0], bs.inputs['Base Color']); bs.inputs['Roughness'].default_value = .9
-lawn.data.materials.append(gm)
-# a board fence across the back of the garden
-fw = mat('fencewood', hexcol('#9a7650'), .85); fws = [fw, mat('fencewood2', hexcol('#8a6844'), .9), mat('fencewood3', hexcol('#a9855c'), .85)]
-for i in range(-150, 71):    # far enough left for the kitchen's view too
-    h = 1.78 + rs.rand() * .05
-    box(f'board{i}', (.118, .02, h), (i * .125, 7.0 + rs.rand() * .006, GROUND + h / 2), fws[rs.randint(3)], .003, 1)
-for z in (.45, 1.45): box(f'rail{z}', (27.8, .04, .09), (-5.0, 7.035, GROUND + z), fw, 0)
-for i in range(-4, 5): box(f'post{i}', (.09, .09, 1.9), (i * 2.2, 7.06, GROUND + .95), fw, .004, 1)
-# the fence carries on east past the garage (its own random numbers, so the boards the other views see stay as they were)
-rs2 = np.random.RandomState(77)
-for i in range(71, 140):
-    h = 1.78 + rs2.rand() * .05
-    box(f'board{i}', (.118, .02, h), (i * .125, 7.0 + rs2.rand() * .006, GROUND + h / 2), fws[rs2.randint(3)], .003, 1)
-for z in (.45, 1.45): box(f'railE{z}', (8.8, .04, .09), (13.2, 7.035, GROUND + z), fw, 0)
-for i in range(5, 9): box(f'post{i}', (.09, .09, 1.9), (i * 2.2, 7.06, GROUND + .95), fw, .004, 1)
-# east of the bedroom, seen from the garage only: a small football goal and a ball left on the lawn
-gm2 = mat('goal', (.92, .92, .9), .4)
-for gx in (8.6, 10.6): box(f'goalpost{gx}', (.06, .06, 1.3), (gx, 5.6, GROUND + .65), gm2, 0); bar(f'goalstay{gx}', (gx, 5.6, GROUND + 1.3), (gx, 6.3, GROUND + .02), .025, .025, gm2)   # leaning back from the top corner, as the Backyard track's goal (the track leaves the goal under one)
-box('goalbar', (2.06, .06, .06), (9.6, 5.6, GROUND + 1.3), gm2, 0); box('goalback', (2.06, .05, .05), (9.6, 6.3, GROUND + .025), gm2, 0)
-bpy.ops.mesh.primitive_uv_sphere_add(radius=.11, location=(7.4, 3.9, GROUND + .11)); bpy.context.object.data.materials.append(mat('fball', (.9, .9, .9), .5)); bpy.ops.object.shade_smooth()
-# a neighbour's house beyond it
-wallm = mat('siding', hexcol('#e6dcc8'), .8); roofm = mat('roof', hexcol('#5d6470'), .7); glassm = mat('pane', (.03, .05, .08), .08)
-HX, HY = -2.5, 23.0
-box('house', (10, 7, 3.2), (HX, HY, GROUND + 1.6), wallm, 0)
-bpy.ops.mesh.primitive_cone_add(vertices=4, radius1=7.6, radius2=0, depth=2.6, location=(HX, HY, GROUND + 3.2 + 1.3), rotation=(0, 0, math.radians(45))); rf = bpy.context.object; rf.scale = (1, .72, 1); rf.data.materials.append(roofm)
-for wx in (-2.6, 0.2, 2.9):
-    box(f'win{wx}', (1.1, .06, 1.25), (HX + wx, HY - 3.52, GROUND + 1.75), glassm, 0)
-    box(f'winf{wx}', (1.26, .04, 1.41), (HX + wx, HY - 3.5, GROUND + 1.75), mat('trim', (.9, .9, .88), .5), 0)
-# trees: one close to the window on the right, others beyond the fence, a line of them far off
-for (x, y, h, cr, sd, lf, n) in ((3.1, 5.2, 6.2, 2.5, 3, .06, 42000), (-4.6, 11.5, 8.5, 3.4, 5, .075, 40000), (6.5, 15, 9.5, 3.8, 7, .085, 36000), (-10.5, 17, 9, 3.6, 9, .09, 28000),
-                             (12.5, 26, 11, 4.4, 12, .11, 24000), (3.5, 31, 12, 4.8, 14, .12, 24000), (-15, 33, 12, 5, 17, .13, 20000)):
-    tree(x, y, h, cr, sd, lf, n)
-# ---- sky and sun
+# ---- sky and sun (the same sky the dome over the Backyard track is rendered from)
 w = bpy.data.worlds.new('sky'); s.world = w; wt = nodes(w); bg = wt.nodes['Background']
 sky = wt.nodes.new('ShaderNodeTexSky'); sky.sky_type = 'MULTIPLE_SCATTERING'; sky.sun_disc = False
 sky.sun_elevation = math.asin(TO_SUN.z); sky.sun_rotation = math.atan2(TO_SUN.x, TO_SUN.y)
@@ -127,32 +83,64 @@ wt.links.new(tc.outputs['Generated'], mp.inputs['Vector']); wt.links.new(mp.outp
 wt.links.new(cr.outputs[0], mixc.inputs[0]); wt.links.new(sky.outputs[0], mixc.inputs[6]); wt.links.new(mixc.outputs[2], bg.inputs[0]); bg.inputs[1].default_value = 1.0
 sun = bpy.data.lights.new('sun', 'SUN'); sun.energy = 11; sun.angle = math.radians(1.2); sun.color = (1, .93, .82)
 so = bpy.data.objects.new('sun', sun); s.collection.objects.link(so); so.rotation_euler = TO_SUN.to_track_quat('Z', 'Y').to_euler()
-
-# ---- the camera: from inside the room, through the 3.9 x 2.75 m plane 3.1 m ahead whose middle is 1.64 m up
 cam = bpy.data.cameras.new('cam'); co = bpy.data.objects.new('cam', cam); s.collection.objects.link(co); s.camera = co
-# ONE garden for the whole house: every room's window looks onto this same scene from its own place along the north wall, so the
-# rooms agree about what is outside (the shed, the washing line, the fence, the neighbour's house, the trees). The bedroom's window
-# is at x = 0, the kitchen's 7 m to the west (x = -7). The Backyard track is to be built as this garden.
-if True:
-    shm = mat('shed', hexcol('#7a5b3c'), .85); box('shed', (2.4, 1.9, 2.0), (-11.2, 5.4, GROUND + 1.0), shm, .01, 1)
-    bpy.ops.mesh.primitive_cone_add(vertices=4, radius1=1.95, radius2=0, depth=.8, location=(-11.2, 5.4, GROUND + 2.4), rotation=(0, 0, math.radians(45))); rf2 = bpy.context.object; rf2.scale = (1.05, .82, 1); rf2.data.materials.append(roofm)
-    box('sheddoor', (.8, .04, 1.7), (-11.2, 4.44, GROUND + .85), mat('sheddoor', hexcol('#5c4630'), .8), .01, 1)
-    for px in (-8.2, -3.4): box(f'pole{px}', (.05, .05, 2.0), (px, 4.2, GROUND + 1.0), mat('pole', (.75, .75, .75), .5), 0)
-    box('line', (4.8, .01, .01), (-5.8, 4.2, GROUND + 1.95), mat('pole', (.75, .75, .75), .5), 0)
-    for k, (px, cc) in enumerate(((-7.2, '#d9534f'), (-6.3, '#f4f1ea'), (-5.3, '#4f86c6'), (-4.4, '#f0c040'))):
-        box(f'cloth{k}', (.62, .012, .62 + .1 * (k % 2)), (px, 4.2, GROUND + 1.6 - .05 * (k % 2)), mat(f'cloth{k}', hexcol(cc), .9), 0)
-co.location = (DX, -3.1, 1.25 if VIEW in ('k', 'g') else 1.0); co.rotation_euler = (Vector((DX + (.5 if VIEW == 'k' else -.4 if VIEW == 'g' else 0), 0, 1.64)) - co.location).to_track_quat('-Z', 'Y').to_euler()
-cam.sensor_fit = 'HORIZONTAL'; cam.angle = 2 * math.atan(1.95 / 3.17); cam.clip_end = 500
-s.render.resolution_x, s.render.resolution_y = 2048, 1444
-s.cycles.samples = 160; s.cycles.use_denoising = True
 for vt in ('AgX', 'Filmic', 'Standard'):
     try: s.view_settings.view_transform = vt; break
     except Exception: pass
 s.view_settings.exposure = -2.75
 try: s.view_settings.look = 'AgX - Medium High Contrast'
 except Exception: pass
-s.render.image_settings.file_format = 'JPEG'; s.render.image_settings.quality = 88
-s.render.filepath = f'{OUT}/{NAME}/outside{VIEW}.jpg'
+s.render.image_settings.file_format = 'JPEG'; s.render.image_settings.quality = 90
+
+if VIEW == 'sky':
+    # all round and overhead, as one long picture: its middle column looks north, its top row straight up
+    cam.type = 'PANO'
+    try: cam.panorama_type = 'EQUIRECTANGULAR'
+    except Exception: cam.cycles.panorama_type = 'EQUIRECTANGULAR'
+    co.location = (0, 3.5, GROUND + .3); co.rotation_euler = (math.pi / 2, 0, 0)
+    s.render.resolution_x, s.render.resolution_y = 4096, 2048; s.cycles.samples = 24; s.cycles.use_denoising = True
+    s.render.filepath = f'{OUT}/{NAME}/sky_full.jpg'; bpy.ops.render.render(write_still=True)
+    print('RENDERED', s.render.filepath)
+    sys.exit(0)
+
+# ---- the ground: lawn far past the fences, the patio along the house, the bed of earth under the back fence
+def ground(name, x0, x1, y0, y1, z, file, tile, tint=(1, 1, 1)):
+    bpy.ops.mesh.primitive_plane_add(size=1, location=((x0 + x1) / 2, (y0 + y1) / 2, GROUND + z)); o = bpy.context.object; o.name = name; o.scale = (x1 - x0, y1 - y0, 1); apply_scale(o); uv_box(o)
+    m = bpy.data.materials.new(name); o.data.materials.append(m); picture(m, file, tile, tint, .95); return o
+ground('lawn', -80, 80, -1, 150, 0, 'lawn.jpg', .7); ground('patio', W0, W1, 0, 1.6, .004, 'paving.jpg', 1.5); ground('bed', -7.4, -.6, 6.25, 6.98, .006, 'soil.jpg', .6)
+
+# ---- everything that stands in the garden, as toyYard has it
+B = 2.125
+for i in range(12): stand(Y.fence(1 + 6 * (i % 2) + 20 * i), W0 + B * (i + .5), 7.0)
+for i in range(3):
+    stand(Y.fence(101 + i), W0, 7 * (i + .5) / 3, 90, (7 / (3 * B), 1, 1)); stand(Y.fence(201 + i), W1, 7 * (i + .5) / 3, -90, (7 / (3 * B), 1, 1))
+stand(Y.shed(), -11.2, 5.4); stand(Y.washing(), -5.8, 4.2); stand(Y.goal(), 9.6, 5.6); stand(Y.football(), 7.4, 3.9, 63)
+stand(Y.tree(6.2, 2.5, 3, 36000, .085, .15), 3.1, 5.2)                                                      # the same tree as the track's (same seed, so the same boughs), with finer leaves for a still picture
+for (x, y, h, sd) in ((-4.6, 11.5, 8.5, 5), (6.5, 15, 9.5, 7), (-10.5, 17, 9.0, 9), (12.5, 26, 11, 12), (3.5, 31, 12, 14), (-15, 33, 12, 17), (16.2, 6.2, 9, 23), (18.5, 12.5, 10.5, 27), (-18.6, 9.5, 9.5, 31), (-21, 15, 11, 35), (20, 19, 11.5, 39)):
+    stand(Y.tree(10.0, 4.3, 9, 22000, .15, .22), x, y, math.degrees(sd), h / 10)
+stand(Y.neighbour(), -2.5, 23.0); stand(Y.neighbour(), 21.5, 2.6, -90); stand(Y.neighbour(), -24.5, 4.4, 90)
+for (rc, sd, x, y, sink) in ((15, 5, 5.0, .5, 0), (13, 8, -1.2, .3, 0), (17, 3, 1.4, .32, 0), (14, 12, 6.3, .3, 0), (16, 21, -8.6, .34, 0)) + tuple((13 + sd % 5, sd, gx, 6.62, .10) for gx, sd in ((-6.9, 2), (-5.9, 6), (-4.9, 9), (-2.6, 13), (-1.5, 17))):
+    stand(Y.pot(sd % 3 + 1, sd), x, y, -math.degrees(sd), rc / 10.8, sink)
+stand(Y.pipe(), -3.6, 5.71); stand(Y.gnome(), 2.2, 4.3, -math.degrees(2.6)); stand(Y.wcan(), 4.5, 1.72, -math.degrees(2.4)); stand(Y.hose(), -2.4, .35)
+# (the game turns things by an angle about its up axis, which runs the other way from Blender's Z seen from above: hence the minus signs)
+
+# ---- dress the materials for a still picture
+M = bpy.data.materials
+for k, (file, tint) in {'yfence': ('planks.jpg', hexcol('#f2e6d6')), 'yshed': ('planks.jpg', hexcol('#c2ad98')), 'ysheddoor': ('planks.jpg', hexcol('#9a8876')), 'ybark': ('bark.jpg', (1, 1, 1)),
+                        'ybrick': ('brick.jpg', (1, 1, 1)), 'yslate': ('slate.jpg', (1, 1, 1)), 'ysoil': ('soil.jpg', (1, 1, 1)), 'yconc': ('concrete.jpg', (1, 1, 1))}.items():
+    if k in M: picture(M[k], file, 1.5 if k == 'yslate' else 1.4 if k == 'ybrick' else 1.1 if k == 'yconc' else 1.0, tint)
+if 'yleaf' in M: leaf_material(M['yleaf'])
+
+# ---- the camera
+if VIEW == 'top':
+    co.location = (-1, -9, 13); co.rotation_euler = (Vector((-1, 5, 0)) - co.location).to_track_quat('-Z', 'Y').to_euler(); cam.lens = 20; cam.clip_end = 500
+    s.render.resolution_x, s.render.resolution_y = 2200, 1100; s.cycles.samples = 48; s.cycles.use_denoising = True
+else:
+    # from inside the room, through the 3.9 x 2.75 m plane 3.1 m ahead whose middle is 1.64 m up
+    co.location = (DX, -3.1, 1.25 if VIEW in ('k', 'g') else 1.0); co.rotation_euler = (Vector((DX + (.5 if VIEW == 'k' else -.4 if VIEW == 'g' else 0), 0, 1.64)) - co.location).to_track_quat('-Z', 'Y').to_euler()
+    cam.sensor_fit = 'HORIZONTAL'; cam.angle = 2 * math.atan(1.95 / 3.17); cam.clip_end = 500
+    s.render.resolution_x, s.render.resolution_y = 2048, 1444; s.cycles.samples = 160; s.cycles.use_denoising = True
+s.render.filepath = f'{OUT}/{NAME}/' + ('top.jpg' if VIEW == 'top' else f'outside{VIEW}.jpg')
 bpy.ops.render.render(write_still=True)
-bpy.ops.wm.save_as_mainfile(filepath=f'{OUT}/{NAME}/outside{VIEW}.blend')
+if VIEW == '': bpy.ops.wm.save_as_mainfile(filepath=f'{OUT}/{NAME}/garden.blend')
 print('RENDERED', s.render.filepath, s.view_settings.view_transform)

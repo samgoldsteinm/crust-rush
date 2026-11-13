@@ -568,4 +568,30 @@ M.yhose=function(){const G=grp(),m=plastic('yhose','#3f8a3a',.5);for(let i=0;i<4
 /* a garden gnome, 32 cm: a made-up one, pointed hat and all */
 M.ygnome=function(){const G=grp();add(G,new THREE.ConeGeometry(6*U,13*U,16),paint('gnhat','#c0261c',.5),0,26*U,0);add(G,new THREE.SphereGeometry(5*U,16,12),paint('gnskin','#e8b89a',.6),0,18*U,0);add(G,blob(11*U,10*U,7*U,.9,6),paint('gnbeard','#f1efe8',.8),0,14*U,3*U);
   add(G,blob(14*U,14*U,12*U,.8,6),paint('gncoat','#2f5d9a',.6),0,8*U,0);add(G,box(12*U,1.6*U,10*U),plastic('gnbelt','#141414',.5),0,5*U,0);for(const s of [-1,1])add(G,blob(6*U,3*U,8*U,.8,5),plastic('gnboot','#3a2618',.6),s*3.4*U,1.5*U,2*U);return G;};
+/* ---- the garden as built in Blender (tools/blender/yardlib.py, yard.py): yPk(name) is the model, or null until its pack has arrived.
+   yMats maps the models' material names to the game's: [material, tile in cm]. Boards carry their own plank of the timber scan
+   (tile 100 leaves their texture coordinates as the model has them); the shade and each board's or leaf's own tone are in the vertices. */
+const yMats=()=>{const two=m=>{m.side=THREE.DoubleSide;m.userData.noHQ=true;return m;},cl=(k,c)=>[mat('ycl'+k,()=>two(std({color:c,roughness:.95,envMapIntensity:.15}))),40];
+  return {yfence:[M.yboards('fence','#9a7650',false),100],yshed:[M.yboards('shed','#7a5b3c',true),100],ysheddoor:[M.yboards('sheddoor','#5c4630',false),100],
+    yfelt:[mat('yfelt',()=>std({color:'#3b3e44',roughness:.96,envMapIntensity:.1})),50],yiron:[paint('yiron2','#2a2c31',.5),40],ypane:[mat('ypane',()=>{const m=std({color:'#10161d',roughness:.3,envMapIntensity:.08});m.userData.noHQ=true;return m;})/* a dark window, hardly a mirror: the game's stock reflection is a sunset, and it showed in the glass */,40],
+    ywhite:[paint('ygoal','#f1f0ea',.4),40],ynet:[paint('ynet','#f6f6f2',.9),40],ysteel:[metal('ypole','#b9bcc2',.45),40],ypeg:[paint('ypeg','#c9a56a',.7),40],
+    ycloth0:cl(0,'#d9534f'),ycloth1:cl(1,'#f4f1ea'),ycloth2:cl(2,'#4f86c6'),ycloth3:cl(3,'#f0c040'),
+    ybrick:[surfTex('brick',.9,.2,1,()=>paint('ybrickp','#9a5a44',.9)),140],yslate:[surfTex('slate',.7,.3,1,()=>paint('yroof','#5d6470',.7)),150],ytrim:[paint('ytrim','#f1efe8',.5),40],ygutter:[plastic('ygutter','#26282c',.5),40],
+    yterra:[mat('terracotta',()=>std({color:'#b8663e',roughness:.8,envMapIntensity:.2})),40],ysoil:[surfTex('soil',1,.1,1,()=>paint('ysoilp','#3a2a1e',1)),60],ypetal:[paint('ypetal','#d8344a',.6),40],ypetal2:[paint('ypetal2','#f2d44a',.6),40],
+    ycan:[mat('wcan',()=>phy({color:'#3f7a4a',roughness:.35,clearcoat:.5,envMapIntensity:.7})),40],yhose:[plastic('yhose','#3f8a3a',.5),40],ybrass:[metal('ybrass','#b08a4a',.3),40],
+    yconc:[mat('ypipec',()=>{const c=surfTex('concrete',.9,.2,1,()=>null);return c?c.clone():std({color:'#a9a7a0',roughness:.9,envMapIntensity:.2});}),110],ysiding:[paint('ysiding','#e6dcc8',.8),40],ystone:[paint('ystep','#b9b3a6',.8),40],
+    gnhat:[paint('gnhat','#c0261c',.5),40],gnskin:[paint('gnskin','#e8b89a',.6),40],gnbeard:[paint('gnbeard','#f1efe8',.8),40],gncoat:[paint('gncoat','#2f5d9a',.6),40],gnboot:[plastic('gnboot','#3a2618',.6),40],gnbelt:[plastic('gnbelt','#141414',.5),40],
+    yball:[paint('yball','#f4f4f0',.45),40],yballb:[paint('yballb','#1b1c20',.45),40],ygrass:[mat('ygrassb',()=>two(std({color:'#5c9a32',roughness:1,envMapIntensity:.05}))),40],
+    ybark:[surfTex('bark',.95,.15,1,()=>paint('ybarkp','#5a4634',.95)),100],yleaf:[mat('yleafb',()=>two(std({color:'#4f8f2c',roughness:1,envMapIntensity:.05}))/* dead matt: with any gloss, leaves seen against the sun glint white */)/* no lighter: pale leaves in full sun go over the bloom threshold and turn to haze, as the lawn did */,40]};};
+/* a photo-scanned model (tools/blender/scan.py): its one material is made from its own two pictures, tex_toy_s_<name> (colour; with holes
+   if `cut`) and tex_toy_s_<name>_n (relief). sPk(name) is the model, or null until both the pack and the pictures are there */
+function sMat(name,cut,rough,tint){return mat('scan_'+name,()=>{const c=propTex('tex_toy_s_'+name),o={map:c,roughness:rough==null?.8:rough,metalness:0,envMapIntensity:.2};if(tint)o.color=tint;
+  if(PROP_TEX['tex_toy_s_'+name+'_n']){o.normalMap=propTex('tex_toy_s_'+name+'_n',false);o.normalScale=new THREE.Vector2(.8,.8);}if(cut){o.alphaTest=.4;o.side=THREE.DoubleSide;c.userData.alpha=true;}const m=std(o);m.userData.noHQ=true;return m;});}
+function sPk(name,cut,rough,tex,tint){tex=tex||name;/* tex: the pictures' name where several models share one pair (the grass tufts) */if(!pkReady(name)||typeof PROP_TEX==='undefined'||!PROP_TEX['tex_toy_s_'+tex])return null;return pk(name,{['s_'+name]:[sMat(tex,cut,rough,tint),100]});}
+M.sPk=sPk;
+function yPk(name){return pkReady(name)?pk(name,yMats()):null;}
+M.yPk=yPk;
+/* the small things: the Blender-built one once it has arrived, the code-built one until then. Three potted plants, chosen by the seed */
+{const p0=M.ypot,w0=M.wcan,h0=M.yhose,g0=M.ygnome;M.ypot=(rc,seed)=>{const k='ypot'+((seed||5)%3+1);if(!pkReady(k))return p0(rc,seed);const g=yPk(k);g.scale.setScalar(rc/10.8);return g;};
+  M.wcan=()=>yPk('ywcan')||w0();M.yhose=()=>yPk('yhose')||h0();M.ygnome=()=>sPk('sgnome',false,.45)||yPk('ygnome')||g0();/* the scanned gnome if it is there */}
 return Object.assign(M,{surfTex,U,pk,pkReady,bake,MX,vcPlastic,vcMatte,drape,wood,fabric,plastic,metal,paint,glow,glass,slab,blob,uvw,add,grp,box,cyl,can,tex,mat,std,phy,rng});})();

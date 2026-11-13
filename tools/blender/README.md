@@ -64,10 +64,17 @@ There is no live Blender connection: Blender 5.3 (D:\blender\blender.exe) is run
   in a 0.9 m tile, flush joints); `woodTex(key,rough,fallback)` in models.js turns such a pair into a material.
 
 - `kitchen.py`: the kitchen's seven models in one script (`-- <name>` builds one). Uses `finish_model`, `rod` and `bar` from crlib.
-- `outside.py [-- k]`: ONE garden for the whole house; the argument picks the window it is seen from.
 
 - `garage.py`: the garage's six large models in one script (`-- <name>` builds one): gbench, gbenchn, gchest, gshelf, gtyres, gdoor.
   Also three things for its walls: gelec (the electrics), gladder (a hung ladder), grack (garden tools on a rail); the wall is the plane Y = 0.
+- `yardlib.py`, `yard.py`, `outside.py`: the back garden. yardlib has one function per model (fence bay, shed, goal,
+  washing line, trees, the back of the house, the neighbour's house, pots, small things, grass tufts); yard.py exports each
+  for the Backyard track; outside.py stands the same models in one scene and renders the window views, the sky and a plan.
+  Change a model in yardlib and BOTH follow: re-run `yard.py -- <name>` + `pack_glb.py <name>`, and `outside.py` for each view.
+  Lessons: fill a new UV layer (default corners split every vertex on export); wind a face the way its custom normal points;
+  size a lapped or stepped part under a slope from its top edge; cloth needs slack; outdoor foliage wants a dark, matt green.
+- `ph_model.py`, `scan_inspect.py`, `scan.py`: photo-scanned CC0 models from Poly Haven into the game (download, look
+  inside, thin + size + export with the scan's own pictures). `sky_tex.py`: the sky render into the dome's picture.
 - `ph_tex.py` (no Blender): CC0 photo-scanned surface textures from Poly Haven into the texture store (lawn, concrete, paving, planks, gbrick for the garage's walls, brick, slate, bark, soil); read in the game with `surfTex`.
 - Cars (not room models; they go into CAR_PACKS, not PROP_PACKS): `car_inspect.py`, `car_rules.py`, `car_convert.py`,
   `car_all.sh`, `car_sheet.py`, `car_pack.py`. The steps are in docs/HANDOVER.md under web v173, "How a car gets in".

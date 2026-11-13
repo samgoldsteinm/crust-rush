@@ -45,7 +45,7 @@ geo = b''
 def img(dirn, stem, b64, hq):
     p = f'{HQ}/{hq}'
     data = open(p, 'rb').read() if os.path.exists(p) else base64.b64decode(b64)
-    return hashed(dirn, stem, 'jpg', data)
+    return hashed(dirn, stem, 'png' if data[:4] == b'\x89PNG' else 'jpg', data)   # (a texture with holes in it is a PNG: put_tex.py)
 tex = {n: img('assets/tex', n, v, f'tex/{n}.jpg') for n, v in D['PROP_TEX'].items()}
 shots = {}
 for id_, v in D['MAP_SHOTS'].items():

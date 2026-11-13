@@ -22,6 +22,26 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### 2026-11-13 (web v179): the whole back garden is modelled in Blender
+
+Asked for by the user ("use blender to actually model the whole outside scene"). While it was under way the user added: "Remember these scenes are supposed to be
+hyper realism": judge every scene against photographs. First steps here: three photo-scanned CC0 models (gnome, football, hose) and a rendered sky. All of it is written up in
+docs/MINIATURE-MAYHEM-PLAN.md under "Web v179". One Blender source, `tools/blender/yardlib.py`, builds every model; `yard.py`
+exports them for the Backyard track and `outside.py` stands the same models in one scene for the rooms' window views and the sky.
+
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| The shed's boards poked through its roof | Square-ended boards on a gable are longer at the bottom than the roof allows at the top; the wall's top board was taller than the eaves | Gable boards are cut to the slope (`_lap_boards`), the last board is cut down to fit | A stepped or lapped part under a slope: size it from its TOP edge |
+| The washing hung dead flat | A sheet pinned at its full width has no slack to fold | The cloth is 7 % bigger than the distance between its pegs (`shrink_min = -.075`) and settles in a breath of wind | Cloth needs slack before it will drape |
+| The tree's pack was 926 KB and its leaves 9 corners each instead of 6 | A new UV layer gives every face its own default corners, and the exporter splits a vertex wherever any attribute differs | The leaves' UVs are all set to zero | After adding a UV layer by script, fill it; check with a GLB reader what one small part exports as |
+| The leaves' shading normals came out wrong (and split again) | A custom normal cannot lean more than a quarter turn from its face: the leaves were wound facing inward | Each leaf is wound to face the way its shading normal points | Wind the face first, then set the custom normal |
+| Leaves and far trees were pale, some glinting white | A light green in full sun is over the bloom threshold (as the lawn was); any gloss makes leaves seen against the sun glint | A darker leaf green, roughness 1, no Ultra surface speckle (`noHQ`) | Outdoor foliage: dark base colour, dead matt |
+| The shed's window showed an orange glow | Dark glossy glass mirrors the game's stock reflection, which is a sunset | The pane hardly mirrors (`envMapIntensity` .08) | Out of doors there is no picture of the surroundings: keep mirrors dull |
+| Scanned grass clumps looked like thin dark wisps on the lawn | They are scans of dry wild grass, darker and sparser than a mown lawn | Dropped; the tufts are the Blender-built green ones | A scan must match what it stands on: look at it in the garden, not only on its own |
+| A scanned model faced the wrong way | `turn=180` was given to a model whose front was already -Y | scan.py is run without it; the hose, which hangs on a wall that faces north, keeps it | Look at the check picture: the camera is on the -Y side, so it should show the model's face |
+| A race started straight after the menu showed the old code-built garden for the whole race | The Blender models are packs that download after the menu; the room is built once, at load | A toy track's loading screen waits for its packs, 10 s at most and never on line (patch 18, `goRace`) | New late-loading models: nothing else to do, the wait covers every `toy_*_hq` pack |
+| PC: the sky dome would not have been drawn | The PC camera sees 14 000 units; the dome is 16 000 out | `cam.far` is 26 000 on an outdoor toy track (main.gd, where the sky is built) | Anything far away added on the web: check it against the PC camera's reach |
+
 ### 2026-11-13 (web v178): the garage's walls are painted brick, with fittings built in Blender
 
 Standing instruction from the user, same day: "From now on if you can make something better in blender than with code I
