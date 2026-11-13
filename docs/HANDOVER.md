@@ -24,6 +24,16 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### Where web and PC stand (2026-11-13, end of the session)
+- Web v185. PC build a866c750 = web v181 for everything that is raced (online version 108 on both).
+- Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
+  (docs/BALLOON-BATTLE-PLAN.md). Sandbox is planned, not begun (docs/SANDBOX-PLAN.md).
+- Not checked by eye on the PC: the Blender garden, the garage's open door and front yard, the leaf cards and tree pictures.
+  The PC build compiled and its own checks passed; nobody has looked at those scenes in it yet (the exported tracks could
+  not be fetched to this machine: there is no `gh` here).
+- Still the owner's to answer: the six uploaded car models (web v173 entry); play-tests of the toy tracks' feel and of
+  Balloon Battle; which way from the house to the rest of the world Sandbox should use.
+
 ### 2026-11-13 (web v182): Balloon Battle, first playable build (web, off line)
 
 The owner's brief: docs/NEXT-MODES-BRIEF.md. The plan, what is built and what is still owed (the PC port first):

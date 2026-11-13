@@ -40,5 +40,6 @@ rep("async function netHost(){rtcIce();netReset();NET.role='host';", "async func
 rep("  netReset();NET.role='guest';const R=new NetRelay();", "  bbNoNet();netReset();NET.role='guest';const R=new NetRelay();")
 rep("if(state==='race'&&!player.finished&&lap>lapShown){lapShown=lap;", "if(state==='race'&&!BATTLE&&!player.finished&&lap>lapShown){lapShown=lap;")   # no lap banners: circling the middle of the arena is not a lap
 rep("mode==='lss'?'Last Slice Standing':'Single race')+' · '+CLASSES[clsKey].label;", "mode==='bb'?'Balloon Battle':mode==='lss'?'Last Slice Standing':'Single race')+' · '+CLASSES[clsKey].label;")   # the loading screen names the mode
+rep("resSub.textContent=MAPS[mapIdx].name+' · '+cl+' class';$('againBtn').textContent='Race again';$('toMenuBtn').textContent='Change track or driver';}}", "resSub.textContent=MAPS[mapIdx].name+' · '+cl+' class';$('againBtn').textContent=BATTLE?'Battle again':'Race again';$('toMenuBtn').textContent=BATTLE?'Change mode or driver':'Change track or driver';if(BATTLE)$('trackBtn').hidden=true;/* a battle has one arena: nothing else to choose */}}")   # the results' buttons say battle
 open(p, 'w', encoding='utf-8', newline='').write(s)
 print('patched')
