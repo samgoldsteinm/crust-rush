@@ -22,6 +22,20 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### 2026-11-13 (web v168): boost flames, stronger motion blur, rainbow streaks on Neon tracks (looks only, patch 14)
+The user gave reference pictures from another kart racer for the flames: take the idea (a blue jet at the pipe, yellow then orange,
+ragged licks, a glow on the road), never its art, names or characters.
+- Flames: `flameGeo` (a teardrop tube) and `flameShMat` (a small shader: wavering outline, licks, blue jet, colours from FLAMEC by
+  drift tier). Two per pipe (outer, inner) as before, plus a glow on the road (the LAST entry of `m.flames`, `userData.glow`) and
+  embers. PC: `shaders/flame.gdshader`, `View._flame_mesh`, the glow from the garage export's `fglow`.
+  Gotchas met on PC: a `source_color` uniform must be given a Color (a Vector3 came out pale); additive colour is far brighter
+  under the PC's tone mapping, so the PC shader scales it down; ember size 0.45 there (0.55 on web).
+- Motion blur: strength .07 -> .095 and it starts a little nearer the middle (web final pass and PC post.gdshader).
+- Neon Cup tracks: the boost streaks are rainbow (`rbw` in the final pass; PC `T.neon` from the export's `neon` flag). They show on
+  every quality that has the post pass on Neon tracks; other tracks keep the white streaks on Ultra only.
+- `glbexport.js` must skip the glow when it lists a kart's flames (it filters `userData.glow`): otherwise the PC would treat the glow
+  as a third flame.
+
 ### 2026-11-13 (web v167): easier rivals on toy tracks; the garage shows stats the PC's way
 - The user had not won a race on Bedroom Blitz at 200cc ("so many items and specials close together, hard to keep a lead").
   Engine patch 12, toy tracks only, every class: computer drivers' top speed 3% lower (skill -0.03), `ahead` x0.97, `behind` 60% of

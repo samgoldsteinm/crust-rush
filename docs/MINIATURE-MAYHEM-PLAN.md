@@ -248,4 +248,6 @@ before the launch and the hairpins, a stronger bloom at the window.
   NET_PROTO 104. PC: the same rules (PROTO 104), numbers from the export.
 - Web v167: easier computer drivers on toy tracks (patch 12) and the garage's stats shown as on the PC (patch 13).
   PC: item rules (PROTO 104) and `abw`; needs the export for v167 (diffs) before its build.
+- Web v168: new boost flames, stronger motion blur, rainbow boost streaks on Neon tracks (patch 14). PC: the same
+  (flame.gdshader, post.gdshader); needs the export (tracks for the `neon` flag, garage for `fglow`) before its build.
 
