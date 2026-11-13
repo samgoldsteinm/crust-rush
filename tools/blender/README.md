@@ -46,6 +46,11 @@ There is no live Blender connection: Blender 5.3 (D:\blender\blender.exe) is run
 - `rug`: a mat that does not lie quite flat, one corner curling, a fringe at both short ends. Its `rug` material carries one
   picture over the whole mat: the builder passes a tile of `[110,150]` (across, along, in cm) to `pk`.
 
+- `outside`: not a model but a picture: the garden seen through the bedroom window (lawn, a board fence, seven trees made of
+  tens of thousands of small pointed leaves that glow where the sun is behind them, a neighbour's house), rendered with the
+  sun where the game's sun is. `put_tex.py tex_toy_outside blender/outside/outside.jpg 1792 82` puts it in the texture store;
+  `M.outside` hangs it behind the window, a little over full brightness. Realism-list item 4. Every other room needs its own.
+
 ## To do (most visible first)
 chair, desk, dresser, nightstand, floor lamp, sneakers, backpack, books,
 plant, monitors, keyboard and mouse, PC tower, door and window frames, shelf, posters, bin, cartons, skateboard,

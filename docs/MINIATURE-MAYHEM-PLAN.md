@@ -222,4 +222,7 @@ before the launch and the hairpins, a stronger bloom at the window.
 - Still to do from the agreed list: wood and fabric textures (3), real view outside with trees (4), background blur on
   Ultra (5); the remaining Blender models (tools/blender/README.md); then Kitchen Chaos, Garage Overdrive, Backyard Mega
   Circuit and the cup.
+- Web v160: the view outside the bedroom window is a garden rendered in Blender (item 4 of the realism list). PC build
+  eec44e5 is public (PROTO 102, room as web v156); it still needs the export for v160 and a rebuild to get the curtains,
+  the rug and the garden.
 

@@ -237,7 +237,10 @@ M.window=function(w,h,o){o=o||{};const G=grp(),W=w*U,H=h*U,fr=paint('winframe','
   const gl=add(G,new THREE.PlaneGeometry(W-2*t,H-2*t),glass('winglass','#dfeeff',.12),0,H/2,-1.5*U);gl.userData.cast=false;
   add(G,slab(W+10*U,3*U,dp+9*U,1*U,.6*U,3),fr,0,-1.5*U,4.5*U);/* the sill */return G;};
 /* what is outside the window: sky, clouds, a neighbour's roof and trees, as a lit picture a little way beyond the glass */
-M.outside=function(w,h){const c=can('outside',1024,768,(g,W,H,r)=>{const sk=g.createLinearGradient(0,0,0,H);sk.addColorStop(0,'#5fa0e6');sk.addColorStop(.6,'#bfe0fb');sk.addColorStop(1,'#eaf5ff');g.fillStyle=sk;g.fillRect(0,0,W,H);
+M.outside=function(w,h){
+  /* the garden rendered in Blender (tools/blender/outside.py): lawn, a board fence, trees lit from behind, a neighbour's house. It covers the same 2.6 x 2.2 window-sizes the drawn picture did */
+  if(typeof PROP_TEX!=='undefined'&&PROP_TEX.tex_toy_outside){const m=new THREE.Mesh(new THREE.PlaneGeometry(w*U,h*U),mat('outside',()=>new THREE.MeshBasicMaterial({map:propTex('tex_toy_outside'),toneMapped:false,color:new THREE.Color(1.22,1.22,1.24)})/* a little over full brightness: daylight seen from indoors */));m.userData.cast=false;return m;}
+  const c=can('outside',1024,768,(g,W,H,r)=>{const sk=g.createLinearGradient(0,0,0,H);sk.addColorStop(0,'#5fa0e6');sk.addColorStop(.6,'#bfe0fb');sk.addColorStop(1,'#eaf5ff');g.fillStyle=sk;g.fillRect(0,0,W,H);
     for(let i=0;i<9;i++){const x=r()*W,y=40+r()*260;for(let k=0;k<7;k++){g.fillStyle='rgba(255,255,255,'+(.16+r()*.2)+')';g.beginPath();g.ellipse(x+(r()-.5)*150,y+(r()-.5)*30,60+r()*70,20+r()*18,0,0,7);g.fill();}}
     g.fillStyle='#8c9aa6';g.beginPath();g.moveTo(520,560);g.lineTo(760,420);g.lineTo(1024,540);g.lineTo(1024,768);g.lineTo(520,768);g.fill();g.fillStyle='#d9d2c4';g.fillRect(560,590,464,178);g.fillStyle='#6f7f8c';g.fillRect(640,630,90,90);g.fillRect(820,630,90,90);
     for(let i=0;i<60;i++){const x=r()*560-40,y=470+r()*200,rr=40+r()*60;g.fillStyle=['#3f7a3a','#4e8f45','#2f6a34','#5a9c4c'][i%4];g.globalAlpha=.9;g.beginPath();g.arc(x,y,rr,0,7);g.fill();}g.globalAlpha=1;g.fillStyle='#4a8a40';g.fillRect(0,690,1024,78);});
