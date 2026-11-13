@@ -5940,7 +5940,7 @@ function loadMap0(mi,rev){
     const bt=T2(bannerC);bt.userData.keepCanvas=true;const bmF=new THREE.MeshStandardMaterial({map:bt,roughness:.55}),dk=wm('#1b0f0b');
     const b=new THREE.Mesh(new THREE.BoxGeometry(2*CURB+26,14,1.8),[dk,dk,dk,dk,bmF,bmF]);b.position.set(s.x,rY+33,s.y);b.rotation.y=-Math.PI/2-ang;b.castShadow=true;g.add(b);
     if(document.fonts)document.fonts.ready.then(()=>{drawBanner();bt.needsUpdate=true;});})();
-  (function(){const fR=new THREE.MeshStandardMaterial({map:T2(chevTex(1)),roughness:.45}),fL=new THREE.MeshStandardMaterial({map:T2(chevTex(-1)),roughness:.45}),postM=wm('#c98b4e',{roughness:.7}),edge=wm('#7d1d0e');let last=-99;
+  (function(){if(def.battle)return;/* no bend boards on a battle arena: its ring of track points is bookkeeping, not a road */const fR=new THREE.MeshStandardMaterial({map:T2(chevTex(1)),roughness:.45}),fL=new THREE.MeshStandardMaterial({map:T2(chevTex(-1)),roughness:.45}),postM=wm('#c98b4e',{roughness:.7}),edge=wm('#7d1d0e');let last=-99;
     const bg=new THREE.BoxGeometry(.9,8,17),pg=new THREE.CylinderGeometry(.55,.55,9,10);
     for(let j=0;j<N;j++){const bend=track[j].bend;if(Math.abs(bend)<.7||j-last<20||isDeck(j))continue;
       const p=track[(j+3)%N],side=-Math.sign(bend),x=p.x+p.nx*(CURB+26)*side,y=p.y+p.ny*(CURB+26)*side;if(Math.hypot(x,y)>R-60||nearTrack(x,y,CURB+18))continue;last=j;

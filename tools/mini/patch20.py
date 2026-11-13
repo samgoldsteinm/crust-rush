@@ -31,5 +31,6 @@ rep("function useAbility(k,back){", "function useAbility(k,back){if(BATTLE)retur
 # (added with web v183) a battle's boxes give only things that work with no track; no corner arrow boards on the table
 rep('function rollItem(pos){', 'function rollItem(pos){if(BATTLE)return bbRoll();')
 rep('function neonSigns(def){', 'function neonSigns(def){if(def.battle)return;')
+rep('(function(){const fR=new THREE.MeshStandardMaterial({map:T2(chevTex(1)),roughness:.45}),', '(function(){if(def.battle)return;/* no bend boards on a battle arena: its ring of track points is bookkeeping, not a road */const fR=new THREE.MeshStandardMaterial({map:T2(chevTex(1)),roughness:.45}),')   # (web v184: these were the boards; neonSigns was not)
 open(p, 'w', encoding='utf-8', newline='').write(s)
 print('patched')
