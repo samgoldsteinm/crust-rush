@@ -206,4 +206,9 @@ before the launch and the hairpins, a stronger bloom at the window.
 - Blender remodel started (user: "remodel all the objects ... as realistic as possible"). Workflow and rules in
   `tools/blender/README.md`. The bed is the first model through it (cloth-simulated bedding). Blender models are
   geometry plus baked vertex shading; the game's tiling materials are kept, so close-ups stay sharp.
+- 2026-11-12 late night: web v155 published (app f744f82, source fb9dafe): realism items 1, 2 and 6, the Blender bed, traps
+  drawn on raised road, no item boxes on the grid, NET_PROTO 101. Next web stamp v156.
+  User's instructions after seeing it: publish web and PC; every graphics or game change goes to both web and PC; fix traps
+  hitting karts on the level underneath (both); the white dashes belong on the track's walls, not on the road; carry on with
+  the Blender models and the rest of the list.
 
