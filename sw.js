@@ -1,6 +1,6 @@
 // Crust Rush service worker: installs the game as an app and keeps every file for offline play.
 // Game files have their content hash in the name, so a saved copy never goes stale; only the page itself is re-checked.
-const VERSION = 'crust-rush-v172';
+const VERSION = 'crust-rush-v173';
 const SHELL = [
   "./",
   "./index.html",
@@ -41,6 +41,18 @@ const SHELL = [
   "./assets/geo/bike_neutron.33a8caa28c.bin",
   "./assets/geo/bike_rocket.c1d0ba014a.bin",
   "./assets/geo/bike_june.a357af641e.bin",
+  "./assets/geo/skywing.fc799b5285.bin",
+  "./assets/geo/skywing_hq.ce774ee19d.bin",
+  "./assets/geo/megagt.5ce5bf9f42.bin",
+  "./assets/geo/megagt_hq.d6ca975aeb.bin",
+  "./assets/geo/megawatt.7433d7ab9f.bin",
+  "./assets/geo/megawatt_hq.5b20d0c58c.bin",
+  "./assets/geo/endur.058dbd0999.bin",
+  "./assets/geo/endur_hq.6f5c034a43.bin",
+  "./assets/geo/slip.2e6c423ad4.bin",
+  "./assets/geo/slip_hq.80bb72fde5.bin",
+  "./assets/geo/retrogt.e2dae34091.bin",
+  "./assets/geo/retrogt_hq.66b39089ab.bin",
   "./assets/geo/tree_pine1.55f1df225a.bin",
   "./assets/geo/tree_pine2.51237a24e1.bin",
   "./assets/geo/tree_round1.cc883fdab7.bin",
@@ -173,7 +185,7 @@ const SHELL = [
   "./assets/shots/kitchen-m.bf2cb4f824.jpg",
   "./assets/shots/kitchen-a.ae254fe8bf.jpg",
   "./css/style.765bacee07.css",
-  "./js/game.fe565f399b.js",
+  "./js/game.068d48fde7.js",
   "./vendor/three-0.149.0.min.js"
 ];
 
