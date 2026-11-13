@@ -31,6 +31,16 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 | PC: the track looked dull and speckled although made glossy | `HdSurface` (Finished models) laid mottling and grain over the plain plastics and replaced the pictured road with its relief shader, losing the lacquer shine | `HdSurface._moulded`: materials named `toy_toy...` are left alone | New toy-set plastics keep the `toy_toy` name prefix |
 | PC: the sun lit the whole room again after any graphics setting change | `_apply_quality` resets the sun's shadow range and can switch shadows off | `_toy_sun()` runs at the end of it: on a toy room shadows stay on and reach across the room | Anything a room needs from the sun goes in `_toy_sun()` |
 
+Releasing to PC after a web release (learned 2026-11-12, the order matters):
+1. Web is published first. Then push a change to `.github/workflows/maps.yml` with `[quick]` in the message: that starts the track export
+   (about 10 minutes) and does not start a PC build.
+2. Wait for the export AND for any PC build already running (two PC builds running together can replace the public download in the
+   wrong order).
+3. Push a PC commit that changes a script, without `[quick]`, as the newest commit. A push whose newest commit says `[quick]`, or that only
+   changes README.md or the workflow files, builds nothing public.
+4. Check `releases/download/pc/pc-build.json`: its "build" is the first 8 characters of the commit that was built.
+Known small difference on PC: brass handles look near black (metal mirrors the dim room); the web shows them as brass.
+
 PC toolchain on this PC (2026-11-12): Godot 4.7.2 at `D:\crust-rush\tools\godot` (console exe for headless tests). Tracks, garage and
 textures come from the public `maps` release (download with curl into `godot/maps`, `godot/assets/garage`, `godot/assets/hd/cc0`); a single
 track can be exported locally with `WEB=D:/crust-rush/app OUT=D:/crust-rush/godot/maps MI=<n> py.cmd tools/ciexport.py`.
