@@ -32,3 +32,11 @@ git('app', 'fetch', '-q', 'origin'); git('app', 'merge-base', '--is-ancestor', '
 open(wt, 'w', encoding='utf-8', newline='').write(src.replace(f"VERSION = 'crust-rush-v{n}'", f"VERSION = 'crust-rush-v{n + 1}'"))
 git('source', 'add', '-A'); git('source', 'commit', '-q', '-m', f'Web v{n} is published; next stamp v{n + 1}{TAIL}'); git('source', 'push', '-q', 'origin', 'source')
 print(f'published web v{n}:', git('app', 'log', '--oneline', '-1'))
+# how much room is left: GitHub Pages serves a site of at most 1 GB, and asks that a repository stay under about 1 GB too
+import os, json, urllib.request
+site = sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(f'{R}/app') if '.git' not in d.replace(os.sep, '/').split('/') for f in fs)
+try: repo = json.loads(urllib.request.urlopen(urllib.request.Request('https://api.github.com/repos/samgoldsteinm/crust-rush', headers={'User-Agent': 'release-check'}), timeout=20).read())['size'] / 1024
+except Exception: repo = None
+print(f'space: the site is {site / 1e6:.0f} MB of 1024' + (f'; the repository is {repo:.0f} MB on GitHub (keep under 1000)' if repo else ''))
+if site > 700e6 or (repo or 0) > 800: print('SPACE WARNING: time to move the late-loading models and big textures to a second repository (docs/HANDOVER.md, "Space")')
+

@@ -423,3 +423,8 @@ before the launch and the hairpins, a stronger bloom at the window.
   `tools/neon/probe.py` are the two checks added with v180's garage fixes.
 - Ideas not done: a parked car on the drive or the street (Poly Haven has a CC0 `covered_car`), a letter box, bins by the wall.
 
+## Web v186 (2026-11-13): the backyard's second layout
+- See docs/HANDOVER.md (web v186) and the header of `tools/mini/t_backyard.py`. The section colours (`TOYSEC.backyard`) follow
+  the new lap: yellow the S-bends to the tree, red the tree and the drop, blue the hairpins. Still two laps: ask the owner
+  whether five minutes is right, or one lap would do.
+

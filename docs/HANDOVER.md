@@ -24,8 +24,35 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### Space (the owner, 2026-11-13: "GitHub pages has a hard 1gb limit we also have to consider")
+- Measured 2026-11-13: the published site is 77 MB (models 25, textures 19, track pictures 17, code 2, three.js 5); GitHub
+  reports the whole repository (all three branches and their history) at 280 MB. `release_web.py` prints both after every
+  release and warns at 700 MB / 800 MB.
+- What was eating the space was the source branch: 37 kept versions of a 70 MB `crust-rush.html`. Since the assets moved
+  out of that file (entry below) a change stores only the files it touches.
+- Rules to stay small: store a texture at the size it is seen at (1024 for most; 2048 only for a wall filling the view);
+  drop a model's pack when a better one replaces it (`py.cmd tools/assets.py drop <name>`); `py.cmd tools/assets.py sizes`.
+- The route for when it is needed (not yet): a second repository with its own Pages site (its own 1 GB) holding the
+  late-loading packs (`*_hq`) and the big textures. It is the same web address family (samgoldsteinm.github.io/...), so the
+  game can fetch from it with no cross-site trouble and the offline cache still works; the build would write those files
+  there and put their full addresses in the game's table. Needs the owner to create the repository; an hour's work after.
+  A further route for very large worlds (Sandbox): per-region asset repositories, loaded only when a region is entered.
+
+### 2026-11-13 (web v186, online version 109): Backyard Mega Circuit laid out again
+
+The owner: "There's too many straights on the backyard mega circuit the track needs to be more interesting right now it's
+mainly just driving straight". The first layout was one long thin lap of straights. The second (`tools/mini/t_backyard.py`,
+its header says what and why) keeps the landmarks and bends everything between: a slalom along the patio, a wide S up to the
+goal, two S-bends along the back fence, once round the tree, the drop swung out over the lawn, an S into the drain pipe,
+back and forth under the washing line (two hairpins), behind the shed, and a weaving run home. 23 534 units a lap (was
+19 996), 63 pieces (was 34); the longest straights left are the loop's run-up (3.3 m) and the one through the pipe (2.6 m).
+Tests: forward, reverse and 200cc all 8 finish, 0 respawns, 0 stuck; two laps take about 5 minutes at 100cc (was 4.5).
+Props that stood in the new lap were moved (`clearcheck.py backyard`: its list is in garden metres). New menu pictures.
+How it was laid out without guessing: a pocket turtle in garden metres (scratch only) printed where each piece ended
+against the landmarks' coordinates before the real generator closed the lap; the two straights it solves must not be parallel.
+
 ### Where web and PC stand (2026-11-13, end of the session)
-- Web v185. PC build a866c750 = web v181 for everything that is raced (online version 108 on both).
+- Web v186 (online 109: the backyard's new layout). PC build a866c750 = web v181 (online 108) until the PC release for v186 finishes.
 - Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
   (docs/BALLOON-BATTLE-PLAN.md). Sandbox is planned, not begun (docs/SANDBOX-PLAN.md).
 - Not checked by eye on the PC: the Blender garden, the garage's open door and front yard, the leaf cards and tree pictures.

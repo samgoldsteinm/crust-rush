@@ -8,7 +8,7 @@ let TOYF=[],TOYP=[],TOYB=[],TOYENV=null;/* TOYENV: where the room is photographe
 function toyUnder(x,z,below){let h=0;for(const b of TOYF)if(x>=b[0]&&x<=b[1]&&z>=b[2]&&z<=b[3]&&b[4]<=below+.5&&b[4]>h)h=b[4];return h;}
 /* The set comes in coloured sections, the way toy track does. TOYSEC lists them per room as [from,to,colour] in fractions of
    the lap (the lap as it is laid out, whichever way it is raced); everything else is orange. Looks only: the race never reads it. */
-const TOYCOL={orange:'#ff6a12',red:'#e3271d',yellow:'#f6c41f',blue:'#1f55c8'},TOYSEC={bedroom:[[.073,.253,'red'],[.347,.514,'yellow'],[.783,.938,'blue']],kitchen:[[.079,.26,'yellow'],[.26,.426,'red'],[.789,.976,'blue']],garage:[[.126,.452,'yellow'],[.452,.635,'red'],[.674,.916,'blue']],backyard:[[.161,.309,'yellow'],[.336,.448,'red'],[.571,.737,'blue']]};
+const TOYCOL={orange:'#ff6a12',red:'#e3271d',yellow:'#f6c41f',blue:'#1f55c8'},TOYSEC={bedroom:[[.073,.253,'red'],[.347,.514,'yellow'],[.783,.938,'blue']],kitchen:[[.079,.26,'yellow'],[.26,.426,'red'],[.789,.976,'blue']],garage:[[.126,.452,'yellow'],[.452,.635,'red'],[.674,.916,'blue']],backyard:[[.216,.312,'yellow'],[.312,.449,'red'],[.487,.701,'blue']]};
 function toyColAt(def,j){j=((j%N)+N)%N;const f=(curRev?(N-j)%N:j)/N;for(const q of TOYSEC[def.look]||[])if(f>=q[0]&&f<q[1])return q[2];return 'orange';}
 /* runs of one colour between two points of the lap: [[from,to,colour],...] */
 function toyRuns(def,j0,j1){const out=[];let a=j0,k=toyColAt(def,j0);for(let j=j0+1;j<=j1;j++){const c=j<j1?toyColAt(def,j):null;if(c!==k){out.push([a,j,k]);a=j;k=c;}}return out;}
@@ -348,8 +348,8 @@ function toyYard(def){const U=TM.U,M=TM,m=100*U,GX=g=>(g+.75)*m,GY=g=>(g-3.5)*m,
     for(let i=0;i<90;i++)tuft(W0+.4+r()*(W1-W0-.8),1.9+r()*4.8);
     if(scan)SG.forEach((g,i)=>{const c=g.children[0],tm=instBatch(c.geometry,c.material,LS[i],false);if(tm)tm.userData.noMerge=true;});else{const tm=instBatch(tg.geometry,tg.material,L,false);if(tm)tm.userData.noMerge=true;}}
   for(const [gx,sd] of [[-6.9,2],[-5.9,6],[-4.9,9],[-2.6,13],[-1.5,17]])put(M.ypot(13+sd%5,sd),gx,6.62,sd).position.y=-10*U;
-  put(M.ygnome(),2.2,4.3,2.6);put(M.jerry('#b3261c'),-9.7,4.75,.4);put(M.cone(),-12.2,3.95,0);put(M.gtyres(1),10.9,2.2,0);put(M.skateboard(),-3.3,1.2,.3);put(M.sneaker?M.sneaker():M.cube({seed:2}),-4.0,.55,.6);
-  put(M.setbox(),1.6,1.45,-.2);put(M.trackpiece({l:22}),2.5,1.5,.6);put(M.ball({kind:'tennis'}),-10.3,2.6,0);put(M.bricks({seed:5,n:9,spread:9}),6.9,1.5,0);put(M.cube({seed:8}),-6.2,2.7,.5);
+  put(M.ygnome(),2.3,3.6,2.6);put(M.jerry('#b3261c'),-13.3,2.9,.4);put(M.cone(),-12.4,2.5,0);/* (moved for the second layout: tools/mini/clearcheck.py backyard) */put(M.gtyres(1),10.9,2.2,0);put(M.skateboard(),-3.3,1.2,.3);put(M.sneaker?M.sneaker():M.cube({seed:2}),-4.0,.55,.6);
+  put(M.setbox(),1.6,1.45,-.2);put(M.trackpiece({l:22}),2.5,1.5,.6);put(M.ball({kind:'tennis'}),-11.4,2.8,0);put(M.bricks({seed:5,n:9,spread:9}),6.9,1.5,0);put(M.cube({seed:8}),-6.2,2.7,.5);
   /* shade the sun's own shadow map does not reach: under the tree, north of the shed and of the back fence */
   toyShade(GX(1.2),GX(5),GY(4.2),GY(6.9),.3);toyShade(GX(-12.6),GX(-9.8),GY(6.1),GY(6.95),.4);toyShade(GX(-11),GX(9),GY(6.6),GY(7),.25);}
 function buildToy(def){TOYF=[];TOYP=[];TOYB=[];if(def.look==='bedroom')toyBedroom(def);else if(def.look==='kitchen')toyKitchen(def);else if(def.look==='garage')toyGarage(def);else if(def.look==='backyard')toyYard(def);else if(def.look==='battle')toyBattle(def);}
