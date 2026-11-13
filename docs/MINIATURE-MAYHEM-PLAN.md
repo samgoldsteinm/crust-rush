@@ -238,4 +238,9 @@ before the launch and the hairpins, a stronger bloom at the window.
 - Web v165: walnut desk top (generated texture), background blur on toy tracks (Ultra, item 5 of the realism list; engine
   patch 9, Settings > Background blur), and the toy-track handling change (engine patch 10: TURN 2.64, DRIN, DROUT;
   NET_PROTO 103). PC: the same blur (CameraAttributesPractical far blur, `_toy_dof`), DRIN/DROUT from the export, PROTO 103.
+- 2026-11-13: PC build 98b863b5 is the public download and matches web v165 (room, handling numbers, background blur,
+  PROTO 103); the cross-play test on GitHub passed for it. Web and PC are level. Next web stamp v166.
+  Waiting on the user: how the new toy-track handling feels (TURN 2.64, DRIN 2.6, DROUT 0.6).
+  Next work: remaining Blender models (floor lamp, sneakers, backpack, books, plant, monitors, keyboard, PC tower, door and
+  window frames, shelf, small things); fabric textures; then Kitchen Chaos, Garage Overdrive, Backyard Mega Circuit and the cup.
 
