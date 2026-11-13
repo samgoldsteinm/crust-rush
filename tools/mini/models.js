@@ -187,6 +187,8 @@ M.chair=function(o){o=o||{};const G=grp(),blk=mat('pu',()=>std({color:'#16171a',
 /* ============ storage ============ */
 /* a low dresser: 120 x 45 cm, 45 cm high on short legs, six drawers with bar handles */
 M.dresser=function(){const G=grp(),W=120*U,D=45*U,H=45*U,leg=9*U,body=paint('dresser','#eceae4',.55),oak=wood('oak','#b98a58','#5a3a1c',{rough:.5}),hd=metal('brass','#b08a4a',.3);
+  /* the Blender-built dresser (tools/blender/dresser.py): same size, drawer fronts with shadow gaps, bar handles on standoffs */
+  if(pkReady('dresser'))return pk('dresser',{dresser:[body,60],oak:[oak,80],brass:[hd,20]});
   add(G,slab(W,H-leg-3*U,D,1*U,.4*U,3),body,0,leg+(H-leg-3*U)/2,0);add(G,uvw(slab(W+3*U,3*U,D+2*U,1.2*U,.5*U,3),80),oak,0,H-1.5*U,0);
   for(const sx of [-1,1])for(const sz of [-1,1])add(G,cyl(2*U,1.3*U,leg,12),oak,sx*(W/2-6*U),leg/2,sz*(D/2-5*U));
   const dw=W/2-2.4*U,dh=(H-leg-3*U)/3-1*U;for(let c=0;c<2;c++)for(let r=0;r<3;r++){const x=(c-.5)*(W/2-.6*U),y=leg+.9*U+dh/2+r*(dh+.9*U);add(G,slab(dw,1.8*U,dh,.7*U,.35*U,3),body,x,y,D/2+.4*U,Math.PI/2);
@@ -262,7 +264,7 @@ M.door=function(){const G=grp(),W=82*U,H=203*U,wh=paint('doorwhite','#f3f1ec',.5
   const st=metal('doorsteel','#b9bcc2',.3);add(G,cyl(2.6*U,2.6*U,1*U,20),st,W/2-7*U,100*U,t/2+.5*U,Math.PI/2);add(G,cyl(.9*U,.9*U,5*U,12),st,W/2-7*U,100*U,t/2+3*U,Math.PI/2);add(G,slab(12*U,1.8*U,2*U,.8*U,.5*U,3),st,W/2-12*U,100*U,t/2+5.5*U);
   for(const y of [22,100,180])add(G,box(.6*U,9*U,3*U),st,-W/2-.2*U,y*U,t/2);return G;};
 /* ============ smaller things ============ */
-M.nightstand=function(){const G=grp(),W=46*U,D=40*U,H=52*U,oak=wood('oak','#b98a58','#5a3a1c',{rough:.5}),leg=14*U;add(G,uvw(slab(W,H-leg,D,1.2*U,.5*U,3),80),oak,0,leg+(H-leg)/2,0);for(const sx of [-1,1])for(const sz of [-1,1])add(G,cyl(1.8*U,1.2*U,leg,12),oak,sx*(W/2-4*U),leg/2,sz*(D/2-4*U));
+M.nightstand=function(){const G=grp(),W=46*U,D=40*U,H=52*U,oak=wood('oak','#b98a58','#5a3a1c',{rough:.5}),leg=14*U;if(pkReady('nightstand'))return pk('nightstand',{oak:[oak,80],brass:[metal('brass','#b08a4a',.3),20]});/* the Blender-built nightstand (tools/blender/dresser.py) */add(G,uvw(slab(W,H-leg,D,1.2*U,.5*U,3),80),oak,0,leg+(H-leg)/2,0);for(const sx of [-1,1])for(const sz of [-1,1])add(G,cyl(1.8*U,1.2*U,leg,12),oak,sx*(W/2-4*U),leg/2,sz*(D/2-4*U));
   for(let i=0;i<2;i++){const y=leg+4*U+(H-leg-6*U)/4+i*(H-leg-4*U)/2;add(G,uvw(slab(W-4*U,1.6*U,(H-leg)/2-3.4*U,.8*U,.4*U,3),80),oak,0,y,D/2+.3*U,Math.PI/2);add(G,cyl(1.3*U,1.3*U,1.6*U,16),metal('brass','#b08a4a',.3),0,y,D/2+2*U,Math.PI/2);}return G;};
 /* a coffee mug, 9.5 cm tall and 8 cm across, with a handle */
 M.mug=function(o){o=o||{};const G=grp(),c=mat('mug'+(o.color||''),()=>phy({color:o.color||'#f4f1ea',roughness:.25,clearcoat:.6,clearcoatRoughness:.2,envMapIntensity:.8,side:THREE.DoubleSide})),pts=[];
