@@ -2,7 +2,7 @@
 # and its garage (every body, wheel set, glider and driver) on one more, and attaches them to the "maps"
 # release. The PC build downloads them from there, so the big model files never go into git. Run it by hand
 # after the web game's tracks or karts change.
-# (Last run for: web v168, boost flame glow in the garage export; the Neon flag on tracks.)
+# (Last run for: web v171, Bedroom Blitz floor lamp and desk rebuilt in Blender.)
 name: Export tracks
 
 on:
