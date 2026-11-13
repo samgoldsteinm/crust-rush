@@ -11,7 +11,7 @@ What it does:
 import json, re, subprocess, sys, time, urllib.request
 R = 'D:/crust-rush'
 API = 'https://api.github.com/repos/samgoldsteinm/crust-rush/actions/runs?branch=godot&per_page=10'
-TAIL = '\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\n'
+TAIL = '\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01M2eKvptTQwPcovHKAgrKmo\n'
 
 
 def git(*a, check=True):

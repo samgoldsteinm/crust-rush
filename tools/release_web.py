@@ -8,7 +8,7 @@ What it does, in order:
 """
 import re, subprocess, sys
 R = 'D:/crust-rush'
-TAIL = '\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\n'
+TAIL = '\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01M2eKvptTQwPcovHKAgrKmo\n'
 
 
 def git(repo, *a, check=True):

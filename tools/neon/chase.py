@@ -1,8 +1,9 @@
-import asyncio, json, sys
+import asyncio, json, sys, os
 from playwright.async_api import async_playwright
 # usage: chase.py <map> <tag> "idx,idx,..."  -> the game's own chase camera with the (self-driving) player at each point of the lap
 MAP, TAG, IDX = sys.argv[1], sys.argv[2], [int(v) for v in sys.argv[3].split(',')]
 SP='D:/crust-rush/scratch'
+BODYJS = ("playerBuild.b=BODIES.findIndex(b=>b.id==='%s');playerBuild.t='';" % os.environ['BODY']) if os.environ.get('BODY') else ''   # BODY=<body id>: the player's body
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(channel='chromium', args=['--use-angle=d3d11','--enable-gpu','--ignore-gpu-blocklist','--enable-webgl'])
@@ -11,7 +12,7 @@ async def main():
         pg.on('pageerror', lambda e: errs.append(str(e)[:300]))
         await pg.goto('http://localhost:8771/webcopy6/index.html')
         await pg.wait_for_function("document.getElementById('menu')&&!document.getElementById('menu').hidden", timeout=600000)
-        await pg.evaluate("(a)=>__ev(`qKey='fast';applyQuality();clsKey='medium';mode='single';introSkip=true;goRace(MAPS.findIndex(m=>m.id==='${a[0]}'))`)", [MAP])
+        await pg.evaluate("(a)=>__ev(`qKey='fast';applyQuality();clsKey='medium';mode='single';introSkip=true;" + BODYJS + "goRace(MAPS.findIndex(m=>m.id==='${a[0]}'))`)", [MAP])
         await pg.wait_for_function("document.getElementById('raceLd').hidden", timeout=900000)
         for i in range(400):
             if await pg.evaluate("__ev(`state`)")=='race': break

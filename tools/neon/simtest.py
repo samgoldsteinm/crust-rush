@@ -1,8 +1,9 @@
-import asyncio, json, sys
+import asyncio, json, sys, os
 from playwright.async_api import async_playwright
 MAP = sys.argv[1] if len(sys.argv) > 1 else 'laser'
 CLS = sys.argv[2] if len(sys.argv) > 2 else 'medium'
 SECS = int(sys.argv[3]) if len(sys.argv) > 3 else 330
+BODYJS = ("playerBuild.b=BODIES.findIndex(b=>b.id==='%s');playerBuild.t='';" % os.environ['BODY']) if os.environ.get('BODY') else ''   # BODY=<body id>: the player's body
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(channel='chromium', args=['--use-angle=d3d11','--enable-gpu','--ignore-gpu-blocklist','--enable-webgl'])
@@ -13,7 +14,7 @@ async def main():
         pg.on('console', lambda m: errs.append('console:'+m.text[:300]) if m.type in ('error','warning') and 'GPU' not in m.text and 'WebGL' not in m.text else None)
         await pg.goto('http://localhost:8771/webcopy6/index.html')
         await pg.wait_for_function("document.getElementById('menu')&&!document.getElementById('menu').hidden", timeout=600000)
-        await pg.evaluate("(a)=>__ev(`qKey='fast';applyQuality();clsKey='${a[1]}';mode='single';introSkip=true;goRace(MAPS.findIndex(m=>m.id==='${a[0]}'))`)", [MAP, CLS])
+        await pg.evaluate("(a)=>__ev(`qKey='fast';applyQuality();clsKey='${a[1]}';mode='single';introSkip=true;" + BODYJS + "goRace(MAPS.findIndex(m=>m.id==='${a[0]}'))`)", [MAP, CLS])
         await pg.wait_for_function("document.getElementById('raceLd').hidden", timeout=900000)
         for i in range(400):
             st = await pg.evaluate("__ev(`state`)")

@@ -22,6 +22,50 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### 2026-11-13 (web v173, PC with PROTO 105): six new cars from the user's models; the flame tip had no position
+
+**The six cars** (Cars tab of the garage; ids `skywing`, `megagt`, `megawatt`, `endur`, `slip`, `retrogt`; names Skywing,
+Mega GT, Megawatt, Endurance GT, Slipstream, Retro Racer). The user uploaded six downloaded models of real cars. They are in
+the game the way the earlier cars are: a made-up name, no badge, plate, sticker or texture of the original (the game paints
+them itself), so the "no copyrighted names or logos" rule holds. WHAT IS NOT SETTLED: the models themselves are other
+people's work (their material names show they were taken out of commercial racing games) and no licence came with the
+files. That was put to the user in the session's report; if the answer is "take them out", see "Removing a car" below.
+
+How a car gets in (all of it is scripted, nothing is done by hand in Blender):
+1. Unpack the model into its own new folder under `scratch/cars_in/` (never run anything from it).
+2. `tools/blender/car_inspect.py -- <model>` lists its materials with where each sits on the car.
+3. Add the car to `tools/blender/car_rules.py`: which material is paint, glass, lights, which trim colour, cabin, wheel.
+   Always drop badges, plates, stickers, displays. Ids must not be the id of ANYTHING else in the game (see the table).
+4. `sh tools/blender/car_all.sh <id>` converts it (about a minute) and makes `blender/cars/<id>/sheet.jpg`: look at it.
+   `rules.txt` beside it says what each material became and where it lies, which is how a wrong rule is found.
+5. `py.cmd tools/blender/car_pack.py <id>` puts `<id>` and `<id>_hq` into CAR_PACKS.
+6. Add the car to `CARS` in `tools/cars/patch_cars.py` (name, description, stats, seat, roof, pipes) and run it. It writes
+   the body list, the car's definition, the Cars tab and the engine sound; running it again replaces what it wrote.
+7. `tools/neon/cartest.py <tag> <id>` photographs it in the garage (env Q, ROT, ZOOM, PITCH, LIV, PAINT);
+   `BODY=<id> ... simtest.py` and `chase.py` race it. Bump NET_PROTO on web and PROTO on PC (a new body changes what
+   two players must agree on), publish web, then the PC release: the PC gets the bodies from the garage export by itself;
+   only `ENG_BODY` in `scripts/sfx.gd` is written by hand.
+
+Removing a car: take its line out of `CARS` and run `patch_cars.py`, delete its two entries from the CAR_PACKS line
+(car_pack.py shows the format), bump NET_PROTO/PROTO. NEVER remove one from the middle and leave later ones: a saved or
+networked build holds a body's INDEX, so every body after it would turn into its neighbour. The six are the last six
+bodies, in the order above; removing all six, or the last ones, is safe.
+
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| Long stray triangles sticking out of the first converted car | A group of thousands of loose pieces (a cabin) was asked to shrink to 2%: the simplifier bridges pieces | The smallest loose pieces are removed first so no group is asked for less than a tenth, and any triangle that ends up away from the original surface is dropped | `simplified`, `keep_largest`, `Ref.near` in car_convert.py |
+| Tyres came out as ten-sided polygons | A simplified tyre has too few triangles left to be round | Each tyre is only measured (centre, radius, bead radius, width) and rebuilt as a clean lathe of the same size | `lathe_tyre` |
+| The first pack was three times the size of the existing cars | Normals looked up per triangle differ a hair, so no two corners shared a vertex | Corners of a vertex that agree within 24 degrees share their average | `unify` |
+| The ground showed through the windscreen | A cabin cut to 900 triangles loses its floor | Every car gets a plain dark tub under the cabin, facing inward (seen only through the glass) | `tub`; `tub=False` or five numbers in the car's rules to override |
+| The far model was a crumpled wreck | Snapping vertices to a grid at 880 triangles | Blender's simplifier is used first; the grid only when that stops at more than 3.5 times the budget | the "far" block of `convert` |
+| Lit displays in the cabin became white head lamps | One material held lamps and displays | Per-car rule: front part light, rear part tail, the middle dropped | the `megawatt` rules |
+| Running the definitions script twice moved the new bodies into the WHEELS list and deleted the livery "70s Stripes" | It cleared its earlier lines by matching `{id:'<id>'` at the start of a line: that also matched the livery with id `retro`, and removing the last line took the list's closing bracket with it | The script's lines now sit between `/*cars6...*/` and `/*:cars6*/` marks and only those are cleared; it refuses to run if an id is already used; the car was renamed `retrogt` | Read `git diff -U0 crust-rush.html` after any script edits the source: it must show only the lines meant |
+| New bodies were first put at the end of the BODIES list, which is not the end of the bodies | Four karts are added later by `BODIES.push(` | The new ones are pushed after that block | A build holds the body's index: new bodies go after EVERY existing one |
+| "Computed radius is NaN" in the console; boost flames missing their tip | `flameGeo`: at the tip `sin(pi*(.16+.84*v))` comes out a hair below zero and a negative number to the power .75 is not-a-number, so the tip ring of both flame meshes had no position. Patch 16 had fixed the normals there but not the positions | `Math.max(0, sin(..))` | The check in the scratch test `nan2.py` idea: traverse the scene for meshes whose bounding sphere is not finite. A NaN anywhere in a geometry is a bug even when it draws |
+
+Tests for v173: boot clean; every car photographed in the garage on Ultra and Lite, with two liveries; races with the
+player in a new car on bedroom, kitchen, margherita reverse, laser, synth 200cc (8 finish, 0 respawns, 0 stuck).
+
 ### 2026-11-13 (web v170): black dots in the boost flames on phones (patch 16)
 | What broke | Why | Fix | Keep it fixed |
 |---|---|---|---|
