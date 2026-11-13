@@ -1,6 +1,6 @@
 // Crust Rush service worker: installs the game as an app and keeps every file for offline play.
 // Game files have their content hash in the name, so a saved copy never goes stale; only the page itself is re-checked.
-const VERSION = 'crust-rush-v176';
+const VERSION = 'crust-rush-v177';
 const SHELL = [
   "./",
   "./index.html",
@@ -125,6 +125,14 @@ const SHELL = [
   "./assets/tex/tex_toy_ash_n.b8d9b9f2f6.jpg",
   "./assets/tex/tex_toy_outsidek.a53be7df8e.jpg",
   "./assets/tex/tex_toy_outsideg.a079acb48c.jpg",
+  "./assets/tex/tex_toy_lawn.98d37134ae.jpg",
+  "./assets/tex/tex_toy_lawn_n.64234fdd8b.jpg",
+  "./assets/tex/tex_toy_concrete.418349294b.jpg",
+  "./assets/tex/tex_toy_concrete_n.4b2258c542.jpg",
+  "./assets/tex/tex_toy_paving.5542b90af2.jpg",
+  "./assets/tex/tex_toy_paving_n.6b55eae135.jpg",
+  "./assets/tex/tex_toy_planks.6e22f9e35c.jpg",
+  "./assets/tex/tex_toy_planks_n.08a565b813.jpg",
   "./assets/shots/margherita-h.3e4a083708.jpg",
   "./assets/shots/margherita-m.15a3940147.jpg",
   "./assets/shots/margherita-a.04a971fcaf.jpg",
@@ -191,14 +199,14 @@ const SHELL = [
   "./assets/shots/kitchen-h.44d5b581c2.jpg",
   "./assets/shots/kitchen-m.bf2cb4f824.jpg",
   "./assets/shots/kitchen-a.ae254fe8bf.jpg",
-  "./assets/shots/garage-h.c99357117a.jpg",
-  "./assets/shots/garage-m.5ce60624a3.jpg",
-  "./assets/shots/garage-a.0e12ad8931.jpg",
-  "./assets/shots/backyard-h.af2f4e2d4e.jpg",
-  "./assets/shots/backyard-m.846a829d3a.jpg",
-  "./assets/shots/backyard-a.caccfcfff5.jpg",
+  "./assets/shots/garage-h.6089560e4e.jpg",
+  "./assets/shots/garage-m.e486093306.jpg",
+  "./assets/shots/garage-a.db86986c2d.jpg",
+  "./assets/shots/backyard-h.e1d9ef39d7.jpg",
+  "./assets/shots/backyard-m.1559fb852d.jpg",
+  "./assets/shots/backyard-a.c4c7c8bfcd.jpg",
   "./css/style.765bacee07.css",
-  "./js/game.68658d154d.js",
+  "./js/game.ceb0017897.js",
   "./vendor/three-0.149.0.min.js"
 ];
 
