@@ -1,6 +1,6 @@
 // Crust Rush service worker: installs the game as an app and keeps every file for offline play.
 // Game files have their content hash in the name, so a saved copy never goes stale; only the page itself is re-checked.
-const VERSION = 'crust-rush-v171';
+const VERSION = 'crust-rush-v172';
 const SHELL = [
   "./",
   "./index.html",
@@ -65,6 +65,13 @@ const SHELL = [
   "./assets/geo/toy_nightstand_hq.3d0d4f40c7.bin",
   "./assets/geo/toy_floorlamp_hq.6e4af4c980.bin",
   "./assets/geo/toy_desk_hq.e94308af46.bin",
+  "./assets/geo/toy_kcounter_hq.9787a247fe.bin",
+  "./assets/geo/toy_kwallcab_hq.480056cf6d.bin",
+  "./assets/geo/toy_kfridge_hq.230de3fd56.bin",
+  "./assets/geo/toy_ktable_hq.4c7d113a06.bin",
+  "./assets/geo/toy_kchair_hq.25b0a0d513.bin",
+  "./assets/geo/toy_kstool_hq.c0ad2a60e3.bin",
+  "./assets/geo/toy_kshelf_hq.eff3f3348d.bin",
   "./assets/tex/tex_ar_arena.f7dc7fc88b.jpg",
   "./assets/tex/tex_ar_track.579b73460a.jpg",
   "./assets/tex/tex_ar_glow.67ce84a9df.jpg",
@@ -91,11 +98,14 @@ const SHELL = [
   "./assets/tex/sky_nebula.f4e8c6c9bb.jpg",
   "./assets/tex/tex_pond.8f551e9556.jpg",
   "./assets/tex/tex_pondgrass.ea3a48c6f8.jpg",
-  "./assets/tex/tex_toy_outside.07806a5606.jpg",
+  "./assets/tex/tex_toy_outside.a210f2b2e6.jpg",
   "./assets/tex/tex_toy_oak.cb0c876c60.jpg",
   "./assets/tex/tex_toy_oak_n.1563a7b5f5.jpg",
   "./assets/tex/tex_toy_walnut.13662e5d47.jpg",
   "./assets/tex/tex_toy_walnut_n.c45a44fe01.jpg",
+  "./assets/tex/tex_toy_ash.48f1005fba.jpg",
+  "./assets/tex/tex_toy_ash_n.b8d9b9f2f6.jpg",
+  "./assets/tex/tex_toy_outsidek.a53be7df8e.jpg",
   "./assets/shots/margherita-h.3e4a083708.jpg",
   "./assets/shots/margherita-m.15a3940147.jpg",
   "./assets/shots/margherita-a.04a971fcaf.jpg",
@@ -156,11 +166,14 @@ const SHELL = [
   "./assets/shots/synth-h.41729b54f1.jpg",
   "./assets/shots/synth-m.f94348a683.jpg",
   "./assets/shots/synth-a.99c3b6fb96.jpg",
-  "./assets/shots/bedroom-h.9131c26320.jpg",
-  "./assets/shots/bedroom-m.731b08b6d4.jpg",
-  "./assets/shots/bedroom-a.021ce52f70.jpg",
+  "./assets/shots/bedroom-h.898057b988.jpg",
+  "./assets/shots/bedroom-m.7db85c4584.jpg",
+  "./assets/shots/bedroom-a.c2c6a8ea3d.jpg",
+  "./assets/shots/kitchen-h.44d5b581c2.jpg",
+  "./assets/shots/kitchen-m.bf2cb4f824.jpg",
+  "./assets/shots/kitchen-a.ae254fe8bf.jpg",
   "./css/style.765bacee07.css",
-  "./js/game.2d235f5c0e.js",
+  "./js/game.fe565f399b.js",
   "./vendor/three-0.149.0.min.js"
 ];
 
