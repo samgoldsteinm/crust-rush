@@ -40,6 +40,7 @@ var bubble_mat: ShaderMaterial
 var rush_mat: ShaderMaterial
 var glow_mats := {}
 var flame_meshes: Array = []
+var flame_shader: Shader
 var ring_mat_n: StandardMaterial3D
 var ring_mat_d: StandardMaterial3D
 var box_glow_mat: StandardMaterial3D
@@ -83,16 +84,9 @@ func _shared() -> void:
 	rush_mat.set_shader_parameter("c1", Color("#ff8a1f"))
 	rush_mat.set_shader_parameter("c2", Color("#ffe39a"))
 	# boost flames: open cones (web KG.flame / KG.flameIn)
-	for spec in [[0.55, 2.6, 16], [0.3, 1.7, 12]]:
-		var cm := CylinderMesh.new()
-		cm.top_radius = 0.0
-		cm.bottom_radius = spec[0]
-		cm.height = spec[1]
-		cm.radial_segments = spec[2]
-		cm.rings = 1
-		cm.cap_top = false
-		cm.cap_bottom = false
-		flame_meshes.append(cm)
+	for spec in [[0.64, 2.6, 18, 12], [0.36, 1.7, 14, 10]]:
+		flame_meshes.append(_flame_mesh(spec[0], spec[1], spec[2], spec[3]))
+	flame_shader = load("res://shaders/flame.gdshader")
 	ring_mat_n = _basic(Color("#ffe9a0"), 0.9)
 	ring_mat_d = _basic(Color("#ffd24a"), 0.95)
 	box_glow_mat = _glow_mat(Color("#ffd24a"), 0.5, true)
@@ -118,6 +112,32 @@ func _shared() -> void:
 	fire_in_mat = _basic(Color("#fff0a0"), 0.95)
 	fire_in_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	fire_in_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+
+
+## a flame's shape (web flameGeo): a teardrop tube along Y, open at the pipe (bottom) and closed to a point (top);
+## UV.y runs along it from the pipe to the tip
+static func _flame_mesh(R: float, H: float, rs: int, hs: int) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for j in hs + 1:
+		var v := float(j) / float(hs)
+		var r := R * pow(sin(PI * (0.16 + 0.84 * v)), 0.75) * (1.0 - 0.2 * v)
+		for i in rs + 1:
+			var a := TAU * float(i) / float(rs)
+			st.set_uv(Vector2(float(i) / float(rs), v))
+			st.set_normal(Vector3(cos(a), 0.25, sin(a)).normalized())
+			st.add_vertex(Vector3(cos(a) * r, (v - 0.5) * H, sin(a) * r))
+	for j in hs:
+		for i in rs:
+			var a0 := j * (rs + 1) + i
+			var b0 := a0 + rs + 1
+			st.add_index(a0)
+			st.add_index(b0)
+			st.add_index(a0 + 1)
+			st.add_index(a0 + 1)
+			st.add_index(b0)
+			st.add_index(b0 + 1)
+	return st.commit()
 
 
 static func _basic(col: Color, op: float) -> StandardMaterial3D:
@@ -269,14 +289,10 @@ func add_kart(k: Kart, sc_file_loader: Callable) -> void:
 		var inner := bool(fd.get("inner", false))
 		var mi := MeshInstance3D.new()
 		mi.mesh = flame_meshes[1 if inner else 0]
-		var m := StandardMaterial3D.new()
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-		m.cull_mode = BaseMaterial3D.CULL_DISABLED
-		m.disable_fog = true
-		m.albedo_color = Color(1, 0.5, 0.1, 0.95 if inner else 0.85)
+		var m := ShaderMaterial.new()
+		m.shader = flame_shader
+		m.set_shader_parameter("inn", 1.0 if inner else 0.0)
+		m.set_shader_parameter("seed", randf() * 20.0)
 		mi.material_override = m
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.rotation = Vector3(0, 0, PI / 2.0)
@@ -285,6 +301,20 @@ func add_kart(k: Kart, sc_file_loader: Callable) -> void:
 		tilt.add_child(mi)
 		var fl = fd.get("fl")
 		flames.append({"mi": mi, "mat": m, "inner": inner, "fl": fl})
+	# a soft glow on the road behind the pipes while boosting (web: the flame list's last entry)
+	var fglow: MeshInstance3D = null
+	var fgp = meta.get("fglow")
+	if fgp != null and not flames.is_empty():
+		fglow = MeshInstance3D.new()
+		var gq := QuadMesh.new()
+		gq.size = Vector2(1, 1)
+		gq.orientation = PlaneMesh.FACE_Y
+		fglow.mesh = gq
+		fglow.material_override = _glow_mat(Color("#ff8a2a"), 0.5, true)
+		fglow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		fglow.position = Vector3(float(fgp[0]), float(fgp[1]), float(fgp[2]))
+		fglow.visible = false
+		tilt.add_child(fglow)
 	# garlic shield / rush aura bubble, with a garlic clove per layer orbiting inside
 	var bub := MeshInstance3D.new()
 	var sp := SphereMesh.new()
@@ -358,7 +388,7 @@ func add_kart(k: Kart, sc_file_loader: Callable) -> void:
 		smoke = Vector3(sv[0], sv[1], sv[2])
 	views[k] = {"g": g, "tilt": tilt, "model": model, "wheels": wheels, "flames": flames, "bub": bub, "cloves": cloves, "mz": mz, "sc": sc, "pop": false, "bf": 0.0, "cut_m": [], "ice": ice, "fan": fan, "fan_mat": fm,
 		"fxL": fxl, "fxP": fxp, "smoke": smoke, "top": float(meta.get("top", 7.0)), "axF": float(meta.get("axF", 6.0)), "axR": float(meta.get("axR", -6.0)),
-		"axW": float(meta.get("axW", 5.0)), "hover": float(meta.get("hover", 0.0)), "hglow": meta.get("hglow"), "tp": 0.0, "tr": 0.0, "fxc": 0.0, "trick_on": false, "f_ti": -1,
+		"axW": float(meta.get("axW", 5.0)), "hover": float(meta.get("hover", 0.0)), "hglow": meta.get("hglow"), "tp": 0.0, "tr": 0.0, "fxc": 0.0, "trick_on": false, "f_ti": -1, "fglow": fglow,
 		"held": null, "held_it": "", "rx": k.x, "ry": k.y, "rz": k.wy, "rma": k.ma, "glider": glider, "ga": 0.0}
 
 
@@ -551,19 +581,41 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 		if int(v["f_ti"]) != ft:
 			v["f_ti"] = ft
 			for fl in v["flames"]:
-				var col: Color = FLAMEC[ft][1 if fl["inner"] else 0]
-				(fl["mat"] as StandardMaterial3D).albedo_color = Color(col.r, col.g, col.b, 0.95 if fl["inner"] else 0.85)
+				var fm := fl["mat"] as ShaderMaterial
+				var ca: Color = FLAMEC[ft][1 if fl["inner"] else 0]
+				var cb: Color = Color("#fff6e0") if fl["inner"] else FLAMEC[ft][1]
+				fm.set_shader_parameter("c_a", ca)   # as colours, so the shader gets them in linear light (as numbers they came out pale)
+				fm.set_shader_parameter("c_b", cb)
+			if v["fglow"] != null:
+				var gm := (v["fglow"] as MeshInstance3D).material_override as StandardMaterial3D
+				var gc: Color = FLAMEC[ft][0]
+				gm.albedo_color = Color(gc.r, gc.g, gc.b, gm.albedo_color.a)
 	for fl in v["flames"]:
 		var mi: MeshInstance3D = fl["mi"]
 		mi.visible = on
 		if on and not paused:
-			var L := sl * (0.8 + randf() * 0.5)
+			var L := sl * 1.4 * (1.0 + 0.07 * sin(time * 29.0) + randf() * 0.06)
 			mi.scale = Vector3(sw, L, sw)
 			var u2 = fl["fl"]
 			if u2 != null:
 				mi.position.x = float(u2[0]) + float(u2[1]) * (1.0 - L)
+	if v["fglow"] != null:
+		var fgl := v["fglow"] as MeshInstance3D
+		fgl.visible = on
+		if on and not paused:
+			var ff := 0.85 + 0.15 * sin(time * 37.0) + randf() * 0.08
+			fgl.scale = Vector3(5.0 * sl * ff, 1.0, 3.6 * sw)
+			var fgm := fgl.material_override as StandardMaterial3D
+			fgm.albedo_color.a = 0.5 * ff
 	if paused:
 		return
+	if on and randf() < 0.28 and not (v["flames"] as Array).is_empty():
+		# embers fly off the flames
+		var era: float = v["rma"]
+		var ed := absf(float(v.get("axR", 10.0))) + 4.0
+		var esd := (randf() - 0.5) * 5.0
+		var eft := clampi(k.f_tier, 0, 3)
+		fx.spawn_a(x - cos(era) * ed - sin(era) * esd, z + 2.2 + randf() * 2.0, y - sin(era) * ed + cos(era) * esd, -cos(era) * (14.0 + randf() * 22.0), 5.0 + randf() * 12.0, -sin(era) * (14.0 + randf() * 22.0), FLAMEC[eft][randi() % 2], 0.45, 0.1, 0.22 + randf() * 0.16, -10.0, 1.5)
 	var gt := g.global_transform
 	var rma: float = v["rma"]
 	if k.burn_t > 0.0:

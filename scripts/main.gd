@@ -2126,6 +2126,7 @@ func _process(dt: float) -> void:
 	post_mat.set_shader_parameter("edge_a", ea)
 	spd_fx += ((1.0 if (kart.boost > 0.0 and state == "race") else 0.0) - spd_fx) * minf(1.0, dt / 0.25)
 	post_mat.set_shader_parameter("spd", spd_fx)
+	post_mat.set_shader_parameter("rbw", 1.0 if T.neon else 0.0)
 	var mb_t := (pow(minf(1.5, maxf(0.0, kart.speed) / maxf(1.0, kart.base_max)), 2.0) * 0.8) if (mblur_on and state == "race" and kart.spin <= 0.0) else 0.0
 	mb_fx += (mb_t - mb_fx) * minf(1.0, dt * 7.0)
 	post_mat.set_shader_parameter("mb", mb_fx)

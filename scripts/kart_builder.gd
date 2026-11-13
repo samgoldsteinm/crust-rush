@@ -239,7 +239,7 @@ static func describe(spec: Dictionary, ri: int) -> Dictionary:
 	var sf := float(bd.get("sf", 1.0))
 	var meta := {"scale": 1.76 * sf, "sf": sf, "wheels": wl, "top": float(pl["top"]), "axF": float(pl["axF"]), "axR": float(pl["axR"]), "axW": float(pl["axW"]),
 		"hover": float(pl.get("hover", 0.0)), "bike": bool(pl.get("bike", false)), "fxL": pl.get("fxL", []), "fxP": pl.get("fxP", []), "smoke": pl.get("smoke"), "bub": pl.get("bub"),
-		"flames": pl.get("flames", []), "glY": float(pl.get("glY", 0.0)), "spec": spec}
+		"flames": pl.get("flames", []), "fglow": pl.get("fglow"), "glY": float(pl.get("glY", 0.0)), "spec": spec}
 	var gd: Dictionary = info["gliders"][gi]
 	return {"meta": meta, "sm": stat_mods(spec), "glider": {"id": gd["id"], "sink": gd["sink"], "air": gd["air"]}, "spec": spec, "body": bd["id"], "bodyName": bd["name"]}
 
@@ -332,7 +332,7 @@ static func build(spec: Dictionary, ri: int) -> Dictionary:
 	var sf := float(bd.get("sf", 1.0))
 	var meta := {"scale": 1.76 * sf, "sf": sf, "wheels": meta_wheels, "top": float(pl["top"]), "axF": float(pl["axF"]), "axR": float(pl["axR"]), "axW": float(pl["axW"]),
 		"hover": float(pl.get("hover", 0.0)), "bike": bool(pl.get("bike", false)), "fxL": pl.get("fxL", []), "fxP": pl.get("fxP", []), "smoke": pl.get("smoke"), "bub": pl.get("bub"),
-		"flames": pl.get("flames", []), "spec": spec, "hglow": hglow}
+		"flames": pl.get("flames", []), "fglow": pl.get("fglow"), "spec": spec, "hglow": hglow}
 	var gd: Dictionary = info["gliders"][gi]
 	return {"node": root, "meta": meta, "sm": stat_mods(spec), "glider": {"id": gd["id"], "sink": gd["sink"], "air": gd["air"]}, "glider_node": glider}
 

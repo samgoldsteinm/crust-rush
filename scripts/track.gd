@@ -22,6 +22,7 @@ var DROUT := 1.0    # a factor on the times that end a drift and bring the grip 
 var BOXR := 4.0     # seconds until a taken item box comes back (web BOXR; 2 on toy tracks)
 var BOXCD := 0.0    # seconds a kart cannot take another box after taking one (web BOXCD; 0.6 on toy tracks)
 var SLICKN := 10    # how many slicks Olive lays (web SLICKN; 7 on toy tracks)
+var neon := false   # a Neon Cup track: rainbow streaks while boosting
 var LAPS := 3
 var laps0 := 3          # the track's own lap count (toy tracks run more, shorter laps)
 var LS := 1.0           # the road's width against the usual one: lane positions are scaled by it
@@ -132,6 +133,7 @@ func _read(d: Dictionary) -> void:
 	BOXR = float(d.get("BOXR", 4.0))
 	BOXCD = float(d.get("BOXCD", 0.0))
 	SLICKN = int(d.get("SLICKN", 10))
+	neon = bool(d.get("neon", false))
 	LAPS = int(d["LAPS"])
 	laps0 = LAPS
 	LS = float(d.get("LS", 1.0))
