@@ -56,6 +56,11 @@ shuttered windows; a braced timber pier with rope rails and lamps; a banded towe
 and a glazed lantern room). The glide canyons end in clean crust cliffs. Signs, lit windows and neon glow from the web
 game's own pictures.
 
+Toy tracks (Bedroom Blitz) are rooms. The sun reaches the room only through its window: the walls and the ceiling throw
+shadows, which reach right across the room at every graphics setting. The track is glossy moulded plastic that mirrors the
+room (a reflection of the room taken once when the track loads). The furniture built in Blender for the web game (the bed
+with its bedding, the curtains, the rug) and the garden outside the window come with the exported track.
+
 ## Controls
 - Keyboard: arrows/A D steer · Space/Down/S drift, brake · X/Enter first item · Z/Q second item · Shift/B keep behind ·
   hold F to look back (and throw backwards) · C/R special · P/Esc pause · F11 full screen.
