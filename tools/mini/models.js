@@ -67,6 +67,8 @@ const M={};
 function woodTex(key,rough,fallback){if(typeof PROP_TEX==='undefined'||!PROP_TEX['tex_toy_'+key]||!PROP_TEX['tex_toy_'+key+'_n'])return fallback();
   return mat('woodt_'+key,()=>{const c=propTex('tex_toy_'+key),n=propTex('tex_toy_'+key+'_n',false);for(const t of [c,n])t.wrapS=t.wrapT=THREE.RepeatWrapping;return std({map:c,normalMap:n,normalScale:new THREE.Vector2(.7,.7),roughness:rough,metalness:0,envMapIntensity:.7});});}
 M.desk=function(o){o=o||{};const W=(o.w||200)*U,D=(o.d||80)*U,H=(o.h||75)*U,G=grp(),top=woodTex('walnut',.36,()=>wood('walnut','#6b4428','#2c1608',{rough:.42,env:.6})),steel=mat('desksteel',()=>std({color:'#17181a',roughness:.55,metalness:.6,envMapIntensity:.6}));
+  /* the Blender-built desk (tools/blender/props1.py), at its standard size */
+  if(pkReady('desk')&&(o.w||200)===200&&(o.d||80)===80&&(o.h||75)===75)return pk('desk',{walnut:[top,90],desksteel:[steel,50],black:[plastic('black','#0c0c0d',.6),20]});
   add(G,uvw(slab(W,3*U,D,2.5*U,.5*U,4),90),top,0,H-1.5*U,0);
   const T=6*U,t=3*U,legH=H-3*U;for(const sx of [-1,1]){const x=sx*(W/2-14*U);/* a frame at each end: two posts, a foot and a rail under the top */
     for(const sz of [-1,1])add(G,slab(T,legH-t,t,.6*U,.3*U,2),steel,x,(legH-t)/2+t*.5,sz*(D/2-9*U));
@@ -203,6 +205,8 @@ M.books=function(n,seed){const G=grp(),r=rng(seed||3),cols=['#b8322a','#27527a',
     add(B,box(.32*U,h*.5,d*.16),paint('bookband','#f1e3c0',.6),-w/2+.15*U,h/2,d*.2);y+=h;}G.userData.top=y;return G;};
 /* a floor lamp: a weighted base, a slim pole 150 cm tall and a lit drum shade */
 M.floorlamp=function(){const G=grp(),br=metal('lampbrass','#8c6a3c',.32),sh=mat('shade',()=>std({color:'#f3e6cc',emissive:'#ffcf8a',emissiveIntensity:.55,roughness:.9,side:THREE.DoubleSide,transparent:true,opacity:.96}));
+  /* the Blender-built lamp (tools/blender/props1.py): rolled rims, a three-arm fitting, a bevelled base */
+  if(pkReady('floorlamp'))return pk('floorlamp',{lampbrass:[br,20],shade:[sh,30],bulb:[glow('bulb','#fff1cf'),10]});
   add(G,cyl(13*U,14*U,2.2*U,36),br,0,1.1*U,0);add(G,cyl(1.1*U,1.1*U,148*U,14),br,0,75*U,0);add(G,new THREE.CylinderGeometry(17*U,20*U,26*U,36,1,true),sh,0,146*U,0);
   add(G,new THREE.TorusGeometry(17*U,.25*U,6,36),br,0,159*U,0,Math.PI/2);add(G,new THREE.TorusGeometry(20*U,.25*U,6,36),br,0,133*U,0,Math.PI/2);add(G,new THREE.SphereGeometry(4*U,14,10),glow('bulb','#fff1cf'),0,144*U,0);return G;};
 /* a rug: 160 x 230 cm with a woven pattern and a bound edge */

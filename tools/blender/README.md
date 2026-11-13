@@ -55,6 +55,8 @@ There is no live Blender connection: Blender 5.3 (D:\blender\blender.exe) is run
   placed with matrices (`place`), the back about a reclined pivot. The game turns the whole chair by `o.turn`.
 - `dresser` and `nightstand` (both built by `dresser.py`): carcasses with softened edges, drawer fronts standing proud with
   shadow gaps, bar handles on standoffs or round knobs, tapered legs. The dresser's size is fixed (the track climbs over it).
+- `floorlamp` and `desk` (both built by `props1.py`): the lamp has rolled rims, a three-arm fitting and a bevelled base;
+  the desk a softened top on a steel frame. Both keep the old sizes exactly (the track spirals round one and runs along the other).
 - `oak_tex.py` (no Blender: numpy and Pillow): the oak floor as a tiling texture pair, `tex_toy_oak` (colour) and
   `tex_toy_oak_n` (relief), one tile 1.92 m. Every board has its own length, tone and ring figure; the relief carries the
   grain, the bevels and the gaps. Built from noise shaped in frequency space, so it repeats without a seam. First part of

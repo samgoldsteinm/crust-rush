@@ -101,6 +101,10 @@ Releasing to PC after a web release (learned 2026-11-12, the order matters):
 4. Check `releases/download/pc/pc-build.json`: its "build" is the first 8 characters of the commit that was built.
 Known small difference on PC: brass handles look near black (metal mirrors the dim room); the web shows them as brass.
 
+Release scripts (2026-11-13): `tools/release_web.py "<title>"` publishes the built app and bumps the stamp;
+`tools/release_pc.py "<title>"` does the PC steps above in order (export, wait, build, wait) and takes about an hour: run it in the
+background, one at a time. Both refuse to push if someone else has pushed.
+
 PC toolchain on this PC (2026-11-12): Godot 4.7.2 at `D:\crust-rush\tools\godot` (console exe for headless tests). Tracks, garage and
 textures come from the public `maps` release (download with curl into `godot/maps`, `godot/assets/garage`, `godot/assets/hd/cc0`); a single
 track can be exported locally with `WEB=D:/crust-rush/app OUT=D:/crust-rush/godot/maps MI=<n> py.cmd tools/ciexport.py`.
