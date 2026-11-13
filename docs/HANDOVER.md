@@ -22,6 +22,16 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### 2026-11-13 (web v176 and v177): Blender-built garage pieces; photo-scanned surfaces
+
+Both are written up in docs/MINIATURE-MAYHEM-PLAN.md ("Web v176", "Web v177"). One PC release covers the two.
+
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| The Blender tyre stack was pure black in the game, and its pack 736 KB | The shade baked into its vertices multiplies an already near-black rubber; every tread block was bevelled | A lighter rubber colour in the game; plain blocks (406 KB) | A model with baked shade wants a lighter base colour than the real thing |
+| The track went pastel again with the scanned lawn | The scan, turned green, was pale; a pale lawn in full sun is over the bloom threshold and hazes everything | The lawn's colour is darkened in `ph_tex.py` | Check a bright new surface in a chase picture, not only on its own |
+| (caught before any build) the lawn's material would have been made with roughness 0 | A probe call `surfTex('lawn',0,0,0,..)` came before the real one, and the first call makes the shared material | The probes read PROP_TEX directly | Never call a shared-material maker just to ask whether something exists |
+
 ### 2026-11-13 (web v175, PC with PROTO 107): Backyard Mega Circuit and the Miniature Mayhem Cup
 
 All of it is in docs/MINIATURE-MAYHEM-PLAN.md under "Backyard Mega Circuit and the Miniature Mayhem Cup".
