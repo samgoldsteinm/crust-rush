@@ -211,4 +211,8 @@ before the launch and the hairpins, a stronger bloom at the window.
   User's instructions after seeing it: publish web and PC; every graphics or game change goes to both web and PC; fix traps
   hitting karts on the level underneath (both); the white dashes belong on the track's walls, not on the road; carry on with
   the Blender models and the rest of the list.
+- Web v156 published (app c8132d7): bed clear of the walls, dashes on the track's walls. Web v157: traps only catch karts on
+  their own level (NET_PROTO 102). PC brought level with web v157: window-only sun (walls and ceiling cast, shadows reach
+  across the room), glossy track with a reflection probe of the room, warm fill light, traps at road height with the level
+  rule, PROTO 102, track export re-run for v156 (it now waits for the Blender models).
 

@@ -1145,7 +1145,9 @@ function kEy(k){if(!MULTI)return 0;if(TOYT){const j0=k.idx,p=track[j0],sl=T.L/N,
    dropped (a spiral passes over itself, so the nearest stretch of road is not always the right one); a trap with no owner close by
    (lobbed, or one that arrived over the network) takes the nearest stretch, the upper one where two cross. */
 function hazEy(h){if(!MULTI)return 0;const o=h.owner;let j=-1;if(o&&typeof o.idx==='number'&&(o.x-h.x)**2+(o.y-h.y)**2<3600)j=o.idx;
+  if(j<0&&h.ti!=null)j=h.ti;/* a lobbed trap brings the road point it was flying over */
   if(j<0){let bd=1e9;for(let i=0;i<N;i++){const p=track[i],d=(p.x-h.x)**2+(p.y-h.y)**2-(p.ey||0)*.01;if(d<bd){bd=d;j=i;}}}
+  h.ti=j;
   /* on a slope the trap lies along the road instead of sinking into it */
   const sl=T.L/N,s=((track[(j+1)%N].ey||0)-(track[(j-1+N)%N].ey||0))/(2*sl),p=track[j];if(Math.abs(s)>.02)h.nq=new THREE.Quaternion().setFromUnitVectors(_hzUp,new THREE.Vector3(-p.tx*s,1,-p.ty*s).normalize());
   return kEy({idx:j,x:h.x,y:h.y});}
@@ -7079,7 +7081,7 @@ function update0(dt){
         for(let n=0;n<26;n++){const a=Math.random()*Math.PI*2,u=.3+Math.random()*.7;FXN.spawn(p.x+Math.cos(a)*6,fy+4,p.y+Math.sin(a)*6,Math.cos(a)*60*u,10+Math.random()*24,Math.sin(a)*60*u,'#f6f1e6',8,26,1.4,-3,1.2);}
         spawnRing(p.x,fy+.8,p.y,'#ffffff',50,.6);FXA.spawn(p.x,fy+6,p.y,0,0,0,'#ffffff',46,10,.2,0,0);SFX.boom(near({x:p.x,y:p.y}));if(Math.hypot(p.x-camera.position.x,p.y-camera.position.z)<120)shake(.5);
         scene.remove(p.mesh);projectiles.splice(i,1);}continue;}
-    if(p.type==='lob'){if(p.t<=0&&overPit(p.x,p.y)){scene.remove(p.mesh);projectiles.splice(i,1);continue;}if(p.t<=0){hazards.push({x:p.x,y:p.y,t:30,born:0,owner:p.owner,armed:false,mesh:itemMesh('oil')});scene.remove(p.mesh);projectiles.splice(i,1);}continue;}
+    if(p.type==='lob'){if(p.t<=0&&overPit(p.x,p.y)){scene.remove(p.mesh);projectiles.splice(i,1);continue;}if(p.t<=0){hazards.push({x:p.x,y:p.y,t:30,born:0,owner:p.owner,armed:false,ti:p.ti,mesh:itemMesh('oil')});scene.remove(p.mesh);projectiles.splice(i,1);}continue;}
     let hit=false;
     if(p.storm){const ig=p.ign||(p.ign=new Map());for(const k of karts){if(k.loop||k===p.owner||(ig.get(k)||-1)>simTime||(k.netId&&!k.finished))continue;/* never hits whoever threw it */
         if(heldBlock(k,p)){ig.set(k,simTime+.5);if(--p.hp<=0){hit=true;break;}continue;}
@@ -7090,9 +7092,9 @@ function update0(dt){
     else{for(const k of karts){if(k.loop||(k===p.owner&&(p.safe>0||p.type==='pep'))||(k.netId&&!k.finished&&CLAIMP.has(p.type)))continue;/* pepperoni never hits its thrower; friends report their own hits */if(heldBlock(k,p)){hit=true;break;}if((k.x-p.x)**2+(k.y-p.y)**2<200&&k.inv<=0&&sameLvl(k,p)){if(k===player)hitBy(p);spinOut(k,p.type);hit=true;p.pop=1;break;}}
     for(const h of hazards){if((h.x-p.x)**2+(h.y-p.y)**2<100){h.t=0;hit=true;}}}
     if(hit||p.t<=0){projGone(p);projectiles.splice(i,1);}}
-  CURP=null;for(let i=hazards.length-1;i>=0;i--){const h=hazards[i];CURP=h;if(h.born===0&&overPit(h.x,h.y))h.t=0;h.t-=dt;h.born+=dt;
+  CURP=null;for(let i=hazards.length-1;i>=0;i--){const h=hazards[i];CURP=h;if(h.ey===undefined)h.ey=hazEy(h);if(h.born===0&&overPit(h.x,h.y))h.t=0;h.t-=dt;h.born+=dt;
     if(!h.armed&&(!h.owner||(h.owner.x-h.x)**2+(h.owner.y-h.y)**2>34*34))h.armed=true;
-    for(const k of karts){if(k.loop||(k===h.owner&&!h.armed)||(k.netId&&!k.finished))continue;/* a friend's own screen reports their trap hits */if((k.x-h.x)**2+(k.y-h.y)**2<200&&k.inv<=0){if(h.olive){if(k.air||k.glide||k.shield>0||k.rush>0||abInv(k)||k.ghostT>0||k.oilT>4.5)continue;oilUp(k);}else if(h.kind==='fire'){if(spinOut(k,'fire')){k.burnT=BURN_T;if(k===player)edgeFx('#ff3a12',1);}}else spinOut(k,'oil');h.t=0;break;}}
+    for(const k of karts){if(k.loop||(k===h.owner&&!h.armed)||(k.netId&&!k.finished))continue;/* a friend's own screen reports their trap hits */if((k.x-h.x)**2+(k.y-h.y)**2<200&&k.inv<=0&&sameLvl(k,h)){/* only karts on the trap's own level */if(h.olive){if(k.air||k.glide||k.shield>0||k.rush>0||abInv(k)||k.ghostT>0||k.oilT>4.5)continue;oilUp(k);}else if(h.kind==='fire'){if(spinOut(k,'fire')){k.burnT=BURN_T;if(k===player)edgeFx('#ff3a12',1);}}else spinOut(k,'oil');h.t=0;break;}}
     if(h.t<=0){scene.remove(h.mesh);hazards.splice(i,1);}}
   CURP=null;if(mode==='lss'){if(state==='race'&&NET.role!=='guest')lssTick();}else for(const k of karts){if(state==='race'&&!k.finished&&k.prog>=LAPS*N){k.finished=true;k.finishTime=raceTime;k.place=++finishCount;if(raceDone&&NET.cfg)netRerank();if(k===player)onPlayerFinish();}}
   if(state==='race')raceTime+=dt;
@@ -8406,7 +8408,7 @@ function musTick(){if(!ac||!master)return;musInit();if(!MUS.bus)return;
    Phones find each other through a short room code over a relay server; the race data uses a direct link when one opens. */
 const NET={role:null,code:'',peer:null,conns:[],me:0,pl:[],cfg:null,fromNet:false,loaded:new Set(),tick:0,seq:0,hist:[],outQ:[],inQ:{},inS:{},inLast:{},ack:{},
   snaps:[],mir:new Map(),mirH:new Map(),mirList:[],fxQ:[],nid:0,inUpd:false,finSeen:false,lastRecv:0,goT:0,waitTimer:0,replay:false,abQ:false,relay:null,lastFl:0,unack:[],ackRx:0};
-const NET_PROTO=101;/* bump when race messages or kart physics change: friends on different versions would drive differently */
+const NET_PROTO=102;/* bump when race messages or kart physics change: friends on different versions would drive differently */
 const NET_SLOTS=[4,3,5,2],NET_ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const netId=c=>'crustrush-v1-'+c.toUpperCase();
 const NET_REM=['x','y','a','ma','z','wy','speed','steer','drift','charge','boost','spin','air','glide','loopTh','onRamp','rush','shL','shield','mzH','sink','sinkT','trickK','trickT','frozen','acc','brake','dAmt','fx','prog','finished','place','finishTime','inv','big','ghostT','shrinkT','absT','idx','gRings','trick','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT','est','oliveT'];
@@ -8713,7 +8715,7 @@ function netClaimFx(k,kind){if(kind.startsWith('w:')){spinOut(k,kind.slice(2),1)
   if(kind.startsWith('p:')){spinOut(k,kind.slice(2));return true;}return false;}
 function netGuestClaims(k,h){if(!h||k.loop||k.finished||state!=='race')return;const C=NET.claimed||(NET.claimed=new Set()),me=karts.indexOf(k);
   for(const [id,m] of NET.mir){if(C.has(id)||m.gone||!m.mesh.visible)continue;const px=m.hx!=null?m.hx:m.mesh.position.x,py=m.hy!=null?m.hy:m.mesh.position.z;if((k.x-px)**2+(k.y-py)**2>=200)continue;
-    let kind;if(id[0]==='h'){if(!m.hk||(m.ho===me&&!m.armed))continue;kind=m.hk;}else{if(!m.type||!CLAIMP.has(m.type)||m.owner===k)continue;if(!sameLvl(k,{x:px,y:py,ti:k.idx}))continue;kind='p:'+m.type;}
+    let kind;if(id[0]==='h'){if(!m.hk||(m.ho===me&&!m.armed))continue;if(MULTI&&Math.abs((k.wy||0)-(m.mesh.position.y-.12))>=18)continue;/* a trap on another level */kind=m.hk;}else{if(!m.type||!CLAIMP.has(m.type)||m.owner===k)continue;if(!sameLvl(k,{x:px,y:py,ti:k.idx}))continue;kind='p:'+m.type;}
     if(!netClaimFx(k,kind))continue;C.add(id);m.gone=true;m.mesh.visible=false;(h.cl||(h.cl=[])).push(kind);
     netSend(NET.conns[0],{t:'claim',rk:NET.rk,seq:h.seq,id,kind});NETLOG.ev('claim',id);}}
 /* host: apply a friend's claimed hit when their kart reaches that input */
