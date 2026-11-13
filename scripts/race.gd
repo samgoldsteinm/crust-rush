@@ -1753,7 +1753,8 @@ func _ability_tick(dt: float) -> void:
 			if float(k.get(f)) > 0.0:
 				k.set(f, float(k.get(f)) - dt)
 		if not k.human and k.ab_c >= 1.0 and state == "race":
-			k.ab_wait = (1.0 + rng.randf() * 4.0 if k.ab_wait < 0.0 else k.ab_wait) - dt
+			# "abw": on toy tracks the computer drivers wait longer before a special (web v167, in the exported diffs)
+			k.ab_wait = ((1.0 + rng.randf() * 4.0) * float(diff.get("abw", 1.0)) if k.ab_wait < 0.0 else k.ab_wait) - dt
 			if k.ab_wait <= 0.0:
 				var id := abil_key(k)
 				var i := stand.find(k)
