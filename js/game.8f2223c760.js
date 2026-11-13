@@ -6901,6 +6901,9 @@ function postInit(){if(POST.qs)return;POST.qs=new THREE.Scene();POST.qc=new THRE
     vec3 aces(vec3 c){const mat3 I=mat3(.59719,.07600,.02840,.35458,.90834,.13383,.04823,.01566,.83777);const mat3 O=mat3(1.60475,-.10208,-.00327,-.53108,1.10813,-.07276,-.07367,-.00605,1.07602);c*=exposure/.6;c=I*c;c=RRT(c);c=O*c;return clamp(c,0.,1.);}
     vec3 srgb(vec3 c){return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(vec3(.0031308),c));}
 vec3 lin(vec3 s){return mix(s/12.92,pow((s+.055)/1.055,vec3(2.4)),step(vec3(.04045),s));}
+    /* one layer of wind lines: K lines round the screen, each with its own speed, length and gaps, flowing outward */
+    float wind(vec2 q,float K,float sp,float sd){float r=length(q),a=atan(q.y,q.x)*.159155*K,n=fract(sin((floor(a)+sd)*12.9898)*43758.5453),w=1.-abs(fract(a)-.5)*2.;
+      float run=fract(r*(1.+n)-tm*sp*(.8+n*1.3)+n*7.);return step(.76,n)*smoothstep(.72,1.,w)*smoothstep(0.,.07,run)*(1.-smoothstep(.07,.24+n*.28,run))*smoothstep(.3,.74,r);}
     vec3 hue(float h){return clamp(abs(fract(h+vec3(0.,.6667,.3333))*6.-3.)-1.,0.,1.);}
     float farB(vec2 q){float z=texture2D(tD,q).r;float lz=nf.x*nf.y/(nf.y-z*(nf.y-nf.x));return clamp((lz-foc*7.)/(foc*30.),0.,1.);}
     void main(){vec2 suv=min(vUv*us,uc);vec3 c=texture2D(tex,suv).rgb;
@@ -6908,7 +6911,7 @@ vec3 lin(vec3 s){return mix(s/12.92,pow((s+.055)/1.055,vec3(2.4)),step(vec3(.040
          samples on a disc; each counts by how far away it is itself, so sharp things in front never smear into the blur behind them */
       if(dof>.001){float co=farB(suv)*dof;if(co>.02){vec3 acc=c*.6;float ws=.6;for(int i=0;i<12;i++){float a=float(i)*2.39996;float r=sqrt((float(i)+.5)/12.)*co*.0052;vec2 q=clamp(suv+vec2(cos(a)/aspect,sin(a))*r*us,px*.5,uc);float w=farB(q)+.04;acc+=texture2D(tex,q).rgb*w;ws+=w;}c=acc/ws;}}
       /* motion blur (Settings): each pixel is smeared along the line from the middle of the screen, more toward the edges and with speed */
-      if(mb>.001){vec2 dv=vUv-.5;vec2 da=dv*vec2(aspect,1.);vec2 st=dv*us*mb*.095*smoothstep(.01,.42,dot(da,da));vec3 acc=c;for(int i=1;i<8;i++){acc+=texture2D(tex,clamp(suv-st*float(i)*.125,px*.5,uc)).rgb;}c=acc*.125;}
+      if(mb>.001){vec2 dv=vUv-.5;vec2 da=dv*vec2(aspect,1.);vec2 st=dv*us*mb*.07*smoothstep(.015,.45,dot(da,da));vec3 acc=c;for(int i=1;i<8;i++){acc+=texture2D(tex,clamp(suv-st*float(i)*.125,px*.5,uc)).rgb;}c=acc*.125;}
       /* contrast-adaptive sharpening (the trick consoles use with dynamic resolution): when the 3D view was drawn below screen size this
          frame, pull detail back out of the stretched picture. Each pixel is weighed against its four neighbours; the weight shrinks where
          the local contrast is already high, so edges don't ring and noise isn't amplified. Zero cost when the view is at full size. */
@@ -6920,7 +6923,9 @@ vec3 lin(vec3 s){return mix(s/12.92,pow((s+.055)/1.055,vec3(2.4)),step(vec3(.040
   /* screen-edge flash (boost, hit, pickup) drawn here instead of as a blurred page layer */
   vec2 e=abs(vUv-.5)*2.;float ed=max(e.x,e.y);c=mix(c,edgeC,edgeA*smoothstep(.62,1.,ed)*(.55+.45*smoothstep(.85,1.,ed)));
   /* Ultra: thin speed streaks rushing out from the centre while boosting, kept to the outer frame so the road stays clear */
-  if(spd>.001){vec2 q=(vUv-.5)*vec2(aspect,1.);float r=length(q),an=atan(q.y,q.x),ln=floor(an*48.),n=fract(sin(ln*12.9898)*43758.5453),w=1.-abs(fract(an*48.)-.5)*2.;
+  /* wind (Settings > Motion blur): pale lines rushing past, more of them the faster you go; they give way to the Neon tracks' rainbow streaks */
+   if(mb>.02){vec2 q=(vUv-.5)*vec2(aspect,1.);float wv=smoothstep(.12,1.,mb)*(1.-rbw*spd);c=mix(c,vec3(.9,.95,1.),clamp((wind(q,110.,1.7,3.)*.4+wind(q,190.,2.6,11.)*.3*smoothstep(.45,1.2,mb))*wv,0.,.4));}
+   if(spd>.001){vec2 q=(vUv-.5)*vec2(aspect,1.);float r=length(q),an=atan(q.y,q.x),ln=floor(an*48.),n=fract(sin(ln*12.9898)*43758.5453),w=1.-abs(fract(an*48.)-.5)*2.;
     float run=fract(r*1.3-tm*(2.6+n*1.6)+n*9.),st=step(mix(.7,.5,rbw),n)*smoothstep(mix(.55,.3,rbw),1.,w)*smoothstep(0.,.18,run)*(1.-smoothstep(.18,mix(.5,.7,rbw),run))*smoothstep(mix(.3,.46,rbw),mix(.75,.95,rbw),r);
     /* Neon tracks (rbw): the streaks are rainbow, denser and longer, over a rainbow wash at the very edge of the picture */
     vec3 rb=hue(an*.3183+n*.35+tm*.25);c=mix(c,mix(vec3(1.),rb*1.15+.12,rbw),st*spd*mix(.32,.55,rbw));c+=rb*rbw*spd*.16*smoothstep(.5,1.05,r)*(.55+.45*sin(an*9.+tm*5.+n*6.));}
