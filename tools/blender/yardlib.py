@@ -253,11 +253,13 @@ def _curve(p0, d, length, n, r, droop=0.0, wander=.12):
     return P
 
 
-def tree(height=6.2, crown=2.5, seed=3, n_leaf=7000, leaf=.10, r0=.15):
+def tree(height=6.2, crown=2.5, seed=3, n_leaf=7000, leaf=.10, r0=.15, cards=0):
     """a broadleaf tree: a trunk that spreads at the foot, boughs that fork twice, and a crown of separate leaves gathered
     at the ends of the twigs. `height` to the top of the crown, `crown` its radius, r0 the trunk's radius at chest height.
     Two parts: the wood (ybark) and the leaves (yleaf: each leaf a folded diamond; their greens differ; their shading
-    normals point out of the crown, so the tree is lit as a mass and not as confetti)."""
+    normals point out of the crown, so the tree is lit as a mass and not as confetti).
+    With `cards` (their size in metres) the leaves are instead cut-out cards carrying sprays of a real tree's leaves
+    (treecards.py; material ycards, the picture is a 2 x 2 sheet): about three to a twig end, facing every way."""
     M = ymats(); r = np.random.RandomState(seed); L = _Limbs(); tips = []
     th = height * .42
     # the trunk, leaning a touch, flared where it meets the ground
@@ -287,8 +289,27 @@ def tree(height=6.2, crown=2.5, seed=3, n_leaf=7000, leaf=.10, r0=.15):
         branch(top - Vector((0, 0, r.rand() * th * .22)), d, crown * (.8 + r.rand() * .25), r0 * .50, 0)
     branch(top, lean + Vector((r.randn() * .1, r.randn() * .1, 0)), (height - th) * .78, r0 * .7, 0)          # the leader
     wood = L.build('wood', M['bark'])
-    # the leaves, in clumps round the twig ends
     C = Vector((lean.x * (height - crown * .9), lean.y * (height - crown * .9), height - crown * 1.0))          # the middle of the crown
+    if cards:
+        V = []; F = []; T = []; N = []; UV = []
+        for (tip, ln) in tips:
+            for q in range(5):
+                c = tip + Vector(r.randn(3)) * (.12 + .10 * min(1.5, ln)) + Vector((0, 0, .08)); out = (c - C); out = out.normalized() if out.length > .01 else Vector((0, 0, 1))
+                n = (out * .5 + Vector(r.randn(3)) * .9 + Vector((0, 0, .35))).normalized()                      # some face out, some up, some along: from any side and from underneath a few are seen square on
+                a = n.cross(Vector(r.randn(3))).normalized(); b = n.cross(a).normalized(); h = cards * (.75 + r.rand() * .5) / 2
+                if (a.cross(b)).dot(n) < 0: b = -b
+                i0 = len(V); V += [tuple(c - a * h - b * h), tuple(c + a * h - b * h), tuple(c + a * h + b * h), tuple(c - a * h + b * h)]; F.append((i0, i0 + 1, i0 + 2, i0 + 3))
+                k = r.randint(4); u0, v0 = (k % 2) * .5, (1 - k // 2) * .5; fl = r.rand() < .5; us = (u0 + .5, u0) if fl else (u0, u0 + .5)
+                UV += [(us[0], v0), (us[1], v0), (us[1], v0 + .5), (us[0], v0 + .5)]
+                sh = .7 + r.rand() * .3; yel = r.rand() * .16; T += [(sh * (.9 + yel), sh, sh * (.8 + r.rand() * .15), 1)] * 4
+                sn = (out * .8 + Vector((0, 0, .45)) + n * .25).normalized(); N += [tuple(sn)] * 4
+        me = bpy.data.meshes.new('leaves'); me.from_pydata(V, [], F); me.update()
+        me.color_attributes.new('Tint', 'FLOAT_COLOR', 'POINT').data.foreach_set('color', np.array(T, dtype=np.float32).ravel())
+        ul = me.uv_layers.new(name='UVMap'); ul.data.foreach_set('uv', np.array(UV, dtype=np.float32).ravel())
+        lv = bpy.data.objects.new('leaves', me); bpy.context.scene.collection.objects.link(lv); me.materials.append(mat('ycards', hexcol('#4f8f38'), .9)); smooth(lv); lv['keep_uv'] = 1
+        lv['_N'] = [c for nn in N for c in nn]
+        return [wood, lv]
+    # the leaves, in clumps round the twig ends
     per = max(6, n_leaf // len(tips)); V = []; F = []; T = []; N = []
     for (tip, ln) in tips:
         rad = .34 + .26 * min(1.5, ln) + r.rand() * .14

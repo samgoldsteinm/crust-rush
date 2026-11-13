@@ -582,6 +582,11 @@ const yMats=()=>{const two=m=>{m.side=THREE.DoubleSide;m.userData.noHQ=true;retu
     yconc:[mat('ypipec',()=>{const c=surfTex('concrete',.9,.2,1,()=>null);return c?c.clone():std({color:'#a9a7a0',roughness:.9,envMapIntensity:.2});}),110],ysiding:[paint('ysiding','#e6dcc8',.8),40],ystone:[paint('ystep','#b9b3a6',.8),40],
     gnhat:[paint('gnhat','#c0261c',.5),40],gnskin:[paint('gnskin','#e8b89a',.6),40],gnbeard:[paint('gnbeard','#f1efe8',.8),40],gncoat:[paint('gncoat','#2f5d9a',.6),40],gnboot:[plastic('gnboot','#3a2618',.6),40],gnbelt:[plastic('gnbelt','#141414',.5),40],
     yball:[paint('yball','#f4f4f0',.45),40],yballb:[paint('yballb','#1b1c20',.45),40],ygrass:[mat('ygrassb',()=>two(std({color:'#5c9a32',roughness:1,envMapIntensity:.05}))),40],
+    ycards:[mat('ycards',()=>{const has=typeof PROP_TEX!=='undefined'&&PROP_TEX.tex_toy_sprays;if(!has)return two(std({color:'#4f8f2c',roughness:1,envMapIntensity:.05}));
+      /* sprays of a real tree's leaves, cut out of their picture (treecards.py), shown as they are with the shade and tone baked into the vertices: lit by the game's sun the
+         cards went black where one shadowed another and pale where it struck them flat. No smaller copies of the picture: averaged down, the holes between leaves fill in and every card turns into a blob */
+      const t=propTex('tex_toy_sprays');t.userData.alpha=true;t.generateMipmaps=false;t.minFilter=THREE.LinearFilter;t.needsUpdate=true;
+      const m=new THREE.MeshBasicMaterial({map:t,color:new THREE.Color(2.2,2.5,2.05),alphaTest:.3,side:THREE.DoubleSide,toneMapped:false});m.userData.noHQ=true;return m;}),100],
     ybark:[surfTex('bark',.95,.15,1,()=>paint('ybarkp','#5a4634',.95)),100],yleaf:[mat('yleafb',()=>two(std({color:'#4f8f2c',roughness:1,envMapIntensity:.05}))/* dead matt: with any gloss, leaves seen against the sun glint white */)/* no lighter: pale leaves in full sun go over the bloom threshold and turn to haze, as the lawn did */,40]};};
 /* a photo-scanned model (tools/blender/scan.py): its one material is made from its own two pictures, tex_toy_s_<name> (colour; with holes
    if `cut`) and tex_toy_s_<name>_n (relief). sPk(name) is the model, or null until both the pack and the pictures are there */
@@ -590,6 +595,14 @@ function sMat(name,cut,rough,tint){return mat('scan_'+name,()=>{const c=propTex(
 function sPk(name,cut,rough,tex,tint){tex=tex||name;/* tex: the pictures' name where several models share one pair (the grass tufts) */if(!pkReady(name)||typeof PROP_TEX==='undefined'||!PROP_TEX['tex_toy_s_'+tex])return null;return pk(name,{['s_'+name]:[sMat(tex,cut,rough,tint),100]});}
 M.sPk=sPk;
 function yPk(name){return pkReady(name)?pk(name,yMats()):null;}
+/* ---- the Balloon Battle arena's models (tools/blender/battle.py), built in the arena's own place: put each at (0,0). bPk(name) or null ---- */
+const bMats=()=>({bsteel:[mat('bbsteel',()=>{const m=std({color:'#c2c6ca',roughness:.38,metalness:.25,envMapIntensity:.9});m.userData.noHQ=true;return m;}),60],
+  bcard:[paint('bbcard','#c79a5e',.85),40],bcardin:[paint('bbcardin','#e3d3b4',.9),40],bwood:[woodTex('ash',.5,()=>wood('oak','#b98a58','#5a3a1c',{rough:.5})),80],bwoodd:[woodTex('walnut',.4,()=>wood('walnut','#6b4428','#2c1608',{rough:.42})),60],
+  bplate:[mat('bbplate',()=>phy({color:'#f4f1ea',roughness:.2,clearcoat:.6,clearcoatRoughness:.2,envMapIntensity:.7})),40],bcheese:[paint('bbcheese','#f1e8c8',.6),40],
+  bsauce:[mat('bbsauce',()=>phy({color:'#b3261c',roughness:.22,clearcoat:.5,envMapIntensity:.7})),40],bpep:[paint('bbpep','#a8321e',.5),40],bolive:[mat('bbolive',()=>phy({color:'#1c1a17',roughness:.25,clearcoat:.6,envMapIntensity:.8})),40],
+  boliveg:[paint('bboliveg','#6f7a2a',.35),40],bmush:[paint('bbmush','#d9c8a8',.7),40],gblack:[plastic('gblack','#0e0f11',.5),40]});
+function bPk(name){return pkReady(name)?pk(name,bMats()):null;}
+M.bPk=bPk;
 M.yPk=yPk;
 /* the small things: the Blender-built one once it has arrived, the code-built one until then. Three potted plants, chosen by the seed */
 {const p0=M.ypot,w0=M.wcan,h0=M.yhose,g0=M.ygnome;M.ypot=(rc,seed)=>{const k='ypot'+((seed||5)%3+1);if(!pkReady(k))return p0(rc,seed);const g=yPk(k);g.scale.setScalar(rc/10.8);return g;};

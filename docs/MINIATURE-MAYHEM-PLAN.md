@@ -406,3 +406,14 @@ before the launch and the hairpins, a stronger bloom at the window.
   More scans worth using: planter_box_01..03, planter_pot_clay, potted_plant_01/02/04, metal_tool_chest, metal_toolbox,
   bench_vice_01, ladder_sectioned_01, cardboard_box_01 (garage), grass_bermuda_01 (lawn edge).
 
+## Web v180 (2026-11-13): real trees
+- One scanned tree for every tree: `ph_model.py jacaranda_tree --res 2k` (230 MB, kept in scratch, not in the repo).
+- `treecards.py`: `far_s.png` / `far_e.png` (the whole tree from the south and the east, lit by the game's sun from behind, leaves
+  glowing) and `spray0..3.png` (thin slices of the crown's face, evenly lit). `treecards_pack.py` -> `tex_toy_treefar` (1024 x 512)
+  and `tex_toy_sprays` (1024 x 1024, 2 x 2), both PNG with holes.
+- The garden tree: `ytreec` = the modelled trunk and boughs (bark scan) + about 1 200 cards of sprays, five to a twig end, drawn
+  unlit with baked shade (`ycards` in yMats). `ytree` (leaf polygons) is the stand-in if the sheet is missing.
+- The eleven trees beyond the fences: two crossed cards each with the tree's picture (`toy_outsidetree`, unlit, no fog; code in
+  toyYard). `ytreef` is no longer used when the picture is there.
+- Window views: the real tree at every tree's place (`outside.py`), the lawn at its own colour.
+

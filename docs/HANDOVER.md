@@ -22,6 +22,22 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### 2026-11-13 (web v180): real trees (a photo-scanned tree's leaves and pictures)
+
+Second step toward the user's "hyper realism". The trees come from one photo-scanned tree (Poly Haven `jacaranda_tree`, CC0):
+`tools/blender/treecards.py` renders it, `treecards_pack.py` lays out and stores the two sheets, `yard.py -- ytreec` builds the
+garden tree that carries the leaf sprays as cut-out cards, and `outside.py` stands the real tree in the window views.
+
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| The first leaf sprays were grey, then blue | A mesh copied out of the scan lost its texture coordinates; lit by the sky alone a picture is blue | The sprays are the whole tree seen through a thin camera slab (near and far limits), under plain white light with no tone curve | To cut a piece out of a big scan, clip with the camera; do not rebuild the mesh |
+| The leaf cards were black and cream blobs | Lit by the game's sun, cards shadow one another to black and catch it flat to cream; averaged-down copies of the picture fill the holes between leaves | The cards are drawn unlit with the shade and tone baked into their vertices, and the picture has no smaller copies (`generateMipmaps=false`) | Cut-out foliage: unlit, baked shade, no mip levels |
+| The crown looked like round pads | Each spray was a thick ball of the crown, solid green with a faded rim | A slab 64 cm deep at the crown's face: single fronds with sky between | A spray must have holes in it |
+| The window views would not render | A stray leading space in a script edit | Fixed; the three views were rendered again | Run a script edit's file through Blender before walking away |
+
+Also in this build, switched off: the first hooks for Balloon Battle (`tools/mini/battle.js`, `patch19.py`; the mode's button is
+hidden). Every hook is behind `BATTLE`, which only the battle arena sets. See docs/BALLOON-BATTLE-PLAN.md.
+
 ### 2026-11-13 (web v179): the whole back garden is modelled in Blender
 
 Asked for by the user ("use blender to actually model the whole outside scene"). While it was under way the user added: "Remember these scenes are supposed to be

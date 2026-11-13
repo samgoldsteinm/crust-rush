@@ -21,13 +21,13 @@ const TOYW=()=>WALLD+4,TOYOR=key=>!key||key==='orange'?TM.mat('toyorange',()=>to
 function toySmooth(m){m.userData.noHQ=true;return m;}
 /* the track is glossy plastic that mirrors the room it stands in (the room's own reflections, toyRoomEnv, never an outdoor sky) */
 function toyRoadMat(key){key=key||'orange';return TM.mat('toyroad_'+key,()=>toySmooth(new THREE.MeshPhysicalMaterial({map:T2(toyPlasticTex(key),1,1),roughness:.34,metalness:0,clearcoat:1,clearcoatRoughness:.07,envMapIntensity:1,side:THREE.DoubleSide})));}
-function toyRoad(def,SJ0,SJ1){for(const q of toyRuns(def,SJ0,SJ1)){const r=strip(q[0],q[1],-TOYW(),TOYW(),.06,toyRoadMat(q[2]),120,true);if(r)r.receiveShadow=true;}}
+function toyRoad(def,SJ0,SJ1){if(def.battle)return;for(const q of toyRuns(def,SJ0,SJ1)){const r=strip(q[0],q[1],-TOYW(),TOYW(),.06,toyRoadMat(q[2]),120,true);if(r)r.receiveShadow=true;}}
 /* one length of raised edge between two cross-sections: an inner face, a flat top and an outer face */
 function toyRailQuad(pos,A,B,s){const quad=(a,b,c,d)=>pos.push(...a,...b,...c,...a,...c,...d);
   if(s>0){quad(A[0],B[0],B[1],A[1]);quad(A[1],B[1],B[2],A[2]);quad(A[2],B[2],B[3],A[3]);}else{quad(A[0],A[1],B[1],B[0]);quad(A[1],A[2],B[2],B[1]);quad(A[2],A[3],B[3],B[2]);}}
 function toyRailMesh(pos,key){if(!pos.length)return;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.computeVertexNormals();const rm=new THREE.Mesh(g,TOYOR(key));rm.castShadow=true;rm.receiveShadow=true;rm.userData.noLift=true;rm.userData.noMerge=true;/* kept out of the merged scenery, which would swap its glossy plastic for a plain batch material */world.add(rm);}
 /* the raised edges of the main track, left open where a shortcut leaves or joins and where the loop takes over */
-function toyRails(def){const W=TOYW(),by={},dash=[],sp=T.L/N,H=4.2,TH=3,P=j=>track[((j%N)+N)%N],at=(p,o,h)=>{const x=p.x+p.nx*o,z=p.y+p.ny*o;return [x,(p.ey||0)+h,z];},sec=(p,s)=>[at(p,W*s,0),at(p,W*s,H),at(p,(W+TH)*s,H),at(p,(W+TH)*s,-1.6)];
+function toyRails(def){if(def.battle)return;const W=TOYW(),by={},dash=[],sp=T.L/N,H=4.2,TH=3,P=j=>track[((j%N)+N)%N],at=(p,o,h)=>{const x=p.x+p.nx*o,z=p.y+p.ny*o;return [x,(p.ey||0)+h,z];},sec=(p,s)=>[at(p,W*s,0),at(p,W*s,H),at(p,(W+TH)*s,H),at(p,(W+TH)*s,-1.6)];
   for(const s of [-1,1])for(let j=0;j<N;j++){const p=P(j),q=P(j+1);if(p.cut)continue;const k=toyColAt(def,j),pos=by[k]||(by[k]=[]),open=(p.ey||0)<=2&&SHORTS.length&&(toyOffShort(p.x+p.nx*W*s,p.y+p.ny*W*s)<3||toyOffShort(q.x+q.nx*W*s,q.y+q.ny*W*s)<3);
     /* a white dash on the wall every 120 units, 36 long: along its top and down its inner face */
     if(!open&&(j*sp)%120<36){const q4=(a,b,c,d)=>dash.push(...a,...b,...c,...a,...c,...d);q4(at(p,(W+.4)*s,H+.05),at(p,(W+TH-.4)*s,H+.05),at(q,(W+TH-.4)*s,H+.05),at(q,(W+.4)*s,H+.05));q4(at(p,(W-.05)*s,1),at(p,(W-.05)*s,3.5),at(q,(W-.05)*s,3.5),at(q,(W-.05)*s,1));}
@@ -37,7 +37,7 @@ function toyRails(def){const W=TOYW(),by={},dash=[],sp=T.L/N,H=4.2,TH=3,P=j=>tra
     const dm=new THREE.Mesh(g,TM.mat('toydash',()=>toySmooth(new THREE.MeshPhysicalMaterial({color:'#f6f5f0',roughness:.4,clearcoat:.6,clearcoatRoughness:.2,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}))));
     dm.receiveShadow=true;dm.userData.noLift=true;dm.userData.noMerge=true;world.add(dm);}}
 /* raised track: the thin underside of the plastic and blue piers down to whatever is underneath (the floor, a desk, a stack of books) */
-function toyDecks(def){const W=TOYW()+3,inGl=j=>GLIDE&&j>=GLIDE.j0&&j<GLIDE.j1,P=j=>track[((j%N)+N)%N],unds={};
+function toyDecks(def){if(def.battle)return;const W=TOYW()+3,inGl=j=>GLIDE&&j>=GLIDE.j0&&j<GLIDE.j1,P=j=>track[((j%N)+N)%N],unds={};
   for(let j=0;j<N;j++){const p=P(j),q=P(j+1);if(inGl(j)||inGl(j+1))continue;const pe=p.ey||0,qe=q.ey||0;if(pe<1.5&&qe<1.5)continue;const c=(t,o,h)=>[t.x+t.nx*o,h,t.y+t.ny*o],kc=toyColAt(def,j),und=unds[kc]||(unds[kc]=[]);
     und.push(...c(p,-W,pe-1.6),...c(q,W,qe-1.6),...c(q,-W,qe-1.6),...c(p,-W,pe-1.6),...c(p,W,pe-1.6),...c(q,W,qe-1.6));}
   const mk=(arr,mat,cast)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));g.computeVertexNormals();const m=new THREE.Mesh(g,mat);m.userData.noLift=true;m.castShadow=!!cast;m.receiveShadow=true;world.add(m);return m;};
@@ -139,7 +139,7 @@ function toyLoop(L,def){const p=L.p,g0=L.g0,SEG=96,LEAD=3,W=TOYW(),TH=3,H=4.2,po
   G.traverse(q=>{if(q.isMesh){q.castShadow=q.userData.cast!==false;q.receiveShadow=true;}});
   obstacles.push({x:p.x-p.nx*o,y:p.y-p.ny*o,r:6,h:top,j:L.j,lat:999},{x:p.x+p.nx*o,y:p.y+p.ny*o,r:6,h:top,j:L.j,lat:999});}
 /* the start gate: two blue posts and a chequered banner, the size a toy set would have */
-function toyGate(def){const s=track[0],G=new THREE.Group(),bl=TOYBL(),M=TM,o=TOYW()+9,Y=(s.ey||0);G.position.set(s.x,Y,s.y);G.rotation.y=-s.ang;G.userData.noLift=true;world.add(G);
+function toyGate(def){if(def.battle)return;const s=track[0],G=new THREE.Group(),bl=TOYBL(),M=TM,o=TOYW()+9,Y=(s.ey||0);G.position.set(s.x,Y,s.y);G.rotation.y=-s.ang;G.userData.noLift=true;world.add(G);
   for(const sd of [-1,1]){M.add(G,new THREE.CylinderGeometry(2.6,3.4,40,4,1).rotateY(Math.PI/4),bl,0,20,sd*o);M.add(G,M.slab(13,2.4,13,3,.6,2),bl,0,1.2,sd*o);}
   const bt=T2(bannerC);bt.userData.keepCanvas=true;const bm=new THREE.MeshStandardMaterial({map:bt,roughness:.5}),b=new THREE.Mesh(new THREE.BoxGeometry(2,12.5,2*o+7),[bm,bm,bl,bl,bl,bl]);b.position.set(0,35,0);G.add(b);
   M.add(G,M.slab(4,3,2*o+12,1.4,.5,1),bl,0,42.4,0);G.traverse(q=>{if(q.isMesh){q.castShadow=true;q.receiveShadow=true;}});
@@ -151,7 +151,7 @@ function toyBooster(j,gate){const p=track[((j%N)+N)%N],G=new THREE.Group(),M=TM,
   for(const sd of [-1,1]){if(toyOffShort(p.x+p.nx*sd*o,p.y+p.ny*sd*o)<40)continue;M.add(G,M.slab(40,14,15,3,1.6,2),bl,0,7-1.6,sd*o);M.add(G,M.slab(26,3,11,2.4,.8,2),gy,0,13.6,sd*o);const st=M.add(G,new THREE.PlaneGeometry(9,18),bm,0,15.2,sd*o,-Math.PI/2,0,Math.PI/2);st.userData.cast=false;
     for(const a of [-9,9])M.add(G,M.cyl(7.2,7.2,5,20),bk,a,5.6,sd*(o-6.2));}
   G.traverse(q=>{if(q.isMesh){q.castShadow=q.userData.cast!==false;q.receiveShadow=true;}});}
-function toyPads(def){const m=TM.mat('toypad',()=>new THREE.MeshStandardMaterial({map:T2(toyPadTex(),1,1),roughness:.4,emissive:'#f6c21c',emissiveIntensity:.12,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+function toyPads(def){if(def.battle)return;const m=TM.mat('toypad',()=>new THREE.MeshStandardMaterial({map:T2(toyPadTex(),1,1),roughness:.4,emissive:'#f6c21c',emissiveIntensity:.12,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
   const put1=j=>{pads.push({j,lat:0,w:RW+4});const pm=strip(j-2,j+2,-RW-4,RW+4,.14,m,32);if(pm&&pm.isMesh){pm.userData.noMerge=true;pm.castShadow=false;}TOYB.push(j);};
   (def.npads||[]).forEach(q=>put1(nfj(q[0])));for(const L of LOOPS)if(L.full)put1((L.j-13+N)%N);}
 function toyRamps(def){const c=TM.can('toyramp',256,256,(g,w,h)=>{g.fillStyle='#ff6a12';g.fillRect(0,0,w,h);g.fillStyle='#fff4dc';for(let y=-40;y<300;y+=64){g.beginPath();g.moveTo(40,y+52);g.lineTo(128,y);g.lineTo(216,y+52);g.lineTo(216,y+74);g.lineTo(128,y+22);g.lineTo(40,y+74);g.closePath();g.fill();}g.fillStyle='#1769d6';g.fillRect(0,0,14,h);g.fillRect(w-14,0,14,h);}),
@@ -303,11 +303,14 @@ function toyYard(def){const U=TM.U,M=TM,m=100*U,GX=g=>(g+.75)*m,GY=g=>(g-3.5)*m,
   if(M.pkReady('ywash'))put(M.yPk('ywash'),-5.8,4.2,0);else{const steel=M.metal('ypole','#b9bcc2',.45);for(const px of [-8.2,-3.4]){const p=new THREE.Mesh(M.cyl(2.5*U,2.5*U,2*m,10),steel);p.position.set(GX(px),m,-GY(4.2));p.castShadow=true;p.userData.noLift=true;world.add(p);}wall(-8.2,-3.4,4.195,4.205,.01,steel,100,1.95);
     [[-7.2,'#d9534f',.62],[-6.3,'#f4f1ea',.72],[-5.3,'#4f86c6',.62],[-4.4,'#f0c040',.72]].forEach(([px,c,hh])=>{const g=new THREE.PlaneGeometry(.62*m,hh*m,6,6),pp=g.attributes.position;for(let i=0;i<pp.count;i++)pp.setZ(i,Math.sin(pp.getX(i)*.02+px)*4*U*(.5-pp.getY(i)/(hh*m)));g.computeVertexNormals();
       const cl=new THREE.Mesh(g,M.mat('ycloth'+c,()=>new THREE.MeshStandardMaterial({color:c,roughness:.95,side:THREE.DoubleSide})));cl.position.set(GX(px),(1.94-hh/2)*m,-GY(4.2));cl.castShadow=true;cl.userData.noLift=true;world.add(cl);});}
-  put(M.yPk('ytree')||M.ytree(620,250,3),3.1,5.2,0);put(M.yPk('ygoal')||M.ygoal(),9.6,5.6,0);/* its mouth faces the house; the back (-z in the model) is north */{const sb=M.sPk('sball',false,.6);if(sb)put(sb,7.4,3.9,1.1);else if(M.pkReady('yball'))put(M.yPk('yball'),7.4,3.9,1.1);else{const b=new THREE.Mesh(new THREE.SphereGeometry(11*U,24,16),M.paint('yball','#f4f4f0',.45));b.position.set(GX(7.4),11*U,-GY(3.9));b.castShadow=true;b.userData.noLift=true;world.add(b);}}
+  put((typeof PROP_TEX!=='undefined'&&PROP_TEX.tex_toy_sprays&&M.yPk('ytreec'))||M.yPk('ytree')||M.ytree(620,250,3),3.1,5.2,0);/* the garden tree: with cut-out sprays of real leaves if they are there */put(M.yPk('ygoal')||M.ygoal(),9.6,5.6,0);/* its mouth faces the house; the back (-z in the model) is north */{const sb=M.sPk('sball',false,.6);if(sb)put(sb,7.4,3.9,1.1);else if(M.pkReady('yball'))put(M.yPk('yball'),7.4,3.9,1.1);else{const b=new THREE.Mesh(new THREE.SphereGeometry(11*U,24,16),M.paint('yball','#f4f4f0',.45));b.position.set(GX(7.4),11*U,-GY(3.9));b.castShadow=true;b.userData.noLift=true;world.add(b);}}
   /* over the fence: the neighbour's house and the trees beyond */
   {if(M.pkReady('yneigh')){put(M.yPk('yneigh'),-2.5,23,0);put(M.yPk('yneigh'),21.5,2.6,Math.PI/2);put(M.yPk('yneigh'),-24.5,4.4,-Math.PI/2);}/* the neighbours: the house over the back fence (the one every window shows) and one beyond each side fence */
     else{const hw=M.paint('ysiding','#e6dcc8',.8),hr=M.paint('yroof','#5d6470',.7);wall(-7.5,2.5,19.5,26.5,3.2,hw,300);const rg=new THREE.ConeGeometry(7.6*m,2.6*m,4,1);rg.rotateY(Math.PI/4);rg.scale(1,1,.72);const rf=new THREE.Mesh(rg,hr);rf.position.set(GX(-2.5),4.5*m,-GY(23));rf.userData.noLift=true;world.add(rf);}
-    for(const [x,y,h,cr,sd] of [[-4.6,11.5,850,340,5],[6.5,15,950,380,7],[-10.5,17,900,360,9],[12.5,26,1100,440,12],[3.5,31,1200,480,14],[-15,33,1200,500,17],[16.2,6.2,900,360,23],[18.5,12.5,1050,420,27],[-18.6,9.5,950,380,31],[-21,15,1100,440,35],[20,19,1150,460,39]]){const t=M.yPk('ytreef');if(t){t.scale.setScalar(h/1000);put(t,x,y,sd);}else put(M.ytree(h,cr,sd),x,y,sd);}}
+    const far=typeof PROP_TEX!=='undefined'&&PROP_TEX.tex_toy_treefar?M.mat('outsidetree',()=>{const t=propTex('tex_toy_treefar');t.userData.alpha=true;return new THREE.MeshBasicMaterial({map:t,color:new THREE.Color(1.45,1.45,1.4),alphaTest:.5,side:THREE.DoubleSide,toneMapped:false,fog:false});}):null;
+    for(const [x,y,h,cr,sd] of [[-4.6,11.5,850,340,5],[6.5,15,950,380,7],[-10.5,17,900,360,9],[12.5,26,1100,440,12],[3.5,31,1200,480,14],[-15,33,1200,500,17],[16.2,6.2,900,360,23],[18.5,12.5,1050,420,27],[-18.6,9.5,950,380,31],[-21,15,1100,440,35],[20,19,1150,460,39]]){if(far){/* a real tree's picture on two crossed cards (treecards.py: seen from the south on one, from the east on the other), shown as it is */const S=h*U*1.29;for(const q of [0,1]){const g=new THREE.PlaneGeometry(S,S),uv=g.attributes.uv,fl=sd%2===q;for(let i=0;i<4;i++)uv.setX(i,q*.5+(fl?1-uv.getX(i):uv.getX(i))*.5);
+          const c=new THREE.Mesh(g,far);c.position.set(GX(x),S/2-4*U,-GY(y));c.rotation.y=q?Math.PI/2:0;c.userData.noLift=true;c.userData.noMerge=true;c.userData.cast=false;world.add(c);}}
+        else{const t=M.yPk('ytreef');if(t){t.scale.setScalar(h/1000);put(t,x,y,sd);}else put(M.ytree(h,cr,sd),x,y,sd);}}}
   /* along the way */
   put(M.ypot(15,5),5.0,.5,0);put(M.wcan(),4.5,1.72,2.4);put(M.ypot(13,8),-1.2,.3,0);put(M.ypot(17,3),1.4,.32,0);put(M.ypot(14,12),6.3,.3,0);put(M.ypot(16,21),-8.6,.34,0);
   if(M.pkReady('ypipe'))put(M.yPk('ypipe'),-3.6,5.71,0);else{const pp=M.ypipe(37,150);pp.position.set(GX(-3.6),20,-GY(5.71));pp.userData.noLift=true;pp.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});world.add(pp);}
@@ -327,5 +330,28 @@ function toyYard(def){const U=TM.U,M=TM,m=100*U,GX=g=>(g+.75)*m,GY=g=>(g-3.5)*m,
   put(M.setbox(),1.6,1.45,-.2);put(M.trackpiece({l:22}),2.5,1.5,.6);put(M.ball({kind:'tennis'}),-10.3,2.6,0);put(M.bricks({seed:5,n:9,spread:9}),6.9,1.5,0);put(M.cube({seed:8}),-6.2,2.7,.5);
   /* shade the sun's own shadow map does not reach: under the tree, north of the shed and of the back fence */
   toyShade(GX(1.2),GX(5),GY(4.2),GY(6.9),.3);toyShade(GX(-12.6),GX(-9.8),GY(6.1),GY(6.95),.4);toyShade(GX(-11),GX(9),GY(6.6),GY(7),.25);}
-function buildToy(def){TOYF=[];TOYP=[];TOYB=[];if(def.look==='bedroom')toyBedroom(def);else if(def.look==='kitchen')toyKitchen(def);else if(def.look==='garage')toyGarage(def);else if(def.look==='backyard')toyYard(def);}
-function toyScenery(def){toyRails(def);TOYB.forEach(j=>toyBooster(j));/* the motor housings go on last, once the shortcuts are known */}
+function buildToy(def){TOYF=[];TOYP=[];TOYB=[];if(def.look==='bedroom')toyBedroom(def);else if(def.look==='kitchen')toyKitchen(def);else if(def.look==='garage')toyGarage(def);else if(def.look==='backyard')toyYard(def);else if(def.look==='battle')toyBattle(def);}
+/* ---- Prep Table Showdown: the Balloon Battle arena (the shapes that are its floor and walls: bbArena in battle.js) ----
+   A pizzeria's steel prep table, at the toy scale: the table top is the floor, the kitchen's own floor is 90 cm below. */
+function toyBattle(def){const U=TM.U,M=TM;battleSetup(def);
+  renderer.toneMappingExposure=.98;hemi.color.set('#dfe6f0');hemi.groundColor.set('#b9a892');hemi.intensity=.62;sun.color.set('#fff0d8');sun.intensity=2.2;sunDir.set(-.25,.82,-.5).normalize();rimL.intensity=.16;rimL.color.set('#cfe0ff');
+  scene.fog=new THREE.Fog('#d8cfc0',6000,30000);scene.background=new THREE.Color('#d9d2c6');Object.assign(POST.grade,{sat:1.04,con:1.05,tint:[1.01,1,.985],vig:.16,bloom:.2,thr:.97});TOYENV=null;
+  const add=(g,m,x,y,z,cast)=>{const o=new THREE.Mesh(g,m);o.position.set(x,y,z);o.castShadow=cast!==false;o.receiveShadow=true;o.userData.noLift=true;world.add(o);return o;},
+    steel=M.mat('bbsteel',()=>{const m=new THREE.MeshStandardMaterial({color:'#c2c6ca',roughness:.38,metalness:.25,envMapIntensity:.9});m.userData.noHQ=true;return m;}),
+    K={rim:steel,bin:M.mat('bbbin',()=>new THREE.MeshStandardMaterial({color:'#aeb3b8',roughness:.3,metalness:.3,envMapIntensity:.9})),lid:M.paint('bbcard','#c79a5e',.85),boxes:M.paint('bbcard','#c79a5e',.85),board:M.paint('bbwood','#b98a58',.6),bread:M.paint('bbwood','#b98a58',.6),
+      mill:M.paint('bbmill','#5a3a22',.45),pin:M.paint('bbpin','#d9b98a',.5),plates:M.paint('bbplate','#f4f1ea',.3)};
+  /* the table top, and the kitchen floor far below it */
+  /* the Blender-built models (tools/blender/battle.py) stand in for each kind of shape once their packs have arrived; plain blocks of the same shapes until then */
+  const PK={bbtable:['rim'],bbbins:['bin'],bbboxes:['boxes','lid'],bbblock:['board','bread'],bbprops:['mill','pin','plates']},done={};
+  for(const n in PK){const o=M.bPk(n);if(o){toyPut(o,0,0,0);for(const k of PK[n])done[k]=1;}}
+  {const f=new THREE.PlaneGeometry(6000,6000);f.rotateX(-Math.PI/2);add(f,toyTiles('kfloor','#ebe5d6','#93a09c','#6f6a62',2,.3),0,-312,0,false);
+    if(!done.rim){const g=new THREE.PlaneGeometry(768,520);g.rotateX(-Math.PI/2);add(g,steel,-4,-.05,0,false);add(new THREE.BoxGeometry(768,14,520),steel,-4,-7.2,0,false);for(const sx of [-1,1])for(const sz of [-1,1])add(new THREE.BoxGeometry(16,298,16),steel,sx*364,-163,sz*240);}}
+  /* the alcove's three walls, tiled, from the kitchen floor up; the room's far wall and ceiling */
+  {const tm=toyTiles('ksplash','#f6f5f0','#f1efe8','#c9c6bd',4,.22),wall=(w,x,z,ry)=>{const g=new THREE.PlaneGeometry(w,1200),uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*w/(40*U),uv.getY(i)*1200/(40*U));const o=add(g,tm,x,288,z,false);o.rotation.y=ry;};
+    wall(900,-10,-260,0);wall(900,-10,260,Math.PI);wall(520,380,0,-Math.PI/2);wall(3000,-1700,0,Math.PI/2);const cg=new THREE.PlaneGeometry(3000,3000);cg.rotateX(Math.PI/2);add(cg,M.paint('bbceil','#f4f1ea',.9),-400,888,0,false);}
+  for(const q of BB.shapes){if(q.k==='wall'||done[q.k])continue;const m=K[q.k]||steel;
+    if(q.t==='cyl')add(new THREE.CylinderGeometry(q.r,q.r,q.h,32),m,q.x,q.h/2,q.z);
+    else if(q.t==='box')add(new THREE.BoxGeometry(q.x1-q.x0,q.h,q.z1-q.z0),m,(q.x0+q.x1)/2,q.h/2,(q.z0+q.z1)/2);
+    else{/* a ramp: a wedge */const w=q.x1-q.x0,d=q.z1-q.z0,P=q.ax==='x'?[[q.x0,q.h0,q.z0],[q.x1,q.h1,q.z0],[q.x1,q.h1,q.z1],[q.x0,q.h0,q.z1]]:[[q.x0,q.h0,q.z0],[q.x1,q.h0,q.z0],[q.x1,q.h1,q.z1],[q.x0,q.h1,q.z1]],B=P.map(v=>[v[0],0,v[2]]),V=[],quad=(a,b,c,e)=>V.push(...a,...b,...c,...a,...c,...e);
+      quad(P[0],P[3],P[2],P[1]);quad(P[0],P[1],B[1],B[0]);quad(P[1],P[2],B[2],B[1]);quad(P[2],P[3],B[3],B[2]);quad(P[3],P[0],B[0],B[3]);const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(V,3));g.computeVertexNormals();const o=add(g,m,0,0,0);o.material=m.clone();o.material.side=THREE.DoubleSide;}}}
+function toyScenery(def){if(def.battle)return;toyRails(def);TOYB.forEach(j=>toyBooster(j));/* the motor housings go on last, once the shortcuts are known */}

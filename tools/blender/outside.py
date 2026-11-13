@@ -87,7 +87,7 @@ cam = bpy.data.cameras.new('cam'); co = bpy.data.objects.new('cam', cam); s.coll
 for vt in ('AgX', 'Filmic', 'Standard'):
     try: s.view_settings.view_transform = vt; break
     except Exception: pass
-s.view_settings.exposure = -2.75
+s.view_settings.exposure = -2.45
 try: s.view_settings.look = 'AgX - Medium High Contrast'
 except Exception: pass
 s.render.image_settings.file_format = 'JPEG'; s.render.image_settings.quality = 90
@@ -107,7 +107,8 @@ if VIEW == 'sky':
 def ground(name, x0, x1, y0, y1, z, file, tile, tint=(1, 1, 1)):
     bpy.ops.mesh.primitive_plane_add(size=1, location=((x0 + x1) / 2, (y0 + y1) / 2, GROUND + z)); o = bpy.context.object; o.name = name; o.scale = (x1 - x0, y1 - y0, 1); apply_scale(o); uv_box(o)
     m = bpy.data.materials.new(name); o.data.materials.append(m); picture(m, file, tile, tint, .95); return o
-ground('lawn', -80, 80, -1, 150, 0, 'lawn.jpg', .7); ground('patio', W0, W1, 0, 1.6, .004, 'paving.jpg', 1.5); ground('bed', -7.4, -.6, 6.25, 6.98, .006, 'soil.jpg', .6)
+ground('lawn', -80, 80, -1, 150, 0, 'lawn.jpg', .7, (1.7, 1.7, 1.6));   # (the picture is darkened for the game, where a pale lawn blooms: here it wants its own colour back)
+ground('patio', W0, W1, 0, 1.6, .004, 'paving.jpg', 1.5); ground('bed', -7.4, -.6, 6.25, 6.98, .006, 'soil.jpg', .6)
 
 # ---- everything that stands in the garden, as toyYard has it
 B = 2.125
@@ -115,9 +116,24 @@ for i in range(12): stand(Y.fence(1 + 6 * (i % 2) + 20 * i), W0 + B * (i + .5), 
 for i in range(3):
     stand(Y.fence(101 + i), W0, 7 * (i + .5) / 3, 90, (7 / (3 * B), 1, 1)); stand(Y.fence(201 + i), W1, 7 * (i + .5) / 3, -90, (7 / (3 * B), 1, 1))
 stand(Y.shed(), -11.2, 5.4); stand(Y.washing(), -5.8, 4.2); stand(Y.goal(), 9.6, 5.6); stand(Y.football(), 7.4, 3.9, 63)
-stand(Y.tree(6.2, 2.5, 3, 36000, .085, .15), 3.1, 5.2)                                                      # the same tree as the track's (same seed, so the same boughs), with finer leaves for a still picture
-for (x, y, h, sd) in ((-4.6, 11.5, 8.5, 5), (6.5, 15, 9.5, 7), (-10.5, 17, 9.0, 9), (12.5, 26, 11, 12), (3.5, 31, 12, 14), (-15, 33, 12, 17), (16.2, 6.2, 9, 23), (18.5, 12.5, 10.5, 27), (-18.6, 9.5, 9.5, 31), (-21, 15, 11, 35), (20, 19, 11.5, 39)):
-    stand(Y.tree(10.0, 4.3, 9, 22000, .15, .22), x, y, math.degrees(sd), h / 10)
+# the trees are a real one: the photo-scanned jacaranda (Poly Haven, CC0: ph_model.py jacaranda_tree --res 2k), 19.3 m as scanned,
+# stood at each tree's height. The Backyard track shows the same tree: the garden's own carries cards of its leaf sprays, the
+# ones beyond the fences are pictures of it (treecards.py).
+import glob
+bpy.ops.import_scene.gltf(filepath=glob.glob('D:/crust-rush/scratch/ph/models/jacaranda_tree/*.gltf')[0])
+JAC = [o for o in bpy.context.selected_objects if o.type == 'MESH'][0]
+for m_ in JAC.data.materials:
+    if 'leaves' not in m_.name: continue
+    nt = m_.node_tree; bs = next(nd for nd in nt.nodes if nd.type == 'BSDF_PRINCIPLED'); out = next(nd for nd in nt.nodes if nd.type == 'OUTPUT_MATERIAL')   # leaves let the light through: lit from behind, they glow
+    tr = nt.nodes.new('ShaderNodeBsdfTranslucent'); mix = nt.nodes.new('ShaderNodeMixShader'); mix.inputs[0].default_value = .75   # seen against the sun, as every window sees them: most of what reaches the eye has come through the leaf
+    src = bs.inputs['Base Color'].links[0].from_socket; gain = nt.nodes.new('ShaderNodeMix'); gain.data_type = 'RGBA'; gain.blend_type = 'MULTIPLY'; gain.inputs[0].default_value = 1; gain.inputs[7].default_value = (3.2, 3.6, 1.6, 1)
+    nt.links.new(src, gain.inputs[6]); nt.links.new(gain.outputs[2], tr.inputs['Color'])
+    tp = nt.nodes.new('ShaderNodeBsdfTransparent'); cut = nt.nodes.new('ShaderNodeMixShader'); al = bs.inputs['Alpha'].links[0].from_socket
+    nt.links.new(bs.outputs[0], mix.inputs[1]); nt.links.new(tr.outputs[0], mix.inputs[2]); nt.links.new(al, cut.inputs[0]); nt.links.new(tp.outputs[0], cut.inputs[1]); nt.links.new(mix.outputs[0], cut.inputs[2]); nt.links.new(cut.outputs[0], out.inputs['Surface'])
+for k, (x, y, h, sd) in enumerate(((3.1, 5.2, 6.2, 1), (-4.6, 11.5, 8.5, 5), (6.5, 15, 9.5, 7), (-10.5, 17, 9.0, 9), (12.5, 26, 11, 12), (3.5, 31, 12, 14), (-15, 33, 12, 17), (16.2, 6.2, 9, 23), (18.5, 12.5, 10.5, 27), (-18.6, 9.5, 9.5, 31), (-21, 15, 11, 35), (20, 19, 11.5, 39))):
+    o = JAC.copy(); s.collection.objects.link(o); sc = h / 19.32                                              # the same mesh each time: only the first costs memory
+    o.matrix_world = Matrix.Translation((x, y, GROUND - .05)) @ Matrix.Rotation(sd * 1.0, 4, 'Z') @ Matrix.Diagonal((sc, sc, sc, 1))
+JAC.hide_render = True
 stand(Y.neighbour(), -2.5, 23.0); stand(Y.neighbour(), 21.5, 2.6, -90); stand(Y.neighbour(), -24.5, 4.4, 90)
 for (rc, sd, x, y, sink) in ((15, 5, 5.0, .5, 0), (13, 8, -1.2, .3, 0), (17, 3, 1.4, .32, 0), (14, 12, 6.3, .3, 0), (16, 21, -8.6, .34, 0)) + tuple((13 + sd % 5, sd, gx, 6.62, .10) for gx, sd in ((-6.9, 2), (-5.9, 6), (-4.9, 9), (-2.6, 13), (-1.5, 17))):
     stand(Y.pot(sd % 3 + 1, sd), x, y, -math.degrees(sd), rc / 10.8, sink)

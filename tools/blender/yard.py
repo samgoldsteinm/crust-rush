@@ -8,6 +8,7 @@ then py.cmd tools/blender/pack_glb.py <name ...>
   yhouse            the back of the house: eaves, gutter, downpipes, roof slope, back door, lamp (in garden coordinates)
   yneigh            the neighbour's house, 10 x 7 m
   ypot1..3          flowerpots with plants; ywcan, yhose, ygnome, ypipe, yball, ytuft: the small things
+  ytreec            the same tree carrying cut-out cards of a real tree's leaf sprays (treecards.py) in place of leaf polygons
   ytree             the tree by the back fence, 6.2 m (the track spirals round its trunk); ytreef: a 10 m tree for beyond the fences
 """
 import sys, os
@@ -24,6 +25,7 @@ MODELS = {
     'ygoal': (Y.goal, 5.0, ((-30, 14), (160, 20)), .4, True),
     'ywash': (Y.washing, 8.5, ((-20, 8),), .45, True),
     'ytree': (lambda: Y.tree(6.2, 2.5, 3, 5000, .20, .15), 15, ((-25, 8), (60, -12)), .35, True),
+    'ytreec': (lambda: Y.tree(6.2, 2.5, 3, cards=1.15), 15, ((-25, 8),), .5, True),
     'ytreef': (lambda: Y.tree(10.0, 4.3, 9, 2000, .50, .22), 24, ((-25, 8),), .35, True),
     'yhouse': (Y.house, 16, ((-160, 10), (-200, 4)), .4, True),
     'yneigh': (Y.neighbour, 22, ((-30, 12),), .35, True),

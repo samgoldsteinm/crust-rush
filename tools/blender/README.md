@@ -75,6 +75,7 @@ There is no live Blender connection: Blender 5.3 (D:\blender\blender.exe) is run
   size a lapped or stepped part under a slope from its top edge; cloth needs slack; outdoor foliage wants a dark, matt green.
 - `ph_model.py`, `scan_inspect.py`, `scan.py`: photo-scanned CC0 models from Poly Haven into the game (download, look
   inside, thin + size + export with the scan's own pictures). `sky_tex.py`: the sky render into the dome's picture.
+- `treecards.py`, `treecards_pack.py`: pictures of the scanned tree (whole, for far trees; leaf sprays, for cards on the garden tree).
 - `ph_tex.py` (no Blender): CC0 photo-scanned surface textures from Poly Haven into the texture store (lawn, concrete, paving, planks, gbrick for the garage's walls, brick, slate, bark, soil); read in the game with `surfTex`.
 - Cars (not room models; they go into CAR_PACKS, not PROP_PACKS): `car_inspect.py`, `car_rules.py`, `car_convert.py`,
   `car_all.sh`, `car_sheet.py`, `car_pack.py`. The steps are in docs/HANDOVER.md under web v173, "How a car gets in".
