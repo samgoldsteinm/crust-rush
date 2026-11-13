@@ -43,7 +43,10 @@ There is no live Blender connection: Blender 5.3 (D:\blender\blender.exe) is run
   the raw baked shade is nearly black and streaky, so `soften_ao` blurs and lightens it; in the game the curtains are marked
   `sunlit` (they throw shadows but are not tested against the sun's shadow map, which breaks up on backlit folds).
 
+- `rug`: a mat that does not lie quite flat, one corner curling, a fringe at both short ends. Its `rug` material carries one
+  picture over the whole mat: the builder passes a tile of `[110,150]` (across, along, in cm) to `pk`.
+
 ## To do (most visible first)
-chair, desk, dresser, nightstand, rug, floor lamp, sneakers, backpack, books,
+chair, desk, dresser, nightstand, floor lamp, sneakers, backpack, books,
 plant, monitors, keyboard and mouse, PC tower, door and window frames, shelf, posters, bin, cartons, skateboard,
 balls, small toys.

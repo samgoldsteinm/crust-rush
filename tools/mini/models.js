@@ -49,14 +49,14 @@ const glass=(key,color,op)=>mat('gs_'+key,()=>phy({color:color||'#101418',roughn
 
 /* ---- models built in Blender (tools/blender), packed like the game's other props ----
    pk(name,mats) builds a group from the pack toy_<name>_hq: one mesh per material; `mats` maps each material name in the
-   model to [game material, tile in cm]. The pack's UVs are real size (metres) and are scaled to the material's tile here,
+   model to [game material, tile in cm] (or [across, along] to lay one picture over the whole part). The pack's UVs are real size (metres) and are scaled to the material's tile here,
    so the game's own tiling materials stay sharp close up; the vertex colours carry baked soft shading.
    The packs download after the menu is up: pkReady says whether one has arrived, and every builder keeps its code-built
    model for the time before that. */
 const pkReady=name=>{const p=typeof PROP_PACKS!=='undefined'&&PROP_PACKS['toy_'+name+'_hq'];return !!(p&&(p.b||p.d));};
 function pk(name,mats){const id='toy_'+name+'_hq',G=grp(),geos=propGeos(id);
   for(const h of PROP_PACKS[id].h){const key=h.n.split('|')[1],q=mats[key];if(!q)continue;const g=geos[h.n];
-    if(!g.userData.pkuv){const uv=g.attributes.uv,k=100/(q[1]||50);for(let i=0;i<uv.count;i++)uv.setXY(i,(uv.getX(i)*h.us+h.uo[0])*k,(uv.getY(i)*h.us+h.uo[1])*k);g.userData.pkuv=1;}
+    if(!g.userData.pkuv){const uv=g.attributes.uv,t=q[1]||50,ku=100/(t[0]||t),kv=100/(t[1]||t);/* a tile of [across,along] cm lays one picture over a part of that size */for(let i=0;i<uv.count;i++)uv.setXY(i,(uv.getX(i)*h.us+h.uo[0])*ku,(uv.getY(i)*h.us+h.uo[1])*kv);g.userData.pkuv=1;}
     add(G,g,mat('pk_'+q[0].name,()=>{const c=q[0].clone();c.vertexColors=true;return c;}));}
   return G;}
 
@@ -203,7 +203,10 @@ M.rug=function(o){o=o||{};const G=grp(),W=(o.w||160)*U,L=(o.l||230)*U,c=can('rug
     for(let y=0;y<7;y++)for(let x=0;x<5;x++){const cx=86+x*85,cy=96+y*90;g.strokeStyle=(x+y)%2?'#27425e':'#c8643a';g.lineWidth=4;g.beginPath();g.moveTo(cx,cy-30);g.lineTo(cx+28,cy);g.lineTo(cx,cy+30);g.lineTo(cx-28,cy);g.closePath();g.stroke();}
     for(let i=0;i<26000;i++){g.fillStyle='rgba('+(r()<.5?'255,255,255':'40,30,20')+','+r()*.07+')';g.fillRect(r()*w,r()*h,1.6,1.6);}}),hc=can('rugb',256,256,(g,w,h,r)=>{for(let y=0;y<h;y+=2)for(let x=0;x<w;x+=2){const v=90+r()*110;g.fillStyle='rgb('+v+','+v+','+v+')';g.fillRect(x,y,2,2);}});
   const g2=slab(W,1.2*U,L,2*U,.5*U,3),p=g2.attributes.position,uv=new Float32Array(p.count*2);for(let i=0;i<p.count;i++){uv[i*2]=p.getX(i)/W+.5;uv[i*2+1]=p.getZ(i)/L+.5;}g2.setAttribute('uv',new THREE.BufferAttribute(uv,2));
-  const nt=T2(heightToNormal(hc,1.5),6,9,true);add(G,g2,mat('rug',()=>std({map:tex(c,'rug'),normalMap:nt,normalScale:new THREE.Vector2(.7,.7),roughness:1,envMapIntensity:.15})),0,.6*U,0);return G;};
+  const nt=T2(heightToNormal(hc,1.5),6,9,true),rm=mat('rug',()=>std({map:tex(c,'rug'),normalMap:nt,normalScale:new THREE.Vector2(.7,.7),roughness:1,envMapIntensity:.15}));
+  /* the Blender-built rug (tools/blender/rug.py): not quite flat, one corner curling, a fringe at both ends; 110 x 150 cm, scaled to other sizes */
+  if(pkReady('rug')){const g=pk('rug',{rug:[rm,[110,150]],fringe:[fabric('fringe','#e9e0cf',{ws:2,ns:.5}),12]});g.scale.set((o.w||160)/110,1,(o.l||230)/150);return g;}
+  add(G,g2,rm,0,.6*U,0);return G;};
 /* ============ shoes ============ */
 /* one sneaker, 29 cm long: a rubber sole with a sidewall, an upper lofted from cross-sections, a toe cap, a tongue and laces. Toe at +z. */
 M.sneaker=function(o){o=o||{};const G=grp(),L=29*U,col=o.color||'#f4f4f2',up=fabric('sneak'+col,col,{ws:2,ns:.6,rough:.8}),rub=plastic('sole','#f0eee8',.7),acc=plastic('sneakacc'+(o.accent||''),o.accent||'#e0452c',.55);
