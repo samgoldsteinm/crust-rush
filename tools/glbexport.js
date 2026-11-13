@@ -264,7 +264,7 @@ window.__exportData=function(step){step=step||10;const def=MAPS[mapIdx];const R=
   const hemi=(()=>{let h=null;scene.traverse(o=>{if(o.isHemisphereLight&&!h)h=o;});return h;})();
   const amb=(()=>{let h=null;scene.traverse(o=>{if(o.isAmbientLight&&!h)h=o;});return h;})();
   const fog=scene.fog;const bg=scene.background&&scene.background.isColor?scene.background:null;
-  return {map:def.id,name:def.name,R,RIM,N,RW,CURB,WALLD,KS,BASE0,ACCEL,TURN,LAPS:(def.laps||3),LS:(typeof LS!=='undefined'?LS:1),toy:!!def.toy,KERB_H,STEP,classMul:CLASSES.medium.mul,
+  return {map:def.id,name:def.name,R,RIM,N,RW,CURB,WALLD,KS,BASE0,ACCEL,TURN,DRIN:(typeof DRIN!=='undefined'?DRIN:1.75),DROUT:(typeof DROUT!=='undefined'?DROUT:1),LAPS:(def.laps||3),LS:(typeof LS!=='undefined'?LS:1),toy:!!def.toy,KERB_H,STEP,classMul:CLASSES.medium.mul,
     track:tr,ramps:ramps.map(r=>({j:r.j,len:r.len,h:r.h,w:r.w,glide:!!r.glide})),pads:pads.map(p=>({j:p.j,lat:p.lat,w:p.w||16})),
     obstacles:obstacles.filter(o=>!o.ghost&&!o.mesh?.userData?.dyn).map(o=>({x:+o.x.toFixed(2),y:+o.y.toFixed(2),r:o.r,h:o.h})),
     grid:karts.map(k=>({x:+k.x.toFixed(3),y:+k.y.toFixed(3),a:+k.a.toFixed(5),wy:+k.wy.toFixed(3),player:k===player})),
