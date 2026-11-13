@@ -473,7 +473,7 @@ func _build_world() -> void:
 			toy_room = track.get_meta("toy_room")
 			toy_room_on = true
 			_toy_sun()
-			HdToy.add_probe(world, track, env.ambient_light_color, env.ambient_light_energy)
+			HdToy.add_probe(world, track, env.ambient_light_color, env.ambient_light_energy, T.toyenv)
 	if track != null and T.theme == "night":
 		var nn := HdNeon.upgrade(track)
 		if nn > 0:

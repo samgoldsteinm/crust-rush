@@ -41,6 +41,12 @@ static func upgrade(root: Node3D) -> int:
 				m.clearcoat_enabled = true
 				m.clearcoat = 1.0
 				m.clearcoat_roughness = 0.07
+			# metal indoors: a full mirror has only the dim room to reflect and comes out nearly black here (the web game's room
+			# photograph is much brighter). Mostly-metal keeps the sheen and lets the room's light show the colour
+			if m.metallic > 0.5:
+				m.metallic = 0.4
+				m.metallic_specular = 0.7
+				m.roughness = maxf(m.roughness, 0.3)
 			if nm.begins_with("toy_outside"):
 				m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 				m.disable_fog = true
@@ -51,14 +57,18 @@ static func upgrade(root: Node3D) -> int:
 
 ## a reflection of the room, taken once when the track is loaded: the track, the karts and the floor mirror the window
 ## and the walls, never the open sky. `amb` is the room's soft fill light, kept as the web game has it.
-static func add_probe(world: Node3D, root: Node3D, amb: Color, amb_energy: float) -> void:
+static func add_probe(world: Node3D, root: Node3D, amb: Color, amb_energy: float, spot = null) -> void:
 	if not root.has_meta("toy_room"):
 		return
 	var box: AABB = root.get_meta("toy_room")
 	var rp := ReflectionProbe.new()
 	rp.size = box.size + Vector3(8, 8, 8)
 	rp.position = box.get_center()
-	rp.origin_offset = Vector3(-120, 220, 200) - box.get_center()   # the open spot over the rug the web game photographs from
+	# taken from the open spot the web game photographs the room from (each room names its own; the bedroom's is over the rug)
+	var at := Vector3(-120, 220, 200)
+	if spot is Array and (spot as Array).size() >= 3:
+		at = Vector3(float(spot[0]), float(spot[1]), float(spot[2]))
+	rp.origin_offset = at - box.get_center()
 	rp.box_projection = true
 	rp.interior = true
 	rp.enable_shadows = true
