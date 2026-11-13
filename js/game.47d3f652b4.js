@@ -674,7 +674,7 @@ function pineTex(){const c=cnv(256,256),g=c.getContext('2d');g.fillStyle='#d99a1
   for(let i=-8;i<16;i++){g.beginPath();g.moveTo(i*32,0);g.lineTo(i*32+256,256);g.stroke();g.beginPath();g.moveTo(i*32,256);g.lineTo(i*32+256,0);g.stroke();}
   g.fillStyle='#f6c64a';for(let y=0;y<256;y+=32)for(let x=0;x<256;x+=32){g.beginPath();g.arc(x+16,y,4,0,7);g.fill();}return c;}
 const bannerC=cnv(1024,128);
-function drawBanner(){const g=bannerC.getContext('2d');g.fillStyle='#1b0f0b';g.fillRect(0,0,1024,128);
+function drawBanner(){if(bannerC.width!==1024){bannerC.width=1024;bannerC.height=128;}const g=bannerC.getContext('2d');g.fillStyle='#1b0f0b';g.fillRect(0,0,1024,128);
   for(let i=0;i<64;i++)for(let r=0;r<2;r++){g.fillStyle=(i+r)%2?'#fff4dc':'#1b0f0b';g.fillRect(i*16,r*12,16,12);g.fillRect(i*16,104+r*12,16,12);}
   g.fillStyle='#d6402a';g.fillRect(0,24,1024,80);g.font='64px Bungee, "Arial Black", Impact, sans-serif';g.textAlign='center';g.textBaseline='middle';
   g.fillStyle='#7d1d0e';g.fillText('CRUST RUSH',512,70);g.fillStyle='#f7c948';g.fillText('CRUST RUSH',512,64);}
@@ -2178,7 +2178,7 @@ function skyDome(cols,sdir,sunCol){const mat=new THREE.ShaderMaterial({side:THRE
   fragmentShader:'uniform vec3 top,hor,bot,sunCol,sunDir;varying vec3 vW;void main(){vec3 d=normalize(vW);float h=d.y;vec3 c=h>0.?mix(hor,top,pow(clamp(h,0.,1.),.5)):mix(hor,bot,clamp(-h*5.,0.,1.));float s=max(dot(d,normalize(sunDir)),0.);c+=sunCol*(pow(s,900.)*6.+pow(s,10.)*.35);gl_FragColor=vec4(c,1.);\n#include <tonemapping_fragment>\n#include <encodings_fragment>\n}'});
   const m=new THREE.Mesh(new THREE.SphereGeometry(9000,48,24),mat);m.frustumCulled=false;m.renderOrder=-1;return m;}
 function disposeWorld(){if(!world)return;world.traverse(o=>{if(o.geometry)o.geometry.dispose();const ms=o.material?(Array.isArray(o.material)?o.material:[o.material]):[];
-  ms.forEach(m=>{if(m===pepMat||SHSET.has(m)||m.userData.shared)return;for(const k of ['map','emissiveMap','normalMap','roughnessMap'])if(m[k]&&!m[k].userData.shared)m[k].dispose();if(m.uniforms&&m.uniforms.map&&m.uniforms.map.value)m.uniforms.map.value.dispose();m.dispose();});});scene.remove(world);world=null;}
+  ms.forEach(m=>{if(m===pepMat||SHSET.has(m)||m.userData.shared)return;for(const k of ['map','emissiveMap','normalMap','roughnessMap'])if(m[k]&&!m[k].userData.shared)m[k].dispose();if(m.uniforms&&m.uniforms.map&&m.uniforms.map.value)m.uniforms.map.value.dispose();m.dispose();});});scene.remove(world);world=null;if(typeof TM!=='undefined'&&TM.forget)TM.forget();/* the toy cache must not hand back what freeCanvases emptied */}
 function wm(c,o){return new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.6},o||{}));}
 /* a box with softly rounded edges, for large props that read as cardboard, tins or furniture rather than raw blocks */
 function rbox(w,h,d,r){r=Math.min(r||Math.min(w,h,d)*.08,Math.min(w,d)*.45);const sh=new THREE.Shape();const x0=-w/2,y0=-d/2;sh.moveTo(x0+r,y0);sh.lineTo(x0+w-r,y0);sh.quadraticCurveTo(x0+w,y0,x0+w,y0+r);sh.lineTo(x0+w,y0+d-r);sh.quadraticCurveTo(x0+w,y0+d,x0+w-r,y0+d);sh.lineTo(x0+r,y0+d);sh.quadraticCurveTo(x0,y0+d,x0,y0+d-r);sh.lineTo(x0,y0+r);sh.quadraticCurveTo(x0,y0,x0+r,y0);
@@ -3253,8 +3253,16 @@ function buildArena(def){const R=def.R,bin=Uint8Array.from(atob(ARENA_PACK.d),c=
 const TM=(function(){
 const U=3.47,MC={},CC={},TXC={};
 const rng=seed=>{let s=Math.floor(seed)%2147483646+1;return ()=>(s=s*48271%2147483647)/2147483647;};
-function can(key,w,h,draw){if(!CC[key]){const c=cnv(w,h);draw(c.getContext('2d'),w,h,rng(key.length*977+w*13+h));CC[key]=c;}return CC[key];}
-function tex(c,key,lin){const k=key+(lin?'|l':'');if(!TXC[k]){TXC[k]=T2(c,1,1,lin);}return TXC[k];}
+/* On phones freeCanvases() (crust-rush.html) shrinks a canvas to 1x1 once its texture is on the graphics chip. Everything kept here by
+   name outlives a race, so: an emptied canvas is drawn again when next asked for, and forget() (called as a world is thrown away) drops
+   every kept material and texture whose canvas was emptied, so the next race makes them afresh. Without this a phone's second toy race
+   had a black track (web v187). */
+const dead=c=>typeof HTMLCanvasElement!=='undefined'&&c instanceof HTMLCanvasElement&&c.width<=1;
+function forget(){let n=0;for(const k in MC){const m=MC[k],ts=[];for(const p in m){const v=m[p];if(v&&v.isTexture)ts.push(v);}if(m.uniforms)for(const p in m.uniforms){const v=m.uniforms[p]&&m.uniforms[p].value;if(v&&v.isTexture)ts.push(v);}
+    if(ts.some(t=>dead(t.image))){for(const t of ts)if(dead(t.image))t.dispose();m.dispose();delete MC[k];n++;}}
+  for(const k in TXC)if(dead(TXC[k].image)){TXC[k].dispose();delete TXC[k];n++;}for(const k in CC)if(dead(CC[k])){delete CC[k];n++;}return n;}
+function can(key,w,h,draw){if(!CC[key]||(w>1&&dead(CC[key]))){const c=cnv(w,h);draw(c.getContext('2d'),w,h,rng(key.length*977+w*13+h));CC[key]=c;}return CC[key];}
+function tex(c,key,lin){const k=key+(lin?'|l':'');if(!TXC[k]||(TXC[k].image!==c&&dead(TXC[k].image))){TXC[k]=T2(c,1,1,lin);}return TXC[k];}
 function mat(key,make){return MC[key]||(MC[key]=Object.assign(make(),{name:'toy_'+key}));}
 const std=o=>new THREE.MeshStandardMaterial(o),phy=o=>new THREE.MeshPhysicalMaterial(o);
 /* ---- geometry helpers ---- */
@@ -3854,7 +3862,7 @@ M.yPk=yPk;
 /* the small things: the Blender-built one once it has arrived, the code-built one until then. Three potted plants, chosen by the seed */
 {const p0=M.ypot,w0=M.wcan,h0=M.yhose,g0=M.ygnome;M.ypot=(rc,seed)=>{const k='ypot'+((seed||5)%3+1);if(!pkReady(k))return p0(rc,seed);const g=yPk(k);g.scale.setScalar(rc/10.8);return g;};
   M.wcan=()=>yPk('ywcan')||w0();M.yhose=()=>yPk('yhose')||h0();M.ygnome=()=>sPk('sgnome',false,.45)||yPk('ygnome')||g0();/* the scanned gnome if it is there */}
-return Object.assign(M,{surfTex,U,pk,pkReady,bake,MX,vcPlastic,vcMatte,drape,wood,fabric,plastic,metal,paint,glow,glass,slab,blob,uvw,add,grp,box,cyl,can,tex,mat,std,phy,rng});})();
+return Object.assign(M,{surfTex,U,pk,pkReady,bake,MX,vcPlastic,vcMatte,drape,wood,fabric,plastic,metal,paint,glow,glass,slab,blob,uvw,add,grp,box,cyl,can,tex,mat,std,phy,rng,forget});})();
 
 /* ================= MINIATURE MAYHEM CUP: toy racing sets built round real rooms =================
    Scale: a kart is a toy car 7.5 cm long, so 1 cm is TU units and every piece of furniture is its real size.
@@ -5236,7 +5244,7 @@ function decorate(def,R,ctx){const {used,pick,straight,farFrom,placed}=ctx,th=de
   for(let j=0;j<N;j++){if(MULTI&&isDeck(j))continue;const p=track[j];if(!p.wall)continue;if(SHORTS.some(sc=>sc.s===p.wall&&[sc.a,sc.b].some(e=>{const d=Math.abs(j-e)%N;return Math.min(d,N-d)<=14;})))continue;const o=(CURB+11)*p.wall,x=p.x+p.nx*o,z=p.y+p.ny*o;for(let r=0;r<2;r++)bI.push({x,z,m:M(x,3.8+r*6.6,z),c:(j+r)%2?cA:cB});}
   chunkInst(new THREE.SphereGeometry(3.8,14,10),new THREE.MeshStandardMaterial({roughness:.45}),bI,{cast:true,extra:10});
   /* overhead banner gantries */
-  const gm=new THREE.MeshStandardMaterial({map:T2(bannerC),roughness:.5}),pm=wm('#3a3a44',{metalness:.6,roughness:.35}),dk=wm('#1b0f0b');
+  const gbt=T2(bannerC);gbt.userData.keepCanvas=true;const gm=new THREE.MeshStandardMaterial({map:gbt,roughness:.5}),pm=wm('#3a3a44',{metalness:.6,roughness:.35}),dk=wm('#1b0f0b');
   for(let i=0;i<3;i++){const b=pick(Math.floor((i+.18)*N/3),j=>straight(j,6,.35)&&farFrom(j,14)&&!track[j].wall);if(b==null)continue;used.push(b);const p=track[b],g=new THREE.Group();g.position.set(p.x,0,p.y);g.rotation.y=-Math.PI/2-p.ang;world.add(g);
     /* gantry rides on the highest point of the road beneath it, with the banner's underside 36 units above that so every kart, glider and driver's hat clears it */
     const gLift=Math.max(0,surfH(p.x-p.nx*RW*.8,p.y-p.ny*RW*.8,b),surfH(p.x,p.y,b),surfH(p.x+p.nx*RW*.8,p.y+p.ny*RW*.8,b))-groundAt(p.x,p.y),GH=52+gLift;
@@ -6968,7 +6976,7 @@ async function goRace(mi){if(raceLoading)return;if(NET.role&&!NET.fromNet){if(NE
    the bitmap is dead weight, so it is shrunk to 1x1. Nothing redraws a canvas after upload (the banner excepted: keepCanvas) and nothing
    re-uploads one, except a GPU context restore, which reloads the page instead. The shared TX canvases are re-read by later maps and stay. */
 let freedAny=false;
-function freeCanvases(){if(!COARSE||CFG.freeCanvas===false)return 0;try{const keep=new Set(Object.values(TX)),by=new Map();
+function freeCanvases(){if(!COARSE||CFG.freeCanvas===false)return 0;try{const keep=new Set(Object.values(TX)),by=new Map();keep.add(bannerC);/* the start banner's one canvas is drawn on again for every race */
   const add=t=>{if(!t||!t.isTexture||t.userData.shared)return;const im=t.image;if(!im||!(im instanceof HTMLCanvasElement)||im.width<=1||keep.has(im)||t.userData.keepCanvas)return;let a=by.get(im);if(!a)by.set(im,a=[]);a.push(t);};
   if(!world)return 0;/* scenery only: kart textures are shared with the garage preview's own renderer, which uploads them again */
   world.traverse(o=>{const ms=o.material?(Array.isArray(o.material)?o.material:[o.material]):[];for(const m of ms){if(!m)continue;for(const k of ['map','emissiveMap','normalMap','roughnessMap','alphaMap','metalnessMap','aoMap','bumpMap','clearcoatNormalMap'])add(m[k]);if(m.uniforms)for(const k in m.uniforms){const v=m.uniforms[k]&&m.uniforms[k].value;if(v&&v.isTexture)add(v);}}});
