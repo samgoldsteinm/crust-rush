@@ -91,4 +91,10 @@ the work. Update it as things are built.
   new online version); (4) last kart standing as a second rule set; (5) polish: a picture for the loading screen, the
   results' "Race again" wording, a sound for a pop, flour and sauce on the table, something on the walls (a shelf, an
   order rail), CPU drivers that use the raised route on purpose.
+- 2026-11-13, web v183: driven by key presses for the first time (`py.cmd tools/neon/bbdrive.py`: steering, sliding along
+  walls, picking up and using items all work by hand; the earlier tests used a self-driving player). That found: a box
+  could give a track-only item (it gave "sauce", which works by race position): a battle's boxes now give only
+  `BB_ITEMS` (`bbRoll`): pepperoni, the trio, dough, oil, flour, chili, garlic, the rush, and only those left switched on
+  in the item settings. A corner arrow board stood on the table (`neonSigns` is off in a battle). The "of 8" read-out is
+  hidden. About 28 pops a round now.
 

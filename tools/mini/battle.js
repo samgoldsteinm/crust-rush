@@ -110,7 +110,7 @@ function battleSetup(def){BB.shapes=bbArena();BB.spawn=[[-300,-90],[300,60],[-12
   BB.ramps=[{foot:[-346,184],top:[-205,184]},{foot:[307,-184],top:[307,-48]}];
   for(const [x,z] of [[-90,-40],[150,60],[-10,-238],[-200,-238],[200,-238],[0,192],[306,120],[-320,-120]])boxes.push({x,y:z,r:0,sv:boxes.length*3,gy:battleG(x,z),dbl:false});}
 /* on every map load: leaving the arena takes its balloons and its scoreboard away; the HUD's lap and place read-outs are hidden in a battle */
-function battleLoad(){if(!document.getElementById('bbCss')){const st=document.createElement('style');st.id='bbCss';st.textContent='body.battle #posNum,body.battle #posSuf,body.battle #tbProg,body.battle #hudLap,body.battle #lapBars,body.battle #hudPB,body.battle #hudTime,body.battle #mini,body.battle #wrong,body.battle #abilBtn,body.battle .lapbox{display:none!important}';document.head.appendChild(st);}
+function battleLoad(){if(!document.getElementById('bbCss')){const st=document.createElement('style');st.id='bbCss';st.textContent='body.battle #posNum,body.battle #posSuf,body.battle #tbProg,body.battle #hudLap,body.battle #lapBars,body.battle #hudPB,body.battle #hudTime,body.battle #mini,body.battle #wrong,body.battle #abilBtn,body.battle .lapbox,body.battle .posbox{display:none!important}';document.head.appendChild(st);}
   document.body.classList.toggle('battle',BATTLE);if(!BATTLE){if(BB.grp){scene.remove(BB.grp);BB.grp=null;}if(BB.el)BB.el.hidden=true;BB.shapes=[];}}
 /* ---- thrown things in the arena (the engine's hooks: patch20.py) ----
    p.bh is the level a thrown thing is on: it follows the ground down a drop and up a ramp, and anything higher than a step is a wall */
@@ -125,3 +125,7 @@ function bbTarget(k,back){let best=null,bs=1e9;for(const o of karts){if(o===k||o
 function bbLeader(k){for(const o of bbRank())if(o!==k&&!(o.bbOut>0))return o;return null;}
 /* Balloon Battle is played off line for now: starting or joining a friends' race leaves the mode and its arena */
 function bbNoNet(){if(mode!=='bb')return;mode='single';try{store.set('crust-mode',mode);}catch(e){}if(MAPS[mapIdx].battle){mapIdx=0;loadMap(0,false);resetRace(true);}try{refreshMenu();}catch(e){}}
+/* what a battle's item boxes give: only the things that work with no track under them (thrown, dropped, or worn), and only those the player has left switched on.
+   The others ride the lap (the cannon and the twister follow the road, the sauce and the swap go by race position) and would do nonsense here */
+const BB_ITEMS=[['pepperoni',3],['trio',2],['dough',2],['oil',2],['flour',2],['chili',1.5],['garlic',1.5],['rush',1]];
+function bbRoll(){const L=BB_ITEMS.filter(q=>itemOn(q[0]));if(!L.length)return 'pepperoni';let t=0;for(const q of L)t+=q[1];let r=Math.random()*t;for(const q of L){r-=q[1];if(r<=0)return q[0];}return L[0][0];}

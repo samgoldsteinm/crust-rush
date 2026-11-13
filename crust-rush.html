@@ -5365,7 +5365,7 @@ function battleSetup(def){BB.shapes=bbArena();BB.spawn=[[-300,-90],[300,60],[-12
   BB.ramps=[{foot:[-346,184],top:[-205,184]},{foot:[307,-184],top:[307,-48]}];
   for(const [x,z] of [[-90,-40],[150,60],[-10,-238],[-200,-238],[200,-238],[0,192],[306,120],[-320,-120]])boxes.push({x,y:z,r:0,sv:boxes.length*3,gy:battleG(x,z),dbl:false});}
 /* on every map load: leaving the arena takes its balloons and its scoreboard away; the HUD's lap and place read-outs are hidden in a battle */
-function battleLoad(){if(!document.getElementById('bbCss')){const st=document.createElement('style');st.id='bbCss';st.textContent='body.battle #posNum,body.battle #posSuf,body.battle #tbProg,body.battle #hudLap,body.battle #lapBars,body.battle #hudPB,body.battle #hudTime,body.battle #mini,body.battle #wrong,body.battle #abilBtn,body.battle .lapbox{display:none!important}';document.head.appendChild(st);}
+function battleLoad(){if(!document.getElementById('bbCss')){const st=document.createElement('style');st.id='bbCss';st.textContent='body.battle #posNum,body.battle #posSuf,body.battle #tbProg,body.battle #hudLap,body.battle #lapBars,body.battle #hudPB,body.battle #hudTime,body.battle #mini,body.battle #wrong,body.battle #abilBtn,body.battle .lapbox,body.battle .posbox{display:none!important}';document.head.appendChild(st);}
   document.body.classList.toggle('battle',BATTLE);if(!BATTLE){if(BB.grp){scene.remove(BB.grp);BB.grp=null;}if(BB.el)BB.el.hidden=true;BB.shapes=[];}}
 /* ---- thrown things in the arena (the engine's hooks: patch20.py) ----
    p.bh is the level a thrown thing is on: it follows the ground down a drop and up a ramp, and anything higher than a step is a wall */
@@ -5380,6 +5380,10 @@ function bbTarget(k,back){let best=null,bs=1e9;for(const o of karts){if(o===k||o
 function bbLeader(k){for(const o of bbRank())if(o!==k&&!(o.bbOut>0))return o;return null;}
 /* Balloon Battle is played off line for now: starting or joining a friends' race leaves the mode and its arena */
 function bbNoNet(){if(mode!=='bb')return;mode='single';try{store.set('crust-mode',mode);}catch(e){}if(MAPS[mapIdx].battle){mapIdx=0;loadMap(0,false);resetRace(true);}try{refreshMenu();}catch(e){}}
+/* what a battle's item boxes give: only the things that work with no track under them (thrown, dropped, or worn), and only those the player has left switched on.
+   The others ride the lap (the cannon and the twister follow the road, the sauce and the swap go by race position) and would do nonsense here */
+const BB_ITEMS=[['pepperoni',3],['trio',2],['dough',2],['oil',2],['flour',2],['chili',1.5],['garlic',1.5],['rush',1]];
+function bbRoll(){const L=BB_ITEMS.filter(q=>itemOn(q[0]));if(!L.length)return 'pepperoni';let t=0;for(const q of L)t+=q[1];let r=Math.random()*t;for(const q of L){r-=q[1];if(r<=0)return q[0];}return L[0][0];}
 /*MINI-END*/
 /*NEON-BEGIN*/
 /* ================= NEON CUP: tracks laid out by hand (straights and arcs, with a road height for each direction), with their own
@@ -5581,7 +5585,7 @@ function neonSignTex(def,k){const c=cnv(512,224),g=c.getContext('2d'),a1=nAcc(de
   else{/* a slice of pizza drawn in light */g.strokeStyle=a2;g.lineWidth=9;g.lineJoin='round';g.beginPath();g.moveTo(90,40);g.lineTo(210,184);g.lineTo(60,150);g.closePath();g.stroke();g.fillStyle=a2;for(const [x,y] of [[112,92],[150,150],[98,138]]){g.beginPath();g.arc(x,y,10,0,7);g.fill();}
     g.fillStyle=a1;g.font='900 60px "Arial Black",Impact,sans-serif';g.fillText('NEON',356,84);g.fillText('CUP',356,150);}
   return c;}
-function neonSigns(def){const cdj=(a,b)=>{const d=Math.abs(a-b)%N;return Math.min(d,N-d);},posts=[],panels=[[],[],[]],backs=[];let last=-999,n=0;
+function neonSigns(def){if(def.battle)return;const cdj=(a,b)=>{const d=Math.abs(a-b)%N;return Math.min(d,N-d);},posts=[],panels=[[],[],[]],backs=[];let last=-999,n=0;
   for(let j=70;j<N-40;j++){if(j-last<120)continue;const p=track[j];if((p.ey||0)>1.5||nInGl(j,30,110))continue;let ok=true;for(let o=-10;o<=10;o+=2)if(Math.abs(track[(j+o+N)%N].bend)>.12){ok=false;break;}if(!ok)continue;
     const sd=(n%2)?1:-1,o=(WALLD+44)*sd,x=p.x+p.nx*o,z=p.y+p.ny*o;if(nRoadNear(x,z,j,WALLD+70)||nearSC(x,z,SCW+50)||nGlideNear(x,z,120)||Math.hypot(x,z)>def.R-120)continue;last=j;const ry=-p.ang+Math.PI/2+sd*.28;
     panels[n%3].push({x,y:33,z,ry});backs.push({x:x+p.tx*1.2,y:33,z:z+p.ty*1.2,ry,sx:1.03,sy:1.06});for(const e of [-17,17])posts.push({x:x+p.nx*e*Math.cos(.28)*1+0,y:11.5,z:z+p.ny*e,sy:23});n++;}
@@ -6609,7 +6613,7 @@ function itemOdds(pos,n){const f=n>1?pos/(n-1):0,target=1+f*4,out={};
     const d=w-target;out[k]=Math.exp(-d*d/(2*.85*.85))*(k==='wheel'?.55:1);}
   return out;}
 let WHEEL_N=0,WHEEL_AT=-99;
-function rollItem(pos){if(!ITEM_LIST.some(itemOn))return 'pepperoni';const t=itemOdds(pos,(typeof karts!=='undefined'&&karts.length)||8);let sum=0;for(const k in t)sum+=t[k];let r=Math.random()*sum;for(const k in t){r-=t[k];if(r<=0){if(k==='wheel'){WHEEL_N++;WHEEL_AT=raceTime;}return k;}}return 'pepperoni';}
+function rollItem(pos){if(BATTLE)return bbRoll();if(!ITEM_LIST.some(itemOn))return 'pepperoni';const t=itemOdds(pos,(typeof karts!=='undefined'&&karts.length)||8);let sum=0;for(const k in t)sum+=t[k];let r=Math.random()*sum;for(const k in t){r-=t[k];if(r<=0){if(k==='wheel'){WHEEL_N++;WHEEL_AT=raceTime;}return k;}}return 'pepperoni';}
 
 /* ---------- input ---------- */
 const keys={left:false,right:false,drift:false,brake:false,look:false};let itemQueued=null;

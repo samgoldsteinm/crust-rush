@@ -28,5 +28,8 @@ rep("function hazEy(h){if(!MULTI)return 0;", "function hazEy(h){if(BATTLE)return
 # an item box gives what a mid-field racer would get; no drivers' specials in a battle (they are built round the lap)
 rep("k.pend.push(rollItem(standCache.indexOf(k)))", "k.pend.push(rollItem(BATTLE?3:standCache.indexOf(k)))")
 rep("function useAbility(k,back){", "function useAbility(k,back){if(BATTLE)return;")
+# (added with web v183) a battle's boxes give only things that work with no track; no corner arrow boards on the table
+rep('function rollItem(pos){', 'function rollItem(pos){if(BATTLE)return bbRoll();')
+rep('function neonSigns(def){', 'function neonSigns(def){if(def.battle)return;')
 open(p, 'w', encoding='utf-8', newline='').write(s)
 print('patched')
