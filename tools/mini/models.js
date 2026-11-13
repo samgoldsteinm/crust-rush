@@ -171,6 +171,8 @@ M.bed=function(o){o=o||{};
   add(G,drape(W+2*U,46*U,20*U,{seed:9,nx:30,nz:14,fold:1.1,puff:1.5,foot:false}),fabric('throw','#d9a441',{ws:6,ns:1.2}),0,top+mh+5.2*U,L/2-62*U).material.side=THREE.DoubleSide;return G;};
 /* ============ the gaming chair ============ */
 M.chair=function(o){o=o||{};const G=grp(),blk=mat('pu',()=>std({color:'#16171a',roughness:.48,metalness:0,envMapIntensity:.5,normalMap:tex(heightToNormal(weaveCan('pu',2),.5),'pun',true),normalScale:new THREE.Vector2(.25,.25)})),acc=mat('pu2',()=>std({color:o.accent||'#ff6a12',roughness:.5,envMapIntensity:.5})),nyl=plastic('nylon','#121214',.55),stl=metal('chrome','#c9ccd2',.18);
+  /* the Blender-built chair (tools/blender/chair.py): padded cushions, bolsters, a lumbar cushion and a head pillow; the whole chair turns by o.turn */
+  if(pkReady('chair')){const c=pk('chair',{pu:[blk,30],pu2:[acc,30],nylon:[nyl,30],chrome:[stl,30],caster:[plastic('caster','#0b0b0c',.35),30]});c.rotation.y=o.turn||0;G.add(c);return G;}
   /* five-star base with twin-wheel casters */
   for(let i=0;i<5;i++){const a=i/5*6.283+.3,arm=grp(G,0,0,0,a);add(arm,slab(31*U,3.2*U,5*U,1.2*U,.8*U,3),nyl,16*U,8.6*U,0,0,0,-.11);const cx=31*U;add(arm,cyl(1*U,1*U,4*U,10),nyl,cx,6*U,0);for(const s of [-1,1]){const w=add(arm,cyl(2.6*U,2.6*U,1.8*U,18),plastic('caster','#0b0b0c',.35),cx,2.6*U,s*1.6*U);w.rotation.x=Math.PI/2;}add(arm,box(4.6*U,2.4*U,5.4*U),nyl,cx,4.2*U,0);}
   add(G,cyl(5*U,6.5*U,5*U,20),nyl,0,10.5*U,0);add(G,cyl(2.6*U,2.6*U,22*U,18),stl,0,23*U,0);add(G,cyl(3.6*U,4.2*U,9*U,18),nyl,0,17*U,0);

@@ -51,12 +51,14 @@ There is no live Blender connection: Blender 5.3 (D:\blender\blender.exe) is run
   sun where the game's sun is. `put_tex.py tex_toy_outside blender/outside/outside.jpg 1792 82` puts it in the texture store;
   `M.outside` hangs it behind the window, a little over full brightness. Realism-list item 4. Every other room needs its own.
 
+- `chair`: the gaming chair. Cushions are bevelled boxes smoothed with one level of subdivision (`cushion`); parts are
+  placed with matrices (`place`), the back about a reclined pivot. The game turns the whole chair by `o.turn`.
 - `oak_tex.py` (no Blender: numpy and Pillow): the oak floor as a tiling texture pair, `tex_toy_oak` (colour) and
   `tex_toy_oak_n` (relief), one tile 1.92 m. Every board has its own length, tone and ring figure; the relief carries the
   grain, the bevels and the gaps. Built from noise shaped in frequency space, so it repeats without a seam. First part of
   realism-list item 3; the same approach will do walnut (desk), painted board (dresser) and woven fabric.
 
 ## To do (most visible first)
-chair, desk, dresser, nightstand, floor lamp, sneakers, backpack, books,
+desk, dresser, nightstand, floor lamp, sneakers, backpack, books,
 plant, monitors, keyboard and mouse, PC tower, door and window frames, shelf, posters, bin, cartons, skateboard,
 balls, small toys.
