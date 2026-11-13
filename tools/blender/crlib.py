@@ -191,6 +191,21 @@ def bake_ao(objs, samples=48):
         bpy.ops.object.bake(type='AO', target='VERTEX_COLORS')
 
 
+def soften_ao(o, blur=2, lift=.3):
+    """smooth the baked shade across neighbouring vertices and lighten it: on tight folds the raw bake is nearly black
+    and changes from one vertex to the next, which shows as dark jagged streaks"""
+    me = o.data; ca = me.color_attributes['Col']; n = len(me.vertices)
+    c = np.zeros(n * 4, dtype=np.float32); ca.data.foreach_get('color', c); c = c.reshape(n, 4)
+    e = np.zeros(len(me.edges) * 2, dtype=np.int32); me.edges.foreach_get('vertices', e); e = e.reshape(-1, 2)
+    for _ in range(blur):
+        acc = c[:, :3].copy(); cnt = np.ones(n, dtype=np.float32)
+        np.add.at(acc, e[:, 0], c[e[:, 1], :3]); np.add.at(acc, e[:, 1], c[e[:, 0], :3])
+        np.add.at(cnt, e[:, 0], 1); np.add.at(cnt, e[:, 1], 1)
+        c[:, :3] = acc / cnt[:, None]
+    c[:, :3] = c[:, :3] + (1 - c[:, :3]) * lift
+    ca.data.foreach_set('color', c.ravel()); me.update()
+
+
 def check_render(name, objs, size=(1600, 1000), views=((35, 22),), samples=96, dist=None):
     """a studio picture of the model on its own: grey floor, a warm key light, soft sky light"""
     s = bpy.context.scene

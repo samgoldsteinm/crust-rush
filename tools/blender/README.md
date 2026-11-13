@@ -29,6 +29,8 @@ There is no live Blender connection: Blender 5.3 (D:\blender\blender.exe) is run
 - The pack name ends in `_hq` on purpose: the build ships such packs as files that download after the menu is up, so
   nobody waits for room models at start-up. Until one arrives the room shows the code-built model.
 - Budget: aim under 25,000 vertices and 700 KB per large model (the bed is 23,000 and 623 KB), far less for small things.
+- Measure before placing: `pack_glb.gather` gives every part's extent in metres; compare with the walls and with whatever
+  stands next to it (the bed went into two walls and onto the track when it was placed by eye).
 - Do not run a Blender build while the race tests are running: both use the graphics card, and a 90-second build took
   over ten minutes.
 
@@ -36,7 +38,12 @@ There is no live Blender connection: Blender 5.3 (D:\blender\blender.exe) is run
 - `bed`: oak frame, padded headboard, mattress; duvet and throw dropped on as cloth, quilted; pillows and cushion blown
   up from flat cases.
 
+- `curtain`: two panels hung as cloth from a pinned, pleated top edge (materials curtainL, curtainR; the room uses one each
+  side). Origin at the top middle. Lessons: start the pleats uneven or the cloth hangs like corrugated sheet; on tight folds
+  the raw baked shade is nearly black and streaky, so `soften_ao` blurs and lightens it; in the game the curtains are marked
+  `sunlit` (they throw shadows but are not tested against the sun's shadow map, which breaks up on backlit folds).
+
 ## To do (most visible first)
-curtains (cloth, hung from the rod), chair, desk, dresser, nightstand, rug, floor lamp, sneakers, backpack, books,
+chair, desk, dresser, nightstand, rug, floor lamp, sneakers, backpack, books,
 plant, monitors, keyboard and mouse, PC tower, door and window frames, shelf, posters, bin, cartons, skateboard,
 balls, small toys.

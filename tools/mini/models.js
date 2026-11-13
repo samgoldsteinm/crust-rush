@@ -240,7 +240,10 @@ M.outside=function(w,h){const c=can('outside',1024,768,(g,W,H,r)=>{const sk=g.cr
     for(let i=0;i<60;i++){const x=r()*560-40,y=470+r()*200,rr=40+r()*60;g.fillStyle=['#3f7a3a','#4e8f45','#2f6a34','#5a9c4c'][i%4];g.globalAlpha=.9;g.beginPath();g.arc(x,y,rr,0,7);g.fill();}g.globalAlpha=1;g.fillStyle='#4a8a40';g.fillRect(0,690,1024,78);});
   const m=new THREE.Mesh(new THREE.PlaneGeometry(w*U,h*U),mat('outside',()=>new THREE.MeshBasicMaterial({map:tex(c,'outside'),toneMapped:false,color:'#e8e8e8'})));m.userData.cast=false;return m;};
 /* a curtain panel hanging in pleats from a rod: w cm wide when drawn back, h cm long; origin at the top middle */
-M.curtain=function(w,h,o){o=o||{};const G=grp(),W=w*U,H=h*U,nx=40,ny=10,P=[],I=[],UV=[],r=rng(o.seed||4);
+M.curtain=function(w,h,o){o=o||{};
+  /* the Blender-built panels (tools/blender/curtain.py), hung as cloth: 58 x 159 cm, two that hang differently; other sizes are scaled from them */
+  if(pkReady('curtain')){const cm=fabric('curtain',o.color||'#c9bfae',{ws:3,ns:.9});cm.side=THREE.DoubleSide;const g=pk('curtain',{[(o.seed||4)>3?'curtainR':'curtainL']:[cm,40]});g.scale.set(w/58,h/159,.75);return g;}
+  const G=grp(),W=w*U,H=h*U,nx=40,ny=10,P=[],I=[],UV=[],r=rng(o.seed||4);
   for(let j=0;j<=ny;j++)for(let i=0;i<=nx;i++){const u=i/nx,v=j/ny,amp=(2.2+v*2.6)*U,ph=u*Math.PI*2*7;P.push((u-.5)*W*(1-v*.06),-v*H,Math.sin(ph)*amp+Math.sin(ph*.5+1)*amp*.4);UV.push(u*3,v*H/(40*U));}
   for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const a=j*(nx+1)+i,b=a+1,c=a+nx+1,e=c+1;I.push(a,c,b,b,c,e);}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(UV,2));g.setIndex(I);g.computeVertexNormals();
   const m=fabric('curtain',o.color||'#c9bfae',{ws:3,ns:.9});m.side=THREE.DoubleSide;add(G,g,m);return G;};
