@@ -738,7 +738,7 @@ const KG={};
   KG.brow=new THREE.CapsuleGeometry(.08,.5,4,8);KG.smile=new THREE.TorusGeometry(.5,.11,8,18,Math.PI);KG.cheek=new THREE.SphereGeometry(.3,14,10);
   KG.gogRim=new THREE.TorusGeometry(.36,.1,8,22);KG.gogLens=new THREE.CircleGeometry(.33,22);KG.band=new THREE.BoxGeometry(2.3,.3,.14);KG.leaf=new THREE.SphereGeometry(1,16,10);
   KG.topD=new THREE.CylinderGeometry(.55,.55,.22,18);KG.glove=new THREE.SphereGeometry(.42,16,12);KG.arm=new THREE.CylinderGeometry(.2,.2,1,10);KG.drip=new THREE.SphereGeometry(.35,12,10);
-  KG.plate=new THREE.PlaneGeometry(1.8,1.8);KG.loWheel=new THREE.CylinderGeometry(1.32,1.32,1.4,10);KG.bubble=new THREE.SphereGeometry(6.4,28,18);KG.flame=new THREE.ConeGeometry(.55,2.6,16,1,true);KG.flameIn=new THREE.ConeGeometry(.3,1.7,12,1,true);
+  KG.plate=new THREE.PlaneGeometry(1.8,1.8);KG.loWheel=new THREE.CylinderGeometry(1.32,1.32,1.4,10);KG.bubble=new THREE.SphereGeometry(6.4,28,18);KG.flame=flameGeo(.64,2.6,18,12);KG.flameIn=flameGeo(.36,1.7,14,10);KG.fglow=new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2);
 })();
 const SH={rubber:new THREE.MeshStandardMaterial({color:'#1a1514',roughness:.88}),chrome:new THREE.MeshStandardMaterial({color:'#eeeeee',metalness:1,roughness:.14}),
   metal:new THREE.MeshStandardMaterial({color:'#5a524c',metalness:.7,roughness:.35}),carbon:new THREE.MeshStandardMaterial({color:'#211e1d',roughness:.45,metalness:.2}),
@@ -751,6 +751,27 @@ const SH={rubber:new THREE.MeshStandardMaterial({color:'#1a1514',roughness:.88})
   disc:new THREE.MeshStandardMaterial({color:'#8a8a90',metalness:.8,roughness:.3})};
 const SHSET=new Set(Object.values(SH));
 const bubbleMat=bubbleShader('#6fe06a','#eaffd8'),bubRushMat=bubbleShader('#ff8a1f','#ffe39a');
+/* a flame's shape: a teardrop tube, open at the pipe (bottom) and closed to a point (top); uv.y runs along it */
+function flameGeo(R,H,rs,hs){const g=new THREE.CylinderGeometry(1,1,H,rs,hs,true),p=g.attributes.position;for(let i=0;i<p.count;i++){const v=p.getY(i)/H+.5,r=R*Math.pow(Math.sin(Math.PI*(.16+.84*v)),.75)*(1-.2*v),x=p.getX(i),z=p.getZ(i),l=Math.hypot(x,z)||1;p.setXYZ(i,x/l*r,p.getY(i),z/l*r);}g.computeVertexNormals();return g;}
+/* boost flames: the outline wavers and breaks into licks towards the tip; the colour runs from a blue-white jet at the pipe through cB
+   (inner) to cA (outer) and is brighter where the view passes through more flame. ft is the clock, shared by every flame. */
+const FLT={value:0};
+function flameShMat(inner){return new THREE.ShaderMaterial({uniforms:{ft:FLT,cA:{value:new THREE.Color('#ff7a1a')},cB:{value:new THREE.Color('#fff0a0')},inn:{value:inner?1:0},seed:{value:Math.random()*20}},transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,toneMapped:false,
+  vertexShader:`uniform float ft,seed;varying vec2 vUv;varying float vF;
+    void main(){vUv=uv;float v=uv.y,an=atan(position.z,position.x);
+      float n=sin(v*9.-ft*15.+seed)*.5+sin(v*17.-ft*24.+an*3.+seed*1.7)*.3+sin(an*2.+ft*9.+seed)*.2;
+      vec3 p=position;p.xz*=1.+n*.34*v;p.x+=sin(ft*11.+v*5.+seed)*.16*v*v;p.z+=cos(ft*13.+v*4.+seed*2.)*.16*v*v;
+      vec4 mv=modelViewMatrix*vec4(p,1.);vF=abs(dot(normalize(normalMatrix*normal),normalize(-mv.xyz)));gl_Position=projectionMatrix*mv;}`,
+  fragmentShader:`uniform float ft,seed,inn;uniform vec3 cA,cB;varying vec2 vUv;varying float vF;
+    float h2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+    float ns(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h2(i),h2(i+vec2(1.,0.)),f.x),mix(h2(i+vec2(0.,1.)),h2(i+vec2(1.,1.)),f.x),f.y);}
+    void main(){float v=vUv.y,core=pow(vF,1.4),u=sin(vUv.x*6.2832)*1.6;
+      float nz=ns(vec2(u*2.2+seed,v*4.5-ft*7.))*.65+ns(vec2(u*4.6-seed,v*9.-ft*12.))*.35;
+      float a=smoothstep(.05,.5,core*.9+(nz-.5)*.75-v*.62+.42)*(1.-smoothstep(.72,1.,v));
+      vec3 col=mix(cA,cB,clamp(core*1.25-v*.7+.2,0.,1.));
+      /* the jet at the pipe: the outer flame thins out there so the inner one's blue shows through, as on a gas burner */
+      float jz=smoothstep(.36,.06,v);col=mix(col,vec3(.1,.42,1.)*1.15,jz*inn);a*=mix(1.,.04,jz*(1.-inn));
+      col*=1.+.25*core;gl_FragColor=vec4(col,a*mix(.55,.9,inn));}`});}
 const flameMat=new THREE.MeshBasicMaterial({color:'#ff7a1a',transparent:true,opacity:.85,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false});
 const flameInMat=new THREE.MeshBasicMaterial({color:'#fff0a0',transparent:true,opacity:.95,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false});
 function plateTex(n,col){const c=cnv(128,128),g=c.getContext('2d');g.fillStyle='#fff4dc';g.beginPath();g.arc(64,64,60,0,7);g.fill();g.strokeStyle=col;g.lineWidth=8;g.stroke();g.fillStyle='#1b0f0b';g.font='bold 72px "Arial Black",Impact,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(n,64,70);return T2(c);}
@@ -2015,7 +2036,9 @@ function buildKart(spec){HQB=spec.hq!==0;
   const sc0=cfg.drvS||.62,dx=cfg.fit?-(cfg.dzc||0)*sc0:0;
   const dlean=new THREE.Group();dlean.position.set(cfg.drv[0]+dx,cfg.drv[1],cfg.drv[2]||0);dlean.rotation.z=cfg.lean||0;B.add(dlean);
   drv.scale.setScalar(sc0);dlean.add(drv);
-  const flames=[],fmO=flameMat.clone(),fmI=flameInMat.clone();for(const [x,y,z] of cfg.pipes){const f=hrz(new THREE.Mesh(KG.flame,fmO));f.position.set(x-1.27,y,z);f.userData.fl=[x-1.27,1.3];B.add(f);const fi=hrz(new THREE.Mesh(KG.flameIn,fmI));fi.position.set(x-.77,y,z);fi.userData.fl=[x-.77,.85];B.add(fi);flames.push(f,fi);}
+  const flames=[],fmO=flameShMat(0),fmI=flameShMat(1);for(const [x,y,z] of cfg.pipes){const f=hrz(new THREE.Mesh(KG.flame,fmO));f.position.set(x-1.27,y,z);f.userData.fl=[x-1.27,1.3];B.add(f);const fi=hrz(new THREE.Mesh(KG.flameIn,fmI));fi.position.set(x-.77,y,z);fi.userData.fl=[x-.77,.85];B.add(fi);flames.push(f,fi);}
+  if(cfg.pipes.length){glowMat('#ffffff');const px=cfg.pipes.reduce((a,q)=>a+q[0],0)/cfg.pipes.length,gp=new THREE.Mesh(KG.fglow,new THREE.MeshBasicMaterial({map:_glowTex,color:'#ff8a2a',transparent:true,opacity:.5,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3}));
+    gp.position.set(px-1.9,-B.position.y+.14,0);gp.userData.glow=1;B.add(gp);flames.push(gp);}
   flames.forEach(f=>f.visible=false);
   const lo=new THREE.Group(),lb=new THREE.Group();lb.position.y=L;lo.add(lb);if(cfg.car){const cg=carGeos(cfg.car),lm={paint,tail:M.tailM,light:SH.light,glass:SH.glass,vc:SH.carbon,blue:SH.light};for(const k in cg)if(k.startsWith('l_'))lb.add(new THREE.Mesh(cg[k],lm[k.slice(2)]));}else{const [ll,lh,lw,ly]=cfg.lo;P3(new THREE.BoxGeometry(ll,lh,lw),paint,0,ly,0,lb);}
   for(const [w] of [[cfg.rw],[cfg.fw]])for(const s of (cfg.bike?(cfg.noWheels?[]:[0]):[-1,1])){const R=w[2]*wt.r;hrx(P3(KG.loWheel,SH.rubber,w[0],R-L,w[1]*s,lb)).scale.set(R/1.32,(cfg.bike?.4:wz)*tyreR(R)/R,R/1.32);}
@@ -6198,9 +6221,10 @@ function syncKart(k,dt,time){
   if(k.frozen>0&&Math.random()<.5)FXA.spawn(x+(Math.random()-.5)*10,z+8*KS,y+(Math.random()-.5)*10,0,-6,0,'#bfe6ff',2.4,.6,.5,0,0);
   if(k.shield>0&&Math.random()<.4)FXA.spawn(x+(Math.random()-.5)*12,z+2+Math.random()*10,y+(Math.random()-.5)*12,0,8,0,'#7fe07a',1.8,.4,.5,0,0);
   const on=k.boost>0;{let sl=1,sw=1;if(on){const ft=Math.max(0,Math.min(3,Math.round(k.fTier||0))),P=k.bPk>0?k.bPk:1;sl=Math.max(.75,Math.min(2.1,.55+.42*P));sw=.55+.45*sl;
-     if(m.flames.length&&m.fTi!==ft){m.fTi=ft;m.flames[0].material.color.set(FLAMEC[ft][0]);if(m.flames[1])m.flames[1].material.color.set(FLAMEC[ft][1]);}}
+     if(m.flames.length&&m.fTi!==ft){m.fTi=ft;for(const fl of m.flames){const mt=fl.material;if(fl.userData.glow)mt.color.set(FLAMEC[ft][0]);else if(mt.uniforms){const inn=mt.uniforms.inn.value>0;mt.uniforms.cA.value.set(FLAMEC[ft][inn?1:0]);mt.uniforms.cB.value.set(inn?'#fff6e0':FLAMEC[ft][1]);}}}
+     FLT.value=time%1000;if(Math.random()<.28){/* embers fly off the flames */const d=Math.abs(m.axR||10)+4,ca=Math.cos(a),sa=Math.sin(a),sd=(Math.random()-.5)*5;FXA.spawn(x-ca*d-sa*sd,z+2.2+Math.random()*2,y-sa*d+ca*sd,-ca*(14+Math.random()*22),5+Math.random()*12,-sa*(14+Math.random()*22),FLAMEC[ft][Math.random()<.5?1:0],.55,.1,.22+Math.random()*.16,-10,1.5);}}
    /* bigger boosts burn longer and wider: a tier-one mini-turbo is a short lick, the cannon a roaring jet */
-   for(const fl of m.flames){fl.visible=on;if(on){const L=sl*(.8+Math.random()*.5),u=fl.userData.fl;fl.scale.set(sw,L,sw);if(u)fl.position.x=u[0]+u[1]*(1-L);}}}
+   for(const fl of m.flames){fl.visible=on;if(!on)continue;if(fl.userData.glow){const f=.85+.15*Math.sin(time*37+k.ri*5)+Math.random()*.08;fl.scale.set(5*sl*f,1,3.6*sw);fl.material.opacity=.5*f;continue;}const L=sl*1.4*(1+.07*Math.sin(time*29+k.ri*3)+Math.random()*.06),u=fl.userData.fl;fl.scale.set(sw,L,sw);if(u)fl.position.x=u[0]+u[1]*(1-L);}}
   if(k.spin>0){for(let i=0;i<3;i++){const an=time*9+i*2.094;FXA.spawn(x+Math.cos(an)*4.5*KS,z+(m.top+2.3)*KS,y+Math.sin(an)*4.5*KS,0,0,0,'#ffe066',2.2,1.2,.07,0,0);}}
   {const nr=(x-camera.position.x)**2+(y-camera.position.z)**2<=260*260;if(m.fxL)fanUpdate(k,m,nr);}
   if((x-camera.position.x)**2+(y-camera.position.z)**2>260*260)return;
@@ -6872,18 +6896,19 @@ function postInit(){if(POST.qs)return;POST.qs=new THREE.Scene();POST.qc=new THRE
   POST.M.copy=postMat('uniform sampler2D tex;uniform vec2 us,uc;varying vec2 vUv;vec3 srgb(vec3 c){return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(vec3(.0031308),c));}void main(){gl_FragColor=vec4(srgb(clamp(texture2D(tex,min(vUv*us,uc)).rgb,0.,1.)),1.);}',{tex:{value:null},us:{value:new THREE.Vector2(1,1)},uc:{value:new THREE.Vector2(1,1)}});
   POST.M.bright=postMat('uniform sampler2D tex;uniform float thr;uniform vec2 px,us,uc;varying vec2 vUv;void main(){vec3 c=vec3(0.);for(int i=0;i<4;i++){vec2 o=vec2(i==1||i==3?1.:-1.,i>1?1.:-1.)*px;c+=texture2D(tex,min(vUv*us+o,uc)).rgb;}c*=.25;float l=dot(c,vec3(.2126,.7152,.0722));c*=smoothstep(thr,thr+.02+(1.-thr)*.5,l);gl_FragColor=vec4(min(c,vec3(8.)),1.);}',{tex:{value:null},thr:{value:.85},px:{value:new THREE.Vector2()},us:{value:new THREE.Vector2(1,1)},uc:{value:new THREE.Vector2(1,1)}});
   POST.M.blur=postMat('uniform sampler2D tex;uniform vec2 dir;varying vec2 vUv;void main(){vec3 c=texture2D(tex,vUv).rgb*.227027;c+=(texture2D(tex,vUv+dir*1.3846).rgb+texture2D(tex,vUv-dir*1.3846).rgb)*.316216;c+=(texture2D(tex,vUv+dir*3.2308).rgb+texture2D(tex,vUv-dir*3.2308).rgb)*.070270;gl_FragColor=vec4(c,1.);}',{tex:{value:null},dir:{value:new THREE.Vector2()}});
-  POST.M.final=postMat(`uniform sampler2D tex,b1,b2,aoT;uniform float aoOn;uniform vec2 us,uc;uniform float exposure,bloom,sat,con,vig,aspect,edgeA,spd,tm,shp,mb,dof,foc;uniform sampler2D tD;uniform vec2 nf;uniform vec2 px;uniform vec3 tint,edgeC;varying vec2 vUv;
+  POST.M.final=postMat(`uniform sampler2D tex,b1,b2,aoT;uniform float aoOn;uniform vec2 us,uc;uniform float exposure,bloom,sat,con,vig,aspect,edgeA,spd,tm,shp,mb,dof,foc,rbw;uniform sampler2D tD;uniform vec2 nf;uniform vec2 px;uniform vec3 tint,edgeC;varying vec2 vUv;
     vec3 RRT(vec3 v){vec3 a=v*(v+.0245786)-.000090537;vec3 b=v*(.983729*v+.4329510)+.238081;return a/b;}
     vec3 aces(vec3 c){const mat3 I=mat3(.59719,.07600,.02840,.35458,.90834,.13383,.04823,.01566,.83777);const mat3 O=mat3(1.60475,-.10208,-.00327,-.53108,1.10813,-.07276,-.07367,-.00605,1.07602);c*=exposure/.6;c=I*c;c=RRT(c);c=O*c;return clamp(c,0.,1.);}
     vec3 srgb(vec3 c){return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(vec3(.0031308),c));}
 vec3 lin(vec3 s){return mix(s/12.92,pow((s+.055)/1.055,vec3(2.4)),step(vec3(.04045),s));}
+    vec3 hue(float h){return clamp(abs(fract(h+vec3(0.,.6667,.3333))*6.-3.)-1.,0.,1.);}
     float farB(vec2 q){float z=texture2D(tD,q).r;float lz=nf.x*nf.y/(nf.y-z*(nf.y-nf.x));return clamp((lz-foc*7.)/(foc*30.),0.,1.);}
     void main(){vec2 suv=min(vUv*us,uc);vec3 c=texture2D(tex,suv).rgb;
       /* background blur (toy tracks): how soft a pixel is grows with its distance beyond seven times the distance to your kart. Twelve
          samples on a disc; each counts by how far away it is itself, so sharp things in front never smear into the blur behind them */
       if(dof>.001){float co=farB(suv)*dof;if(co>.02){vec3 acc=c*.6;float ws=.6;for(int i=0;i<12;i++){float a=float(i)*2.39996;float r=sqrt((float(i)+.5)/12.)*co*.0052;vec2 q=clamp(suv+vec2(cos(a)/aspect,sin(a))*r*us,px*.5,uc);float w=farB(q)+.04;acc+=texture2D(tex,q).rgb*w;ws+=w;}c=acc/ws;}}
       /* motion blur (Settings): each pixel is smeared along the line from the middle of the screen, more toward the edges and with speed */
-      if(mb>.001){vec2 dv=vUv-.5;vec2 da=dv*vec2(aspect,1.);vec2 st=dv*us*mb*.07*smoothstep(.015,.45,dot(da,da));vec3 acc=c;for(int i=1;i<8;i++){acc+=texture2D(tex,clamp(suv-st*float(i)*.125,px*.5,uc)).rgb;}c=acc*.125;}
+      if(mb>.001){vec2 dv=vUv-.5;vec2 da=dv*vec2(aspect,1.);vec2 st=dv*us*mb*.095*smoothstep(.01,.42,dot(da,da));vec3 acc=c;for(int i=1;i<8;i++){acc+=texture2D(tex,clamp(suv-st*float(i)*.125,px*.5,uc)).rgb;}c=acc*.125;}
       /* contrast-adaptive sharpening (the trick consoles use with dynamic resolution): when the 3D view was drawn below screen size this
          frame, pull detail back out of the stretched picture. Each pixel is weighed against its four neighbours; the weight shrinks where
          the local contrast is already high, so edges don't ring and noise isn't amplified. Zero cost when the view is at full size. */
@@ -6896,8 +6921,10 @@ vec3 lin(vec3 s){return mix(s/12.92,pow((s+.055)/1.055,vec3(2.4)),step(vec3(.040
   vec2 e=abs(vUv-.5)*2.;float ed=max(e.x,e.y);c=mix(c,edgeC,edgeA*smoothstep(.62,1.,ed)*(.55+.45*smoothstep(.85,1.,ed)));
   /* Ultra: thin speed streaks rushing out from the centre while boosting, kept to the outer frame so the road stays clear */
   if(spd>.001){vec2 q=(vUv-.5)*vec2(aspect,1.);float r=length(q),an=atan(q.y,q.x),ln=floor(an*48.),n=fract(sin(ln*12.9898)*43758.5453),w=1.-abs(fract(an*48.)-.5)*2.;
-    float run=fract(r*1.3-tm*(2.6+n*1.6)+n*9.),st=step(.7,n)*smoothstep(.55,1.,w)*smoothstep(0.,.18,run)*(1.-smoothstep(.18,.5,run))*smoothstep(.3,.75,r);c=mix(c,vec3(1.),st*spd*.32);}
-      gl_FragColor=vec4(srgb(c),1.);}`,{tex:{value:null},b1:{value:null},b2:{value:null},exposure:{value:1},bloom:{value:.55},sat:{value:1.08},con:{value:1.06},vig:{value:.28},aspect:{value:1},edgeA:{value:0},spd:{value:0},mb:{value:0},dof:{value:0},foc:{value:60},tD:{value:null},nf:{value:new THREE.Vector2(1,1000)},tm:{value:0},edgeC:{value:new THREE.Color()},tint:{value:new THREE.Vector3(1,1,1)},aoT:{value:null},aoOn:{value:0},us:{value:new THREE.Vector2(1,1)},uc:{value:new THREE.Vector2(1,1)},shp:{value:0},px:{value:new THREE.Vector2()}});
+    float run=fract(r*1.3-tm*(2.6+n*1.6)+n*9.),st=step(mix(.7,.5,rbw),n)*smoothstep(mix(.55,.3,rbw),1.,w)*smoothstep(0.,.18,run)*(1.-smoothstep(.18,mix(.5,.7,rbw),run))*smoothstep(mix(.3,.46,rbw),mix(.75,.95,rbw),r);
+    /* Neon tracks (rbw): the streaks are rainbow, denser and longer, over a rainbow wash at the very edge of the picture */
+    vec3 rb=hue(an*.3183+n*.35+tm*.25);c=mix(c,mix(vec3(1.),rb*1.15+.12,rbw),st*spd*mix(.32,.55,rbw));c+=rb*rbw*spd*.16*smoothstep(.5,1.05,r)*(.55+.45*sin(an*9.+tm*5.+n*6.));}
+      gl_FragColor=vec4(srgb(c),1.);}`,{tex:{value:null},b1:{value:null},b2:{value:null},exposure:{value:1},bloom:{value:.55},sat:{value:1.08},con:{value:1.06},vig:{value:.28},aspect:{value:1},edgeA:{value:0},spd:{value:0},mb:{value:0},rbw:{value:0},dof:{value:0},foc:{value:60},tD:{value:null},nf:{value:new THREE.Vector2(1,1000)},tm:{value:0},edgeC:{value:new THREE.Color()},tint:{value:new THREE.Vector3(1,1,1)},aoT:{value:null},aoOn:{value:0},us:{value:new THREE.Vector2(1,1)},uc:{value:new THREE.Vector2(1,1)},shp:{value:0},px:{value:new THREE.Vector2()}});
   /* Ultra: screen-space ambient occlusion from the depth buffer (half resolution, then a depth-aware blur): soft contact shading in every corner and crevice */
   POST.M.ao=postMat(`uniform sampler2D tD;uniform mat4 pM,ipM;uniform vec2 px,asp,us;uniform float rad,inten;varying vec2 vUv;
     vec3 vp(vec2 uv){float d=texture2D(tD,uv*us).r;/* the scene may have been drawn into a smaller corner of the target (dynamic resolution) */vec4 v=ipM*vec4(uv*2.-1.,d*2.-1.,1.);return v.xyz/v.w;}
@@ -6960,7 +6987,7 @@ function postRender(){postInit();const sz=renderer.getDrawingBufferSize(v2);post
   const bl=(a,b,w,h)=>{M.blur.uniforms.tex.value=a.texture;M.blur.uniforms.dir.value.set(1/w,0);pass(M.blur,b);M.blur.uniforms.tex.value=b.texture;M.blur.uniforms.dir.value.set(0,1/h);pass(M.blur,a);};
   bl(POST.b1,POST.b2,POST.b1.width,POST.b1.height);M.blur.uniforms.tex.value=POST.b1.texture;M.blur.uniforms.dir.value.set(.5/POST.b1.width,0);pass(M.blur,POST.b3);bl(POST.b3,POST.b4,POST.b3.width,POST.b3.height);bl(POST.b3,POST.b4,POST.b3.width,POST.b3.height);}
   const F=M.final.uniforms;F.tex.value=POST.rt.texture;F.b1.value=POST.b1.texture;F.b2.value=POST.b3.texture;F.exposure.value=renderer.toneMappingExposure;F.bloom.value=noGlow?0:G.bloom;F.sat.value=G.sat;F.con.value=G.con;F.vig.value=G.vig;F.aspect.value=sz.x/sz.y;{const t=(performance.now()-EDGE.t0)/EDGE.dur,a=t<0||t>1?0:(t<.15?t/.15:1-(t-.15)/.85);F.edgeA.value=a*EDGE.a;F.edgeC.value.copy(EDGE.c);}F.tint.value.set(...G.tint);
-  {const k=camT,on=QUAL[qKey].streaks&&k&&state==='race'&&k.boost>0&&!k.spin,tg=on?Math.min(1,.45+.55*Math.min(1,(k.bPk||1)/2.5)):0;F.spd.value+=(tg-F.spd.value)*.12;F.tm.value=performance.now()/1000%100;{const on=TOYT&&POST.aoW&&POST.rt.depthTexture&&CFG.dof!==false;F.dof.value=on?1:0;F.tD.value=on?POST.rt.depthTexture:null;if(on){F.nf.value.set(camera.near,camera.far);F.foc.value=clamp(k?Math.hypot(camera.position.x-k.x,camera.position.z-k.y):60,40,80);}}const mt=CFG.mblur&&k&&state==='race'&&!k.spin?Math.min(1.5,Math.max(0,k.speed)/BASE_MAX)**2*.8:0;F.mb.value+=(mt-F.mb.value)*.1;}
+  {const k=camT,nm=MAPS[mapIdx]&&MAPS[mapIdx].neon&&!MAPS[mapIdx].toy;F.rbw.value=nm?1:0;const on=(QUAL[qKey].streaks||nm)&&k&&state==='race'&&k.boost>0&&!k.spin,tg=on?Math.min(1,.45+.55*Math.min(1,(k.bPk||1)/2.5)):0;F.spd.value+=(tg-F.spd.value)*.12;F.tm.value=performance.now()/1000%100;{const on=TOYT&&POST.aoW&&POST.rt.depthTexture&&CFG.dof!==false;F.dof.value=on?1:0;F.tD.value=on?POST.rt.depthTexture:null;if(on){F.nf.value.set(camera.near,camera.far);F.foc.value=clamp(k?Math.hypot(camera.position.x-k.x,camera.position.z-k.y):60,40,80);}}const mt=CFG.mblur&&k&&state==='race'&&!k.spin?Math.min(1.5,Math.max(0,k.speed)/BASE_MAX)**2*.8:0;F.mb.value+=(mt-F.mb.value)*.1;}
   pass(M.final,null);}
 /* big screens (computer monitors, tablets) would otherwise draw several times a phone's pixels: cap the total pixel count per quality level, and lower it a step with each rung of the quality ladder */
 /* GPU frame time, measured with a timer query where the browser offers one (most desktop Chrome/Edge/Firefox on WebGL2).
