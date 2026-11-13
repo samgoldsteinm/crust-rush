@@ -1,7 +1,8 @@
-"""Put a picture into the game's texture store (PROP_TEX in crust-rush.html): a JPEG, or a PNG if the picture has holes (alpha).
+"""Put a picture into the game's texture store (PROP_TEX: source/data/tex): a JPEG, or a PNG if the picture has holes (alpha).
 usage: py.cmd tools/blender/put_tex.py <name> <picture file> [max width] [quality]
 The game reads it with propTex('<name>'); the build ships it as its own file."""
 import base64, io, json, sys
+sys.path.insert(0, 'D:/crust-rush/source/tools'); import tables
 from PIL import Image
 SRC = 'D:/crust-rush/source/crust-rush.html'
 name, path = sys.argv[1], sys.argv[2]
@@ -22,12 +23,7 @@ else:
     im = src.convert('RGB')
     if im.width > maxw: im = im.resize((maxw, round(im.height * maxw / im.width)), Image.LANCZOS)
     buf = io.BytesIO(); im.save(buf, 'JPEG', quality=q, optimize=True)
-s = open(SRC, encoding='utf-8', newline='').read()
-a = s.index('const PROP_TEX=') + len('const PROP_TEX='); e = s.index('\n', a)
-lit = s[a:e].rstrip(); assert lit.endswith(';'); lit = lit[:-1]
-D = json.loads(lit)
-assert json.dumps(D, separators=(',', ':')) == lit, 'the PROP_TEX line would not survive a rewrite unchanged'
+D = tables.load('PROP_TEX')                             # (the table is files under source/data/tex: tools/tables.py)
 D[name] = base64.b64encode(buf.getvalue()).decode()
-s = s[:a] + json.dumps(D, separators=(',', ':')) + ';' + s[e:]
-open(SRC, 'w', encoding='utf-8', newline='').write(s)
+tables.save('PROP_TEX', D)
 print(name, im.size, f'{len(buf.getvalue()) / 1024:.0f} KB')

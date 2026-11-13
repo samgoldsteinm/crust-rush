@@ -1,4 +1,4 @@
-"""Build the GitHub Pages version of Crust Rush from the single-file source.
+"""Build the GitHub Pages version of Crust Rush from the source: crust-rush.html (all the code) and the asset files under data/.
 
 Output layout (in D:/crust-rush/app):
   index.html                 page markup + small boot data
@@ -19,9 +19,15 @@ HQ = GH + '/hq'           # higher-quality replacements: hq/tex/<name>.jpg, hq/s
 SWVER = sys.argv[1] if len(sys.argv) > 1 else 'crust-rush-v32'
 
 s = open(SRC).read()
-subprocess.run(['node', GH + '/extract.js', SRC], check=True, cwd=GH, stdout=subprocess.DEVNULL)
-spans = json.load(open(GH + '/spans.json'))
-D = {k: json.load(open(f'{GH}/{k}.json')) for k in spans}
+# the four big asset tables are files under source/data/ (tools/tables.py); in the source each is declared empty, `const NAME={};`,
+# and that `{}` is the place the built game's own small table goes
+sys.path.insert(0, 'D:/crust-rush/source/tools')
+import tables
+spans = {}
+for k in tables.NAMES:
+    a = s.index(f'const {k}=') + len(f'const {k}='); assert s[a:a + 3] == '{};', f'{k} is not declared empty in the source'
+    spans[k] = {'start': a, 'end': a + 2}
+D = {k: tables.load(k) for k in spans}
 
 h8 = lambda b: hashlib.sha1(b).hexdigest()[:10]
 for d in ['assets', 'js', 'css', 'vendor']:

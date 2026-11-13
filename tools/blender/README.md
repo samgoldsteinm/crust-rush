@@ -16,6 +16,9 @@ There is no live Blender connection: Blender 5.3 (D:\blender\blender.exe) is run
    and keeps its code-built model after that line as the fallback. Then `inject_mini.py`, build, photograph in the room
    (`WAITPK=<name>` makes `shots.py` wait until the model has arrived).
 
+(Since November 2026 packs and pictures are files under `source/data/`, not text in `crust-rush.html`: `pack_glb.py` and
+`put_tex.py` write them there through `tools/tables.py`. "puts it into crust-rush.html" above now means that.)
+
 ## Rules that keep it working
 - Metres, Z up, standing on the floor at the origin; Blender -Y is the front. Keep the old model's footprint and
   clearances exactly (the track runs under the bed, round the lamp, over the dresser).

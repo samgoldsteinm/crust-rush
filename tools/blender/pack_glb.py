@@ -1,4 +1,4 @@
-"""Pack a Blender-built room model (GLB) into the game's prop format and put it into crust-rush.html.
+"""Pack a Blender-built room model (GLB) into the game's prop format and put it into the game's PROP_PACKS (source/data/geo).
 usage: py.cmd tools/blender/pack_glb.py <name> [<name> ...]     reads D:/crust-rush/blender/<name>/<name>.glb
 
 The pack is called toy_<name>_hq. The "_hq" ending makes the build ship it as a file that downloads after the menu
@@ -9,6 +9,7 @@ and span in metres in the header (uo, us), because the pack format keeps UVs as 
 the baked soft shading.
 """
 import json, struct, sys, base64
+sys.path.insert(0, 'D:/crust-rush/source/tools'); import tables
 import numpy as np
 
 SRC = 'D:/crust-rush/source/crust-rush.html'
@@ -113,16 +114,11 @@ def pack(name):
 
 
 def main(names):
-    s = open(SRC, encoding='utf-8', newline='').read()
-    a = s.index('const PROP_PACKS=') + len('const PROP_PACKS='); e = s.index('\n', a)
-    lit = s[a:e].rstrip(); assert lit.endswith(';'); lit = lit[:-1]
-    D = json.loads(lit)
-    assert json.dumps(D, separators=(',', ':')) == lit, 'the PROP_PACKS line would not survive a rewrite unchanged'
+    D = tables.load('PROP_PACKS')                       # (the table is files under source/data/geo: tools/tables.py)
     for n in names:
         D[f'toy_{n}_hq'], size = pack(n)
         print(f'toy_{n}_hq: {size / 1024:.0f} KB')
-    s = s[:a] + json.dumps(D, separators=(',', ':')) + ';' + s[e:]
-    open(SRC, 'w', encoding='utf-8', newline='').write(s)
+    tables.save('PROP_PACKS', D)
 
 
 if __name__ == '__main__':

@@ -5,7 +5,9 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 **what broke / why / fix / how to keep it fixed**.
 
 ## Where things are
-- Web game: one source file `crust-rush.html`, built into the app repo (branch `main`). PC: Godot, branch `godot`.
+- Web game: the code is one source file, `crust-rush.html` (2 MB); every model, texture and track picture is its own file
+  under `data/` (`tools/tables.py` reads and writes them; `py.cmd tools/assets.py sizes` counts them). The build
+  (`build/build_gh.py`, run by `tools/neon/webtest.py`) puts the two together into the app repo (branch `main`). PC: Godot, branch `godot`.
   The PC's track files are exported by CI from the *published* web game, so web goes out first, then the export, then PC.
 - Both must agree on anything that moves a kart (online play is deterministic). Bump the online version on both
   (`NET_PROTO` on web, `PROTO` in `scripts/webnet.gd`) whenever kart physics, track data or race messages change.
@@ -21,6 +23,19 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 - Another session also pushes to both branches: fetch and check ancestry before every push.
 
 ## Fix log
+
+### 2026-11-13 (source only, after web v181): the assets moved out of the source file
+
+The source file had reached 73 MB (GitHub refuses a file over 100 MB) because every model, texture and picture was written
+into it as text. The user: "Do what you have to do to be able to make the files fit if you need to compress them that's fine
+just maintain quality". Nothing was compressed or changed: each asset is now its own file under `data/`, byte for byte.
+
+| What changed | How | Keep it working |
+|---|---|---|
+| `crust-rush.html` is 2 MB of code; the four tables in it are declared empty (`const PROP_TEX={};`) | `tools/split_source.py` (the one-off that did it; do not run again). `data/cars`, `data/geo` (a `.json` header and a `.bin` each), `data/tex`, `data/shots` (the picture files), and `data/<TABLE>.order.json` (each table's order) | Never write an asset into the source file again. `from tables import load, save` |
+| The build | `build_gh.py` reads the tables with `tables.load` and puts the game's small tables where the `{}` are. `build/extract.js` is no longer used | The built game was compared file by file before and after: every asset identical, the code differing only by four comments |
+| The asset scripts | `pack_glb.py`, `put_tex.py`, `car_pack.py`, `embed_shots.py` use `tables`; `tools/assets.py sizes` and `drop <name>` replace the old hand-made counts and removals. PC: `tools/hd_waterfall.py` reads `data/geo/waterfall.*` | A header's numbers are written the way JavaScript writes them (`tables._num`), so re-storing an unchanged model leaves the built game byte-identical |
+| The source file cannot be opened on its own any more | It has no assets in it | To run the game locally: `py.cmd tools/neon/webtest.py`, then http://localhost:8771/webcopy6/ |
 
 ### 2026-11-13 (web v181): Garage Overdrive's big door stands open
 
