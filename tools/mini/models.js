@@ -511,4 +511,44 @@ M.gsign=function(kind){const G=grp(),c=can('gsign'+kind,512,256,(g,W,H)=>{const 
     m=mat('gsign'+kind,()=>std({map:tex(c,'gsign'+kind),roughness:.35,metalness:.3,envMapIntensity:.6}));add(G,box(60*U,30*U,.5*U),m,0,0,.25*U);return G;};
 /* an oil stain for the floor (lay it with toyStain) */
 M.stainCan=function(){return can('goil',256,256,(g,W,H,r)=>{g.clearRect(0,0,W,H);for(let i=0;i<26;i++){const a=r()*6.283,d=r()*70,x=128+Math.cos(a)*d,y=128+Math.sin(a)*d*.8,rad=14+r()*42,gr=g.createRadialGradient(x,y,0,x,y,rad);gr.addColorStop(0,'rgba(22,18,14,.5)');gr.addColorStop(.6,'rgba(22,18,14,.28)');gr.addColorStop(1,'rgba(22,18,14,0)');g.fillStyle=gr;g.fillRect(x-rad,y-rad,rad*2,rad*2);}});};
+/* ============ Backyard Mega Circuit: the garden's things (sizes in cm; the garden itself is laid out in mini.js, toyYard) ============ */
+/* a mown lawn: two greens in broad stripes, speckled; one repeat is 2.4 m */
+M.ylawn=function(){return mat('ylawn',()=>{const S=1024,c=can('ylawn',S,S,(g,W,H,r)=>{for(let i=0;i<4;i++){g.fillStyle=i%2?'#477a2a':'#3f6f25';g.fillRect(0,i*H/4,W,H/4);}
+    for(let i=0;i<26000;i++){const v=r();g.fillStyle=v<.45?'rgba(140,190,80,'+r()*.22+')':v<.9?'rgba(30,70,20,'+r()*.22+')':'rgba(200,190,120,'+r()*.2+')';g.fillRect(r()*W,r()*H,1+r()*2,2+r()*5);}
+    for(let i=0;i<40;i++){const x=r()*W,y=r()*H,rad=40+r()*120,gr=g.createRadialGradient(x,y,0,x,y,rad);gr.addColorStop(0,r()<.5?'rgba(40,80,20,.12)':'rgba(170,200,90,.10)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(x-rad,y-rad,rad*2,rad*2);}}),
+    b=can('ylawnb',512,512,(g,W,H,r)=>{g.fillStyle='#808080';g.fillRect(0,0,W,H);for(let i=0;i<14000;i++){const v=70+r()*120;g.fillStyle='rgb('+v+','+v+','+v+')';g.fillRect(r()*W,r()*H,1,2+r()*4);}});
+    const m=std({map:T2(c,1,1),normalMap:T2(heightToNormal(b,2.4),4,4,true),normalScale:new THREE.Vector2(.9,.9),roughness:.95,metalness:0,envMapIntensity:.25});m.userData.noHQ=true;return m;});};
+/* upright boards with gaps between them (a fence, eight boards to the metre) and lying boards (a shed's cladding) */
+M.yboards=function(key,col,across){return mat('yboards_'+key,()=>{const S=512,c=can('yboards_'+key,S,S,(g,W,H,r)=>{const B=new THREE.Color(col);for(let i=0;i<8;i++){const k=.85+r()*.3,cc=B.clone().multiplyScalar(k);g.fillStyle='#'+cc.getHexString();if(across)g.fillRect(0,i*H/8,W,H/8);else g.fillRect(i*W/8,0,W/8,H);
+      for(let j=0;j<40;j++){g.strokeStyle='rgba(40,25,10,'+r()*.16+')';g.lineWidth=.6+r()*1.4;g.beginPath();if(across){const y=i*H/8+r()*H/8;g.moveTo(0,y);g.lineTo(W,y+(r()-.5)*5);}else{const x=i*W/8+r()*W/8;g.moveTo(x,0);g.lineTo(x+(r()-.5)*5,H);}g.stroke();}
+      g.fillStyle='rgba(20,12,6,.6)';if(across)g.fillRect(0,i*H/8,W,3);else g.fillRect(i*W/8,0,3,H);}}),
+    b=can('yboardsb_'+key,256,256,(g,W,H)=>{g.fillStyle='#909090';g.fillRect(0,0,W,H);g.fillStyle='#202020';for(let i=0;i<8;i++){if(across)g.fillRect(0,i*H/8,W,4);else g.fillRect(i*W/8,0,4,H);}});
+    const m=std({map:T2(c,1,1),normalMap:T2(heightToNormal(b,2),1,1,true),roughness:.88,metalness:0,envMapIntensity:.2});m.userData.noHQ=true;return m;});};
+/* a garden shed, 2.4 x 1.9 m and 2 m to the eaves: boarded walls, a low pyramid roof, a door in the front (+z) */
+M.yshed=function(){const G=grp(),W=240*U,D=190*U,Hh=200*U,wm=M.yboards('shed','#7a5b3c',true),rf=paint('yroof','#5d6470',.7);add(G,uvw(box(W,Hh,D),100),wm,0,Hh/2,0);
+  const rg=new THREE.ConeGeometry(195*U,80*U,4,1);rg.rotateY(Math.PI/4);rg.scale(1.05,1,.82);add(G,rg,rf,0,Hh+40*U,0);add(G,box(W+14*U,3*U,D+14*U),rf,0,Hh+1.5*U,0);
+  add(G,uvw(box(80*U,170*U,4*U),100),M.yboards('sheddoor','#5c4630',false),0,85*U,D/2+1*U);add(G,cyl(1.6*U,1.6*U,10*U,10),metal('yiron','#2a2c31',.5),30*U,90*U,D/2+4*U);for(const y of [30,140])add(G,box(22*U,5*U,1*U),metal('yiron','#2a2c31',.5),-30*U,y*U,D/2+3.2*U);return G;};
+/* a garden tree: a trunk 2.6 m to the first boughs and a crown of leafy masses up to 6 m; r is the crown's spread in cm */
+M.ytree=function(h,cr,seed){const G=grp(),r=rng(seed||3),bark=mat('ybark',()=>{const c=can('ybark',256,512,(g,W,H,rr)=>{g.fillStyle='#5a4634';g.fillRect(0,0,W,H);for(let i=0;i<500;i++){g.strokeStyle='rgba('+(rr()<.5?'30,20,12':'120,100,80')+','+rr()*.35+')';g.lineWidth=1+rr()*3;const x=rr()*W;g.beginPath();g.moveTo(x,rr()*H);g.lineTo(x+(rr()-.5)*14,rr()*H);g.stroke();}});return std({map:T2(c,3,4),roughness:.95,envMapIntensity:.15});}),
+    leaf=k=>mat('yleaf'+k,()=>{const c=can('yleaf',256,256,(g,W,H,rr)=>{g.fillStyle='#4f8f38';g.fillRect(0,0,W,H);for(let i=0;i<2600;i++){const v=rr();g.fillStyle=v<.5?'rgba(120,180,70,'+rr()*.5+')':'rgba(25,70,25,'+rr()*.5+')';g.beginPath();g.ellipse(rr()*W,rr()*H,3+rr()*5,1.5+rr()*2.5,rr()*3,0,7);g.fill();}});return std({map:T2(c,6,4),color:['#ffffff','#dcefc8','#c8dcb0'][k],roughness:1,envMapIntensity:.15});});
+  const th=h*.42*U;add(G,new THREE.CylinderGeometry(15*U,22*U,th,14),bark,0,th/2,0);add(G,new THREE.CylinderGeometry(22*U,30*U,14*U,14),bark,0,7*U,0);
+  for(let i=0;i<4;i++){const a=i*1.6+r(),l=(cr*.8)*U;add(G,new THREE.CylinderGeometry(4*U,9*U,l,8),bark,Math.cos(a)*l*.3,th+l*.32,Math.sin(a)*l*.3,Math.sin(a)*.8,0,-Math.cos(a)*.8);}
+  for(let i=0;i<9;i++){const a=r()*6.283,d=i?r()*cr*.62*U:0,rad=cr*(.42+r()*.3)*U,g=new THREE.IcosahedronGeometry(rad,2),p=g.attributes.position;for(let k=0;k<p.count;k++){const n=1+.16*Math.sin(p.getX(k)*.011+i)+.12*Math.sin(p.getY(k)*.017+i*2)+.1*Math.sin(p.getZ(k)*.013);p.setXYZ(k,p.getX(k)*n,p.getY(k)*n*.82,p.getZ(k)*n);}g.computeVertexNormals();
+    add(G,g,leaf(i%3),Math.cos(a)*d,(h-cr*.75+r()*cr*.55)*U,Math.sin(a)*d);}return G;};
+/* a folding football goal, 2 m wide and 1.3 m high: two posts, the bar, a stay from each top corner back to the ground and a bar joining them there */
+M.ygoal=function(){const G=grp(),w=paint('ygoal','#f1f0ea',.4),R=3*U,Hh=130*U,W=200*U,D=70*U,L=Math.hypot(Hh,D);for(const s of [-1,1]){add(G,cyl(R,R,Hh,12),w,s*W/2,Hh/2,0);add(G,cyl(R*.8,R*.8,L,10),w,s*W/2,Hh/2,-D/2,Math.atan2(D,Hh),0,0);}/* the stays lean back (-z) from the top corners */
+  add(G,cyl(R,R,W,12),w,0,Hh,0,0,0,Math.PI/2);add(G,cyl(R*.8,R*.8,W,10),w,0,R*.8,-D,0,0,Math.PI/2);return G;};
+/* a watering can, 38 cm long */
+M.wcan=function(){const G=grp(),m=mat('wcan',()=>phy({color:'#3f7a4a',roughness:.35,clearcoat:.5,envMapIntensity:.7}));add(G,cyl(10*U,11*U,22*U,24),m,0,11*U,0);add(G,cyl(1.6*U,2.6*U,26*U,10),m,17*U,16*U,0,0,0,-1.0);add(G,cyl(4.6*U,2*U,4*U,14),m,29*U,24*U,0,0,0,-1.0);
+  add(G,new THREE.TorusGeometry(8*U,1.1*U,7,18,Math.PI),m,-10*U,13*U,0,0,0,Math.PI/2);add(G,new THREE.TorusGeometry(8*U,1*U,7,18,Math.PI),m,0,22*U,0);return G;};
+/* a terracotta pot of the given rim radius (cm) with a plant in it */
+M.ypot=function(rc,seed){const G=grp(),s=rc/10.8,p=M.plant({seed:seed||5});p.traverse(o=>{if(o.isMesh&&o.material.name==='toy_pot')o.material=mat('terracotta',()=>std({color:'#b8663e',roughness:.8,envMapIntensity:.2}));});p.scale.setScalar(s);G.add(p);return G;};
+/* a length of concrete drain pipe lying on the grass, r cm inside and l cm long: the track goes through it (its axis runs along x) */
+M.ypipe=function(r,l){const G=grp(),m=mat('ypipe',()=>std({color:'#a9a7a0',roughness:.9,side:THREE.DoubleSide,envMapIntensity:.2})),R=r*U,L=l*U,T=5*U;
+  add(G,new THREE.CylinderGeometry(R,R,L,36,1,true),m,0,0,0,0,0,Math.PI/2);add(G,new THREE.CylinderGeometry(R+T,R+T,L,36,1,true),m,0,0,0,0,0,Math.PI/2);for(const s of [-1,1])add(G,new THREE.RingGeometry(R,R+T,36),m,s*L/2,0,0,0,Math.PI/2,0);return G;};
+/* a coiled garden hose */
+M.yhose=function(){const G=grp(),m=plastic('yhose','#3f8a3a',.5);for(let i=0;i<4;i++)add(G,new THREE.TorusGeometry((17-i*1.5)*U,1.3*U,7,26),m,(i%2)*1.2*U,(1.3+i*2.3)*U,0,Math.PI/2);return G;};
+/* a garden gnome, 32 cm: a made-up one, pointed hat and all */
+M.ygnome=function(){const G=grp();add(G,new THREE.ConeGeometry(6*U,13*U,16),paint('gnhat','#c0261c',.5),0,26*U,0);add(G,new THREE.SphereGeometry(5*U,16,12),paint('gnskin','#e8b89a',.6),0,18*U,0);add(G,blob(11*U,10*U,7*U,.9,6),paint('gnbeard','#f1efe8',.8),0,14*U,3*U);
+  add(G,blob(14*U,14*U,12*U,.8,6),paint('gncoat','#2f5d9a',.6),0,8*U,0);add(G,box(12*U,1.6*U,10*U),plastic('gnbelt','#141414',.5),0,5*U,0);for(const s of [-1,1])add(G,blob(6*U,3*U,8*U,.8,5),plastic('gnboot','#3a2618',.6),s*3.4*U,1.5*U,2*U);return G;};
 return Object.assign(M,{U,pk,pkReady,bake,MX,vcPlastic,vcMatte,drape,wood,fabric,plastic,metal,paint,glow,glass,slab,blob,uvw,add,grp,box,cyl,can,tex,mat,std,phy,rng});})();

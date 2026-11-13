@@ -3,7 +3,7 @@ sys.path.insert(0, 'D:/crust-rush/source/tools/neon')
 from gen import Track
 
 def make():
-    t = Track('bedroom', 'Bedroom Blitz', themeName='Toy track', theme='kitchen', toy=1, rw=31, laps=4, special=1, R=1160, look='bedroom',
+    t = Track('bedroom', 'Bedroom Blitz', themeName='Toy track', theme='kitchen', toy=1, rw=31, laps=4, R=1160, look='bedroom',
               blurb='A toy racing set built round a real bedroom: off the desk, down a wide spiral round the lamp, under the bed, through the loop in the middle of the room, past the sneakers and back up over the dresser.')
     t.center = False; t.walld = 46.0; t.cross_dh = 60.0; t.gap = 260
     t.origin = (-200.0, 605.0, 0.0)             # the start line, on the desk, heading east

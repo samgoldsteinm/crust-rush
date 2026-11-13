@@ -304,3 +304,31 @@ before the launch and the hairpins, a stronger bloom at the window.
   PC export of track 22 and the PC smoke race pass. Menu pictures in scratch/menupics_g.
 - Left for the cup: Backyard Mega Circuit, then the Miniature Mayhem Cup of the four.
 
+## Backyard Mega Circuit and the Miniature Mayhem Cup (web v175, 2026-11-13)
+- Layout: `tools/mini/t_backyard.py`, written in the GARDEN'S OWN METRES (x east from the bedroom window, y north from the house
+  wall to the back fence at 7), the same numbers as `tools/blender/outside.py`; `G()` turns them into design units. One lap is
+  19 996 units (58 m), as long as a Neon Cup track, so it has 2 laps (about 4.5 minutes at 100cc). Start on the patio under
+  the bedroom window heading east, with the loop -> a wiggle round a flowerpot -> north at the garage end -> into the goal's
+  mouth and out of its side under the back stay -> west along the back fence, a jump -> once round the close tree, climbing
+  to 260 -> a long drop -> through a concrete drainpipe -> behind the shed (a 65 cm gap) -> down the side fence -> east past
+  the shed door, a jump -> between the washing line's poles and under the washing -> down to the patio and the line.
+- The yard: `toyYard` in mini.js. It does NOT use `toyShell`: out of doors there is no window sun (TOYSUN stays empty, so the
+  ordinary sun and its shadows are used) and no picture of the surroundings for reflections (TOYENV null: the open sky in one
+  washed the glossy track out to pastel). Lawn far past the fences, patio, the house's north wall with the three rooms' windows
+  where the rooms have them (kitchen -7, bedroom 0, garage 7.51), back and side fences, shed, washing line with four cloths,
+  the close tree, the goal, the neighbour's house and six trees over the fence, flowerpots, a watering can, a hose, a gnome.
+  Models in models.js under "Backyard Mega Circuit" (`ylawn`, `yboards`, `yshed`, `ytree`, `ygoal`, `wcan`, `ypot`, `ypipe`,
+  `yhose`, `ygnome`), all code-built.
+- One difference from the windows' pictures: the game's goal has stays leaning back from its top corners (the track leaves
+  the goal under one); outside.py still draws stays lying on the ground. Change outside.py and re-render `-- g` to match.
+- The cup: the four toy tracks no longer say `special`, which makes them tracks 20..23 = the sixth cup;
+  `tools/mini/patch17.py` added its name (Miniature Mayhem Cup, orange). The "Special" tab in the track list is gone with
+  the last special track. PC: `CUPS` in scripts/menu.gd has the sixth cup; a track's cup comes with its export.
+- PC: `maps.yml` exports 0..23. An outdoor toy track (toy, and no `toyenv`) takes the web's plain sky colour for its sky
+  instead of the theme's sunset (main.gd, where the sky is built). The smoke test prints FAIL on this track only because
+  its rule wants three passes of the loop and there are two laps: player first, 0 respawns, 0 stuck is a pass.
+- Tests: races forward, 200cc and reverse (8 finish, 0 respawns, 0 stuck), chase camera at the goal, the tree, the pipe, the
+  shed and the washing, box check 48 layouts, the cup's card and the track list in the menus, PC export of 20..23, PC pictures.
+- Still open: Blender versions of the garage's and the yard's large models; fabric textures and the smaller bedroom models
+  (tools/blender/README.md); a play-test by the user of all four tracks' feel.
+

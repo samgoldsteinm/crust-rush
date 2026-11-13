@@ -15,7 +15,7 @@ TJ = 'D:/crust-rush/source/tools/mini/tracks.json'
 
 
 def make():
-    t = Track('garage', 'Garage Overdrive', themeName='Toy track', theme='kitchen', toy=1, rw=31, laps=4, special=1, R=1160, look='garage',
+    t = Track('garage', 'Garage Overdrive', themeName='Toy track', theme='kitchen', toy=1, rw=31, laps=4, R=1160, look='garage',
               blurb='A toy racing set built round a real garage: off the line past the big door, up a plank onto the workbench, a flying leap off its end, down a spiral round a stack of tyres, the loop, and a chicane across the oil-stained floor.')
     t.center = False; t.walld = 46.0; t.cross_dh = 60.0; t.gap = 260
     t.origin = (-150.0, -700.0, 0.0)            # the start line, on the floor in front of the garage door, heading east

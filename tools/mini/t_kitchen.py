@@ -14,7 +14,7 @@ TJ = 'D:/crust-rush/source/tools/mini/tracks.json'
 
 
 def make():
-    t = Track('kitchen', 'Kitchen Chaos', themeName='Toy track', theme='kitchen', toy=1, rw=31, laps=4, special=1, R=1160, look='kitchen',
+    t = Track('kitchen', 'Kitchen Chaos', themeName='Toy track', theme='kitchen', toy=1, rw=31, laps=4, R=1160, look='kitchen',
               blurb='A toy racing set built round a real kitchen: along the worktop, over a bridge onto the kitchen table, down a wide spiral round a stool, through the loop by the back door, and a long climb home past the fridge.')
     t.center = False; t.walld = 46.0; t.cross_dh = 60.0; t.gap = 260
     t.origin = (-300.0, 720.0, 0.0)             # the start line, on the worktop, heading east

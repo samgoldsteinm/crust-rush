@@ -22,6 +22,16 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### 2026-11-13 (web v175, PC with PROTO 107): Backyard Mega Circuit and the Miniature Mayhem Cup
+
+All of it is in docs/MINIATURE-MAYHEM-PLAN.md under "Backyard Mega Circuit and the Miniature Mayhem Cup".
+
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| The track looked pastel out of doors | The yard's reflection picture was mostly bright sky, and the track is glossy plastic | The yard names no reflection spot (TOYENV null) and uses the game's standard reflections | A reflection picture is for rooms |
+| The goal's stays stuck out forwards | The model's back is -z and it was turned half round as well; the stays' lean had the wrong sign | Not turned; lean corrected | Look at each new model from two sides before racing past it |
+| The PC's sky was the kitchen theme's sunset | The PC builds its sky from the theme, the web from the track's own background colour | An outdoor toy track takes the exported background colour | main.gd, where the sky is built |
+
 ### 2026-11-13 (web v174): Garage Overdrive, the third toy track
 
 All of it is in docs/MINIATURE-MAYHEM-PLAN.md under "Garage Overdrive". PC: `maps.yml` exports tracks 0..22.
