@@ -47,6 +47,19 @@ const paint=(key,color,rough)=>mat('pt_'+key,()=>std({color,roughness:rough==nul
 const glow=(key,color)=>mat('gl_'+key,()=>new THREE.MeshBasicMaterial({color,toneMapped:false}));
 const glass=(key,color,op)=>mat('gs_'+key,()=>phy({color:color||'#101418',roughness:.05,metalness:0,transparent:true,opacity:op==null?.35:op,envMapIntensity:1.2,clearcoat:1,clearcoatRoughness:.05,depthWrite:false}));
 
+/* ---- models built in Blender (tools/blender), packed like the game's other props ----
+   pk(name,mats) builds a group from the pack toy_<name>_hq: one mesh per material; `mats` maps each material name in the
+   model to [game material, tile in cm]. The pack's UVs are real size (metres) and are scaled to the material's tile here,
+   so the game's own tiling materials stay sharp close up; the vertex colours carry baked soft shading.
+   The packs download after the menu is up: pkReady says whether one has arrived, and every builder keeps its code-built
+   model for the time before that. */
+const pkReady=name=>{const p=typeof PROP_PACKS!=='undefined'&&PROP_PACKS['toy_'+name+'_hq'];return !!(p&&(p.b||p.d));};
+function pk(name,mats){const id='toy_'+name+'_hq',G=grp(),geos=propGeos(id);
+  for(const h of PROP_PACKS[id].h){const key=h.n.split('|')[1],q=mats[key];if(!q)continue;const g=geos[h.n];
+    if(!g.userData.pkuv){const uv=g.attributes.uv,k=100/(q[1]||50);for(let i=0;i<uv.count;i++)uv.setXY(i,(uv.getX(i)*h.us+h.uo[0])*k,(uv.getY(i)*h.us+h.uo[1])*k);g.userData.pkuv=1;}
+    add(G,g,mat('pk_'+q[0].name,()=>{const c=q[0].clone();c.vertexColors=true;return c;}));}
+  return G;}
+
 /* ============ the desk and what stands on it ============ */
 const M={};
 /* a gaming desk: 200 x 80 cm walnut top on a black steel frame, 75 cm high */
@@ -137,7 +150,11 @@ function drape(w,d,drop,o){o=o||{};const nx=o.nx||34,nz=o.nz||40,r=rng(o.seed||7
 function pillowGeo(w,d,h){const g=blob(w,h,d,.72,14),p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i)/(w/2),z=p.getZ(i)/(d/2),e=Math.max(Math.abs(x),Math.abs(z)),k=1-.72*Math.pow(e,5);p.setY(i,p.getY(i)*Math.max(.12,k));}g.computeVertexNormals();return uvw(g,50);}
 /* a queen bed: 152 x 203 cm mattress on a wooden frame with legs (28 cm clear underneath), a padded headboard, duvet and pillows.
    The head is at -z. */
-M.bed=function(o){o=o||{};const G=grp(),W=152*U,L=203*U,leg=28*U,rail=9*U,mh=24*U,oak=wood('oak','#b98a58','#5a3a1c',{rough:.5}),top=leg+rail;
+M.bed=function(o){o=o||{};
+  /* the Blender-built bed (tools/blender/bed.py): bedding dropped on as cloth, pillows blown up from flat cases. Same size, same clearance underneath */
+  if(pkReady('bed'))return pk('bed',{oak:[wood('oak','#b98a58','#5a3a1c',{rough:.5}),80],slats:[paint('slats','#8a6a48',.8),80],linen:[fabric('linen','#b9b2a4',{ws:3,ns:.8}),40],sheet:[fabric('sheet','#f2efe8',{ws:2,ns:.35,rough:.9}),60],
+    duvet:[fabric('duvet',o.duvet||'#3d5a80',{ws:4,ns:.9}),50],duvet2:[fabric('duvet2','#e8e2d6',{ws:4,ns:.8}),50],pillow:[fabric('pillow','#fbfaf6',{ws:2,ns:.4,rough:.9}),45],cushion:[fabric('cushion','#e07a3a',{ws:5,ns:1}),30],throw:[fabric('throw','#d9a441',{ws:6,ns:1.2}),35]});
+  const G=grp(),W=152*U,L=203*U,leg=28*U,rail=9*U,mh=24*U,oak=wood('oak','#b98a58','#5a3a1c',{rough:.5}),top=leg+rail;
   for(const sx of [-1,1])for(const sz of [-1,1]){const lg=add(G,cyl(3.2*U,2.2*U,leg,14),oak,sx*(W/2-5*U),leg/2,sz*(L/2-5*U));lg.userData.leg=1;}
   for(const sx of [-1,1])add(G,uvw(slab(3.2*U,rail+6*U,L+4*U,.8*U,.4*U,2),80,true),oak,sx*(W/2+1.2*U),leg+(rail+6*U)/2-1*U,0);
   add(G,uvw(slab(W+5.6*U,rail+6*U,3.2*U,.8*U,.4*U,2),80),oak,0,leg+(rail+6*U)/2-1*U,L/2+1.2*U);add(G,box(W,2*U,L),paint('slats','#8a6a48',.8),0,leg+rail-1*U,0);
@@ -360,4 +377,4 @@ M.setbox=function(o){o=o||{};const G=grp(),W=(o.w||62)*U,D=(o.d||40)*U,H=(o.h||1
 M.trackpiece=function(o){o=o||{};const G=grp(),L=(o.l||30)*U,W=84,/* the same two plastics as the track itself (TOYOR and TOYBL in mini.js share these names: keep the settings identical) */sm=m=>{m.userData.noHQ=true;return m;},or=mat('toyorange',()=>sm(phy({color:'#ff6a12',roughness:.34,clearcoat:1,clearcoatRoughness:.07,envMapIntensity:1,side:THREE.DoubleSide}))),bl=mat('toyblue',()=>sm(phy({color:'#1769d6',roughness:.35,clearcoat:.5,clearcoatRoughness:.25})));
   add(G,box(W,1.4,L),or,0,.7,0);for(const s of [-1,1])add(G,slab(3,5.6,L,.8,.6,2),or,s*(W/2+1.5),2.8,0);for(const x of [-21,0,21])add(G,box(.9,.2,L),mat('toygroove',()=>std({color:'#c44a08',roughness:.5})),x,1.45,0);
   add(G,slab(22,1,16,2,.3,1),bl,0,.45,L/2+3);add(G,slab(22,1,16,2,.3,1),bl,0,.45,-L/2-3);return G;};
-return Object.assign(M,{U,bake,MX,vcPlastic,vcMatte,drape,wood,fabric,plastic,metal,paint,glow,glass,slab,blob,uvw,add,grp,box,cyl,can,tex,mat,std,phy,rng});})();
+return Object.assign(M,{U,pk,pkReady,bake,MX,vcPlastic,vcMatte,drape,wood,fabric,plastic,metal,paint,glow,glass,slab,blob,uvw,add,grp,box,cyl,can,tex,mat,std,phy,rng});})();

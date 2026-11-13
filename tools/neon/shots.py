@@ -5,9 +5,9 @@ MAP, TAG, Q, CAMS = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 REV = len(sys.argv) > 5 and sys.argv[5] == 'rev'
 SP='D:/crust-rush/scratch'
 async def main():
+    import os
     async with async_playwright() as p:
         b = await p.chromium.launch(channel='chromium', args=['--use-angle=d3d11','--enable-gpu','--ignore-gpu-blocklist','--enable-webgl'])
-        import os
         VW,VH=[int(v) for v in os.environ.get('VP','960x540').split('x')]
         ctx = await b.new_context(viewport={'width':VW,'height':VH}, service_workers='block')
         pg = await ctx.new_page()
@@ -15,6 +15,8 @@ async def main():
         pg.on('pageerror', lambda e: errs.append(str(e)[:300]))
         await pg.goto('http://localhost:8771/webcopy6/index.html')
         await pg.wait_for_function("document.getElementById('menu')&&!document.getElementById('menu').hidden", timeout=600000)
+        for nm in [v for v in os.environ.get('WAITPK','').split(',') if v]:
+            await pg.wait_for_function("(n)=>__ev(`TM.pkReady('${n}')`)", arg=nm, timeout=600000)   # the Blender-built models arrive after the menu
         await pg.evaluate("(a)=>__ev(`qKey='${a[1]}';applyQuality();clsKey='${a[2]}';mode='single';introSkip=true;goRace(MAPS.findIndex(m=>m.id==='${a[0]}'))`)", [MAP, Q, 'reverse' if REV else 'medium'])
         await pg.wait_for_function("document.getElementById('raceLd').hidden", timeout=900000)
         if os.environ.get('HOLD'):

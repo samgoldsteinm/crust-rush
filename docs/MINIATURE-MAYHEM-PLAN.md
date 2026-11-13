@@ -198,4 +198,12 @@ before the launch and the hairpins, a stronger bloom at the window.
 - Fixed on the user's report (see HANDOVER): books through the climb, side monitor in the wall, traps drawn under
   raised road. Open on the user's report: item boxes on the starting grid on some maps (being measured), and a Blender
   remodel of every object in the room ("as realistic as possible").
+- Item boxes on the starting grid (user's report): measured on all 21 maps both ways round. Only holo (.9938) and synth
+  (.9917) had a row inside the grid (4 units from a kart; just past the line in reverse). Engine patch 7: `boxClear`
+  moves any row that lands within 56 track points before the line or 44 after it to the nearest clear spot. Closest
+  box to any grid position is now 248 units. NET_PROTO is 101 on web; PC needs PROTO 101 with its next build, after
+  the track export is re-run from the published v155.
+- Blender remodel started (user: "remodel all the objects ... as realistic as possible"). Workflow and rules in
+  `tools/blender/README.md`. The bed is the first model through it (cloth-simulated bedding). Blender models are
+  geometry plus baked vertex shading; the game's tiling materials are kept, so close-ups stay sharp.
 
