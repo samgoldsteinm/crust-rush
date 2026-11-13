@@ -7,7 +7,8 @@ class_name HdToy
 ## for the room photograph the web game uses (toyRoomEnv). The shell's materials are named toy_pt_wall*, toy_pt_ceiling,
 ## toy_pt_skirting, toy_outside, toy_gs_* (glass), toy_aoshade*; the plastics toy_toyroad*, toy_toyorange,
 ## toy_toyplastic*, toy_toyblue, toy_toydash.
-## The room itself (the furniture built in Blender, the oak floor's boards and relief, the garden behind the window) comes
+## The room itself (the furniture built in Blender, the oak floor's boards and relief, the painted walls' fine stipple, the
+## garden behind the window) comes
 ## with the exported track: after the web game's room changes, re-run the track export and rebuild.
 
 
