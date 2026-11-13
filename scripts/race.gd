@@ -677,15 +677,19 @@ func update(dt: float, player_inp: Dictionary) -> void:
 			b["r"] = float(b["r"]) - dt
 			continue
 		for k in karts:
+			if T.BOXCD > 0.0 and k.box_t > sim_time:
+				continue   # just took a box: the rest of the row is for the others (web BOXCD)
 			var hit := false
 			var ddx := k.x - float(b["x"])
 			var ddy := k.y - float(b["y"])
 			if bool(b["air"]):
 				hit = k.glide and ddx * ddx + ddy * ddy < 400.0
 			else:
-				hit = ddx * ddx + ddy * ddy < 270.0
+				# on multi-level tracks only from the box's own level (the web's rule; this was missing here)
+				hit = ddx * ddx + ddy * ddy < 270.0 and (not T.multi or absf(k.wy - float(b["gy"])) < 18.0)
 			if hit:
-				b["r"] = 4.0
+				b["r"] = T.BOXR
+				k.box_t = sim_time + T.BOXCD
 				var cap := 2 - (1 if k.item != "" else 0) - (1 if k.item2 != "" else 0) - (0 if k.held.is_empty() else 1) - k.pend.size()
 				var give := mini(cap, 2 if bool(b["dbl"]) else 1)
 				for g2 in give:
@@ -1657,7 +1661,7 @@ func use_ability(k: Kart, back: bool) -> void:
 			k.ab_col = col
 		"olive":
 			k.ab_q = []
-			for n in 10:
+			for n in T.SLICKN:
 				k.ab_q.append([n * 0.25, func():
 					# Olive's slicks stay until someone drives into them (they used to dry up after 25 s); at most SLICK_MAX
 					# of one Olive's lie on the road, the oldest making way (web the same)
@@ -1671,8 +1675,8 @@ func use_ability(k: Kart, back: bool) -> void:
 					if mine >= SLICK_MAX and not first.is_empty():
 						first["t"] = 0.0
 					hazards.append({"id": _nid(), "x": k.x - cos(k.ma) * 22.0, "y": k.y - sin(k.ma) * 22.0, "t": 1.0e9, "born": 0.0, "owner": k, "armed": false, "olive": true})])
-			k.olive_t = OLIVE_T
-			k.ab_fx = OLIVE_T
+			k.olive_t = OLIVE_T - (10 - T.SLICKN) * 0.25
+			k.ab_fx = k.olive_t
 			k.ab_col = col
 		"mozz":
 			k.shield = 7.0
@@ -2058,7 +2062,12 @@ func _projectiles(dt: float) -> void:
 				projectiles.remove_at(i)
 				i -= 1
 				continue
-			if tg.loop.is_empty() and (tg.x - float(p["x"])) ** 2 + (tg.y - float(p["y"])) ** 2 < 256.0 and not (tg.inv > 0.0 or tg.rush > 0.0 or ab_inv(tg) or tg.abs_t > 0.0):
+			if tg.loop.is_empty() and (tg.x - float(p["x"])) ** 2 + (tg.y - float(p["y"])) ** 2 < 256.0 and tg.inv > 0.0:
+				# still protected after a spin: the anchovy is used up on the protection, like any other item (it used to
+				# wait and strike the moment the protection ended: a second hit)
+				p["pop"] = true
+				projectiles.remove_at(i)
+			elif tg.loop.is_empty() and (tg.x - float(p["x"])) ** 2 + (tg.y - float(p["y"])) ** 2 < 256.0 and not (tg.rush > 0.0 or ab_inv(tg) or tg.abs_t > 0.0):
 				if tg.air and not tg.glide:
 					fx.append({"t": "dodge", "k": tg})
 				elif spin_out(tg, "pep", true):
@@ -2108,6 +2117,10 @@ func _projectiles(dt: float) -> void:
 				continue
 			if _held_block(k, p):
 				hit = true
+				break
+			if type == "torp" and k == tg and k.inv > 0.0 and (k.x - float(p["x"])) ** 2 + (k.y - float(p["y"])) ** 2 < 256.0:
+				hit = true   # a homing anchovy that reaches its protected target is used up; it does not circle and wait
+				p["pop"] = true
 				break
 			if (k.x - float(p["x"])) ** 2 + (k.y - float(p["y"])) ** 2 < (256.0 if type == "torp" else 200.0) and k.inv <= 0.0:
 				spin_out(k, "pep" if type == "torp" else type)
@@ -2259,7 +2272,7 @@ func _hazards(dt: float) -> void:
 		if not bool(h["armed"]) and (o == null or (o.x - float(h["x"])) ** 2 + (o.y - float(h["y"])) ** 2 > 34.0 * 34.0):
 			h["armed"] = true
 		for k in karts:
-			if not k.loop.is_empty() or (k == o and not bool(h["armed"])):
+			if not k.loop.is_empty() or (k == o and (bool(h.get("olive", false)) or not bool(h["armed"]))):
 				continue
 			# only karts on the trap's own level: one on an upper road no longer catches karts driving underneath
 			if (k.x - float(h["x"])) ** 2 + (k.y - float(h["y"])) ** 2 < 200.0 and k.inv <= 0.0 and same_lvl(k, h):

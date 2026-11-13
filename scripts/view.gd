@@ -45,6 +45,7 @@ var ring_mat_d: StandardMaterial3D
 var box_glow_mat: StandardMaterial3D
 var warn_tex: Texture2D
 var haz_ring_mat: StandardMaterial3D
+var haz_ring_own: StandardMaterial3D   # the ring round your own olive slick
 var mozz_mat: StandardMaterial3D
 var mozz_mesh: SphereMesh
 var fire_mat: StandardMaterial3D
@@ -96,6 +97,7 @@ func _shared() -> void:
 	ring_mat_d = _basic(Color("#ffd24a"), 0.95)
 	box_glow_mat = _glow_mat(Color("#ffd24a"), 0.5, true)
 	haz_ring_mat = _basic(Color("#ffe02a"), 0.95)
+	haz_ring_own = _basic(Color("#35c8ff"), 0.95)
 	warn_tex = _warn_texture()
 	# Melt Shield: a stretchy mozzarella ball per hit it can still take (web bub.userData.mz)
 	mozz_mat = StandardMaterial3D.new()
@@ -1008,6 +1010,7 @@ func _draw_hazards() -> void:
 	var seen := {}
 	var ring_a := 0.62 + 0.33 * sin(time * 7.0)
 	haz_ring_mat.albedo_color.a = ring_a
+	haz_ring_own.albedo_color.a = ring_a
 	var bob := sin(time * 3.2) * 1.2
 	for h in race.hazards:
 		var hd: Dictionary = h
@@ -1057,13 +1060,24 @@ func _draw_hazards() -> void:
 			edge.position.y = 0.22
 			edge.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			root.add_child(edge)
+			# your own slick (it cannot catch you): blue instead of yellow, and no warning sign (web the same)
+			var own: bool = tk == "olive" and hd.get("owner") != null and hd.get("owner") == me
+			if own:
+				for mi in slick.find_children("*", "MeshInstance3D", true, false):
+					var mm := mi as MeshInstance3D
+					for si in (mm.mesh.get_surface_count() if mm.mesh != null else 0):
+						var src := mm.get_active_material(si) as BaseMaterial3D
+						if src != null:
+							var tm := src.duplicate() as BaseMaterial3D
+							tm.albedo_color = tm.albedo_color.lerp(Color("#2a9cff"), 0.72)
+							mm.set_surface_override_material(si, tm)
 			var ring := MeshInstance3D.new()
 			ring.mesh = _flat_ring(12.6, 14.6)
-			ring.material_override = haz_ring_mat
+			ring.material_override = haz_ring_own if own else haz_ring_mat
 			ring.position.y = 0.26
 			ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			root.add_child(ring)
-			var glow := _halo(Color(String(tr[2])), float(tr[3]))
+			var glow := _halo(Color("#35c8ff") if own else Color(String(tr[2])), float(tr[3]))
 			glow.position.y = float(tr[4])
 			root.add_child(glow)
 			var warn := MeshInstance3D.new()
@@ -1079,6 +1093,7 @@ func _draw_hazards() -> void:
 			warn.material_override = wm
 			warn.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			warn.position.y = 13.0
+			warn.visible = not own
 			root.add_child(warn)
 			add_child(root)
 			haz_nodes[id] = {"n": root, "warn": warn}

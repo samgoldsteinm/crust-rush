@@ -40,6 +40,7 @@ var d_hold := 0.0
 var d_want := 0.0
 var d_latch := false
 var grip_t := 0.0
+var box_t := 0.0   # the race time until which this kart cannot take another item box (toy tracks: one box of a row each)
 var air := false
 var big := false
 var air_t := 0.0
