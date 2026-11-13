@@ -2,7 +2,7 @@
 # and its garage (every body, wheel set, glider and driver) on one more, and attaches them to the "maps"
 # release. The PC build downloads them from there, so the big model files never go into git. Run it by hand
 # after the web game's tracks or karts change.
-# (Last run for: web v165, toy-track handling numbers (TURN, DRIN, DROUT) and the walnut desk.)
+# (Last run for: web v166, item boxes spread out on toy tracks; BOXR, BOXCD, SLICKN.)
 name: Export tracks
 
 on:
