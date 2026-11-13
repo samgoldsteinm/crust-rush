@@ -236,7 +236,7 @@ function toyStain(x,y,d,a,rot){const m=TM.mat('goil'+a,()=>new THREE.MeshBasicMa
    The garage is at the east end of the house: the door to the house is in its west wall, the big door in the south wall,
    and its window looks north onto the same garden as the bedroom's and the kitchen's (view 'g'). */
 function toyGarage(def){const U=TM.U,X=695,Y=833,H=868,M=TM,win=[-420,80,430,764],top=312;
-  toyShell({key:'g',X,Y,H,win,dr:null,walls:['#e6e3db','#e6e3db','#e6e3db','#e6e3db'],floor:M.gconcrete(),tile:240,env:[-60,400,-80],noSkirt:true,light:'tube',view:'g'});
+  toyShell({key:'g',X,Y,H,win,dr:null,walls:['#e6e3db','#e6e3db','#e6e3db','#e6e3db'],floor:M.gconcrete(),tile:typeof PROP_TEX!=='undefined'&&PROP_TEX.tex_toy_concrete?110:240,env:[-60,400,-80],noSkirt:true,light:'tube',view:'g'});
   /* a grey band painted round the foot of the walls, as garages have */
   {const bm=M.paint('gband','#8f9499',.7),bd=(x0,x1,z0,z1)=>{const b=new THREE.Mesh(new THREE.BoxGeometry(Math.abs(x1-x0)||.5*U,100*U,Math.abs(z1-z0)||.5*U),bm);b.position.set((x0+x1)/2,50*U,(z0+z1)/2);b.userData.noLift=true;b.receiveShadow=true;world.add(b);};
     bd(-X,X,-Y+.25*U,-Y+.25*U);bd(-X+.25*U,-X+.25*U,-Y,Y);bd(X-.25*U,X-.25*U,-Y,Y);bd(-X,-560,Y-.25*U,Y-.25*U);bd(560,X,Y-.25*U,Y-.25*U);}
@@ -267,9 +267,11 @@ function toyYard(def){const U=TM.U,M=TM,m=100*U,GX=g=>(g+.75)*m,GY=g=>(g-3.5)*m,
   renderer.toneMappingExposure=1;hemi.color.set('#d4e6ff');hemi.groundColor.set('#7c9a52');hemi.intensity=.8;sun.color.set('#fff0d2');sun.intensity=2.9;sunDir.set(-.1,.56,-.82).normalize();rimL.intensity=.18;rimL.color.set('#cfe0ff');
   scene.fog=new THREE.Fog('#cfe2f4',14000,70000);scene.background=new THREE.Color('#a8cdf3');Object.assign(POST.grade,{sat:1.06,con:1.04,tint:[1,1,.99],vig:.14,bloom:.2,thr:.97});TOYENV=null;/* no picture of the surroundings for reflections here: the open sky in it washed the glossy track out to pastel */
   const flat=(x0,x1,y0,y1,mat,tile,h)=>{const g=new THREE.PlaneGeometry((x1-x0)*m,(y1-y0)*m);g.rotateX(-Math.PI/2);M.uvw(g,tile);const p=new THREE.Mesh(g,mat);p.position.set(GX((x0+x1)/2),h,-GY((y0+y1)/2));p.receiveShadow=true;p.userData.noLift=true;world.add(p);return p;},
-    wall=(x0,x1,y0,y1,h,mat,tile,h0)=>{const g=M.uvw(new THREE.BoxGeometry(Math.max(.02,x1-x0)*m,h*m,Math.max(.02,y1-y0)*m),tile),b=new THREE.Mesh(g,mat);b.position.set(GX((x0+x1)/2),((h0||0)+h/2)*m,-GY((y0+y1)/2));b.castShadow=true;b.receiveShadow=true;b.userData.noLift=true;world.add(b);return b;};
+    wall=(x0,x1,y0,y1,h,mat,tile,h0,turn)=>{const g=M.uvw(new THREE.BoxGeometry(Math.max(.02,x1-x0)*m,h*m,Math.max(.02,y1-y0)*m),tile,turn),b=new THREE.Mesh(g,mat);b.position.set(GX((x0+x1)/2),((h0||0)+h/2)*m,-GY((y0+y1)/2));b.castShadow=true;b.receiveShadow=true;b.userData.noLift=true;world.add(b);return b;};
   /* the ground: lawn far past the fences, the patio along the house, a bed of earth under the back fence */
-  flat(-60,60,-20,60,M.ylawn(),240,-.1);flat(W0,W1,0,1.6,toyTiles('ypatio','#cbc4b6','#bfb8aa','#8d887e',2,.75),90,-.04);flat(-7.4,-.6,6.25,6.98,M.mat('ysoil',()=>new THREE.MeshStandardMaterial({color:'#4a3626',roughness:1})),100,-.02);
+  const scan=typeof PROP_TEX!=='undefined'&&!!PROP_TEX.tex_toy_lawn;/* (not by asking surfTex: the first call makes the shared material) */flat(-60,60,-20,60,M.ylawn(),scan?70:240,-.1);flat(W0,W1,0,1.6,M.surfTex('paving',.82,.3,1,()=>toyTiles('ypatio','#cbc4b6','#bfb8aa','#8d887e',2,.75)),scan?150:90,-.04);
+  if(scan){/* the mower's stripes, which the scanned grass does not have: faint darker bands 60 cm wide across the lawn */const c=M.can('ystripes',8,64,(g,w,h)=>{g.clearRect(0,0,w,h);g.fillStyle='rgba(0,0,0,1)';g.fillRect(0,0,w,h/2);}),t=T2(c,1,(W1-W0)/1.2),sp=flat(W0,W1,1.6,7,new THREE.MeshBasicMaterial({map:t,color:'#0a2a05',transparent:true,opacity:.13,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}),100,-.06);
+    const uv=sp.geometry.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,0,(sp.geometry.attributes.position.getX(i)/((W1-W0)*m)+.5));uv.needsUpdate=true;sp.userData.noMerge=true;sp.receiveShadow=false;sp.renderOrder=1;}flat(-7.4,-.6,6.25,6.98,M.mat('ysoil',()=>new THREE.MeshStandardMaterial({color:'#4a3626',roughness:1})),100,-.02);
   /* the house: its north wall with the three rooms' windows, a brick plinth, the eaves, a back door, a drainpipe and a tap */
   {const render=M.mat('yrender',()=>{const mm=new THREE.MeshStandardMaterial({color:'#ebe4d4',roughness:.92,envMapIntensity:.25});mm.userData.noHQ=true;return mm;}),brick=toyTiles('ybrick','#9a5a44','#8c4f3c','#cfc6b6',4,.9),dark=M.mat('yroom',()=>new THREE.MeshStandardMaterial({color:'#2b3038',roughness:.4,envMapIntensity:.9}));
     wall(W0,W1,-.3,0,3.0,render,200);wall(W0,W1,-.31,.012,.42,brick,60);wall(W0-.4,W1+.4,-.9,.45,.16,M.paint('yeaves','#f1efe8',.6),100,3.0);wall(W0-.4,W1+.4,-.9,.5,.5,M.paint('yroof','#5d6470',.7),100,3.16);
@@ -278,7 +280,7 @@ function toyYard(def){const U=TM.U,M=TM,m=100*U,GX=g=>(g+.75)*m,GY=g=>(g-3.5)*m,
     toyPut(M.door(),GX(-4.3),GY(0)+2*U,Math.PI);wall(-4.85,-3.75,0,.5,.03,M.paint('ystep','#b9b3a6',.8),100,0);
     const pipe=new THREE.Mesh(M.cyl(4*U,4*U,3*m,12),M.paint('ydrain','#3a3d42',.5));pipe.position.set(GX(3.3),1.5*m,-GY(.06));pipe.userData.noLift=true;pipe.castShadow=true;world.add(pipe);put(M.yhose(),-2.4,.35);}
   /* the fences: the back one and the two sides */
-  {const fm=M.yboards('fence','#9a7650',false);wall(W0,W1,7,7.04,1.8,fm,100);wall(W0-.04,W0,0,7.04,1.8,fm,100);wall(W1,W1+.04,0,7.04,1.8,fm,100);for(let x=W0;x<=W1;x+=2.2)wall(x-.045,x+.045,6.93,7.0,1.9,fm,100);}
+  {const fm=M.yboards('fence','#9a7650',false);wall(W0,W1,7,7.04,1.8,fm,100,0,true);wall(W0-.04,W0,0,7.04,1.8,fm,100,0,true);wall(W1,W1+.04,0,7.04,1.8,fm,100,0,true);for(let x=W0;x<=W1;x+=2.2)wall(x-.045,x+.045,6.93,7.0,1.9,fm,100,0,true);}
   /* the shed, the washing line, the tree, the goal: where every window's picture has them */
   put(M.yshed(),-11.2,5.4,0);
   {const steel=M.metal('ypole','#b9bcc2',.45);for(const px of [-8.2,-3.4]){const p=new THREE.Mesh(M.cyl(2.5*U,2.5*U,2*m,10),steel);p.position.set(GX(px),m,-GY(4.2));p.castShadow=true;p.userData.noLift=true;world.add(p);}wall(-8.2,-3.4,4.195,4.205,.01,steel,100,1.95);

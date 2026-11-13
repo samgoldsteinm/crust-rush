@@ -300,6 +300,9 @@ M.poster=function(w,h,kind){const G=grp(),W=w*U,H=h*U,c=can('poster'+kind,512,72
   add(G,new THREE.PlaneGeometry(W,H),mat('poster'+kind,()=>std({map:tex(c,'poster'+kind),roughness:.6,envMapIntensity:.3})),0,0,.9*U);const fr=plastic('black','#0c0c0d',.6),t=1.6*U;for(const s of [-1,1]){add(G,box(t,H+2*t,1.8*U),fr,s*(W/2+t/2),0,.6*U);add(G,box(W,t,1.8*U),fr,0,s*(H/2+t/2),.6*U);}
   const gl=add(G,new THREE.PlaneGeometry(W,H),glass('frameglass','#ffffff',.08),0,0,1.2*U);gl.userData.cast=false;return G;};
 /* a round wall clock, 30 cm across: origin at its middle, facing +z */
+/* a photo-scanned surface from the texture store (tools/blender/ph_tex.py: tex_toy_<key> and tex_toy_<key>_n), or the drawn one if it is not there */
+function surfTex(key,rough,env,ns,fallback){if(typeof PROP_TEX==='undefined'||!PROP_TEX['tex_toy_'+key]||!PROP_TEX['tex_toy_'+key+'_n'])return fallback();
+  return mat('surf_'+key,()=>{const c=propTex('tex_toy_'+key),n=propTex('tex_toy_'+key+'_n',false);for(const t of [c,n])t.wrapS=t.wrapT=THREE.RepeatWrapping;const m=std({map:c,normalMap:n,normalScale:new THREE.Vector2(ns,ns),roughness:rough,metalness:0,envMapIntensity:env});m.userData.noHQ=true;return m;});}
 M.clock=function(){const G=grp(),R=15*U,c=can('clock',256,256,(g,w,h)=>{g.fillStyle='#f6f3ea';g.beginPath();g.arc(128,128,126,0,7);g.fill();g.fillStyle='#22262b';for(let i=0;i<12;i++){const a=i/12*6.283;g.save();g.translate(128+Math.sin(a)*104,128-Math.cos(a)*104);g.rotate(a);g.fillRect(-3,-11,6,i%3?14:22);g.restore();}});
   add(G,cyl(R,R,2.4*U,40),plastic('clockrim','#c8452f',.4),0,0,1.2*U,Math.PI/2);const f=add(G,new THREE.CircleGeometry(R*.9,40),mat('clockface',()=>std({map:tex(c,'clock'),roughness:.5})),0,0,2.45*U);f.userData.cast=false;
   const hm=plastic('black','#0c0c0d',.6);add(G,box(1*U,R*.5,.3*U),hm,-R*.16,R*.14,2.7*U,0,0,.85);add(G,box(.7*U,R*.74,.3*U),hm,R*.14,R*.25,2.8*U,0,0,-.5);add(G,cyl(.9*U,.9*U,.6*U,12),hm,0,0,2.8*U,Math.PI/2);return G;};
@@ -425,13 +428,13 @@ const gMats=()=>({gwood:woodTex('ash',.5,()=>wood('oak','#b98a58','#5a3a1c',{rou
   gred:mat('gred',()=>phy({color:'#b3261c',roughness:.3,clearcoat:.8,clearcoatRoughness:.15,envMapIntensity:.8})),gchrome:metal('gchrome','#c9ccd2',.25),gblack:plastic('gblack','#0e0f11',.5),
   grubber:mat('grubber',()=>std({color:'#3a3a3c',roughness:.88,envMapIntensity:.25}))/* lighter than real rubber: the baked shade in the tyres' vertices darkens it again */,ggalv:metal('ggalv','#9aa0a6',.5),gdoor:paint('gdoor','#e9e6de',.45),gboard:paint('gboard','#c9b48e',.8)});
 /* sealed concrete: a mottled grey slab with fine cracks and one saw-cut joint each way per repeat (2.4 m) */
-M.gconcrete=function(){return mat('gconcrete',()=>{const S=1024,c=can('gconcrete',S,S,(g,W,H,r)=>{g.fillStyle='#b3b1aa';g.fillRect(0,0,W,H);
+M.gconcrete=function(){return surfTex('concrete',.7,.4,.9,()=>mat('gconcrete',()=>{const S=1024,c=can('gconcrete',S,S,(g,W,H,r)=>{g.fillStyle='#b3b1aa';g.fillRect(0,0,W,H);
     for(let i=0;i<120;i++){const x=r()*W,y=r()*H,rad=30+r()*140,gr=g.createRadialGradient(x,y,0,x,y,rad),d=r()<.5;gr.addColorStop(0,d?'rgba(60,58,54,.05)':'rgba(240,238,230,.06)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(x-rad,y-rad,rad*2,rad*2);}
     for(let i=0;i<9000;i++){g.fillStyle='rgba('+(r()<.5?'255,255,255':'0,0,0')+','+r()*.07+')';g.fillRect(r()*W,r()*H,1+r()*2,1+r()*2);}
     for(let i=0;i<7;i++){g.strokeStyle='rgba(40,38,36,'+(.18+r()*.2)+')';g.lineWidth=.8+r();g.beginPath();let x=r()*W,y=r()*H;g.moveTo(x,y);for(let k=0;k<9;k++){x+=(r()-.5)*90;y+=(r()-.3)*70;g.lineTo(x,y);}g.stroke();}
     g.fillStyle='rgba(30,28,26,.55)';g.fillRect(0,0,W,4);g.fillRect(0,0,4,H);g.fillStyle='rgba(255,255,255,.10)';g.fillRect(0,4,W,2);g.fillRect(4,0,2,H);}),
     b=can('gconcreteb',512,512,(g,W,H,r)=>{g.fillStyle='#808080';g.fillRect(0,0,W,H);for(let i=0;i<5000;i++){const v=100+r()*56;g.fillStyle='rgb('+v+','+v+','+v+')';g.fillRect(r()*W,r()*H,2,2);}g.fillStyle='#303030';g.fillRect(0,0,W,3);g.fillRect(0,0,3,H);});
-    const m=std({map:T2(c,1,1),normalMap:T2(heightToNormal(b,1.2),1,1,true),normalScale:new THREE.Vector2(.45,.45),roughness:.62,metalness:0,envMapIntensity:.45});m.userData.noHQ=true;return m;});};
+    const m=std({map:T2(c,1,1),normalMap:T2(heightToNormal(b,1.2),1,1,true),normalScale:new THREE.Vector2(.45,.45),roughness:.62,metalness:0,envMapIntensity:.45});m.userData.noHQ=true;return m;}));};
 /* a workbench, len x 62 cm and 90 cm high: a thick wooden top on a steel frame with a lower shelf; its long side runs along x */
 M.gbench=function(len){const K=gMats(),G=grp(),L=len*U,D=62*U,Hh=90*U,tt=5*U;
   add(G,uvw(slab(L,tt,D,.8*U,.5*U,3),90),K.gwood,0,Hh-tt/2,0);
@@ -522,13 +525,14 @@ function gPk(name){const K=gMats(),m={};for(const k in K)m[k]=[K[k],k==='gwood'?
 M.stainCan=function(){return can('goil',256,256,(g,W,H,r)=>{g.clearRect(0,0,W,H);for(let i=0;i<26;i++){const a=r()*6.283,d=r()*70,x=128+Math.cos(a)*d,y=128+Math.sin(a)*d*.8,rad=14+r()*42,gr=g.createRadialGradient(x,y,0,x,y,rad);gr.addColorStop(0,'rgba(22,18,14,.5)');gr.addColorStop(.6,'rgba(22,18,14,.28)');gr.addColorStop(1,'rgba(22,18,14,0)');g.fillStyle=gr;g.fillRect(x-rad,y-rad,rad*2,rad*2);}});};
 /* ============ Backyard Mega Circuit: the garden's things (sizes in cm; the garden itself is laid out in mini.js, toyYard) ============ */
 /* a mown lawn: two greens in broad stripes, speckled; one repeat is 2.4 m */
-M.ylawn=function(){return mat('ylawn',()=>{const S=1024,c=can('ylawn',S,S,(g,W,H,r)=>{for(let i=0;i<4;i++){g.fillStyle=i%2?'#477a2a':'#3f6f25';g.fillRect(0,i*H/4,W,H/4);}
+M.ylawn=function(){return surfTex('lawn',.96,.18,1.1,()=>mat('ylawn',()=>{const S=1024,c=can('ylawn',S,S,(g,W,H,r)=>{for(let i=0;i<4;i++){g.fillStyle=i%2?'#477a2a':'#3f6f25';g.fillRect(0,i*H/4,W,H/4);}
     for(let i=0;i<26000;i++){const v=r();g.fillStyle=v<.45?'rgba(140,190,80,'+r()*.22+')':v<.9?'rgba(30,70,20,'+r()*.22+')':'rgba(200,190,120,'+r()*.2+')';g.fillRect(r()*W,r()*H,1+r()*2,2+r()*5);}
     for(let i=0;i<40;i++){const x=r()*W,y=r()*H,rad=40+r()*120,gr=g.createRadialGradient(x,y,0,x,y,rad);gr.addColorStop(0,r()<.5?'rgba(40,80,20,.12)':'rgba(170,200,90,.10)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(x-rad,y-rad,rad*2,rad*2);}}),
     b=can('ylawnb',512,512,(g,W,H,r)=>{g.fillStyle='#808080';g.fillRect(0,0,W,H);for(let i=0;i<14000;i++){const v=70+r()*120;g.fillStyle='rgb('+v+','+v+','+v+')';g.fillRect(r()*W,r()*H,1,2+r()*4);}});
-    const m=std({map:T2(c,1,1),normalMap:T2(heightToNormal(b,2.4),4,4,true),normalScale:new THREE.Vector2(.9,.9),roughness:.95,metalness:0,envMapIntensity:.25});m.userData.noHQ=true;return m;});};
+    const m=std({map:T2(c,1,1),normalMap:T2(heightToNormal(b,2.4),4,4,true),normalScale:new THREE.Vector2(.9,.9),roughness:.95,metalness:0,envMapIntensity:.25});m.userData.noHQ=true;return m;}));};
 /* upright boards with gaps between them (a fence, eight boards to the metre) and lying boards (a shed's cladding) */
-M.yboards=function(key,col,across){return mat('yboards_'+key,()=>{const S=512,c=can('yboards_'+key,S,S,(g,W,H,r)=>{const B=new THREE.Color(col);for(let i=0;i<8;i++){const k=.85+r()*.3,cc=B.clone().multiplyScalar(k);g.fillStyle='#'+cc.getHexString();if(across)g.fillRect(0,i*H/8,W,H/8);else g.fillRect(i*W/8,0,W/8,H);
+M.yboards=function(key,col,across){if(typeof PROP_TEX!=='undefined'&&PROP_TEX.tex_toy_planks&&PROP_TEX.tex_toy_planks_n)return mat('yplanks_'+key,()=>{const m=surfTex('planks',.9,.2,1,()=>null).clone();m.color.set({fence:'#f2e6d6',shed:'#c2ad98',sheddoor:'#9a8876'}[key]||'#ffffff');m.userData.noHQ=true;return m;});
+  return mat('yboards_'+key,()=>{const S=512,c=can('yboards_'+key,S,S,(g,W,H,r)=>{const B=new THREE.Color(col);for(let i=0;i<8;i++){const k=.85+r()*.3,cc=B.clone().multiplyScalar(k);g.fillStyle='#'+cc.getHexString();if(across)g.fillRect(0,i*H/8,W,H/8);else g.fillRect(i*W/8,0,W/8,H);
       for(let j=0;j<40;j++){g.strokeStyle='rgba(40,25,10,'+r()*.16+')';g.lineWidth=.6+r()*1.4;g.beginPath();if(across){const y=i*H/8+r()*H/8;g.moveTo(0,y);g.lineTo(W,y+(r()-.5)*5);}else{const x=i*W/8+r()*W/8;g.moveTo(x,0);g.lineTo(x+(r()-.5)*5,H);}g.stroke();}
       g.fillStyle='rgba(20,12,6,.6)';if(across)g.fillRect(0,i*H/8,W,3);else g.fillRect(i*W/8,0,3,H);}}),
     b=can('yboardsb_'+key,256,256,(g,W,H)=>{g.fillStyle='#909090';g.fillRect(0,0,W,H);g.fillStyle='#202020';for(let i=0;i<8;i++){if(across)g.fillRect(0,i*H/8,W,4);else g.fillRect(i*W/8,0,4,H);}});
@@ -536,7 +540,7 @@ M.yboards=function(key,col,across){return mat('yboards_'+key,()=>{const S=512,c=
 /* a garden shed, 2.4 x 1.9 m and 2 m to the eaves: boarded walls, a low pyramid roof, a door in the front (+z) */
 M.yshed=function(){const G=grp(),W=240*U,D=190*U,Hh=200*U,wm=M.yboards('shed','#7a5b3c',true),rf=paint('yroof','#5d6470',.7);add(G,uvw(box(W,Hh,D),100),wm,0,Hh/2,0);
   const rg=new THREE.ConeGeometry(195*U,80*U,4,1);rg.rotateY(Math.PI/4);rg.scale(1.05,1,.82);add(G,rg,rf,0,Hh+40*U,0);add(G,box(W+14*U,3*U,D+14*U),rf,0,Hh+1.5*U,0);
-  add(G,uvw(box(80*U,170*U,4*U),100),M.yboards('sheddoor','#5c4630',false),0,85*U,D/2+1*U);add(G,cyl(1.6*U,1.6*U,10*U,10),metal('yiron','#2a2c31',.5),30*U,90*U,D/2+4*U);for(const y of [30,140])add(G,box(22*U,5*U,1*U),metal('yiron','#2a2c31',.5),-30*U,y*U,D/2+3.2*U);return G;};
+  add(G,uvw(box(80*U,170*U,4*U),100,true),M.yboards('sheddoor','#5c4630',false),0,85*U,D/2+1*U);add(G,cyl(1.6*U,1.6*U,10*U,10),metal('yiron','#2a2c31',.5),30*U,90*U,D/2+4*U);for(const y of [30,140])add(G,box(22*U,5*U,1*U),metal('yiron','#2a2c31',.5),-30*U,y*U,D/2+3.2*U);return G;};
 /* a garden tree: a trunk 2.6 m to the first boughs and a crown of leafy masses up to 6 m; r is the crown's spread in cm */
 M.ytree=function(h,cr,seed){const G=grp(),r=rng(seed||3),bark=mat('ybark',()=>{const c=can('ybark',256,512,(g,W,H,rr)=>{g.fillStyle='#5a4634';g.fillRect(0,0,W,H);for(let i=0;i<500;i++){g.strokeStyle='rgba('+(rr()<.5?'30,20,12':'120,100,80')+','+rr()*.35+')';g.lineWidth=1+rr()*3;const x=rr()*W;g.beginPath();g.moveTo(x,rr()*H);g.lineTo(x+(rr()-.5)*14,rr()*H);g.stroke();}});return std({map:T2(c,3,4),roughness:.95,envMapIntensity:.15});}),
     leaf=k=>mat('yleaf'+k,()=>{const c=can('yleaf',256,256,(g,W,H,rr)=>{g.fillStyle='#4f8f38';g.fillRect(0,0,W,H);for(let i=0;i<2600;i++){const v=rr();g.fillStyle=v<.5?'rgba(120,180,70,'+rr()*.5+')':'rgba(25,70,25,'+rr()*.5+')';g.beginPath();g.ellipse(rr()*W,rr()*H,3+rr()*5,1.5+rr()*2.5,rr()*3,0,7);g.fill();}});return std({map:T2(c,6,4),color:['#ffffff','#dcefc8','#c8dcb0'][k],roughness:1,envMapIntensity:.15});});
@@ -560,4 +564,4 @@ M.yhose=function(){const G=grp(),m=plastic('yhose','#3f8a3a',.5);for(let i=0;i<4
 /* a garden gnome, 32 cm: a made-up one, pointed hat and all */
 M.ygnome=function(){const G=grp();add(G,new THREE.ConeGeometry(6*U,13*U,16),paint('gnhat','#c0261c',.5),0,26*U,0);add(G,new THREE.SphereGeometry(5*U,16,12),paint('gnskin','#e8b89a',.6),0,18*U,0);add(G,blob(11*U,10*U,7*U,.9,6),paint('gnbeard','#f1efe8',.8),0,14*U,3*U);
   add(G,blob(14*U,14*U,12*U,.8,6),paint('gncoat','#2f5d9a',.6),0,8*U,0);add(G,box(12*U,1.6*U,10*U),plastic('gnbelt','#141414',.5),0,5*U,0);for(const s of [-1,1])add(G,blob(6*U,3*U,8*U,.8,5),plastic('gnboot','#3a2618',.6),s*3.4*U,1.5*U,2*U);return G;};
-return Object.assign(M,{U,pk,pkReady,bake,MX,vcPlastic,vcMatte,drape,wood,fabric,plastic,metal,paint,glow,glass,slab,blob,uvw,add,grp,box,cyl,can,tex,mat,std,phy,rng});})();
+return Object.assign(M,{surfTex,U,pk,pkReady,bake,MX,vcPlastic,vcMatte,drape,wood,fabric,plastic,metal,paint,glow,glass,slab,blob,uvw,add,grp,box,cyl,can,tex,mat,std,phy,rng});})();

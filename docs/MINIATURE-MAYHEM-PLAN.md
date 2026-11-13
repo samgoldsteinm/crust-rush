@@ -342,3 +342,21 @@ before the launch and the hairpins, a stronger bloom at the window.
 - outside.py's goal now has stays leaning back from its top corners like the Backyard track's; the garage's view re-rendered.
 - Still code-built: everything in the yard, the garage's small things, and the bedroom's remaining ones (tools/blender/README.md).
 
+## Web v177 (2026-11-13): photo-scanned surfaces for the yard and the garage floor
+- The user allowed outside sources ("any plugins or connectors"). The R3 connector's model library was empty for the
+  account and its community models cannot be taken out of R3, so nothing came from there. What was used: four texture
+  scans from Poly Haven (polyhaven.com; everything there is CC0: any use, no attribution needed, so no licence question).
+- `tools/blender/ph_tex.py` downloads each scan's colour and normal map, adjusts the colour and puts the pair into the
+  texture store: `lawn` (leafy_grass, turned green and darkened), `concrete` (brushed_concrete, lightened), `paving`
+  (precast_stone_paving), `planks` (brown_planks_09). The game reads a pair with `surfTex(key, ...)` in models.js and keeps
+  its drawn surface for when the pictures are absent. Used by `M.ylawn`, `M.gconcrete`, `M.yboards` (fence, shed, shed
+  door: one scan, tinted; laid turned for upright boards) and the patio in `toyYard`.
+- Scale: the scans cover 1 to 2.5 m of real surface, which is a blur under a 7.5 cm kart, so they are laid smaller than
+  life (lawn 70 cm a repeat, concrete 110, paving 150; the planks at their true 100). The mower's stripes are a faint
+  striped sheet over the lawn (the scan has none).
+- A pale lawn in full sun exceeds the bloom threshold and hazes the whole picture (the track went pastel again): the
+  lawn's colour is kept dark. Ask a shared material's first maker for it, never a probe call: `surfTex` makes the material
+  on its first call with that call's settings.
+- More scans worth adding the same way: a duvet fabric (cotton_jersey or waffle_pique_cotton), denim for the backpack,
+  leather for the chair, a block wall for the garage.
+
