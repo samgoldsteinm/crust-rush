@@ -360,3 +360,5 @@ before the launch and the hairpins, a stronger bloom at the window.
 - More scans worth adding the same way: a duvet fabric (cotton_jersey or waffle_pique_cotton), denim for the backpack,
   leather for the chair, a block wall for the garage.
 
+
+- 2026-11-13: web v177 and PC build 9720f082 are level (all four toy tracks, the cup, the six cars, the Blender garage pieces, the scanned surfaces).
