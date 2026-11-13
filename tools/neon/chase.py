@@ -12,7 +12,7 @@ async def main():
         pg.on('pageerror', lambda e: errs.append(str(e)[:300]))
         await pg.goto('http://localhost:8771/webcopy6/index.html')
         await pg.wait_for_function("document.getElementById('menu')&&!document.getElementById('menu').hidden", timeout=600000)
-        await pg.evaluate("(a)=>__ev(`qKey='fast';applyQuality();clsKey='medium';mode='single';introSkip=true;" + BODYJS + "goRace(MAPS.findIndex(m=>m.id==='${a[0]}'))`)", [MAP])
+        await pg.evaluate("(a)=>__ev(`qKey='" + os.environ.get('Q', 'fast') + "';applyQuality();clsKey='medium';mode='single';introSkip=true;" + BODYJS + "goRace(MAPS.findIndex(m=>m.id==='${a[0]}'))`)", [MAP])
         await pg.wait_for_function("document.getElementById('raceLd').hidden", timeout=900000)
         for i in range(400):
             if await pg.evaluate("__ev(`state`)")=='race': break

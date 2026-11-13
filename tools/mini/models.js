@@ -6,8 +6,16 @@
 const TM=(function(){
 const U=3.47,MC={},CC={},TXC={};
 const rng=seed=>{let s=Math.floor(seed)%2147483646+1;return ()=>(s=s*48271%2147483647)/2147483647;};
-function can(key,w,h,draw){if(!CC[key]){const c=cnv(w,h);draw(c.getContext('2d'),w,h,rng(key.length*977+w*13+h));CC[key]=c;}return CC[key];}
-function tex(c,key,lin){const k=key+(lin?'|l':'');if(!TXC[k]){TXC[k]=T2(c,1,1,lin);}return TXC[k];}
+/* On phones freeCanvases() (crust-rush.html) shrinks a canvas to 1x1 once its texture is on the graphics chip. Everything kept here by
+   name outlives a race, so: an emptied canvas is drawn again when next asked for, and forget() (called as a world is thrown away) drops
+   every kept material and texture whose canvas was emptied, so the next race makes them afresh. Without this a phone's second toy race
+   had a black track (web v187). */
+const dead=c=>typeof HTMLCanvasElement!=='undefined'&&c instanceof HTMLCanvasElement&&c.width<=1;
+function forget(){let n=0;for(const k in MC){const m=MC[k],ts=[];for(const p in m){const v=m[p];if(v&&v.isTexture)ts.push(v);}if(m.uniforms)for(const p in m.uniforms){const v=m.uniforms[p]&&m.uniforms[p].value;if(v&&v.isTexture)ts.push(v);}
+    if(ts.some(t=>dead(t.image))){for(const t of ts)if(dead(t.image))t.dispose();m.dispose();delete MC[k];n++;}}
+  for(const k in TXC)if(dead(TXC[k].image)){TXC[k].dispose();delete TXC[k];n++;}for(const k in CC)if(dead(CC[k])){delete CC[k];n++;}return n;}
+function can(key,w,h,draw){if(!CC[key]||(w>1&&dead(CC[key]))){const c=cnv(w,h);draw(c.getContext('2d'),w,h,rng(key.length*977+w*13+h));CC[key]=c;}return CC[key];}
+function tex(c,key,lin){const k=key+(lin?'|l':'');if(!TXC[k]||(TXC[k].image!==c&&dead(TXC[k].image))){TXC[k]=T2(c,1,1,lin);}return TXC[k];}
 function mat(key,make){return MC[key]||(MC[key]=Object.assign(make(),{name:'toy_'+key}));}
 const std=o=>new THREE.MeshStandardMaterial(o),phy=o=>new THREE.MeshPhysicalMaterial(o);
 /* ---- geometry helpers ---- */
@@ -607,4 +615,4 @@ M.yPk=yPk;
 /* the small things: the Blender-built one once it has arrived, the code-built one until then. Three potted plants, chosen by the seed */
 {const p0=M.ypot,w0=M.wcan,h0=M.yhose,g0=M.ygnome;M.ypot=(rc,seed)=>{const k='ypot'+((seed||5)%3+1);if(!pkReady(k))return p0(rc,seed);const g=yPk(k);g.scale.setScalar(rc/10.8);return g;};
   M.wcan=()=>yPk('ywcan')||w0();M.yhose=()=>yPk('yhose')||h0();M.ygnome=()=>sPk('sgnome',false,.45)||yPk('ygnome')||g0();/* the scanned gnome if it is there */}
-return Object.assign(M,{surfTex,U,pk,pkReady,bake,MX,vcPlastic,vcMatte,drape,wood,fabric,plastic,metal,paint,glow,glass,slab,blob,uvw,add,grp,box,cyl,can,tex,mat,std,phy,rng});})();
+return Object.assign(M,{surfTex,U,pk,pkReady,bake,MX,vcPlastic,vcMatte,drape,wood,fabric,plastic,metal,paint,glow,glass,slab,blob,uvw,add,grp,box,cyl,can,tex,mat,std,phy,rng,forget});})();

@@ -67,6 +67,24 @@ way through that changes scale believably (below).
   Plan: build A first, in a way that B can replace region by region (region data is kept apart from region loading), and
   make HOME the first region because it is already one place and needs no gateway inside it.
 
+  DECIDED BY THE OWNER, 2026-11-13: A. In their words: "I am happy with passage joined regions just try your best to make
+  it unnoticeable that it's happening that way to the user. It should be a smooth transition of driving without
+  interruption while the world loads. It actually works out this way because it will help fix the issue of the world at toy
+  scale. Since you have to go through a tunnel or gate the world can load and the player won't notice the scale changing
+  in real time".
+  What that asks of a gateway (the bar for milestone 3; the scale gateway of milestone 4 is the same thing, no separate
+  choice is needed any more):
+  - The kart never stops, never loses control and never sees a loading screen: you drive in one end and out the other.
+  - The passage is its own small world that stays loaded: long enough, at the top speed of the fastest class, to cover the
+    slowest phone's load of the next region (measure it; make the passage bend so neither end can be seen from the other).
+  - The neighbour is built in slices across frames while you drive (today loadMap builds a world in one blocking call: that
+    is the work), the old region is thrown away only once it is out of sight, and nothing may hitch a frame.
+  - If the load is not finished when you reach the far end, the passage must have more of itself to give (a longer bend, a
+    spiral, a door that is still rising): never a wall, never a wait screen.
+  - Scale: toy regions are entered through passages too, and the change of scale happens inside, where there is nothing
+    of known size to compare against; the far mouth opens onto the new scale.
+  - Friends' races: both players' passages must agree on where a kart is, so the passage is part of the track data.
+
 ## Milestones (each is a release the owner can drive)
 1. FREE DRIVING AT HOME. Sandbox in the menu. The house as one region at toy scale: the three rooms joined by the hall
    and their doors, the back door to the garden, the garage's open door to the front street. The tracks stay as raced
@@ -89,4 +107,6 @@ PC: every milestone is ported after the web's has been driven by the owner (as a
 
 ## State
 - 2026-11-13: roster inspected, world sketched, engine findings written, milestones set. Nothing built yet.
-  Waiting on nothing to start milestone 1; the scale gateway (milestone 4) wants the owner's choice.
+  Waiting on nothing to start milestone 1.
+- 2026-11-13 (later): the owner chose passage-joined regions, with seamless driving through the passages (see the decision
+  above). The scale gateway needs no separate answer: it is a passage.

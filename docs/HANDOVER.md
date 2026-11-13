@@ -38,6 +38,22 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   there and put their full addresses in the game's table. Needs the owner to create the repository; an hour's work after.
   A further route for very large worlds (Sandbox): per-region asset repositories, loaded only when a region is entered.
 
+### 2026-11-13 (web v187): a phone's second toy race had a black track; start banners went blank on phones
+
+The owner, with a phone screenshot of Bedroom Blitz: "The track is showing up the wrong color on the hot wheels tracks".
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| On a phone, from the second toy race of a session, the toy track (road and loop) was black with only reflections; the rails kept their colour | On touch devices `freeCanvases()` shrinks every scenery canvas to 1x1 once its texture is on the graphics chip (iPhone memory). The toy code keeps materials, textures and canvases by name between races (`TM`: `MC`, `TXC`, `CC` in `tools/mini/models.js`). `disposeWorld()` throws the chip's copy away at the end of a race, so the next toy race uploaded the emptied canvas | `TM.forget()` (called by `disposeWorld`) drops every kept material, texture and canvas whose canvas was emptied, so the next race draws them again; `TM.can()` and `TM.tex()` also redraw an emptied canvas when asked (for models that arrive late in a race). `tools/mini/patch21.py` | Anything kept between races that reads a canvas must go through `TM.can/tex/mat`, or be told to `freeCanvases` (`userData.keepCanvas` on every texture of that canvas, or `userData.shared`). Run `phonetest.py` |
+| On a phone the start banner was blank from the first neon race of a session onward | All three start gantries draw on one shared canvas (`bannerC`); the neon gantry made its texture without `keepCanvas`, so the canvas was emptied and stayed 1x1 | `freeCanvases` never touches `bannerC`; `drawBanner` restores its size; the neon gantry sets `keepCanvas` | Same rule |
+- Why no test caught it: every test loaded one track per page, in desktop Chromium, where nothing is ever emptied. New:
+  `py.cmd tools/neon/phonetest.py <map> <map> ...` races several tracks one after another in ONE page in the Safari engine
+  set up as an iPhone, watches every canvas being emptied and every upload to the graphics chip, and fails if an emptied
+  canvas is ever uploaded. Pictures in `scratch/phone_<n>.png`. (WebKit for Playwright is installed in `tools/pw`.)
+- One upload it reports as harmless and why: three.js r149's shadow pass has ONE shared shadow material that keeps the map
+  of the last thing that cast a shadow (WebGLShadowMap sets `map` on it for every caster) and never tests it; after a world
+  is thrown away it re-uploads that leftover once. No pixel changes. The test names it "shadow-pass uploads (harmless)".
+- Not a PC matter: the PC build has no canvases to empty.
+
 ### 2026-11-13 (web v186, online version 109): Backyard Mega Circuit laid out again
 
 The owner: "There's too many straights on the backyard mega circuit the track needs to be more interesting right now it's
@@ -52,7 +68,7 @@ How it was laid out without guessing: a pocket turtle in garden metres (scratch 
 against the landmarks' coordinates before the real generator closed the lap; the two straights it solves must not be parallel.
 
 ### Where web and PC stand (2026-11-13, end of the session)
-- Web v186 (online 109: the backyard's new layout). PC build a866c750 = web v181 (online 108) until the PC release for v186 finishes.
+- Web v187 (online 109). PC build 06c70bde = web v186 (online 109): PC and web race together. v187 is a web-only fix (phones).
 - Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
   (docs/BALLOON-BATTLE-PLAN.md). Sandbox is planned, not begun (docs/SANDBOX-PLAN.md).
 - Not checked by eye on the PC: the Blender garden, the garage's open door and front yard, the leaf cards and tree pictures.
@@ -371,6 +387,8 @@ so the PC build of that push does not publish), and runs are watched through the
 2. `neon/simtest.py <track> medium 230` and `reverse`: all 8 finish, 0 respawns, 0 stuck.
 3. `neon/chase.py` (the game's own camera round the lap) and `neon/shots.py` (free camera) for looks.
 4. One regular track as a regression (`simtest.py margherita medium 200`).
+4b. A phone session: `neon/phonetest.py bedroom kitchen bedroom margherita grid bedroom` (any change to textures, materials,
+    scenery caches or track loading): PHONE TEST passed, and look at `scratch/phone_*.png` for the repeat visits.
 5. PC: export from CI, `tests/tmp_neon` (AI race), `tests/tmp_cam` (pictures), then push.
 
 ### 2026-11-12 (move to the Windows PC)
