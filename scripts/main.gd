@@ -379,8 +379,9 @@ func _build_world() -> void:
 	sm.set_shader_parameter("hor_col", _hex(S.get("hor"), Color(1, 0.7, 0.54)))
 	sm.set_shader_parameter("bot_col", _hex(S.get("bot"), Color(0.16, 0.44, 0.52)))
 	sm.set_shader_parameter("sun_col", _hex(S.get("sunCol"), Color(1, 0.85, 0.63)))
-	# the Backyard's sky is a dome 16 000 units out (the web game's): the camera must see past it there
-	cam.far = 26000.0 if (T.toy and T.toyenv == null) else 14000.0
+	# a toy track's sky is a dome 16 000 units out (the web game's: over the Backyard, and seen through the garage's open door):
+	# the camera must see past it there
+	cam.far = 26000.0 if T.toy else 14000.0
 	if T.toy and T.toyenv == null and typeof(L.get("bg")) == TYPE_STRING:
 		# a toy track out of doors (the Backyard: it names no room to photograph for reflections): the web game shows its
 		# plain sky colour there, not the theme's sunset

@@ -31,13 +31,11 @@ def acc(i):
 
 
 # the web's copy: PROP_PACKS.waterfall (int16 positions over o/s, uint16 uvs), same decoder as the game's propGeos
-s = open(web).read()
-k = s.find('"waterfall":{', s.find('const PROP_PACKS='))
-h0 = s.find('"h":', k)
-he = s.find('],"d":"', h0)
-hdr = json.loads(s[h0 + 4:he + 1])
-d0 = he + len('],"d":"')
-blob = base64.b64decode(s[d0:s.find('"', d0)])
+# (since November 2026 the web source keeps each model as files: source/data/geo/<id>.json and .bin, beside crust-rush.html)
+import os
+_geo = os.path.join(os.path.dirname(os.path.abspath(web)), 'data', 'geo')
+hdr = json.load(open(os.path.join(_geo, 'waterfall.json')))['h']
+blob = open(os.path.join(_geo, 'waterfall.bin'), 'rb').read()
 o = 0
 webt = []
 for m in hdr:
