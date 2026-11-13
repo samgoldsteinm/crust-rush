@@ -243,4 +243,7 @@ before the launch and the hairpins, a stronger bloom at the window.
   Waiting on the user: how the new toy-track handling feels (TURN 2.64, DRIN 2.6, DROUT 0.6).
   Next work: remaining Blender models (floor lamp, sneakers, backpack, books, plant, monitors, keyboard, PC tower, door and
   window frames, shelf, small things); fabric textures; then Kitchen Chaos, Garage Overdrive, Backyard Mega Circuit and the cup.
+- Web v166 (engine patch 11): item boxes spread out and back after 2 s on toy tracks, one box of a row per kart; anchovies
+  are used up on a protected kart; Olive's trail is 7 slicks on toy tracks, never catches her, and shows blue to her.
+  NET_PROTO 104. PC: the same rules (PROTO 104), numbers from the export.
 

@@ -22,6 +22,17 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### 2026-11-13 (web v166, PC with PROTO 104): items, from the user's play-test of Bedroom Blitz
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| One kart took a whole row of item boxes on Bedroom Blitz and nobody else got any | A row's boxes stood 12.7 units apart (the regular spacing scaled to the half-width track), inside one kart's 16-unit reach; they took 4 s to come back | Toy tracks: boxes 21 units apart across the track and stepped along it (26 between any two), a kart that takes a box cannot take another for BOXCD = 0.6 s, boxes come back after BOXR = 2 s (engine patch 11) | Any new toy track gets this from the toy flag. Box positions are track data: re-export for PC |
+| A homing anchovy hit a kart twice: once, then again the moment its 3 s of protection ended | The item and Anchovy's special circled a protected target and waited | An anchovy that reaches a kart still protected after a spin is used up with no effect, like other items (special: `p.sure` branch; item: target check in the kart loop). It still waits out Pesto Rush, Fire Trail and the other untouchable abilities, as before | The user asked for the protection case only |
+| Olive's own slicks caught Olive | Only the first moments after dropping were safe (`armed`) | An olive slick never catches its owner (host loop and the guest's own check); the owner sees their own slicks in blue with no warning sign (`hazDecorate(mesh,kind,mine)`) | |
+| Olive's trail was too long for the small toy tracks | Ten slicks whatever the track | SLICKN: 7 on toy tracks, 10 elsewhere; she is untouchable for as long as the trail takes to lay | |
+| PC only (found while porting): an item box could be taken from the road above or below it on multi-level tracks | The PC's box check had no level test (the web has one) | `race.gd`: the same 18-unit level test | |
+BOXR, BOXCD and SLICKN are set in `loadMap0` beside TURN, DRIN and DROUT, and exported to the PC with them (`glbexport.js`, `track.gd`).
+PC tests: `tests/items.tscn` (these rules) prints the numbers the track brought.
+
 ### 2026-11-13 (web v165, PC with PROTO 103)
 Handling on toy tracks, from the user's play-test of Bedroom Blitz ("turning a little too sharp"; "drift exit a little quicker";
 "enter and exit drift slightly faster than the other tracks... probably how all the toy tracks have to be"):
