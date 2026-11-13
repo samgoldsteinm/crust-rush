@@ -22,6 +22,17 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### 2026-11-13 (web v167): easier rivals on toy tracks; the garage shows stats the PC's way
+- The user had not won a race on Bedroom Blitz at 200cc ("so many items and specials close together, hard to keep a lead").
+  Engine patch 12, toy tracks only, every class: computer drivers' top speed 3% lower (skill -0.03), `ahead` x0.97, `behind` 60% of
+  its push, `corner` x1.25, `boost` x0.7, item `delay` x1.5, and `abw` 1.8 (the wait before a special). Set in `loadMap0` beside
+  the Neon tracks' sharper numbers. The PC gets them through the exported `diffs` (and reads `abw` in race.gd).
+  Computer drivers only, so the online version did not change. Still for the user to judge: whether 200cc is now winnable.
+- Garage stats (patch 13, display only): a vehicle's card shows its own stats as plain values out of 12 (`valueChips`,
+  `statBarsOf(b,false)`); wheels and gliders keep plus/minus chips; the panel shows the vehicle's bars in orange, what wheels and
+  glider add in green and take away in red, and that change as the number (`showStats`). Scale as on the PC: 6 + soft x 1.5, 0..12.
+  `statMods` (what the race uses) is untouched.
+
 ### 2026-11-13 (web v166, PC with PROTO 104): items, from the user's play-test of Bedroom Blitz
 | What broke | Why | Fix | Keep it fixed |
 |---|---|---|---|

@@ -246,4 +246,6 @@ before the launch and the hairpins, a stronger bloom at the window.
 - Web v166 (engine patch 11): item boxes spread out and back after 2 s on toy tracks, one box of a row per kart; anchovies
   are used up on a protected kart; Olive's trail is 7 slicks on toy tracks, never catches her, and shows blue to her.
   NET_PROTO 104. PC: the same rules (PROTO 104), numbers from the export.
+- Web v167: easier computer drivers on toy tracks (patch 12) and the garage's stats shown as on the PC (patch 13).
+  PC: item rules (PROTO 104) and `abw`; needs the export for v167 (diffs) before its build.
 
