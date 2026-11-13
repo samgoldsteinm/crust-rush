@@ -2,7 +2,7 @@
 # and its garage (every body, wheel set, glider and driver) on one more, and attaches them to the "maps"
 # release. The PC build downloads them from there, so the big model files never go into git. Run it by hand
 # after the web game's tracks or karts change.
-# (Last run for: web v161, Bedroom Blitz oak floor.)
+# (Last run for: web v163, Bedroom Blitz gaming chair and painted walls.)
 name: Export tracks
 
 on:
