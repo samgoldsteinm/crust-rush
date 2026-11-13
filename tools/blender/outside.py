@@ -29,6 +29,7 @@ s = reset()
 os.makedirs(f'{OUT}/{NAME}', exist_ok=True)
 GROUND = -.35
 TO_SUN = Vector((-.1, .82, .56)).normalized()          # the game's sun (-.1, .56, -.82) in Blender axes: +Y is out of the window
+if VIEW == 'g': TO_SUN = Vector((.2, -.8, .52)).normalized()   # the garage is lit through its big door, in the south wall: there the sun stands in the south, and the garden out of its north window is lit from the front
 TEX = f'{OUT}/tex'
 W0, W1 = Y.W0, Y.W1
 

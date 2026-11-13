@@ -22,6 +22,19 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### 2026-11-13 (web v181): Garage Overdrive's big door stands open
+
+Asked for by the user: "I want the garage door open in garage overdrive with outdoor details that can be seen and the sun
+coming in from outside". Looks only (online version stays 108).
+
+| What changed | How | Keep it working |
+|---|---|---|
+| The door is open | `toyShell` takes the door's opening as its south-wall hole (`dr`, with `noDoor`); the model is `gdooro` (garage.py: the panels under the ceiling on curved tracks, the frame in the wall's thickness) | The strip lights moved north of the raised door (`tubes`) |
+| The sun comes in through it | In this room the sun stands in the south: `toyShell({sun:[.22,.5,.84], beam:[the door's opening]})`. `sunBeam` fits the room's shadow camera to that opening | A room's `sun` and `beam` go together: the beam must be an opening the sun can shine through |
+| What is outside | `toyFront` in mini.js: real things at real places (drive, lawn, a low brick wall, pavement, street, four houses, fences, ten trees, the sky dome turned so its bright side is south), all marked `sunlit` because they are outside the room's beam | Anything put outdoors of a room needs `userData.sunlit`, or it is drawn as if in the room's shade |
+| The garage's window view | Rendered again with the sun in the south (`outside.py -- g` has its own sun): the garden is lit from the front there | If the garage's sun moves, change it in both places |
+| PC | `cam.far` is 26 000 on every toy track (the dome is seen through the door); `PROTO := 108` | |
+
 ### 2026-11-13 (web v180, online version 108): real trees; Garage Overdrive's bench end and spiral
 
 PC build 1f2fd8dc is level with web v179 (online 107). v180 changes the garage's track heights, so the online version is 108 on

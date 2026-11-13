@@ -6,6 +6,7 @@ Sizes are fixed by the track and by the code-built stand-ins in tools/mini/model
   gshelf   steel shelving, 150 x 40 x 180 cm, boards at 8, 50, 92, 134 and 176 cm (the game stands the tins and boxes on them)
   gtyres   four car tyres in a stack (the spiral goes round it): 58 cm across, 20 cm wide each
   gdoor    the sectional garage door seen from inside, 318 x 214 cm
+  gdooro   the same door OPEN: its four panels run back under the ceiling on their tracks, the opening is clear
 Things on the walls (the wall is the plane Y = 0 behind them; the game stands them against a wall at any height):
   gelec    the electrics: a consumer unit at 1.6 m, conduit up to the ceiling, a run to a switch and one to a double socket
   gladder  an aluminium ladder, 2.3 m, hung flat on two hooks
@@ -198,3 +199,31 @@ if want('grack'):
     rx = .36; P.append(rod('rhandle', .0125, 1.38, (rx, -.065, ZR - .66), M['wood'], 'Z', 12)); P.append(box('rhead', (.36, .014, .022), (rx, -.065, ZR + .04), M['steel'], .003, 1))
     for i in range(13): P.append(tube(f'tine{i}', [(rx - .168 + i * .028, -.065, ZR + .04), (rx - .168 + i * .028, -.065, ZR + .075), (rx - .168 + i * .028, -.10, ZR + .10)], .003, M['steel'], .012, 6, 3))
     finish_model('grack', P, 4.6, views=((-25, 8),), floor=False)
+
+# ---------------- the garage door, open: the panels lie under the ceiling on the horizontal tracks; -Y is into the garage
+if want('gdooro'):
+    s = reset(); M = mats(); P = []; W, H = 3.18, 2.14; n = 4; ph = H / n; ZT = H + .13                     # ZT: the height the open door hangs at (the ceiling is at 2.50)
+    Y0 = -.30                                                                                               # the first panel's leading edge, back from the wall
+    for i in range(n):
+        yc = Y0 - ph * (i + .5)
+        P.append(box(f'panel{i}', (W, ph - .006, .04), (0, yc, ZT), M['door'], .004, 2))
+        for k in range(3): P.append(box(f'rib{i}{k}', (W - .08, .05, .012), (0, yc + (k - 1) * ph * .29, ZT - .024), M['door'], .005, 3))
+        for x in (-.42, -.14, .14, .42):
+            P.append(box(f'stile{i}{x}', (.05, ph - .02, .02), (x * W, yc, ZT - .03), M['door'], .004, 2))
+            if i: P.append(box(f'hinge{i}{x}', (.05, .09, .008), (x * W, Y0 - ph * i, ZT - .044), M['galv'], .002, 1))
+    P.append(box('seal', (W, .024, .05), (0, Y0 + .012, ZT), M['rubber'], .004, 2))                          # the bottom seal, now the door's front edge
+    for sx in (-1, 1):
+        x = sx * (W / 2 + .03)
+        # each track: up the side of the opening, round a quarter turn, back under the ceiling
+        P.append(tube(f'track{sx}', [(x, -.03, 0), (x, -.03, ZT - .30), (x, -.33, ZT), (x, -(H + .55), ZT)], .028, M['galv'], .30, 8, 6))
+        for i in range(n + 1): P.append(rod(f'roller{sx}{i}', .022, .026, (sx * (W / 2 + .012), Y0 - min(H - .03, ph * i + .04), ZT), M['black'], 'X', 14))
+        for k, yy in enumerate((-.9, -2.3)):                                                               # hangers up to the ceiling
+            hg = box(f'hang{sx}{k}', (.03, .004, 2.50 - ZT - .02), (x, yy, (2.50 + ZT + .02) / 2), M['galv'], 0); P.append(hg)
+            P.append(box(f'hangfoot{sx}{k}', (.06, .08, .004), (x, yy, 2.498), M['galv'], 0))
+        P.append(box(f'jamb{sx}', (.09, .135, H + .02), (sx * (W / 2 + .045), .06, (H + .02) / 2), M['door'], .004, 1))      # the frame in the wall's thickness (the wall is 12 cm, from Y = 0 outward)
+    P.append(box('head', (W + .18, .135, .09), (0, .06, H + .045), M['door'], .004, 1))
+    P.append(box('headrail', (W + .14, .07, .05), (0, -.035, H + .30), M['galv'], .003, 1))
+    P.append(rod('shaft', .014, W + .10, (0, -.09, H + .26), M['galv'])); P.append(rod('spring', .035, 1.1, (-.5, -.09, H + .26), M['steel'], 'X', 18))
+    for sx in (-1, 1): P.append(rod(f'drum{sx}', .06, .05, (sx * (W / 2 + .01), -.09, H + .26), M['galv'], 'X', 20))
+    P.append(tube('cord', [(.9, -.34, ZT - .03), (.9, -.36, ZT - .32)], .004, M['red'], 0, 6)); P.append(rod('cordgrip', .012, .05, (.9, -.36, ZT - .345), M['red'], 'Z', 10))   # the pull cord
+    finish_model('gdooro', P, 8.5, views=((-150, -8), (-30, 14)), floor=False)

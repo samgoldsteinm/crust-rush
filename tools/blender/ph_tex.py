@@ -25,6 +25,7 @@ TEX = {
     'slate': ('grey_roof_tiles_02', 'none'),      # the roofs
     'bark': ('bark_brown_02', 'none'),            # the trees' trunks and boughs
     'soil': ('brown_mud', 'dark'),                # the flower bed, the earth in the pots
+    'asphalt': ('asphalt_02', 'none'),            # the street outside the garage's open door
 }
 
 

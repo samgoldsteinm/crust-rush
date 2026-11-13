@@ -417,3 +417,9 @@ before the launch and the hairpins, a stronger bloom at the window.
   toyYard). `ytreef` is no longer used when the picture is there.
 - Window views: the real tree at every tree's place (`outside.py`), the lawn at its own colour.
 
+## Web v181 (2026-11-13): the garage's door open
+- See docs/HANDOVER.md (web v181). Files: `garage.py -- gdooro`, `toyFront` and the `toyShell` options `sun`, `beam`, `noDoor`,
+  `tubes` in mini.js, `ph_tex.py asphalt`, `outside.py -- g` (its own sun). `tools/mini/clearcheck.py garage` and
+  `tools/neon/probe.py` are the two checks added with v180's garage fixes.
+- Ideas not done: a parked car on the drive or the street (Poly Haven has a CC0 `covered_car`), a letter box, bins by the wall.
+

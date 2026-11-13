@@ -188,20 +188,20 @@ function toyRoomEnv(){const P=TOYENV;if(P&&world)try{sunShadeAll();const rt=new 
    o: {key, X, Y, H (half width, half length, height), win:[x0,x1,y0,y1], dr:[x0,x1,y0,y1], walls:[north,south,west,east], floor:material, tile:cm, env:[x,height,z]}
    (the bedroom was built before this existed and keeps its own copy of these steps) */
 function toyShell(o){const U=TM.U,M=TM,X=o.X,Y=o.Y,H=o.H,win=o.win,dr=o.dr;
-  renderer.toneMappingExposure=.98;hemi.color.set('#cfdcf0');hemi.groundColor.set('#b3937a');hemi.intensity=.54;sun.color.set('#ffdcaa');sun.intensity=2.7;sunDir.set(-.1,.56,-.82).normalize();rimL.intensity=.16;rimL.color.set('#cfe0ff');
+  renderer.toneMappingExposure=.98;hemi.color.set('#cfdcf0');hemi.groundColor.set('#b3937a');hemi.intensity=.54;sun.color.set('#ffdcaa');sun.intensity=2.7;if(o.sun)sunDir.set(o.sun[0],o.sun[1],o.sun[2]).normalize();else sunDir.set(-.1,.56,-.82).normalize();/* (o.sun: a room lit from another side, as the garage through its big door) */rimL.intensity=.16;rimL.color.set('#cfe0ff');
   scene.fog=new THREE.Fog('#d8cfc0',6000,30000);scene.background=new THREE.Color('#bcd6f2');Object.assign(POST.grade,{sat:1.04,con:1.05,tint:[1.01,1,.985],vig:.16,bloom:.22,thr:.97});
   const fg=new THREE.PlaneGeometry(2*X,2*Y,1,1);fg.rotateX(-Math.PI/2);M.uvw(fg,o.tile,true);const fl=new THREE.Mesh(fg,o.floor);fl.position.y=-.1;fl.receiveShadow=true;fl.userData.noLift=true;world.add(fl);
   const stip=T2(heightToNormal(M.can('stipple',256,256,(g,w,h,r)=>{for(let y=0;y<h;y+=2)for(let x=0;x<w;x+=2){const v=112+r()*32;g.fillStyle='rgb('+v+','+v+','+v+')';g.fillRect(x,y,2,2);}}),1.1),7,7,true),
     wallM=(key,col)=>M.mat('pt_'+key,()=>{const m=new THREE.MeshStandardMaterial({color:col,roughness:.9,metalness:0,envMapIntensity:.4,normalMap:stip,normalScale:new THREE.Vector2(.35,.35)});m.userData.noHQ=true;return m;}),
     W=o.walls.map((c,i)=>typeof c==='string'?wallM('wall'+o.key+i,c):c);/* (a room may bring its own wall material: the garage's brick) *//* named toy_pt_wall..., which the PC looks for */
-  sunBeam([[win[0],win[1],win[2],win[3],-Y-12*U,-Y]],win[3]/sunDir.y+160);
+  if(o.beam)sunBeam(o.beam,o.beam[0][3]/sunDir.y+160);else sunBeam([[win[0],win[1],win[2],win[3],-Y-12*U,-Y]],win[3]/sunDir.y+160);
   toyWall('x',-Y,-X,X,H,win,W[0],-1,o.wallTile);toyWall('x',Y,-X,X,H,dr||null,W[1],1,o.wallTile);toyWall('z',-X,-Y,Y,H,null,W[2],-1,o.wallTile);toyWall('z',X,-Y,Y,H,null,W[3],1,o.wallTile);
   const cg=new THREE.PlaneGeometry(2*X,2*Y);cg.rotateX(Math.PI/2);const ce=new THREE.Mesh(cg,wallM('ceiling','#f4f1ea'));ce.position.y=H;ce.userData.noLift=true;world.add(ce);
   const sk=M.paint('skirting','#f6f4ee',.5),sb=(x0,x1,z0,z1)=>{const b=new THREE.Mesh(M.slab(Math.abs(x1-x0)||1.6*U,10*U,Math.abs(z1-z0)||1.6*U,.3*U,.3*U,2),sk);b.position.set((x0+x1)/2,5*U,(z0+z1)/2);b.userData.noLift=true;b.receiveShadow=true;world.add(b);};
   if(!o.noSkirt){if(!o.noNorthSkirt)sb(-X,X,-Y+.8*U,-Y+.8*U);sb(-X,dr[0]-9*U,Y-.8*U,Y-.8*U);sb(dr[1]+9*U,X,Y-.8*U,Y-.8*U);sb(-X+.8*U,-X+.8*U,-Y,Y);sb(X-.8*U,X-.8*U,-Y,Y);}
   const wcx=(win[0]+win[1])/2,wW=(win[1]-win[0])/U,wH=(win[3]-win[2])/U;toyPut(M.window(wW,wH),wcx,Y+4*U,0,win[2]);const out=M.outside(wW*2.6,wH*2.2,o.view);out.position.set(wcx,win[2]+wH*U*.55,-Y-60*U);out.userData.noLift=true;out.userData.envGain=6;world.add(out);TOYENV=o.env;
-  if(dr)toyPut(M.door(),(dr[0]+dr[1])/2,-Y+1*U,Math.PI,0);
-  if(o.light==='tube'){for(const y of [-380,330])toyPut(M.tubelight(),0,y,0,H);}else{const g=new THREE.Group();M.add(g,M.cyl(17*U,17*U,2*U,32),M.paint('ceilrose','#f1eee6',.6),0,-1*U,0);M.add(g,new THREE.SphereGeometry(15*U,28,12,0,6.283,Math.PI/2,Math.PI/2),M.mat('ceilglass',()=>new THREE.MeshStandardMaterial({color:'#fffaf0',emissive:'#fff1d6',emissiveIntensity:.35,roughness:.4})),0,-2*U,0);toyPut(g,0,0,0,H);}}
+  if(dr&&!o.noDoor)toyPut(M.door(),(dr[0]+dr[1])/2,-Y+1*U,Math.PI,0);
+  if(o.light==='tube'){for(const y of o.tubes||[-380,330])toyPut(M.tubelight(),0,y,0,H);}else{const g=new THREE.Group();M.add(g,M.cyl(17*U,17*U,2*U,32),M.paint('ceilrose','#f1eee6',.6),0,-1*U,0);M.add(g,new THREE.SphereGeometry(15*U,28,12,0,6.283,Math.PI/2,Math.PI/2),M.mat('ceilglass',()=>new THREE.MeshStandardMaterial({color:'#fffaf0',emissive:'#fff1d6',emissiveIntensity:.35,roughness:.4})),0,-2*U,0);toyPut(g,0,0,0,H);}}
 /* a tiled surface: n x n tiles per texture in two colours with sunk grout lines; glossy, so it shows the window */
 function toyTiles(key,c1,c2,grout,n,rough){return TM.mat('tiles_'+key,()=>{const S=512,q=S/n,c=TM.can('tile_'+key,S,S,(g,w,h,r)=>{for(let j=0;j<n;j++)for(let i=0;i<n;i++){g.fillStyle=(i+j)%2?c2:c1;g.fillRect(i*q,j*q,q,q);for(let k=0;k<160;k++){g.fillStyle='rgba('+(r()<.5?'255,255,255':'0,0,0')+','+r()*.04+')';g.fillRect(i*q+r()*q,j*q+r()*q,2+r()*10,2+r()*10);}}
       g.fillStyle=grout;for(let i=0;i<=n;i++){g.fillRect(i*q-2,0,4,S);g.fillRect(0,i*q-2,S,4);}}),
@@ -231,6 +231,27 @@ function toyKitchen(def){const U=TM.U,X=695,Y=833,H=868,M=TM,win=[-250,250,400,7
   toyPut(M.poster(50,70,3),689,-150,-Math.PI/2,470);toyPut(M.poster(42,60,4),-689,-430,Math.PI/2,440);toyPut(M.clock(),40,-Y+.6*U,Math.PI,560);
   /* where furniture keeps the light off the floor */
   toyShade(-278,278,-140,138,.4);toyShade(-695,400,560,833,.34);toyShade(440,695,590,833,.4);toyShade(-695,-591,44,356,.3);toyShade(-520,-400,-270,-150,.2);}
+/* ---- what is outside the garage's open door: the front of the house. Real things at their real places, so the view shifts rightly as you drive past
+   the doorway: the concrete drive, lawn either side, the pavement and the street, two houses over the road, trees, the sky.
+   z0 is the outer face of the south wall. Everything out here stands in full sun (`sunlit`: it is outside the beam the room's shadows are worked out in). */
+function toyFront(z0){const U=TM.U,M=TM,out=o=>{o.userData.noLift=true;o.userData.sunlit=true;o.userData.cast=false;o.castShadow=false;o.receiveShadow=false;o.traverse(q=>{if(q.isMesh){q.userData.sunlit=true;q.castShadow=false;q.receiveShadow=false;}});world.add(o);return o;},
+    flat=(x0,x1,za,zb,m,tile,y)=>{const g=new THREE.PlaneGeometry(x1-x0,zb-za);g.rotateX(-Math.PI/2);M.uvw(g,tile);const o=new THREE.Mesh(g,m);o.position.set((x0+x1)/2,y,(za+zb)/2);return out(o);},
+    slab=(x0,x1,za,zb,h,m,tile,y)=>{const o=new THREE.Mesh(M.uvw(new THREE.BoxGeometry(x1-x0,h,zb-za),tile),m);o.position.set((x0+x1)/2,y+h/2,(za+zb)/2);return out(o);},
+    scan=typeof PROP_TEX!=='undefined'&&!!PROP_TEX.tex_toy_lawn,cm=M.surfTex('concrete',.8,.2,.9,()=>M.paint('fdrive','#bdbab2',.8)),pv=M.surfTex('paving',.82,.3,1,()=>M.paint('fpave','#c4bdb0',.8)),as=M.surfTex('asphalt',.9,.15,1,()=>M.paint('fasph','#4a4b4e',.9));
+  flat(-9000,9000,z0,z0+2400,M.ylawn(),scan?70:240,-3);flat(-640,640,z0-12*U,z0+2420,cm,scan?110:240,-1.2);/* the drive runs in under the door, level with the garage floor */
+  flat(-9000,9000,z0+2400,z0+2880,pv,scan?150:90,-1);slab(-9000,9000,z0+2880,z0+2930,14,M.paint('fkerb','#b7b2a8',.85),100,-13);flat(-9000,9000,z0+2930,z0+5330,as,300,-12);
+  slab(-9000,9000,z0+5330,z0+5380,14,M.paint('fkerb','#b7b2a8',.85),100,-13);flat(-9000,9000,z0+5380,z0+5860,pv,scan?150:90,-1);flat(-9000,9000,z0+5860,z0+16000,M.ylawn(),scan?70:240,-3);
+  /* a low brick wall along the front of the plot, open at the drive, with a pier each side of it */
+  {const bk=M.surfTex('brick',.9,.2,1,()=>M.paint('fbrick','#9a5a44',.9)),cp=M.paint('fcope','#c9c3b6',.8);for(const sx of [-1,1]){slab(sx<0?-1750:700,sx<0?-700:1750,z0+2330,z0+2372,200,bk,140,0);slab(sx<0?-1756:694,sx<0?-694:1756,z0+2324,z0+2378,12,cp,100,200);slab(sx*700-34,sx*700+34,z0+2317,z0+2385,270,bk,140,0);slab(sx*700-40,sx*700+40,z0+2311,z0+2391,14,cp,100,270);}}
+  /* the houses over the road, their windowed side toward us; the neighbours' fences; trees behind and between */
+  for(const [x,z] of [[-2100,z0+8200],[2500,z0+8500],[6900,z0+8300],[-6600,z0+8400]]){const h=M.yPk&&M.yPk('yneigh');if(h){h.position.set(x,0,z);h.rotation.y=Math.PI;out(h);}}
+  if(M.pkReady('yfence')&&M.pkReady('yfenceb'))for(const sx of [-1,1])for(let i=0;i<3;i++){const f=M.yPk(i%2?'yfenceb':'yfence');f.position.set(sx*1750,0,z0+2.125*347*(i+.5));f.rotation.y=sx*Math.PI/2;out(f);}
+  const far=typeof PROP_TEX!=='undefined'&&PROP_TEX.tex_toy_treefar?M.mat('outsidetree',()=>{const t=propTex('tex_toy_treefar');t.userData.alpha=true;return new THREE.MeshBasicMaterial({map:t,color:new THREE.Color(1.45,1.45,1.4),alphaTest:.5,side:THREE.DoubleSide,toneMapped:false,fog:false});}):null;
+  if(far)for(const [x,z,h,sd] of [[-3300,z0+1500,900,1],[3600,z0+1900,1050,2],[-900,z0+6500,1000,3],[4600,z0+6700,1150,4],[-4700,z0+6900,1100,5],[700,z0+11500,1300,6],[-3900,z0+11000,1250,7],[5200,z0+11800,1350,8],[9000,z0+7000,1200,9],[-9200,z0+7400,1200,10]]){
+      const S=h*U*1.29;for(const q of [0,1]){const g=new THREE.PlaneGeometry(S,S),uv=g.attributes.uv,fl=sd%2===q;for(let i=0;i<4;i++)uv.setX(i,q*.5+(fl?1-uv.getX(i):uv.getX(i))*.5);const c=new THREE.Mesh(g,far);c.position.set(x,S/2-4*U,z);c.rotation.y=q?Math.PI/2:0;c.userData.noMerge=true;out(c);}}
+  if(typeof PROP_TEX!=='undefined'&&PROP_TEX.tex_toy_sky){const sg=new THREE.SphereGeometry(16000,48,14,0,Math.PI*2,0,Math.PI*.53);sg.scale(-1,1,1);const sd=new THREE.Mesh(sg,M.mat('outsidesky',()=>new THREE.MeshBasicMaterial({map:propTex('tex_toy_sky'),toneMapped:false,fog:false})));
+    sd.position.set(0,0,z0+3000);sd.rotation.y=Math.PI;/* (turned half round: the sky's bright side is where this room's sun is, in the south) */sd.userData.noMerge=true;sd.frustumCulled=false;out(sd);}
+  {const b=M.sPk&&M.sPk('sball',false,.6);if(b){b.position.set(-1050,0,z0+700);out(b);}}}
 /* an oil stain on the floor, about d units across */
 function toyStain(x,y,d,a,rot){const m=TM.mat('goil'+a,()=>new THREE.MeshBasicMaterial({map:TM.tex(TM.stainCan(),'goil'),transparent:true,opacity:a,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1})),p=new THREE.Mesh(new THREE.PlaneGeometry(d,d),m);
   p.rotation.x=-Math.PI/2;p.rotation.z=rot||0;p.position.set(x,.3,-y);p.userData.noLift=true;p.userData.noMerge=true;p.renderOrder=1;world.add(p);}
@@ -240,13 +261,14 @@ function toyStain(x,y,d,a,rot){const m=TM.mat('goil'+a,()=>new THREE.MeshBasicMa
 function toyGarage(def){const U=TM.U,X=695,Y=833,H=868,M=TM,win=[-420,80,430,764],top=312;
   /* the walls: painted brickwork from a scan (tools/blender/ph_tex.py, gbrick), 1.8 m to the repeat; plain paint until it is there */
   const gb=M.gbrick(),bw=gb?M.mat('pt_wallg',()=>{const m=gb.clone();m.userData.noHQ=true;return m;}):'#e6e3db';
-  toyShell({key:'g',X,Y,H,win,dr:null,walls:[bw,bw,bw,bw],wallTile:gb?180:0,floor:M.gconcrete(),tile:typeof PROP_TEX!=='undefined'&&PROP_TEX.tex_toy_concrete?110:240,env:[-60,400,-80],noSkirt:true,light:'tube',view:'g'});
+  const dr=[-552,552,0,743];/* the big door's opening, 318 x 214 cm: the door is up, and the sun comes in through it (in this room it stands in the south) */
+  toyShell({key:'g',X,Y,H,win,dr,noDoor:true,sun:[.22,.5,.84],beam:[[dr[0],dr[1],0,dr[3],Y,Y+12*U]],tubes:[190,610],walls:[bw,bw,bw,bw],wallTile:gb?180:0,floor:M.gconcrete(),tile:typeof PROP_TEX!=='undefined'&&PROP_TEX.tex_toy_concrete?110:240,env:[-60,400,-80],noSkirt:true,light:'tube',view:'g'});
   /* a grey band painted round the foot of the walls, as garages have */
   {const bm=gb?M.mat('gbandbrick',()=>{const m=gb.clone();m.color.set('#a9afb8');m.roughness=.7;m.userData.noHQ=true;return m;}):M.paint('gband','#8f9499',.7),bd=(x0,x1,z0,z1)=>{const g=new THREE.BoxGeometry(Math.abs(x1-x0)||.5*U,100*U,Math.abs(z1-z0)||.5*U),c=[(x0+x1)/2,50*U,(z0+z1)/2];
       if(gb){g.translate(c[0],c[1],c[2]);M.uvw(g,180);g.translate(-c[0],-c[1],-c[2]);}/* the same bricks as the wall behind it, course for course */const b=new THREE.Mesh(g,bm);b.position.set(c[0],c[1],c[2]);b.userData.noLift=true;b.receiveShadow=true;world.add(b);};
     bd(-X,X,-Y+.25*U,-Y+.25*U);bd(-X+.25*U,-X+.25*U,-Y,Y);bd(X-.25*U,X-.25*U,-Y,Y);bd(-X,-560,Y-.25*U,Y-.25*U);bd(560,X,Y-.25*U,Y-.25*U);}
   /* ---- the big door, the door to the house ---- */
-  toyPut(M.gdoor(318,214),0,-Y+3*U,Math.PI);toyPut(M.door(),-X+2.4*U,-560,Math.PI/2);
+  toyPut(M.gfit('gdooro'),0,-Y,Math.PI);toyPut(M.door(),-X+2.4*U,-560,Math.PI/2);toyFront(Y+12*U);
   /* ---- the workbench: along the east wall and returning along the north wall; the track runs along both ---- */
   toyPut(M.gbench(116),587.5,631.5,Math.PI/2);TOYF.push([480,695,-833,-430,top]);
   toyPut(M.gbench(101),305,725.5,0);TOYF.push([130,480,-833,-618,top]);
