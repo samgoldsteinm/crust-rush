@@ -164,4 +164,38 @@ Open items the user raised: booster housings near shortcut mouths (guarded in to
   - Pictures: scratch
 eon_s1b_*.png (same cameras as neon_before_*), chase_s1c_*.png.
   - PC still to do for item 1: shadow range to the room on toy tracks, walls cast, same sun direction and colours.
+- Item 2 done on web (source only): room reflections.
+  - Engine patch 5 (`tools/mini/patch5.py`, applied): `envProbe()` hands over to `toyRoomEnv()` (mini.js) when `TOYENV`
+    is set. The room is photographed once per load from `TOYENV` ([x,height,z], an open spot over the rug) into a cube
+    map (256, or 128 on Fast and Lite; two passes; karts hidden) and that becomes `scene.environment`. The view outside
+    is drawn 6 times brighter in that photograph only (`userData.envGain`), so the window acts as a light in reflections.
+  - Track and rails are glossy again (roughness .34, clearcoat 1, clearcoat roughness .07, full reflections) and marked
+    `userData.noHQ`, so Ultra's surface speckle no longer mottles them. Rail meshes are `noMerge` (merging swapped their
+    plastic for a plain batch material).
+  - Gotcha: `TM.mat` caches by name. `toyorange` and `toyblue` are defined both in mini.js (TOYOR, TOYBL) and in
+    models.js (the spare track piece); whichever runs first wins, so the two definitions must stay identical.
+
+## Second look at the reference video (2026-11-12 night, 136 frames: every scene change plus one frame per 8 s of the daylight race)
+Take the look, never the logos, banners, car names or the flame emblem. What the daylight track does:
+- Track: coloured sections (orange, red, yellow, deep blue, dark grey) that change at a joint; a white dash along
+  each edge about one car long with a two-car gap; glossy enough to mirror the sky and the beams overhead; glowing
+  blue oval pads; chevron strips (yellow on dark, green on dark) before bends and jumps.
+- Light: one hard sun. Beams and posts throw long shadows across the track, so the car drives through stripes of
+  light and shade; sunlit wood is warm orange, shade is dark and slightly blue; openings to outdoors bloom.
+- Wood: plywood sheets with bold grain, visible ply edges, bolts and riveted steel plates, cones standing on it.
+- Outside: real trees, a chain-link fence, low buildings, blue sky with soft clouds.
+- Camera: wide angle, streaks at the screen edges at speed, tyre smoke when drifting; replays use a blurred
+  background and foreground.
+- Cars: metallic paint with clear reflections and a dark shadow right under the body.
+Applied so far: sunlight and shade (item 1), glossy mirroring track (item 2), coloured sections and edge dashes (item 6,
+brought forward because it is the most recognisable part of the look). Still to do from this list: plywood and fabric
+rebuilt in Blender (3), real view outside with trees and a fence (4), background blur on Ultra (5), chevron strips
+before the launch and the hairpins, a stronger bloom at the window.
+- Item 6 done on web (source only): coloured sections and edge dashes. `TOYSEC` (mini.js) lists a room's sections as
+  [from,to,colour] in fractions of the lap: Bedroom has a red spiral (.073-.253), yellow under the bed (.347-.514) and a
+  blue climb (.783-.938); the rest is orange. Road, rails and the underside take the section's colour; a white dash runs
+  along each edge (in the road texture, one per 120 units). Looks only, nothing in the track data.
+- Fixed on the user's report (see HANDOVER): books through the climb, side monitor in the wall, traps drawn under
+  raised road. Open on the user's report: item boxes on the starting grid on some maps (being measured), and a Blender
+  remodel of every object in the room ("as realistic as possible").
 
