@@ -136,14 +136,34 @@ against the landmarks' coordinates before the real generator closed the lap; the
 
 ### OPEN WORK, in the order to do it (rewritten 2026-11-14 after web v193; the owner's words for each are in docs/NEXT-MODES-BRIEF.md)
 1. (done: a Grand Prix on line on the PC, the controller's cursor on the PC, the trees and previews: see the v195 entry.)
-4. THE PC: Balloon Battle, then Sandbox (see "OWED TO THE PC" below; a hook-by-hook map of where Balloon Battle goes in the Godot
-   scripts is in docs/PC-BALLOON-BATTLE-MAP.md).
+4. THE PC: Sandbox (Balloon Battle is done: see its entry). The plan is the last section of docs/SANDBOX-PLAN.md; the web's half of the
+   export is `sbExport()` (web v196).
 5. THE WEBSITE (`pc.html`), last.
 6. SANDBOX, what the brief still asks for and is not built (docs/SANDBOX-PLAN.md has the plan for each): the shared clock (day and night),
    activities (deliveries, drift and jump challenges), the coin shop (kart and car unlocks), online free roam and the start-line lobby with
    ready-up. On the pizza tracks only what is drawn is there to explore: no new side roads or buildings have been modelled.
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
+
+### 2026-11-14 (PC build after 254f835, with web v196): Balloon Battle on the PC
+- What: the mode as the web has it, off line only. The arena (map 24, `preptable`) is exported with its shapes: `d['battle']` in
+  godot/tools/ciexport.py (shapes, spawns, ramps, the clock, step, radius, the item table, the balloon colours), so nothing of the arena
+  is written twice. `scripts/battle.gd` (loaded by path, no class name) is tools/mini/battle.js in GDScript: arena ground and touch tests,
+  walls, thrown-item walls and level test, spawn, start, hit, rank, the tick, the read-out, the item roll, the computer drivers.
+  Hooks, every one behind `T.battle` (kart, view, camera) or `race.bb != null` (race): kart.gd (`tp`, walls, ground, no kerb, no lap-line
+  fix), race.gd (`setup_cfg` makes the battle on an arena map and sets `mode = "bb"`, as the web's BATTLE comes from the map), main.gd
+  (boot guard, the mode loads or leaves the arena, results, camera, no ghost / best time / lap toasts / achievements), menu.gd (the mode,
+  START BATTLE, no track list; the arena kept out of every track list and Records), hud.gd, view.gd (balloons, pop). `webnet.gd` is not
+  touched: hosting or joining a room leaves the mode (`_bb_no_net`).
+- Checked: `tests/battle.tscn` with `CR_MAP=preptable CR_MODE=bb`: BATTLE PASS, about 106 pops a round and 30 points left at the end;
+  the web measured the same way gives 108 to 116 pops and 29 to 34 points (the "15 to 38" in tools/neon/bbtest.py is points left, not
+  pops: a score is halved at every all-popped). `smoke`, `gpnet`, `padcur`, `allmaps` (it skips arenas) pass. The same seeded normal
+  races give byte-identical kart positions before and after the port (seven races compared).
+- Differences from the web, on purpose: the meatball ignores the arena's walls on both (the web's does; a comment in race.gd says so);
+  `bbHome`, `bbTarget`, `bbLeader` and the freezer-by-distance are not ported (those items cannot be rolled in a battle).
+- NOT SEEN BY ANYONE YET (every run was headless): the balloons, the pop, the read-out's place, the banners, the results sheet, the
+  four-button mode row, the arena in the PC's renderer with HD on, the camera at walls and over the west edge, a person driving it
+  (aiming, look-back fire, holding an item), and the arena has no menu picture and no song of its own. ASK THE OWNER TO PLAY A ROUND.
 
 ### 2026-11-14 (web v195, looks only; PC build 254f835 for online Grand Prix and the controller's cursor): real trees on every track; new previews
 - TREES (the owner: "update all the maps with the new trees we made a while ago ... some of the older maps still have the old blocky trees
@@ -263,7 +283,7 @@ in the pause menu and on controller make the y button open the map"; "signs abov
   lawn come with the re-export (`release_pc.py`). `tests/smoke.tscn` passes locally with them.
 
 ### Where web and PC stand (2026-11-13, end of the session)
-- Web v195 (online 110). PC build 254f835 = web v194's tracks (online 110): PC and web race together. The PC has no Balloon Battle and no Sandbox yet. What the web has and the PC has not is listed in OPEN WORK. v187 (phone fix), v188
+- Web v196 (online 110). The PC build made after 254f835 has web v196's tracks, Balloon Battle, online Grand Prix and the controller's cursor (online 110): PC and web race together. The PC has no Sandbox yet. What the web has and the PC has not is listed in OPEN WORK. v187 (phone fix), v188
   (Sandbox, first slice) and v189 (the second site's plumbing, switched off) are web only; nothing that moves a kart in a race changed.
 - Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
   (docs/BALLOON-BATTLE-PLAN.md). Sandbox: the first slice (the back garden) is on the web (v188); docs/SANDBOX-PLAN.md.
