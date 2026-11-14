@@ -107,3 +107,23 @@ Also on the balloon map part of one of the wooden ramps runs straight into the l
 - "the books also slightly run into the track"
 - "also make the shortcuts like this not have any curve and just be straight. when they curve to the right slightly back into the track it forces the player to run into the wall. there are a few tracks that have shortcuts like this in the hotwheels grand prix so look over them and fix any that have the issue"
 - "also im noticing every race is ending slightly before the actual finish line lets fix this as well"
+
+## Added by the owner, 2026-11-13 and 14 (Balloon Battle and Sandbox, with screenshots; all answered in web v191 and v192)
+- "this ramp is also undriveable in balloon battle because its stuck to the box in front of it and too high up please fix this"
+- "when you drive up the ramp that does work on to the top piece the camera angle is really bad and the car sort of floats on the object"
+- "im noticing that going up some of the ramps or spirals are still a little choppy especially in the sandbox mode. the ground near the house is also flashing when im on the higher up spots like the spiral. i uploaded a picture of the are that is doing it. its where the grey sidewalk is that connects to the house"
+- "the camera is also really bad at following the car when you jump from a high piece of the track to the ground, test it a few times and adjust the camera to work better"
+
+## Added by the owner, 2026-11-14 (Sandbox, from a play-test of web v191/v192, with a picture of a "warp" star field: bright streaks of white, violet and blue flying out from the middle of a black screen)
+- "when driving through the tunnels into the other rooms i dont want the car to dissappear i want to drive on a track where it looks like im going through a tunnel with this sort of design. i uploaded a picture for you to see."
+- "also dont forget to add a map with fast travel in the pause menu and on controller make the y button open the map"
+- "and add signs above the tunnels into each section of the map."
+- "also some maps you cant go backwards on the tracks but you should be able to go backwards."
+- "also if you hold down both brake buttons in sandbox it should completely stop the car and there should be a park button on screen that will stop the car in place that way you can stop at races easier."
+- "also going around the loops is a little glitchy in sandbox mode"
+- (later the same day, after seeing test pictures) "im noticing in the images you rendered that some of the signs for the locations are covered make sure they are more visible, also make it so you can zoom in on specfic tracks in the map section and can see where you are on the map and where the tunnel to the other room is"
+
+## Added by the owner, 2026-11-14 (three more, while web v193 was being tested)
+- (controller menus) "also im thinking instead of the yellow boxes on controller it should just be an on screen cursor and mouse. the scroll function should work the same as the on screen mouse moves to the bottom of the screen the screen will scroll down and same thing for up. this way the user has total control of what they click on. the mouse will be controlled with the left stick and make scrolling a right stick function as well even though it also works with the mouse"
+- (online Grand Prix) "also grand prix wasnt working online after one race it was saying race again or change driver but no to the next race option please look into that. it was between 2 computers on the web app but make sure its working online on all platforms"
+- (trees) "also update all the maps with the new trees we made a while ago im noticing some of the older maps still have the old blocky trees and shrubs. take new photos for their preview when you finish as well"

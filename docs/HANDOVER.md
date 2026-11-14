@@ -134,17 +134,87 @@ Props that stood in the new lap were moved (`clearcheck.py backyard`: its list i
 How it was laid out without guessing: a pocket turtle in garden metres (scratch only) printed where each piece ended
 against the landmarks' coordinates before the real generator closed the lap; the two straights it solves must not be parallel.
 
-### OPEN WORK, in the order to do it (rewritten 2026-11-14 after web v192; the owner's words for each are in docs/NEXT-MODES-BRIEF.md)
-1. SANDBOX ON THE OTHER 20 TRACKS. Drafted, not applied, not tested: `tools/mini/drafts/world_sandbox_edits.py` (edits to
-   sandbox.js) and `tools/mini/drafts/world_engine_patch.py` (engine hooks; number it after the last patch in tools/mini). Both
-   were written against web v191's sandbox.js: v192 changed `sbG`, `sbSurf` and `sbCam`, so apply them by hand, piece by piece.
-   The design is in their headers: pizza tracks free roam with arches in the crust, Sauce Spiral and the Neon tracks keep to the
-   road with a lane arch, the garage's open door leads to Margherita Ring. The world map with fast travel is drafted in
-   `tools/mini/drafts/sbmap_draft.js`.
-2. THE PC: Balloon Battle, then Sandbox (see "OWED TO THE PC" below).
-3. THE WEBSITE (`pc.html`), last.
-4. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
+### OPEN WORK, in the order to do it (rewritten 2026-11-14 after web v193; the owner's words for each are in docs/NEXT-MODES-BRIEF.md)
+1. A GRAND PRIX ON LINE, ON THE PC. The web is fixed (v193, patch28). The PC cannot host one at all (`webnet.gd` sends `"gp": null`)
+   and, as a friend in a web host's cup, shows plain results. Give `main.gd`/`webnet.gd` the same: the cup in the race's settings, the
+   cup table on the results from the table's own order (`netGpNow`), "Next race" for the host, a player's points kept under the player
+   (`gp.np`, by the room's number for them), not under the racer. No message changes shape, so the online version stays.
+2. THE CONTROLLER'S ON-SCREEN CURSOR (the owner: "instead of the yellow boxes on controller it should just be an on screen cursor ...
+   controlled with the left stick ... scrolling a right stick function as well"; the screen scrolls when the cursor reaches its top
+   or bottom edge). Web: `padPoll`'s menu branch and `padNav` (the yellow focus ring is `body.padnav`). PC: the same in `menu.gd`.
+3. THE NEW TREES ON THE OLDER TRACKS, THEN NEW PREVIEW PHOTOS (the owner: "some of the older maps still have the old blocky trees and
+   shrubs. take new photos for their preview when you finish"). The real trees came in web v180 for the garden; the pizza tracks'
+   trees and bushes are still the code-built ones. Previews: `tools/neon/embed_shots.py` / `menushot.py`.
+4. THE PC: Balloon Battle, then Sandbox (see "OWED TO THE PC" below; a hook-by-hook map of where Balloon Battle goes in the Godot
+   scripts is in docs/PC-BALLOON-BATTLE-MAP.md).
+5. THE WEBSITE (`pc.html`), last.
+6. SANDBOX, what the brief still asks for and is not built (docs/SANDBOX-PLAN.md has the plan for each): the shared clock (day and night),
+   activities (deliveries, drift and jump challenges), the coin shop (kart and car unlocks), online free roam and the start-line lobby with
+   ready-up. On the pizza tracks only what is drawn is there to explore: no new side roads or buildings have been modelled.
+7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
+
+### 2026-11-14 (web v193; Sandbox only, nothing a race reads; no online change): the whole game is one Sandbox world; warp tunnels; map; Park
+What the owner asked (word for word in NEXT-MODES-BRIEF.md): Sandbox "between the rest of the maps in the game"; "i dont want the car to dissappear
+i want to drive on a track where it looks like im going through a tunnel with this sort of design" (a warp star field); "a map with fast travel
+in the pause menu and on controller make the y button open the map"; "signs above the tunnels"; "some maps you cant go backwards on the tracks";
+"hold down both brake buttons ... completely stop the car and ... a park button on screen"; "going around the loops is a little glitchy".
+- EVERY TRACK IS A PLACE (`sbRegOf`, `SB_AREA`, `SB_LINKS` in tools/mini/sandbox.js; engine hooks tools/mini/patch27.py). Three kinds:
+  `toy` the house's four (as before); `open` the fifteen pizza tracks: drive anywhere on the pizza, ground = `groundAt` plus the track's own
+  height, walls read from what is drawn (anything lying within 2.4 of the ground is ground), the crust is the edge, arches in the crust are the
+  passages; `road` Sauce Spiral and the four Neon tracks: the road hangs in the air, so you keep to it (the race's own walls, either way round)
+  and the passages are arches over the left-hand lane. `SBX` is on in all three; `SBF` ("free") only in the first two, and BATTLE is on exactly
+  when SBF is. The garage's open door leads to Margherita Ring.
+- WARP TUNNELS (`sbWarpMat`, `sbCover`, `sbPull`): a passage's mouth and its inside are drawn by one small shader (no picture files). The kart
+  drives the tunnel for real. While the next place is built (the game stops for a second or more) the picture is held by `#sbDuct`: the last
+  frame, CSS-animated streaks (the browser moves them while the game cannot) and the kart cut out of its own picture (drawn alone on black and
+  on white). A kart beyond the wall it has driven through is still drawn: its depth is pulled toward the camera (`polygonOffsetUnits`).
+- SIGNS: a board above every mouth with the name of where it leads; a gantry across the garage door.
+- THE MAP (`sbMap`, `SB_WORLD`, `SB_SPOT`, `SB_LAND`): Y or Select on a controller, M on a keyboard, Map under Resume in the pause menu.
+  A chequered pin at every start line is a fast-travel point (pick, confirm, warp). `togglePause` closes the map first if it is open.
+- BACKWARDS: in Sandbox a jump ramp can be climbed from behind (a short slope up its back; no launch off its low end) and a full loop entered
+  from its far end is ridden the other way round (`k.loop.rev`). Neither exists in a race (all behind `SBX`).
+- STOP AND PARK (`sbStop`, `sbPark`): both on-screen brake buttons held, or the Park button (K on a keyboard, D-pad down on a controller):
+  no throttle, no brake, speed taken to nothing. The throttle on a controller lets Park off.
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| "going around the loops is a little glitchy in sandbox mode" | `sbCam` (the camera's pull-in when something solid stands between it and the kart) ran inside a loop: the hoop itself was in the way, so it moved and levelled the camera every frame against the loop's own camera | `sbCam` does nothing while `camT.loop` or `camT.rth>0` | Per-frame log in the v193 commit message: camF stays 1 through a loop |
+| On a pizza the kart never came down after the glide ramp (first test of Margherita Ring) | Two things. A drawn lip at the ramp's end counted as ground 1.4 above the kart as it took off, so it "landed" at once; and in the air the lap point stood still, so the glide never knew where it was | On a pizza the road is the ground at any height (`sbLvl`); a kart in the air on a pizza goes by the race's nearest lap point (`sbIdx(k,was,near)`) | `py.cmd tools/neon/sbworld.py`: lap `reached` > .98 on every place |
+| Backwards on a toy track: stopped at every jump ramp and at every loop | The ramp is a solid wedge with a 6-high back; a loop could only be entered from its near end | See BACKWARDS above | `sbworld.py`: `back` is an empty list for every place |
+| A pizza track's full loop could not be entered in free driving (Basil Boulevard, Pineapple Lagoon, Burn stopped the lap test) | The low rails and lips of the loop's two lanes were read as walls from what is drawn | Round a full loop anything lower than 7.5 above its foot is left out (`SB.loops` in `sbSurf`); the toy loop's hoop carries `colMin` for the same reason | `sbworld.py`: lap `reached` > .98 |
+| Backwards over a glide canyon: the kart fell in and was set back on the near side facing forwards, for ever | `respawn` always faces the lap's way | In Sandbox a kart that was heading back along the track is set down facing back (it has then crossed) | `sbworld.py`: `back` empty |
+- Pizza places, the edges of what can be driven (`sbBlocked`): a face of the pizza's own ground that rises more than a step from where the kart
+  stands is a cliff (some tracks' land climbs 180 beside the road), and ground more than 3 under the water is a shore. An arch in the crust is
+  only put where a kart can drive in a straight line from the road to it (`ray` in `sbGates`); a hidden coin likewise. `console.warn('sandbox:
+  no clear way to an arch', ...)` means a place has an arch nobody can reach: look at it.
+- Cost: reading a pizza's walls takes 0.5 to 0.8 s at Fast and about 2.2 s at Ultra on this PC (1.2 million triangles); it happens under the
+  warp cover. A place's grid is about 12 MB while you are in it.
+- ON LINE GRAND PRIX. What broke (the owner): "grand prix wasnt working online after one race it was saying race again or change driver but no to
+  the next race option". Why: the online results screen never looked at the cup (it hid the cup table and always wrote "Race again" /
+  "Change track or driver"; the host's button did go on, unsaid); and the cup's points were added once, when the HOST finished, so a friend
+  who finished later scored nothing, and two friends driving the same racer shared one line of the cup. Fix (tools/mini/patch28.py): the cup is
+  scored from the results table itself (`netGpNow`) and shown on every screen; the points are added when the host goes on; the host's button
+  says "Next race"; a player's points are kept under the player (`gp.np`). Keep it fixed: `py.cmd tools/neon/gpnet2.py` (new: host and friend
+  in two windows through the real matchmaking) must end ONLINE GRAND PRIX TEST passed. The PC still lacks all of this (OPEN WORK 1).
+- STAND-IN FURNITURE. What broke: a toy room raced with plain blocks for furniture (the kitchen's table and chairs solid; a coin under the table
+  could not be reached). Why: the room was already on screen as the menu's picture, built before its Blender models had downloaded; the loading
+  screen only waited for them, and only rebuilt, when the track had to change. Fix: `LATE_BUILD` (patch28): a room built early is built again
+  by goRace once the models are in. Keep it fixed: `sbtest.py kitchen`: every coin on the floor can be driven to.
+- Signs (the owner: "some of the signs for the locations are covered make sure they are more visible"): the board stands on two posts 17 above
+  the arch and 5 in front of it, a quarter wider, its face unshaded. The map zooms (`SBM.zoom`, `sbMapView`): picking a pin looks closely at
+  that place: its lap, the blue arrow where you are, a purple ring and a label ("TUNNEL TO KITCHEN") at each tunnel. A track's tunnels are
+  remembered once you have been there (`crust-sb`.g); the house's are always known. "Where am I?" zooms to your own place.
+- LOOPS AND PADS ONLY ON THE TRACK. What broke: far out on Basil Boulevard's pizza the kart was suddenly inside the loop, 1600 away. Why: a kart off
+  the track keeps the last lap point it was on (`sbIdx`), and a loop took any kart whose lap point was a few before the loop's (in a race that means
+  "about to reach it"). Fix: in free driving a loop (either way round) and a boost pad act only on a kart that is at them (place, lane and height;
+  patch27); in the air the race's nearest lap point is only taken when it is within 170. Keep it fixed: `sbtest.py basil` (the passage to Midnight
+  Mozzarella after a round trip to Margherita Ring).
+- An arch keeps its place between visits: `sbGates` first tries where it stood last time (`crust-sb`.g) and only searches again if that way is blocked.
+- Tests: `py.cmd tools/neon/sbworld.py [quality] [maps]` (new: fast-travels to every place and checks lap, backwards lap, arches and hidden
+  coins reachable); `sbtest.py <map>` now knows the three kinds; `sbprobe.py <map> <file.js>` runs any JavaScript in a Sandbox session and
+  takes pictures (the way every picture for this version was made).
+- NOT DONE HERE, and why: nothing new was modelled round the pizza tracks; the map shows the wider world as a diagram, not to scale (the
+  house is to scale). The passage graph (`SB_LINKS`) was changed so it lies flat on the map.
 
 ### 2026-11-14 (web v192, PC to match, online version 110): racing fixes from the owner's play-test of the toy cup
 | What broke | Why | Fix | Keep it fixed |
@@ -163,14 +233,16 @@ against the landmarks' coordinates before the real generator closed the lap; the
   lawn come with the re-export (`release_pc.py`). `tests/smoke.tscn` passes locally with them.
 
 ### Where web and PC stand (2026-11-13, end of the session)
-- Web v192 (online 110). The PC build for it is made by `release_pc.py` straight after; until it is out, PC (109) and web (110) cannot race together. v187 (phone fix), v188
+- Web v193 (online 110; v193 changed Sandbox only). PC build c424cba7 = web v192 (online 110): PC and web race together. v187 (phone fix), v188
   (Sandbox, first slice) and v189 (the second site's plumbing, switched off) are web only; nothing that moves a kart in a race changed.
 - Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
   (docs/BALLOON-BATTLE-PLAN.md). Sandbox: the first slice (the back garden) is on the web (v188); docs/SANDBOX-PLAN.md.
 - OWED TO THE PC (the owner, 2026-11-13: "make sure to commit these changes to the pc version as well"): Balloon Battle
   (mode, arena, rules as of web v191, the one-line scoreboard) and Sandbox (everything in docs/SANDBOX-PLAN.md that the web has).
-  Neither exists in the Godot project yet. Port Balloon Battle first (its rules are settled), then Sandbox once the web's
-  reaches every track, so it is ported once.
+  Neither exists in the Godot project yet. Port Balloon Battle first (its rules are settled), then Sandbox: the web's reaches every track as of v193, so it can
+  be ported once. What moves a kart in Sandbox and must be mirrored exactly: `sbG`, `sbBlocked`, `sbWalls`, `sbIdx`, the ramp-from-behind
+  and loop-the-other-way rules and `sbStop` (all in tools/mini/sandbox.js and tools/mini/patch22..27.py). Sandbox is off line, so the
+  online version does not move for it.
 - OWED TO THE WEBSITE (the owner, same day: "once all the changes are complete lets update the website"): `pc.html` in the app
   repository says seventeen tracks and the old modes. Update it when the PC has the new modes: the count (20 tracks, 4 toy
   tracks, the battle arena), Balloon Battle, Sandbox, new stills; then a fresh trailer if the owner wants one.

@@ -208,3 +208,14 @@ lobby with ready-up, the host starting it, on "a screen similar to the online sc
      it is the host and can start only when everyone in it is ready. Leaving the marker's circle leaves the lobby.
   4. The race is the existing friends' race (host prepares, `netHostPrepare`); afterwards everyone is back in Sandbox
      at the start line. Online version to be bumped on web and PC together when the messages are added.
+
+## The whole game as one world (web v193)
+- Every track is a place: `sbRegOf(id)`. Kinds `toy` (the house), `open` (the fifteen pizza tracks, free driving on the pizza), `road` (Sauce
+  Spiral and the Neon tracks: keep to the road). `SB_AREA` names each place's country; `SB_LINKS` says which places its passages lead to.
+- Passages are warp tunnels (the owner's picture: streaks flying out of the middle of a black screen): `sbWarpMat` draws the mouth and the
+  inside; `sbCover` holds the picture during the load with the kart on top; `sbPull` keeps the kart drawn beyond the wall. A sign above every
+  mouth. On `road` places the mouth is an arch over the left-hand lane, placed on a clear straight (never on a bend, jump, loop or glide).
+- The map (`sbMap`): the house to scale, the twenty tracks as round places in their five countries with a line for every passage; a chequered
+  pin at each start line is a fast-travel point. Y / Select, M, or Map under Resume.
+- Backwards: ramps from behind and loops the other way round, in Sandbox only. Stop: both brake buttons, or Park.
+- Still to build from the brief: the clock, activities, the shop, online free roam, the start-line lobby; new land round the pizza tracks.
