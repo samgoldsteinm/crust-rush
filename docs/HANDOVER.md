@@ -135,16 +135,7 @@ How it was laid out without guessing: a pocket turtle in garden metres (scratch 
 against the landmarks' coordinates before the real generator closed the lap; the two straights it solves must not be parallel.
 
 ### OPEN WORK, in the order to do it (rewritten 2026-11-14 after web v193; the owner's words for each are in docs/NEXT-MODES-BRIEF.md)
-1. A GRAND PRIX ON LINE, ON THE PC. The web is fixed (v193, patch28). The PC cannot host one at all (`webnet.gd` sends `"gp": null`)
-   and, as a friend in a web host's cup, shows plain results. Give `main.gd`/`webnet.gd` the same: the cup in the race's settings, the
-   cup table on the results from the table's own order (`netGpNow`), "Next race" for the host, a player's points kept under the player
-   (`gp.np`, by the room's number for them), not under the racer. No message changes shape, so the online version stays.
-2. THE CONTROLLER'S ON-SCREEN CURSOR, ON THE PC. The web has it (v194, patch29: see that entry). The PC's menus still walk a focus box
-   between buttons (`menu.gd`): give them the same arrow (move the pointer with the left stick, press with A, scroll with the right stick
-   and at the edges).
-3. THE NEW TREES ON THE OLDER TRACKS, THEN NEW PREVIEW PHOTOS (the owner: "some of the older maps still have the old blocky trees and
-   shrubs. take new photos for their preview when you finish"). The real trees came in web v180 for the garden; the pizza tracks'
-   trees and bushes are still the code-built ones. Previews: `tools/neon/embed_shots.py` / `menushot.py`.
+1. (done: a Grand Prix on line on the PC, the controller's cursor on the PC, the trees and previews: see the v195 entry.)
 4. THE PC: Balloon Battle, then Sandbox (see "OWED TO THE PC" below; a hook-by-hook map of where Balloon Battle goes in the Godot
    scripts is in docs/PC-BALLOON-BATTLE-MAP.md).
 5. THE WEBSITE (`pc.html`), last.
@@ -153,6 +144,33 @@ against the landmarks' coordinates before the real generator closed the lap; the
    ready-up. On the pizza tracks only what is drawn is there to explore: no new side roads or buildings have been modelled.
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
+
+### 2026-11-14 (web v195, looks only; PC build 254f835 for online Grand Prix and the controller's cursor): real trees on every track; new previews
+- TREES (the owner: "update all the maps with the new trees we made a while ago ... some of the older maps still have the old blocky trees
+  and shrubs. take new photos for their preview when you finish"). Every tree outside the house went through `forest()` as one of five
+  low-polygon models. Now `forest()` stands each up as crossed cards with a picture of a photo-scanned tree (tools/mini/patch30.py:
+  `treeCards`, `TREE_PIC`, `TREE_AS`): three cards near the track, two further out; a bush is the crown of a tree set on the ground; the
+  freezer tracks' 1800 green cones are small firs. Twelve tracks change (the bay, freezer and night themes) and every backdrop forest.
+  The pictures: `tools/blender/treepics.py -- <poly haven id> <name>` (two side views on a clear ground, plainly lit: the game lights
+  them), stored with `put_tex.py tex_tree_<name> ... 1024`. In the game: jac (jacaranda, brightened 1.4x), small (tree_small_02), isl1,
+  isl2 (island_tree_01/02), fir (fir_tree_01). All Poly Haven, CC0.
+  NOT DONE: the pine (pine_tree_01 needs over 5 GB to render; both pine models use the fir); the bay's palms (no scanned palm is free to
+  use: they are still the code-built ones); snow on the firs (a card cannot be tinted white on top).
+  Trees were never solid in a race and are not in Sandbox either (a cut-out material is left out of the columns).
+- PREVIEWS: `py.cmd tools/neon/mapshots.py` with `MI=<map index>` retakes a track's menu pictures on this PC from the same camera places
+  as godot/tools/cishots.py and keeps, for h, m and a, the candidate nearest the picture the track has now; then
+  `py.cmd tools/neon/embed_shots.py D:/crust-rush/scratch/mapshots` (it also copies them into the PC project's assets/shots).
+- THE PC, build 254f835 (= web v194's tracks, online 110):
+  - A Grand Prix on line: a PC host picks a cup for the room (SET CUP; `menu.net_cup`), the cup goes out with every race (`gp_wire`,
+    webnet `_build_cfg`), a PC friend reads it (`_gp_from_wire`), the results show the cup table from the standings (`_gp_net_now`), the
+    host's button is Next race, a player's points are under the player (`np`). Test: `tests/gpnet.tscn` (GPNET PASS). Not yet played
+    between a real PC and a real browser: the CI cross-play test (xplay) only runs a single race.
+  - The controller's cursor: `scripts/pad_cursor.gd` (the last child of main, so it hears input before the menus): in the menus, the
+    pause sheet and the results the left stick and D-pad move the real pointer, A is the mouse's left button at it (held, it drags),
+    the pointer held at the top or bottom of something that scrolls scrolls it; the focus a screen gives its main button only says
+    where the pointer starts and is then let go (no yellow ring). An event handed to `Input.parse_input_event` is in the WINDOW's
+    pixels: multiply by `get_final_transform()` (the first version clicked 20 times too far out). Test: `tests/padcur.tscn`.
+    The stick itself cannot be tested without a controller: ASK THE OWNER TO TRY IT.
 
 ### 2026-11-14 (web v194; Sandbox and menus only, no online change): the portal crash on phones; the tunnel seen from outside; the controller's cursor
 | What broke | Why | Fix | Keep it fixed |
@@ -245,7 +263,7 @@ in the pause menu and on controller make the y button open the map"; "signs abov
   lawn come with the re-export (`release_pc.py`). `tests/smoke.tscn` passes locally with them.
 
 ### Where web and PC stand (2026-11-13, end of the session)
-- Web v194 (online 110). PC build c424cba7 = web v192 (online 110): PC and web race together. What the web has and the PC has not is listed in OPEN WORK. v187 (phone fix), v188
+- Web v195 (online 110). PC build 254f835 = web v194's tracks (online 110): PC and web race together. The PC has no Balloon Battle and no Sandbox yet. What the web has and the PC has not is listed in OPEN WORK. v187 (phone fix), v188
   (Sandbox, first slice) and v189 (the second site's plumbing, switched off) are web only; nothing that moves a kart in a race changed.
 - Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
   (docs/BALLOON-BATTLE-PLAN.md). Sandbox: the first slice (the back garden) is on the web (v188); docs/SANDBOX-PLAN.md.

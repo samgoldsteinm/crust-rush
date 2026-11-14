@@ -16,9 +16,10 @@ from mathutils import Vector
 from crlib import *
 
 args = sys.argv[sys.argv.index('--') + 1:]
-PID, NAME = args[0], args[1]; PX = int(args[2]) if len(args) > 2 else 512
+PID, NAME = args[0], args[1]; nums = [q for q in args[2:] if q.isdigit()]; PX = int(nums[0]) if nums else 512
 D = f'{OUT}/treepics'; os.makedirs(D, exist_ok=True)
 s = reset()
+if '--cpu' in args: s.cycles.device = 'CPU'      # (the fir and the pine are too big for this PC's graphics memory)
 bpy.ops.import_scene.gltf(filepath=glob.glob(f'D:/crust-rush/scratch/ph/models/{PID}/*.gltf')[0])
 meshes = [o for o in bpy.data.objects if o.type == 'MESH']
 lo = np.array([1e9] * 3); hi = -lo
