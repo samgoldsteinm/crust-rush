@@ -32,11 +32,28 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   out of that file (entry below) a change stores only the files it touches.
 - Rules to stay small: store a texture at the size it is seen at (1024 for most; 2048 only for a wall filling the view);
   drop a model's pack when a better one replaces it (`py.cmd tools/assets.py drop <name>`); `py.cmd tools/assets.py sizes`.
-- The route for when it is needed (not yet): a second repository with its own Pages site (its own 1 GB) holding the
-  late-loading packs (`*_hq`) and the big textures. It is the same web address family (samgoldsteinm.github.io/...), so the
-  game can fetch from it with no cross-site trouble and the offline cache still works; the build would write those files
-  there and put their full addresses in the game's table. Needs the owner to create the repository; an hour's work after.
-  A further route for very large worlds (Sandbox): per-region asset repositories, loaded only when a region is entered.
+- THE SECOND SITE (set up 2026-11-13, web v189; the owner made the repository `crust-rush-assets` the same day).
+  - What: a second repository with its own Pages site and its own 1 GB, for the files that load late and weigh most:
+    the high-detail models (`*_hq`) and every scenery texture over 150 KB. Today that is 107 files, 32 MB of the game's 79.
+  - Where: checked out at `D:/crust-rush/assets` (branch `main`). The switch is `build/asset_site.json`, `"on"`.
+  - How it works: the build (`build/build_gh.py`, `far()` says which files) always writes those files there too, under the
+    same hashed names. With `"on": true` it leaves them out of the game's own site and names them `far:geo/<file>`; the
+    game (`farURL` in crust-rush.html) turns that into the folder beside it on the live site
+    (`../crust-rush-assets/`), and into the full address anywhere else (a test copy, the PC's export run in CI, which
+    serves only the game's own files). A test copy is told to use the local checkout (`window.CR_FAR`, set by `webtest.py`,
+    which also links `scratch/crust-rush-assets` to the checkout). Pictures from another address are asked for with
+    `crossOrigin` so they can be textures.
+  - Publishing: `release_web.py` pushes the second site first; with the switch on it waits until every file of the build
+    answers there before it publishes the game (15 minutes, then it stops without publishing); afterwards it removes files
+    older than the previous version's. It prints both sites' sizes.
+  - STATE: the files are published there; the switch is OFF (the game still carries its own copies) until Pages is
+    switched on for that repository (the owner: Settings, Pages, Deploy from a branch, `main`, `/ (root)`).
+    To switch over: check `https://samgoldsteinm.github.io/crust-rush-assets/current.json` answers; set `"on": true`;
+    `webtest.py`; the usual tests plus one load of a toy track; `release_web.py`; then run the PC export once
+    (`release_pc.py`) and check its log shows no failed downloads, because CI then fetches these files from the live site.
+  - Tested with the switch on (2026-11-13): the garden loaded with 86 files from the folder beside the game, and again from
+    a different address (as CI will), nothing failed, all textures drawn. The game's own site drops from 79 MB to 46.
+  - Bigger worlds (Sandbox): the same mechanism takes more repositories, one per group of regions, if ever needed.
 
 ### 2026-11-13 (web v188): Sandbox, the first slice: free driving in the back garden
 
@@ -87,8 +104,8 @@ How it was laid out without guessing: a pocket turtle in garden metres (scratch 
 against the landmarks' coordinates before the real generator closed the lap; the two straights it solves must not be parallel.
 
 ### Where web and PC stand (2026-11-13, end of the session)
-- Web v188 (online 109). PC build 06c70bde = web v186 (online 109): PC and web race together. v187 (phone fix) and v188
-  (Sandbox, first slice) are web only; nothing that moves a kart in a race changed.
+- Web v189 (online 109). PC build 06c70bde = web v186 (online 109): PC and web race together. v187 (phone fix), v188
+  (Sandbox, first slice) and v189 (the second site's plumbing, switched off) are web only; nothing that moves a kart in a race changed.
 - Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
   (docs/BALLOON-BATTLE-PLAN.md). Sandbox: the first slice (the back garden) is on the web (v188); docs/SANDBOX-PLAN.md.
 - Not checked by eye on the PC: the Blender garden, the garage's open door and front yard, the leaf cards and tree pictures.

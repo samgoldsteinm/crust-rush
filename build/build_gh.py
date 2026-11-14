@@ -9,6 +9,10 @@ Output layout (in D:/crust-rush/app):
   assets/tex/<name>.<hash>.jpg   skies and prop textures
   assets/shots/<id>-<k>.<hash>.jpg track photos
   sw.js                      offline cache with the full file list
+THE SECOND SITE (build/asset_site.json; docs/HANDOVER.md 'Space'). The files that load late and weigh most (far(): the high-detail models, `*_hq`,
+and the big scenery textures) are also written, under the same hashed names, to D:/crust-rush/assets (repository crust-rush-assets, its own
+Pages site and its own 1 GB). With "on": true they are left OUT of this site and the game is given their names as `far:geo/<file>`,
+which it turns into an address on the second site (farURL in crust-rush.html).
 Hashed names mean a changed file always gets a new URL, so a cached old copy can never be mixed with new code.
 """
 import json, re, os, shutil, hashlib, base64, subprocess, sys
@@ -33,11 +37,21 @@ h8 = lambda b: hashlib.sha1(b).hexdigest()[:10]
 for d in ['assets', 'js', 'css', 'vendor']:
     shutil.rmtree(f'{APP}/{d}', ignore_errors=True)
 os.makedirs(f'{APP}/assets/tex'); os.makedirs(f'{APP}/assets/geo'); os.makedirs(f'{APP}/assets/shots'); os.makedirs(f'{APP}/js'); os.makedirs(f'{APP}/css'); os.makedirs(f'{APP}/vendor')
+AS = json.load(open(GH + '/asset_site.json', encoding='utf-8'))
+far_now = []   # every file of this build that belongs on the second site: [path there, bytes]
+def far(kind, stem, data):
+    return (kind == 'geo' and stem.endswith('_hq')) or (kind == 'tex' and len(data) > 150_000)
 files = []
 def put(rel, data):
     open(f'{APP}/{rel}', 'wb').write(data); files.append(rel); return rel
 def hashed(dirn, stem, ext, data):
-    return put(f'{dirn}/{stem}.{h8(data)}.{ext}', data)
+    kind = dirn.split('/')[-1]; name = f'{stem}.{h8(data)}.{ext}'
+    if dirn.startswith('assets/') and far(kind, stem, data):
+        os.makedirs(f"{AS['dir']}/{kind}", exist_ok=True); p = f"{AS['dir']}/{kind}/{name}"
+        if not os.path.exists(p): open(p, 'wb').write(data)
+        far_now.append([f'{kind}/{name}', len(data)])
+        if AS['on']: return f'far:{kind}/{name}'
+    return put(f'{dirn}/{name}', data)
 
 # ---- models: one file per model, so an update only re-downloads the models that changed; high-detail bodies load after the menu
 items = []; geo_total = 0
@@ -91,6 +105,7 @@ shutil.copy(GH + '/gpu-check.html', f'{APP}/gpu-check.html')
 shutil.copy(GH + '/gpu-check.html', f'{APP}/engine-check.html')
 
 ext = {'items': items}
+if AS['on']: ext['far'] = {'rel': AS['rel'], 'abs': AS['abs']}
 page = f'''<!doctype html>
 <html lang="en">
 <head>
@@ -128,8 +143,10 @@ addEventListener('cr-booted',()=>setTimeout(check,1500));document.addEventListen
 open(f'{APP}/index.html', 'w').write(page)
 open(f'{APP}/version.json', 'w').write(json.dumps({'build': SWVER}))
 
-shell = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/favicon-64.png'] + ['./' + f for f in files if not f.startswith('vendor/three-0.187.0')]
+shell = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/favicon-64.png'] + ['./' + f for f in files if not f.startswith('vendor/three-0.187.0')] + ([AS['rel'] + f for f, _ in far_now] if AS['on'] else [])
 sw = open(GH + '/sw_tmpl.js').read().replace('__VERSION__', SWVER).replace('__SHELL__', ',\n  '.join(json.dumps(x) for x in shell))
 open(f'{APP}/sw.js', 'w').write(sw)
 tot = sum(os.path.getsize(f'{APP}/{f}') for f in files)
-print('page', len(page), 'game.js', len(game), 'geo', geo_total, 'files', len(files), 'total MB', round(tot / 1e6, 2))
+json.dump({'build': SWVER, 'files': sorted(f for f, _ in far_now)}, open(f"{AS['dir']}/current.json", 'w', newline=''), indent=0)
+print('page', len(page), 'game.js', len(game), 'geo', geo_total, 'files', len(files), 'total MB', round(tot / 1e6, 2),
+      '| second site:', len(far_now), 'files', round(sum(n for _, n in far_now) / 1e6, 2), 'MB,', 'IN USE' if AS['on'] else 'written, not used yet')

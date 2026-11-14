@@ -1555,8 +1555,11 @@ function propGeos(name){if(PROPG[name])return PROPG[name];const pk=PROP_PACKS[na
     g.setIndex(new THREE.BufferAttribute(m.i32?new Uint32Array(idx):new Uint16Array(idx),1));g.computeBoundingSphere();KGSET.add(g);out[m.n]=g;}
   return PROPG[name]=out;}
 const PROPT={};
-const texSrc=v=>!v?'':v.length<400?v:'data:image/'+(v.startsWith('iVBOR')?'png':'jpeg')+';base64,'+v;/* (a texture with holes in it is stored as a PNG) */
-function propTex(name,srgb){if(PROPT[name])return PROPT[name];const im=new Image();im.src=texSrc(PROP_TEX[name]);const t=new THREE.Texture(im);im.onload=()=>{t.needsUpdate=true;};if(im.complete)t.needsUpdate=true;
+/* A name beginning `far:` is a file on the second site (the build: build/asset_site.json). On the game's own site that is the folder beside it;
+   anywhere else (a test copy, the PC's export run) it is fetched from the live second site, unless the page says where (window.CR_FAR). */
+const FAR_BASE=(()=>{try{if(window.CR_FAR)return window.CR_FAR;const f=window.CR_EXT&&window.CR_EXT.far;if(!f)return '';return /(^|\.)github\.io$/.test(location.hostname)?f.rel:f.abs;}catch(e){return '';}})(),farURL=v=>typeof v==='string'&&v.startsWith('far:')?FAR_BASE+v.slice(4):v;
+const texSrc=v=>!v?'':v.length<400?farURL(v):'data:image/'+(v.startsWith('iVBOR')?'png':'jpeg')+';base64,'+v;/* (a texture with holes in it is stored as a PNG) */
+function propTex(name,srgb){if(PROPT[name])return PROPT[name];const im=new Image(),src=texSrc(PROP_TEX[name]);if(/^https?:/.test(src))im.crossOrigin='anonymous';/* from another site: a picture must be asked for this way to be used as a texture */im.src=src;const t=new THREE.Texture(im);im.onload=()=>{t.needsUpdate=true;};if(im.complete)t.needsUpdate=true;
   if(srgb!==false)t.encoding=THREE.sRGBEncoding;t.anisotropy=maxAniso;t.userData.shared=true;return PROPT[name]=t;}
 /* snow settles on upward-facing faces */
 function snowify(mat,amt){mat.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying float vUp;').replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\nvUp=normalize((modelMatrix*vec4(objectNormal,0.)).xyz).y;');
@@ -8715,7 +8718,7 @@ async function loadExt(step){const X=window.CR_EXT;if(!X)return;if(X.items)retur
   catch(e){const t=document.getElementById('ldTxt');if(t)t.textContent='Could not load the game files. Check your connection and reload.';throw e;}
   for(const [kind,id,o,n] of X.ofs){const tgt=kind==='c'?CAR_PACKS[id]:PROP_PACKS[id];if(tgt)tgt.b=buf.slice(o,o+n);}}
 const extTgt=(kind,id)=>kind==='c'?CAR_PACKS[id]:PROP_PACKS[id];
-async function fetchBin(url){const r=await fetch(url);if(!r.ok)throw new Error(r.status);return r.arrayBuffer();}
+async function fetchBin(url){const r=await fetch(farURL(url));if(!r.ok)throw new Error(r.status);return r.arrayBuffer();}
 async function loadItems(X,step){const core=X.items.filter(it=>!it[4]),tot=core.reduce((a,it)=>a+it[3],0);let got=0,i=0,lastP=-1;
   try{const worker=async()=>{while(i<core.length){const it=core[i++];let buf=null;for(let t=0;t<3&&!buf;t++){try{buf=await fetchBin(it[2]);}catch(e){if(t===2)throw e;await new Promise(r=>setTimeout(r,600*(t+1)));}}
       const tg=extTgt(it[0],it[1]);if(tg)tg.b=buf;got+=it[3];const p=Math.floor(got/tot*100);if(p>=lastP+4){lastP=p;await step(2+8*got/tot,'Loading karts and props… '+p+'%');}}};

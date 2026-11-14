@@ -16,6 +16,11 @@ subprocess.run([sys.executable, R + '/source/build/build_gh.py', VERSION], check
 dst = SP + '/webcopy6'
 shutil.rmtree(dst, ignore_errors=True)
 shutil.copytree(APP, dst, ignore=shutil.ignore_patterns('.git'))
+# (the second site, for the test copy: the checkout D:/crust-rush/assets is served beside it, and the page is told to look there)
+if not os.path.exists(SP + '/crust-rush-assets') and os.path.isdir(R + '/assets'):
+    subprocess.run(['cmd', '/c', 'mklink', '/J', (SP + '/crust-rush-assets').replace('/', '\\'), (R + '/assets').replace('/', '\\')], stdout=subprocess.DEVNULL)
+ix = dst + '/index.html'; h = open(ix, encoding='utf-8', newline='').read()
+open(ix, 'w', encoding='utf-8', newline='').write(h.replace('<script>window.CR_EXT=', "<script>window.CR_FAR='../crust-rush-assets/';window.CR_EXT=", 1))
 f = glob.glob(dst + '/js/game.*.js')[0]
 s = open(f, encoding='utf-8', newline='').read()
 i = s.rindex('})();')
