@@ -138,7 +138,8 @@ against the landmarks' coordinates before the real generator closed the lap; the
 1. (done: a Grand Prix on line on the PC, the controller's cursor on the PC, the trees and previews: see the v195 entry.)
 4. THE PC: Sandbox (Balloon Battle is done: see its entry). The plan is the last section of docs/SANDBOX-PLAN.md; the web's half of the
    export is `sbExport()` (web v196).
-5. THE WEBSITE (`pc.html`), last.
+5. THE WEBSITE: `py.cmd tools/site_pc.py` brings `app/pc.html` level with the PC build (done for build 82fc3a5a on 2026-11-14: 24 tracks, Balloon
+   Battle, online cups, the pointer, the size). When the PC has Sandbox: set `HAS['sandbox']` in it, run it, commit and push `app`.
 6. SANDBOX, what the brief still asks for and is not built (docs/SANDBOX-PLAN.md has the plan for each): the shared clock (day and night),
    activities (deliveries, drift and jump challenges), the coin shop (kart and car unlocks), online free roam and the start-line lobby with
    ready-up. On the pizza tracks only what is drawn is there to explore: no new side roads or buildings have been modelled.
@@ -283,7 +284,7 @@ in the pause menu and on controller make the y button open the map"; "signs abov
   lawn come with the re-export (`release_pc.py`). `tests/smoke.tscn` passes locally with them.
 
 ### Where web and PC stand (2026-11-13, end of the session)
-- Web v196 (online 110). The PC build made after 254f835 has web v196's tracks, Balloon Battle, online Grand Prix and the controller's cursor (online 110): PC and web race together. The PC has no Sandbox yet. What the web has and the PC has not is listed in OPEN WORK. v187 (phone fix), v188
+- Web v196 (online 110). PC build 82fc3a5a has web v196's tracks, Balloon Battle, online Grand Prix and the controller's cursor (online 110): PC and web race together. The PC has no Sandbox yet. What the web has and the PC has not is listed in OPEN WORK. v187 (phone fix), v188
   (Sandbox, first slice) and v189 (the second site's plumbing, switched off) are web only; nothing that moves a kart in a race changed.
 - Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
   (docs/BALLOON-BATTLE-PLAN.md). Sandbox: the first slice (the back garden) is on the web (v188); docs/SANDBOX-PLAN.md.
