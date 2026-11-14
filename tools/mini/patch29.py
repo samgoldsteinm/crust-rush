@@ -29,9 +29,9 @@ CUR = r"""/* ---- the controller's cursor (web v194; patch29.py has the owner's 
 const PAD_CLICK='button,a[href],input,select,label,summary,[tabindex]:not([tabindex="-1"]),.mapc,.cupc,[role=button]';
 function padCurEl(){let e=PAD.cur;if(!e){e=PAD.cur=document.createElement('div');e.id='padCur';e.hidden=true;e.style.cssText='position:fixed;left:0;top:0;width:30px;height:30px;margin:-3px 0 0 -3px;z-index:2147483000;pointer-events:none;will-change:transform;filter:drop-shadow(0 2px 3px rgba(0,0,0,.65))';
     e.innerHTML='<svg viewBox="0 0 30 30" width="30" height="30"><path d="M3 2 L3 23 L8.8 17.8 L13 27 L16.8 25.3 L12.6 16.2 L20.5 16.2 Z" fill="#fff" stroke="#1b0f0b" stroke-width="2.2" stroke-linejoin="round"/></svg>';document.body.appendChild(e);
-    const st=document.createElement('style');st.textContent='#padCur[hidden]{display:none}.padhover{filter:brightness(1.2) saturate(1.1)}';document.head.appendChild(st);
-    addEventListener('mousemove',ev=>{if(ev.isTrusted&&PAD.curOn&&(Math.abs(ev.movementX)+Math.abs(ev.movementY))>1){PAD.curOn=false;padCurShow();}},true);}return e;}
-function padCurShow(){const e=padCurEl();e.hidden=!PAD.curOn;if(!PAD.curOn&&PAD.hov){PAD.hov.classList.remove('padhover');PAD.hov=null;}}
+    const st=document.createElement('style');st.textContent='#padCur[hidden]{display:none}.padhover{filter:brightness(1.2) saturate(1.1)}body.padcur :focus,body.padcur :focus-visible{outline:none!important}';/* (no ring round the last thing pressed while the arrow is out) */document.head.appendChild(st);
+    addEventListener('mousemove',ev=>{if(ev.isTrusted&&PAD.curOn&&(Math.abs(ev.movementX)+Math.abs(ev.movementY))>1){PAD.curOn=false;padCurShow();}},true);addEventListener('keydown',ev=>{if(ev.isTrusted&&PAD.curOn&&ev.code==='Tab'){PAD.curOn=false;padCurShow();}},true);}return e;}
+function padCurShow(){const e=padCurEl();e.hidden=!PAD.curOn;document.body.classList.toggle('padcur',!!PAD.curOn);if(!PAD.curOn&&PAD.hov){PAD.hov.classList.remove('padhover');PAD.hov=null;}}
 function padCurOff(){if(PAD.curOn){PAD.curOn=false;padCurShow();}PAD.cScope=null;}
 /* the nearest thing above el that scrolls along the axis ('Y' or 'X') */
 function padScroller(el,ax){const can=q=>q&&(ax==='Y'?q.scrollHeight>q.clientHeight+4:q.scrollWidth>q.clientWidth+4)&&/(auto|scroll)/.test(getComputedStyle(q)['overflow'+ax]);let q=el;while(q&&q!==document.body&&q!==document.documentElement&&!can(q))q=q.parentElement;return can(q)?q:null;}
@@ -57,7 +57,7 @@ function padCursor(gp,M,ax,ay,pr,edge,now){const dt=Math.min(.05,Math.max(0,(now
       if(sx){const r=sx.getBoundingClientRect(),l=Math.max(0,r.left),q=Math.min(W,r.right);if(vx>0&&PAD.cx>q-z)sx.scrollBy(pull(PAD.cx-(q-z)),0);else if(vx<0&&PAD.cx<l+z)sx.scrollBy(-pull(l+z-PAD.cx),0);}}}
   /* A: press what is under the arrow */
   if(edge(M.A)){if(!PAD.curOn){PAD.curOn=true;padCurShow();el=document.elementFromPoint(PAD.cx,PAD.cy);hit=el&&el.closest?el.closest(PAD_CLICK):null;if(hit&&hit.disabled)hit=null;}
-    if(hit){if(hit.tagName==='SELECT'){hit.selectedIndex=(hit.selectedIndex+1)%hit.options.length;hit.dispatchEvent(new Event('change',{bubbles:true}));}else{try{if(hit.focus)hit.focus({preventScroll:true});}catch(err){}if(!(hit.tagName==='INPUT'&&hit.type==='range'))hit.click();}}}}
+    if(hit){if(hit.tagName==='SELECT'){hit.selectedIndex=(hit.selectedIndex+1)%hit.options.length;hit.dispatchEvent(new Event('change',{bubbles:true}));}else if(hit.tagName==='INPUT'&&hit.type!=='checkbox'&&hit.type!=='radio'&&hit.type!=='button'){try{hit.focus({preventScroll:true});}catch(err){}if(hit.type!=='range')hit.click();}else hit.click();}}}
 """
 rep("function padNav(dir){document.body.classList.add('padnav');", CUR + "function padNav(dir){return;/* (web v194: the controller has a cursor; nothing is ringed in yellow any more) */document.body.classList.add('padnav');")
 # the menus' branch of padPoll: the cursor instead of walking between buttons
