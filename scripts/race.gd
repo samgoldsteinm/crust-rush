@@ -730,7 +730,7 @@ func update(dt: float, player_inp: Dictionary) -> void:
 			_lss_tick()
 		return
 	for k in karts:
-		if state == "race" and not k.finished and k.prog >= T.LAPS * T.N:
+		if state == "race" and not k.finished and _fin_at(k):
 			k.finished = true
 			k.finish_time = race_time
 			finish_count += 1
@@ -739,6 +739,18 @@ func update(dt: float, player_inp: Dictionary) -> void:
 
 
 ## Last Slice Standing: each time the leader starts a new lap, whoever is last is out; the last kart racing wins (web lssTick)
+## Has this kart finished? On the last lap, once it has come round past lap point 0 and is at or beyond the line itself.
+## (web finAt, v192. Before, a kart finished when its count of lap points reached laps x N, which runs 4 to 22 points ahead of the
+## kart after loops, shortcuts and glides: every race ended a little before the line.)
+func _fin_at(k: Kart) -> bool:
+	var n := T.N
+	if k.prog < T.LAPS * n - (n >> 2):
+		return false
+	if k.idx > (n >> 2):
+		return k.prog >= T.LAPS * n + (n >> 2)
+	return (k.x - T.px[0]) * T.tx[0] + (k.y - T.py[0]) * T.ty[0] >= 0.0
+
+
 func _lss_tick() -> void:
 	var act: Array[Kart] = []
 	for k in karts:

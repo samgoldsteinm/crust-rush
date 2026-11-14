@@ -381,6 +381,11 @@ func step(inp: Dictionary, dt: float) -> void:
 		di += T.N
 	prog += di
 	idx = best
+	# crossing the line sets the count of lap points right: loops, shortcuts and glides each leave it a few points out (web v192)
+	if o_idx > T.N * 0.75 and best < T.N * 0.25:
+		prog = int(floor(float(prog) / T.N + 0.5)) * T.N + best
+	elif o_idx < T.N * 0.25 and best > T.N * 0.75:
+		prog = int(floor(float(prog) / T.N + 0.5)) * T.N + best - T.N
 
 	_loop_walls_and_entry(o_idx)
 
@@ -845,6 +850,10 @@ func _vertical(dt: float) -> bool:
 		var fx := 0.0
 		var fy := 0.0
 		var j0 := int(r["j"])
+		# a ramp on another level of the track (on a bridge overhead, say) is not there for this kart (web v192: the jump ramp on
+		# Kitchen Chaos's bridge stopped karts on the climb that passes under it)
+		if T.multi and absf(wy - (T.ground(T.px[j0], T.py[j0]) + T.ey[j0])) > float(r["h"]) + 26.0:
+			continue
 		for q in 4:
 			var ia := (j0 + q) % T.N
 			var ib := (j0 + q + 1) % T.N
