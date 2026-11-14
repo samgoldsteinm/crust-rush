@@ -5804,6 +5804,20 @@ function sbHud(){let e=SB.el;if(!e){e=SB.el=document.createElement('div');e.id='
   e.innerHTML='<div style="font-size:11px;letter-spacing:.6px;opacity:.85;text-transform:uppercase">'+SB.reg.name+'</div><div style="font-size:20px;margin-top:2px">'+dot('#ffc93a',15)+sv.c+'</div><div style="margin-top:2px">'+dot('#d8402a',13)+f[0]+' / '+f[1]+'</div>';}
 /* what an item box gives here: only the boost (nobody to throw anything at) */
 function sbRoll(){return 'chili';}
+/* ---- for the PC (docs/SANDBOX-PLAN.md, "Sandbox on the PC") ----
+   The PC draws a track from an exported model and cannot read walls from what is drawn: sbExport() hands the exporter (godot/tools/ciexport.py)
+   everything Sandbox worked out for the place that is loaded, in the game's own numbers. The grid is sparse, so only the squares that hold
+   something are written: `cells` (their numbers, i*nz+k, 32-bit), `cnt` and `thin` (a byte each), `sp` (their low and high pairs, 16-bit, one
+   after another). Call it in Sandbox, with an empty save (so the arches stand where a first visit puts them). */
+function sbExport(){if(!SBX)return null;const b64=a=>{const u=new Uint8Array(a.buffer,a.byteOffset,a.byteLength);let t='';for(let i=0;i<u.length;i+=32768)t+=String.fromCharCode.apply(null,u.subarray(i,i+32768));return btoa(t);};
+  const o={v:1,id:SB.regId,kind:SB.kind,free:SBF,name:SB.reg.name,rim:SB.rim||0,step:SB_STEP,r:SB_R,head:SB_HEAD,rail:SB_RAIL,q:SB_Q,k:SB_K,glen:SB_GLEN,lvl:sbLvl(),toyw:SB.kind==='toy'?TOYW():0,
+    loops:SB.loops.map(L=>({x:L.p.x,y:L.p.y,tx:L.p.tx,ty:L.p.ty,nx:L.p.nx,ny:L.p.ny,g0:L.g0,r:L.r,a:L.a,b:L.b})),
+    gates:SB.gates.map(g=>({id:g.id,to:g.to,at:g.at,label:g.label,x:g.x,y:g.y,z:g.z,nx:g.nx,nz:g.nz,hw:g.hw,road:g.road?1:0,plain:g.plain?1:0,j:g.j==null?-1:g.j})),
+    coins:SB.coins.map(c=>[+c.x.toFixed(2),+c.y.toFixed(2),+c.z.toFixed(2),c.rare?1:0,c.id||'']),flag:SB.flag?[SB.flag.x,SB.flag.y,SB.flag.z]:null,shapes:SB.shapes};
+  const c=SB.col;if(c){const n=c.nx*c.nz;let m=0,tot=0;for(let q=0;q<n;q++)if(c.cnt[q]){m++;tot+=c.cnt[q];}const cells=new Int32Array(m),cnt=new Uint8Array(m),thin=new Uint8Array(m),sp=new Int16Array(tot*2);let i=0,w=0;
+    for(let q=0;q<n;q++){const k=c.cnt[q];if(!k)continue;cells[i]=q;cnt[i]=k;thin[i]=c.thin[q];i++;for(let e=0;e<k;e++){sp[w++]=c.sp[q*SB_K*2+e*2];sp[w++]=c.sp[q*SB_K*2+e*2+1];}}
+    o.col={x0:c.x0,z0:c.z0,nx:c.nx,nz:c.nz,C:c.C,cap:c.cap,b:c.b,filled:m,spans:tot,cells:b64(cells),cnt:b64(cnt),thin:b64(thin),sp:b64(sp)};}
+  return o;}
 /* ================= SANDBOX: the world map and fast travel (web v193) =================
    The owner's brief, section 3 (docs/NEXT-MODES-BRIEF.md), and "dont forget to add a map with fast travel in the pause menu and on controller
    make the y button open the map". Opened while driving with Y or Select / View / Back / Minus on a controller, or M on a keyboard (again, or
