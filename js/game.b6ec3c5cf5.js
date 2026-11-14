@@ -4598,7 +4598,7 @@ function sbGates(){const R=SB.reg,id=SB.regId;SB.gates=[];
       if(!road){const L=SB_GLEN+20,rx=W+3,ry=H+7,tg=new THREE.CylinderGeometry(1,1,L,32,1,true);tg.rotateX(Math.PI/2);tg.translate(0,0,-L/2);tg.scale(rx,ry,1);
         const tube=new THREE.Mesh(tg,sbWarpMat(1,{rep:L/60,mat:{side:THREE.BackSide}}));tube.position.z=-.3;G.add(tube);
         const fl=new THREE.Mesh(new THREE.PlaneGeometry(2*rx,L),new THREE.MeshBasicMaterial({map:sbRoadTex(L),toneMapped:false}));fl.rotation.x=-Math.PI/2;fl.position.set(0,.3,-L/2-.3);G.add(fl);
-        const end=new THREE.Mesh(new THREE.PlaneGeometry(2*rx,ry),sbWarpMat(0,{c:[.5,.42],s:.55,core:1.1}));end.position.set(0,ry/2,-L+.6);G.add(end);g.endAt=[g.x+g.nx*(L-1),g.y+ry*.42,g.z+g.nz*(L-1)];}
+        const end=new THREE.Mesh(new THREE.PlaneGeometry(2*rx,ry),sbWarpMat(0,{c:[.5,.42],s:.55,core:1.1}));end.position.set(0,ry/2,-L+.6);G.add(end);g.inside=[tube,fl,end];tube.visible=fl.visible=end.visible=false;/* (web v194, the owner: "some of the space effect is not just in the tunnels but also behind them": the tunnel's walls are drawn from their inner side, which from outside means its far wall shows through the near one, over a pizza's low crust. sbWarpTick shows it only to a camera that has gone through the mouth) */g.endAt=[g.x+g.nx*(L-1),g.y+ry*.42,g.z+g.nz*(L-1)];}
       /* (the owner, 2026-11-14: "some of the signs for the locations are covered make sure they are more visible": the board stands on two posts well above the
          arch and in front of it, where neither the arch's own rim nor the kart in front of the camera is across it) */
       const bw=Math.max(2*W+40,84),bh=bw/4,B=sign(bw,bh),by=H+17+bh/2,bz=proud+5;B.position.set(0,by,bz);G.add(B);
@@ -4629,6 +4629,7 @@ function sbPull(on){if(!!SB.pull===on||!player||!player.m)return;SB.pull=on;play
     else if(m.userData.sbPO!==undefined){m.polygonOffset=m.userData.sbPO[0];m.polygonOffsetFactor=m.userData.sbPO[1];m.polygonOffsetUnits=m.userData.sbPO[2];delete m.userData.sbPO;}}});}
 /* each frame: the warp clocks, and whether the kart is to be drawn through a wall */
 function sbWarpTick(dt){const k=player;SB_WU.value=(SB_WU.value+dt*.5)%1000;let pull=false,dir=1;if(SBX&&k)for(const g of SB.gates){if(g.road||g.plain)continue;const dk=(k.rx-g.x)*g.nx+(k.ry-g.z)*g.nz,lk=(k.rx-g.x)*g.tx+(k.ry-g.z)*g.tz,dc=(camera.position.x-g.x)*g.nx+(camera.position.z-g.z)*g.nz,lc=(camera.position.x-g.x)*g.tx+(camera.position.z-g.z)*g.tz;
+    if(g.inside){const v=dc>-((SB.reg&&SB.reg.room?7.2:.9)+2)&&Math.abs(lc)<g.hw+14;/* (from just before the mouth's own face, which hides it until then) */if(g.inside[0].visible!==v)for(const o of g.inside)o.visible=v;}
     if((dk>-4&&Math.abs(lk)<g.hw+8)||(dc>0&&Math.abs(lc)<g.hw+12)){pull=true;if(Math.cos(k.rma)*g.nx+Math.sin(k.rma)*g.nz<0)dir=-1;}}
   SB_WV.value=(SB_WV.value+dt*.9*dir+1000)%1000;sbPull(pull);}
 /* ---- the cover over a load ----
@@ -4636,13 +4637,18 @@ function sbWarpTick(dt){const k=player;SB_WU.value=(SB_WU.value+dt*.5)%1000;let 
    (it keeps moving while the game cannot): the last frame, warp streaks flying out of the tunnel's end over it, and the kart on top, cut out of
    its own picture (drawn alone on black and on white: the difference is its outline). Afterwards the cover fades over the new place. */
 function sbDuctEl(){let e=SB.duct;if(!e){e=SB.duct=document.createElement('div');e.id='sbDuct';e.style.cssText='position:absolute;inset:0;z-index:5;background:#05030a;opacity:0;pointer-events:none;overflow:hidden';
-    const st=document.createElement('style');st.textContent='#sbDuct canvas{position:absolute;left:0;top:0;width:100%;height:100%}#sbDuct b{position:absolute;left:50%;top:46%;width:0;height:0}#sbDuct i{position:absolute;left:-90vmax;top:-90vmax;width:180vmax;height:180vmax;background:center/contain no-repeat;animation:sbwarp 1.05s linear infinite;will-change:transform,opacity}'
-      +'@keyframes sbwarp{from{transform:scale(.1);opacity:0}14%{opacity:1}75%{opacity:.85}to{transform:scale(2.3);opacity:0}}@keyframes sbbob{from{transform:translateY(-.3%)}to{transform:translateY(.3%)}}#sbDuctK{animation:sbbob .34s ease-in-out infinite alternate;will-change:transform}';document.head.appendChild(st);
+    const st=document.createElement('style');st.textContent='#sbDuct canvas{position:absolute;left:0;top:0;width:100%;height:100%}#sbDuct b{position:absolute;left:50%;top:46%;width:0;height:0}#sbDuct i{position:absolute;left:-128px;top:-128px;width:256px;height:256px;background:center/contain no-repeat;animation:sbwarp 1.05s linear infinite;will-change:transform,opacity}'
+      +'@keyframes sbbob{from{transform:translateY(-.3%)}to{transform:translateY(.3%)}}#sbDuctK{animation:sbbob .34s ease-in-out infinite alternate;will-change:transform}';document.head.appendChild(st);SB.ductKf=document.createElement('style');document.head.appendChild(SB.ductKf);
+    /* (web v194, the owner's phone: "when going through the portals it send me back to the menu screen and never loads". Each of the five streak layers was a
+       box 1.8 screens across that the browser keeps as a picture of its own: on a phone about 100 MB each, the page was thrown out and loaded again from
+       the start. Now a layer is 256 px across and its transform alone makes it big (sbDuctKf writes that scale for the screen's size); and the whole
+       cover is taken out of the page (display none) whenever it is not showing) */
     /* the streaks: drawn once */const S=768,c=cnv(S,S),q=c.getContext('2d'),rnd=prng(4711);q.lineCap='round';for(let i=0;i<300;i++){const a=rnd()*6.28318,r0=(.1+rnd()*.5)*S/2,r1=Math.min(S/2,r0+(.08+rnd()*.34)*S/2),t=rnd(),col=t<.45?'255,248,255':t<.72?'160,118,255':t<.9?'110,160,255':'120,255,185',gr=q.createLinearGradient(S/2+Math.cos(a)*r0,S/2+Math.sin(a)*r0,S/2+Math.cos(a)*r1,S/2+Math.sin(a)*r1);
       gr.addColorStop(0,'rgba('+col+',0)');gr.addColorStop(.7,'rgba('+col+','+(.5+rnd()*.5).toFixed(2)+')');gr.addColorStop(1,'rgba('+col+',0)');q.strokeStyle=gr;q.lineWidth=.8+rnd()*2.4;q.beginPath();q.moveTo(S/2+Math.cos(a)*r0,S/2+Math.sin(a)*r0);q.lineTo(S/2+Math.cos(a)*r1,S/2+Math.sin(a)*r1);q.stroke();}
     let url='';try{url=c.toDataURL('image/png');}catch(err){}
     const A=SB.covA=document.createElement('canvas');e.appendChild(A);for(let i=0;i<5;i++){const b=document.createElement('b');b.style.transform='rotate('+(i*67)+'deg)';const r=document.createElement('i');r.style.backgroundImage='url('+url+')';r.style.animationDelay=(-i*.21)+'s';b.appendChild(r);e.appendChild(b);}
-    const B=SB.covB=document.createElement('canvas');B.id='sbDuctK';e.appendChild(B);stage.appendChild(e);}return e;}
+    const B=SB.covB=document.createElement('canvas');B.id='sbDuctK';e.appendChild(B);e.style.display='none';stage.appendChild(e);}return e;}
+function sbDuctKf(){const M=Math.max(innerWidth,innerHeight);if(SB.ductM===M||!SB.ductKf)return;SB.ductM=M;const a=(.18*M/256).toFixed(3),b=(4.2*M/256).toFixed(3);SB.ductKf.textContent='@keyframes sbwarp{from{transform:scale('+a+');opacity:0}14%{opacity:1}75%{opacity:.85}to{transform:scale('+b+');opacity:0}}';}
 const _sbBk=new THREE.Color('#000000'),_sbWh=new THREE.Color('#ffffff'),_sbV=new THREE.Vector3();
 function sbCover(g){const e=sbDuctEl(),A=SB.covA,B=SB.covB,sw=stage.clientWidth||innerWidth,sh=stage.clientHeight||innerHeight,w=Math.max(64,Math.min(800,sw)),h=Math.max(36,Math.round(w*sh/sw));A.width=B.width=w;A.height=B.height=h;
   const ga=A.getContext('2d'),gb=B.getContext('2d');ga.fillStyle='#05030a';ga.fillRect(0,0,w,h);let vx=.5,vy=.44;
@@ -4654,8 +4660,8 @@ function sbCover(g){const e=sbDuctEl(),A=SB.covA,B=SB.covB,sw=stage.clientWidth|
     const a=g1.getImageData(0,0,w,h).data,b=g2.getImageData(0,0,w,h).data,O=gb.createImageData(w,h),d=O.data;
     for(let i=0;i<a.length;i+=4){const al=Math.max(0,Math.min(255,255-((b[i]-a[i])+(b[i+1]-a[i+1])+(b[i+2]-a[i+2]))/3));if(al<6)continue;const f=255/al;d[i]=Math.min(255,a[i]*f);d[i+1]=Math.min(255,a[i+1]*f);d[i+2]=Math.min(255,a[i+2]*f);d[i+3]=al;}
     gb.putImageData(O,0,0);if(renderer.shadowMap)renderer.shadowMap.needsUpdate=true;}catch(err){console.warn('sandbox cover',err);}
-  e.querySelectorAll('b').forEach(q=>{q.style.left=(vx*100).toFixed(1)+'%';q.style.top=(vy*100).toFixed(1)+'%';});e.style.transition='none';e.style.opacity=1;SB.ductO=1;}
-function sbCoverOff(){const e=SB.duct;if(!e)return;e.style.transition='opacity .5s ease-out';e.style.opacity=0;SB.ductO=0;}
+  e.querySelectorAll('b').forEach(q=>{q.style.left=(vx*100).toFixed(1)+'%';q.style.top=(vy*100).toFixed(1)+'%';});sbDuctKf();clearTimeout(SB.ductT);e.style.display='block';e.style.transition='none';e.style.opacity=1;SB.ductO=1;}
+function sbCoverOff(){const e=SB.duct;if(!e)return;e.style.transition='opacity .5s ease-out';e.style.opacity=0;SB.ductO=0;clearTimeout(SB.ductT);SB.ductT=setTimeout(()=>{if(!SB.ductO)e.style.display='none';},700);}
 function sbDuctShow(){/* (until web v193 the picture went dark by how deep in a passage the kart was; now the tunnel is real, and the cover comes only with the load) */}
 /* through a gate: the next region is built while the duct fills the picture, and the kart comes out of the matching gate */
 async function sbTravel(g){if(SB.trav)return;const mi=MAPS.findIndex(m=>m.id===g.to);if(mi<0||!sbRegOf(g.to))return;SB.trav=g;const k=player,sp=Math.max(70,Math.abs(k.speed));sbCover(g);state='loading';
@@ -4722,7 +4728,7 @@ function sbArm(){const def=MAPS[mapIdx],R=def&&sbRegOf(def.id),on=mode==='sb'&&!
   SBX=true;SB.regId=def.id;SB.reg=R;SB.kind=R.kind||'toy';SBF=SB.kind!=='road';BATTLE=SBF;SB.shapes=R.shapes?R.shapes():[];SB.rim=0;SB.col=null;SB.hash=null;SB.gates=[];SB.loops=LOOPS.filter(L=>L.full).map(L=>({p:L.p,g0:L.g0,r:LOOPR+34,a:-L.S-L.W-10,b:L.shift-L.S+L.W+10}));
   if(SBF){let b=TOYROOM;if(SB.kind==='open'){const r=RIM+70;b=[-r,r,-r,r];SB.rim=RIM;}else if(!b){b=[1e9,-1e9,1e9,-1e9];for(const p of track){b[0]=Math.min(b[0],p.x-400);b[1]=Math.max(b[1],p.x+400);b[2]=Math.min(b[2],p.y-400);b[3]=Math.max(b[3],p.y+400);}}sbColumns(b);sbHashTrack();}
   sbCoins();sbGates();{/* the map remembers this place's tunnels */const sv=sbSave();if(!sv.g)sv.g={};sv.g[SB.regId]=SB.gates.map(g=>[Math.round(g.x),Math.round(g.z),g.label]);sbKeep();}sbFlag();SB.hudT=0;SB.msgT=0;SB.camF=1;if(!SB.trav)sbPark(false);sbMapBtn();document.body.classList.add('battle');}
-function sbOff(){if(!SBX)return;SBX=false;SBF=false;const def=MAPS[mapIdx];BATTLE=!!(def&&def.battle);if(SB.grp){/* the passages' own shapes, signs and shaders go with the place (everything else in the group is shared) */for(const G of SB.grp.children)if(G.userData.sbGate)G.traverse(o=>{if(!o.isMesh)return;o.geometry.dispose();const m=o.material;if(m.map)m.map.dispose();m.dispose();});scene.remove(SB.grp);SB.grp=null;SB.im=null;}SB.coins=[];SB.shapes=[];SB.gates=[];SB.hash=null;SB.col=null;if(SB.el)SB.el.hidden=true;SB.flag=null;sbRaceBtn(false);sbPull(false);SB.park=false;if(SB.parkEl)SB.parkEl.hidden=true;sbMapBtn();if(SB.duct&&!SB.trav){SB.duct.style.opacity=0;SB.ductO=0;}document.body.classList.toggle('battle',BATTLE);}
+function sbOff(){if(!SBX)return;SBX=false;SBF=false;const def=MAPS[mapIdx];BATTLE=!!(def&&def.battle);if(SB.grp){/* the passages' own shapes, signs and shaders go with the place (everything else in the group is shared) */for(const G of SB.grp.children)if(G.userData.sbGate)G.traverse(o=>{if(!o.isMesh)return;o.geometry.dispose();const m=o.material;if(m.map)m.map.dispose();m.dispose();});scene.remove(SB.grp);SB.grp=null;SB.im=null;}SB.coins=[];SB.shapes=[];SB.gates=[];SB.hash=null;SB.col=null;if(SB.el)SB.el.hidden=true;SB.flag=null;sbRaceBtn(false);sbPull(false);SB.park=false;if(SB.parkEl)SB.parkEl.hidden=true;sbMapBtn();if(SB.duct&&!SB.trav){SB.duct.style.opacity=0;SB.ductO=0;SB.duct.style.display='none';}document.body.classList.toggle('battle',BATTLE);}
 function sbStart(){for(const k of karts){k.bal=0;k.bbS=0;k.bbOut=0;if(SBF){k.wy=k.pwy=k.lastG=sbG(k.x,k.y,(SB.kind==='toy'?0:groundAt(k.x,k.y))+(track[k.idx].ey||0)+2);k.wvy=0;k.gRate=0;k.air=false;k.bpx=k.x;k.bpy=k.y;}}
   if(BB.grp){scene.remove(BB.grp);BB.grp=null;}sbHud();const f=sbFound();showBanner(SB.reg.name,2.2,'md');}
 /* ---- stopping (web v193) ----
@@ -9031,13 +9037,13 @@ function padMap(gp){const gc=gp.mapping!=='standard'&&/gamecube|mayflash|0079-18
 function padBtn(gp,i){const b=gp.buttons[i];return !!b&&(b.pressed||b.value>.5);}
 function padPoll(){let gps;try{gps=navigator.getGamepads?navigator.getGamepads():[];}catch(e){return;}let gp=null;
   for(const g of gps||[])if(g&&g.connected&&(!gp||g.timestamp>gp.timestamp))gp=g;
-  if(!gp){if(PAD.act){PAD.act=false;PAD.steer=0;PAD.brake=false;PAD.look=false;PAD.back=false;document.body.classList.remove('padnav','pad');}return;}
+  if(!gp){if(PAD.act){PAD.act=false;PAD.steer=0;PAD.brake=false;PAD.look=false;PAD.back=false;document.body.classList.remove('padnav','pad');}padCurOff();return;}
   const M=padMap(gp),P=PAD.prev,now=performance.now(),pr=i=>i!=null&&i>=0&&padBtn(gp,i),edge=i=>pr(i)&&!P[i];
   const ax=gp.axes[0]||0,ay=gp.axes[1]||0,dz=.2,sx=Math.abs(ax)<dz?0:Math.sign(ax)*(Math.abs(ax)-dz)/(1-dz);
   let any=gp.buttons.some(b=>b&&b.pressed)||Math.abs(ax)>.5||Math.abs(ay)>.5;if(any){PAD.lastUse=now;if(!PAD.act){PAD.act=true;}}if(document.body.classList.contains('pad')!==PAD.act)document.body.classList.toggle('pad',PAD.act);
   const racing=(state==='race'||state==='countdown')&&!document.querySelector('.overlay:not([hidden])')&&pauseOv.hidden;
   const dl=pr(M.LEFT),dr=pr(M.RIGHT);
-  if(racing){document.body.classList.remove('padnav');
+  if(racing){document.body.classList.remove('padnav');padCurOff();
     if(SPEC&&SPEC.on){/* watching: left/right or the bumpers pick the racer, Y or X the camera, B goes back to the results */if(edge(M.LEFT)||M.I1.some(edge))specNext(-1);if(edge(M.RIGHT)||M.I2.some(edge))specNext(1);if(edge(M.Y)||edge(M.X))specCam();if(edge(M.B))specExit(true);}
     PAD.steer=clamp(sx+(dr?1:0)-(dl?1:0),-1,1);PAD.gas=M.GAS.some(pr);PAD.brake=M.D.some(pr);PAD.nb=PAD.gas&&M.D.some(pr);/* drift trigger with the throttle held: drift only, never brake */PAD.look=pr(M.X)||(pr(M.BACK)&&!SBX);/* (in Sandbox Select opens the map) */
     PAD.back=ay>.55;/* left stick pulled back: the next item goes behind you, no mirror needed; it never brakes or steers */
@@ -9049,18 +9055,14 @@ function padPoll(){let gps;try{gps=navigator.getGamepads?navigator.getGamepads()
       else if(PAD.hold[sl]){PAD.hold[sl]=0;if(k.held&&k.held.sl===sl)itemQueued=(ay>.6?'hold':'fwd')+suf;}});}
   else{PAD.steer=0;PAD.brake=false;PAD.look=false;PAD.gas=true;PAD.held=[false,false,false];
     /* menus: move between buttons, A selects, B goes back */
-    const zs=garageOpen&&gBig;/* full-screen garage: the left stick's up/down zooms instead of moving between buttons */const dir=(pr(M.UP)||!zs&&ay<-.6)?'u':(pr(M.DOWN)||!zs&&ay>.6)?'d':(dl||ax<-.6)?'l':(dr||ax>.6)?'r':'';
-    if(dir&&now>PAD.navT){PAD.navT=now+(PAD.navDir===dir?140:260);PAD.navDir=dir;padNav(dir);}else if(!dir){PAD.navT=0;PAD.navDir='';}
-    {const ry=gp.axes[3]||0;if(Math.abs(ry)>.25)padScroll(ry*22);}
-    if(edge(M.A)){const el=document.activeElement;if(el&&el!==document.body&&el.click){padRemember(el);el.click();}else padNav('d');}
-    padRestore();
+    document.body.classList.remove('padnav');padCursor(gp,M,ax,ay,pr,edge,now);
     /* garage: the bumpers and triggers spin the car (left turns it one way, right the other; triggers are analog, so press harder to spin faster) */
     /* garage: X (Xbox X, PlayStation Square, GameCube X) favourites the highlighted livery, or the one on the car */
-    if(garageOpen&&edge(M.X)){const el=document.activeElement,f=el&&el.classList&&el.classList.contains('theme')?el.querySelector('.fav'):null;
-      if(f){padRemember(el);f.click();}else if(playerBuild.t){toggleFav(BODIES[playerBuild.b].id,playerBuild.t);refreshGarage(false);}}
+    if(garageOpen&&edge(M.X)){const el=PAD.hov&&PAD.hov.closest?PAD.hov.closest('.theme'):null,f=el?el.querySelector('.fav'):null;
+      if(f){f.click();}else if(playerBuild.t){toggleFav(BODIES[playerBuild.b].id,playerBuild.t);refreshGarage(false);}}
     if(garageOpen){const bv=i=>{const b=gp.buttons[i];return b?(typeof b.value==='number'&&b.value>0?b.value:(b.pressed?1:0)):0;},sp=(bv(5)+bv(7))-(bv(4)+bv(6)),gd=Math.min(.05,(now-(PAD.gT||now))/1000);
       if(Math.abs(sp)>.05)gRot+=sp*gd*2.6;
-      if(gBig){const dz2=.18,zy=Math.abs(ay)<dz2?0:Math.sign(ay)*(Math.abs(ay)-dz2)/(1-dz2);if(zy)gZoom=clamp(gZoom*Math.exp(zy*gd*1.6),.32,1.5);}}PAD.gT=now;
+      if(gBig){const dz2=.18,ay2=gp.axes[3]||0,zy=Math.abs(ay2)<dz2?0:Math.sign(ay2)*(Math.abs(ay2)-dz2)/(1-dz2);/* (the right stick: the left one is the cursor's) */if(zy)gZoom=clamp(gZoom*Math.exp(zy*gd*1.6),.32,1.5);}}PAD.gT=now;
     if(SBM.open&&(edge(M.Y)||edge(M.BACK)))sbMap(false);else
     if(edge(M.B))padBack();}
   if(edge(M.START))togglePause();
@@ -9077,7 +9079,40 @@ function padRestore(){const el=PAD.focEl;if(!PAD.focKey||!document.body.classLis
   const sc=padScope();const c=[...sc.querySelectorAll('button,a[href],input,select,[tabindex]:not([tabindex="-1"]),.mapc,.cupc')].filter(padVisible);
   let m=c.find(e=>padKey(e)===PAD.focKey);if(!m){const [pc,ds,lab]=PAD.focKey.split('|');m=c.find(e=>{const k=padKey(e).split('|');return k[1]===ds&&k[2]===lab;})||c.find(e=>{const k=padKey(e).split('|');return k[0]===pc&&k[2]===lab;});}
   if(m){m.focus({focusVisible:true,preventScroll:true});PAD.focEl=m;}}
-function padNav(dir){document.body.classList.add('padnav');const sc=padScope();
+/* ---- the controller's cursor (web v194; patch29.py has the owner's words) ---- */
+const PAD_CLICK='button,a[href],input,select,label,summary,[tabindex]:not([tabindex="-1"]),.mapc,.cupc,[role=button]';
+function padCurEl(){let e=PAD.cur;if(!e){e=PAD.cur=document.createElement('div');e.id='padCur';e.hidden=true;e.style.cssText='position:fixed;left:0;top:0;width:30px;height:30px;margin:-3px 0 0 -3px;z-index:2147483000;pointer-events:none;will-change:transform;filter:drop-shadow(0 2px 3px rgba(0,0,0,.65))';
+    e.innerHTML='<svg viewBox="0 0 30 30" width="30" height="30"><path d="M3 2 L3 23 L8.8 17.8 L13 27 L16.8 25.3 L12.6 16.2 L20.5 16.2 Z" fill="#fff" stroke="#1b0f0b" stroke-width="2.2" stroke-linejoin="round"/></svg>';document.body.appendChild(e);
+    const st=document.createElement('style');st.textContent='#padCur[hidden]{display:none}.padhover{filter:brightness(1.2) saturate(1.1)}body.padcur :focus,body.padcur :focus-visible{outline:none!important}';/* (no ring round the last thing pressed while the arrow is out) */document.head.appendChild(st);
+    addEventListener('mousemove',ev=>{if(ev.isTrusted&&PAD.curOn&&(Math.abs(ev.movementX)+Math.abs(ev.movementY))>1){PAD.curOn=false;padCurShow();}},true);addEventListener('keydown',ev=>{if(ev.isTrusted&&PAD.curOn&&ev.code==='Tab'){PAD.curOn=false;padCurShow();}},true);}return e;}
+function padCurShow(){const e=padCurEl();e.hidden=!PAD.curOn;document.body.classList.toggle('padcur',!!PAD.curOn);if(!PAD.curOn&&PAD.hov){PAD.hov.classList.remove('padhover');PAD.hov=null;}}
+function padCurOff(){if(PAD.curOn){PAD.curOn=false;padCurShow();}PAD.cScope=null;}
+/* the nearest thing above el that scrolls along the axis ('Y' or 'X') */
+function padScroller(el,ax){const can=q=>q&&(ax==='Y'?q.scrollHeight>q.clientHeight+4:q.scrollWidth>q.clientWidth+4)&&/(auto|scroll)/.test(getComputedStyle(q)['overflow'+ax]);let q=el;while(q&&q!==document.body&&q!==document.documentElement&&!can(q))q=q.parentElement;return can(q)?q:null;}
+function padCursor(gp,M,ax,ay,pr,edge,now){const dt=Math.min(.05,Math.max(0,(now-(PAD.cT||now))/1000));PAD.cT=now;const W=innerWidth,H=innerHeight;if(PAD.cx==null){PAD.cx=W/2;PAD.cy=H/2;}
+  /* a new screen: the arrow starts on its main button */
+  {const sc=padScope();if(sc!==PAD.cScope){PAD.cScope=sc;const b=[...sc.querySelectorAll('.cta')].find(padVisible)||[...sc.querySelectorAll('button')].find(padVisible);if(b){const r=b.getBoundingClientRect();if(r.width&&r.bottom>8&&r.top<H-8){PAD.cx=clamp(r.left+r.width/2,2,W-3);PAD.cy=clamp(r.top+r.height/2,2,H-3);}}}}
+  let el=PAD.curOn?document.elementFromPoint(PAD.cx,PAD.cy):null,hit=el&&el.closest?el.closest(PAD_CLICK):null;if(hit&&hit.disabled)hit=null;
+  const slider=!!hit&&hit.tagName==='INPUT'&&hit.type==='range';
+  /* the stick: faster the further it is pushed; the D-pad: a steady walk (on a slider its left and right move the slider) */
+  const dz=.16,m=Math.hypot(ax,ay);let vx=0,vy=0;if(m>dz){const f=Math.min(1,(m-dz)/(1-dz)),sp=(200+1300*f*f)*clamp(Math.min(W,H)/720,.7,1.6);vx=ax/m*sp;vy=ay/m*sp;}
+  const dl=pr(M.LEFT),dr=pr(M.RIGHT);if(slider&&(dl||dr)){if(now>(PAD.slT||0)){PAD.slT=now+110;const st=+hit.step||1,v=clamp((+hit.value)+(dr?st:-st),+hit.min||0,hit.max===''?100:+hit.max);if(v!==+hit.value){hit.value=v;hit.dispatchEvent(new Event('input',{bubbles:true}));hit.dispatchEvent(new Event('change',{bubbles:true}));}}}
+  else vx+=((dr?1:0)-(dl?1:0))*430;vy+=((pr(M.DOWN)?1:0)-(pr(M.UP)?1:0))*430;
+  if(vx||vy){if(!PAD.curOn){PAD.curOn=true;padCurShow();}PAD.cx=clamp(PAD.cx+vx*dt,2,W-3);PAD.cy=clamp(PAD.cy+vy*dt,2,H-3);}
+  const e=padCurEl();if(e.hidden===PAD.curOn)padCurShow();e.style.transform='translate('+PAD.cx.toFixed(1)+'px,'+PAD.cy.toFixed(1)+'px)';
+  if(hit!==PAD.hov){if(PAD.hov)PAD.hov.classList.remove('padhover');PAD.hov=hit;if(hit)hit.classList.add('padhover');}
+  /* scrolling: the right stick; and the arrow held against an edge of whatever scrolls under it (the whole screen, a list, the map) */
+  {const base=el||padScope(),sy=padScroller(base,'Y'),sx=padScroller(base,'X'),ry=gp.axes[3]||0,rx=gp.axes[2]||0,big=typeof garageOpen!=='undefined'&&garageOpen&&gBig;
+    if(!big&&Math.abs(ry)>.2){const d=ry*Math.abs(ry)*1700*dt;if(sy)sy.scrollBy(0,d);else padScroll(d);}
+    if(!big&&Math.abs(rx)>.3&&sx)sx.scrollBy(rx*Math.abs(rx)*1700*dt,0);
+    if(PAD.curOn){const z=Math.max(36,H*.075),pull=(d)=>(260+1100*clamp(d/z,0,1))*dt;
+      if(sy){const r=sy.getBoundingClientRect(),t=Math.max(0,r.top),b=Math.min(H,r.bottom);if(vy>0&&PAD.cy>b-z)sy.scrollBy(0,pull(PAD.cy-(b-z)));else if(vy<0&&PAD.cy<t+z)sy.scrollBy(0,-pull(t+z-PAD.cy));}
+      else if(vy>0&&PAD.cy>H-z)padScroll(pull(PAD.cy-(H-z)));else if(vy<0&&PAD.cy<z)padScroll(-pull(z-PAD.cy));
+      if(sx){const r=sx.getBoundingClientRect(),l=Math.max(0,r.left),q=Math.min(W,r.right);if(vx>0&&PAD.cx>q-z)sx.scrollBy(pull(PAD.cx-(q-z)),0);else if(vx<0&&PAD.cx<l+z)sx.scrollBy(-pull(l+z-PAD.cx),0);}}}
+  /* A: press what is under the arrow */
+  if(edge(M.A)){if(!PAD.curOn){PAD.curOn=true;padCurShow();el=document.elementFromPoint(PAD.cx,PAD.cy);hit=el&&el.closest?el.closest(PAD_CLICK):null;if(hit&&hit.disabled)hit=null;}
+    if(hit){if(hit.tagName==='SELECT'){hit.selectedIndex=(hit.selectedIndex+1)%hit.options.length;hit.dispatchEvent(new Event('change',{bubbles:true}));}else if(hit.tagName==='INPUT'&&hit.type!=='checkbox'&&hit.type!=='radio'&&hit.type!=='button'){try{hit.focus({preventScroll:true});}catch(err){}if(hit.type!=='range')hit.click();}else hit.click();}}}
+function padNav(dir){return;/* (web v194: the controller has a cursor; nothing is ringed in yellow any more) */document.body.classList.add('padnav');const sc=padScope();
   const els=[...sc.querySelectorAll('button,a[href],input,select,[tabindex]:not([tabindex="-1"]),.mapc,.cupc')].filter(padVisible);if(!els.length)return;
   const cur=document.activeElement;if(!cur||!els.includes(cur)){const onScr=els.find(e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;})||els[0];onScr.focus({focusVisible:true,preventScroll:true});padRemember(onScr);onScr.scrollIntoView({block:'nearest'});return;}
   const a=cur.getBoundingClientRect(),ax=a.left+a.width/2,ay=a.top+a.height/2;let best=null,bs=1e9;
