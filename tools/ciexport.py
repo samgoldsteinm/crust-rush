@@ -73,9 +73,15 @@ async def main():
         d['theme'] = await pg.evaluate("__ev('MAPS[mapIdx].theme')")
         d['grade'] = json.loads(await pg.evaluate("__ev(`JSON.stringify(POST.grade||{})`)"))
         d['rim'] = json.loads(await pg.evaluate("__ev(`JSON.stringify({c:'#'+rimL.color.getHexString(),i:rimL.intensity})`)"))
+        # the Balloon Battle arena (web tools/mini/battle.js): the shapes that are its floor and walls, where the karts start,
+        # the ramps the computer's drivers use and the mode's numbers, so the PC reads them and never carries its own copy.
+        # The exported height map is the bare table (it samples groundAt, not battleG): the arena's ground is these shapes.
+        if await pg.evaluate("__ev('!!MAPS[mapIdx].battle')"):
+            d['battle'] = json.loads(await pg.evaluate("__ev(`JSON.stringify({shapes:BB.shapes,spawn:BB.spawn,ramps:BB.ramps,T:BB.T,step:BB_STEP,r:BB_R,x0:BB_X0,floor:BB_FLOOR,start:BB_START,back:BB_BACK,items:BB_ITEMS,col:BB_COL})`)"))
+            print('battle', len(d['battle']['shapes']), 'shapes', len(d['battle']['spawn']), 'spawns', flush=True)
         open(os.path.join(od, nm + '_haz.glb'), 'wb').write(base64.b64decode(hz['b64']))
         # a small card for the track menu, so the game needn't read every track to list them
-        info = json.loads(await pg.evaluate("__ev(`JSON.stringify({name:MAPS[mapIdx].name,theme:MAPS[mapIdx].theme,special:!!MAPS[mapIdx].special,cup:MAPS[mapIdx].cup})`)"))
+        info = json.loads(await pg.evaluate("__ev(`JSON.stringify({name:MAPS[mapIdx].name,theme:MAPS[mapIdx].theme,special:!!MAPS[mapIdx].special,battle:!!MAPS[mapIdx].battle,cup:MAPS[mapIdx].cup})`)"))
         info.update({'id': nm, 'mi': MI})
         json.dump(info, open(os.path.join(od, nm + '.info.json'), 'w'))
         json.dump(d, open(os.path.join(od, nm + '.json'), 'w'), separators=(',', ':'))
