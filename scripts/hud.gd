@@ -320,6 +320,8 @@ func _place_texts() -> void:
 	m.set_shader_parameter("y0", pos_txt.size_px * 0.05)
 	m.set_shader_parameter("y1", pos_txt.size_px * 0.82)
 	pos_txt.visible = not spectating and (race != null and race.state != "countdown" or (race != null and me != null))
+	if race != null and race.mode == "bb":
+		pos_txt.visible = false   # no place in the race to show in a Balloon Battle (web body.battle hides #posNum)
 	# banner
 	var bsize := clampf(0.2 * H, 48.0, 110.0)
 	var btop := 0.28 * H
@@ -501,10 +503,16 @@ func _draw() -> void:
 	if spectating:
 		_draw_top_bar(true)
 		return
-	_draw_top_bar()
+	# Balloon Battle (web body.battle): no place, lap, progress bar, best time or special button; one small read-out instead
+	var bb: bool = race.mode == "bb"
+	if bb:
+		_draw_bb()
+	else:
+		_draw_top_bar()
 	_draw_pause()
 	_draw_items(btn, top)
-	_draw_special(btn, top)
+	if not bb:
+		_draw_special(btn, top)
 	_draw_gauge(btn)
 	if show_touch:
 		_draw_pedals(btn)
@@ -530,6 +538,35 @@ func _draw() -> void:
 		var y2 := H - 14.0 - (btn * 0.35 + 12.0) - 46.0
 		_rbox(W / 2.0 - tw2 / 2.0 - 20.0, y2, tw2 + 40.0, 46.0, Color(14.0 / 255, 7.0 / 255, 4.0 / 255, 0.55 * a2), Color(1, 0.957, 0.863, 0.3 * a2), 1.0, 23.0)
 		_text(f_bold, toast_text, W / 2.0 - tw2 / 2.0, y2 + 12.0, ts, Color(CREAM.r, CREAM.g, CREAM.b, a2))
+
+
+## Balloon Battle's read-out (web #bbHud): one small line at the top left, "2:41 · 3 pts · 3rd": the clock, your own points
+## (in yellow) and your place. Everybody's balloons are on their karts; the full table is the results screen.
+## The web's numbers: left 10, top 64, bold 14, padding 6 by 10, corners 10, a dark see-through pill.
+func _draw_bb() -> void:
+	var parts: Array = race.bb.readout(me)
+	var fs := 14.0
+	var px := int(round(fs * s))
+	var dot := " · "
+	var w0 := f_bold.get_string_size(String(parts[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, px).x / s
+	var w1 := f_bold.get_string_size(String(parts[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, px).x / s
+	var w2 := f_bold.get_string_size(String(parts[2]), HORIZONTAL_ALIGNMENT_LEFT, -1, px).x / s
+	var wd := f_bold.get_string_size(dot, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x / s
+	var x := 10.0
+	var y := 64.0
+	_rbox(x, y, w0 + wd + w1 + wd + w2 + 20.0, fs + 12.0, Color(18.0 / 255, 9.0 / 255, 6.0 / 255, 0.55), Color(0, 0, 0, 0), 0.0, 10.0)
+	var sh := Color(0, 0, 0, 0.9)
+	var dim := Color(CREAM.r, CREAM.g, CREAM.b, 0.55)
+	var cx := x + 10.0
+	_text(f_bold, String(parts[0]), cx, y + 6.0, fs, CREAM, HORIZONTAL_ALIGNMENT_LEFT, -1.0, sh, Vector2(0, 1))
+	cx += w0
+	_text(f_bold, dot, cx, y + 6.0, fs, dim)
+	cx += wd
+	_text(f_bold, String(parts[1]), cx, y + 6.0, fs, Color("#ffe066"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, sh, Vector2(0, 1))
+	cx += w1
+	_text(f_bold, dot, cx, y + 6.0, fs, dim)
+	cx += wd
+	_text(f_bold, String(parts[2]), cx, y + 6.0, fs, CREAM, HORIZONTAL_ALIGNMENT_LEFT, -1.0, sh, Vector2(0, 1))
 
 
 ## web .hittoast (the pointer-fine size): a dark pill, the item, a cheese arrow, round portraits ringed in each

@@ -32,6 +32,8 @@ var KERB_H := 0.45
 var class_mul := 1.0
 var pond_lim := 0.0
 var multi := false        # roads stacked on several levels (decks): height comes from the road, not the ground
+var battle := false       # a Balloon Battle arena (web def.battle): no laps; its ground and walls are the shapes in `bb` (scripts/battle.gd)
+var bb := {}              # ...the arena as exported: {shapes, spawn, ramps, T, step, r, x0, floor, start, back, items, col}
 
 # centre line, one entry per track point
 var px := PackedFloat32Array()
@@ -143,6 +145,11 @@ func _read(d: Dictionary) -> void:
 	KERB_H = d["KERB_H"]
 	class_mul = d["classMul"]
 	multi = bool(d.get("multi", false))
+	# a Balloon Battle arena brings its shapes with it (tools/ciexport.py: d['battle']). The height map of such a map is
+	# the bare table (the export samples the web's groundAt): the arena's own ground is worked out from these shapes.
+	if d.get("battle") is Dictionary:
+		battle = true
+		bb = d["battle"]
 	pond_lim = d["pondLim"] if d.get("pondLim") != null else WALLD - 3.5
 	for p in d["track"]:
 		px.append(p[0]); py.append(p[1]); nx.append(p[2]); ny.append(p[3])

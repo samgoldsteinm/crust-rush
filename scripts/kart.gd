@@ -123,6 +123,14 @@ var cut_a := 0.0
 var ghost_t := 0.0        # Ghost Pepper: untouchable, see-through
 var sauce_t := 0.0        # Sauce Splat: slower, smeared view
 var shrink_t := 0.0       # Heat Wave: shrunk and slower
+# Balloon Battle (scripts/battle.gd; only ever touched on an arena map)
+var bal := 0              # balloons left (web k.bal)
+var bb_s := 0             # points (web k.bbS)
+var bb_out := 0.0         # out for a moment: all popped, or over the table's edge (web k.bbOut)
+var bb_i := 0             # its number in the battle: the balloons' colour, the computer drivers' timing (web k.bbI)
+var bb_a := {}            # the computer driver's notes (web k.bbA)
+var bpx := NAN            # where it last stood free of the arena's walls (web k.bpx, k.bpy)
+var bpy := NAN
 var elim := false         # Last Slice Standing: knocked out (and on which lap)
 var elim_lap := 0
 var sc := -1              # on a shortcut (index into T.shorts), and where along it
@@ -261,6 +269,8 @@ func step(inp: Dictionary, dt: float) -> void:
 		tp = 1.0 if bool(T.shorts[sc]["route"]) else 0.96
 	if boost > 0.0:
 		tp = maxf(tp, 0.93)
+	if T.battle:
+		tp = 1.0   # an arena has no road to be off (web: if(BATTLE)tp=1)
 	pen += (tp - pen) * minf(1.0, dt * (3.5 if tp < pen else 6.0))
 
 	var mul: float = inp["mul"]
@@ -338,7 +348,10 @@ func step(inp: Dictionary, dt: float) -> void:
 	y += sin(ma) * speed * dt
 	_sc_step()
 
-	_walls()
+	if T.battle:
+		race.bb.walls(self)   # web battleWalls: the arena's shapes are the walls, not the track's sides
+	else:
+		_walls()
 	if wall_t > 0.0:
 		wall_t -= dt
 	_rim()
@@ -382,7 +395,10 @@ func step(inp: Dictionary, dt: float) -> void:
 	prog += di
 	idx = best
 	# crossing the line sets the count of lap points right: loops, shortcuts and glides each leave it a few points out (web v192)
-	if o_idx > T.N * 0.75 and best < T.N * 0.25:
+	# (not in a Balloon Battle: its ring of track points is bookkeeping, there is no line to cross)
+	if T.battle:
+		pass
+	elif o_idx > T.N * 0.75 and best < T.N * 0.25:
 		prog = int(floor(float(prog) / T.N + 0.5)) * T.N + best
 	elif o_idx < T.N * 0.25 and best > T.N * 0.75:
 		prog = int(floor(float(prog) / T.N + 0.5)) * T.N + best - T.N
@@ -836,10 +852,11 @@ func _rim() -> void:
 
 ## ground, kerbs, ramps, jumps and the glide. Returns true if the kart was respawned.
 func _vertical(dt: float) -> bool:
-	var g := T.ground(x, y) + T.k_ey(idx, x, y)
+	# in a Balloon Battle the ground is the arena's shapes, and there are no kerbs (web: G=BATTLE?battleG(...):kGround(k))
+	var g: float = race.bb.ground(x, y) if T.battle else T.ground(x, y) + T.k_ey(idx, x, y)
 	var on_r := false
 	var g_r := false
-	if not T.in_glide(idx):
+	if not T.battle and not T.in_glide(idx):
 		var la := absf(T.lateral(idx, x, y))
 		if la > T.RW and la < T.CURB:
 			g += T.kerb_h(la)

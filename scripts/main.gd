@@ -170,6 +170,7 @@ func _ready() -> void:
 		map_id = OS.get_environment("CR_MAP")
 	if OS.get_environment("CR_MODE") != "":
 		sel["mode"] = OS.get_environment("CR_MODE")
+	_bb_boot()
 	if map_id == "" or _map_info(map_id).is_empty():
 		map_id = "bay"
 	var f := FileAccess.open(ROSTER_JSON, FileAccess.READ)
@@ -242,7 +243,7 @@ func scan_maps() -> void:
 			if FileAccess.file_exists(ip):
 				var j = JSON.parse_string(FileAccess.get_file_as_string(ip))
 				if typeof(j) == TYPE_DICTIONARY:
-					for key in ["name", "mi", "theme", "cup"]:
+					for key in ["name", "mi", "theme", "cup", "battle"]:   # ("battle": a Balloon Battle arena, never a race track)
 						if (j as Dictionary).has(key):
 							info[key] = j[key]
 			seen[sub] = true
@@ -257,6 +258,88 @@ func _map_info(id: String) -> Dictionary:
 		if m["id"] == id:
 			return m
 	return {}
+
+
+# ---------------------------------------------------------------- Balloon Battle: its one arena (web MAPS[..].battle)
+
+## the Balloon Battle arena's id, or "" when this copy's maps folder has none
+func _bb_map() -> String:
+	for m in maps:
+		if bool(m.get("battle", false)):
+			return String(m["id"])
+	return ""
+
+
+## the first real track (the web's map 0): where the game goes when it leaves the arena
+func _first_track() -> String:
+	for m in maps:
+		if not bool(m.get("battle", false)):
+			return String(m["id"])
+	return ""
+
+
+## how many tracks there are to race on (the arena is not one of them)
+func _n_tracks() -> int:
+	var n := 0
+	for m in maps:
+		if not bool(m.get("battle", false)):
+			n += 1
+	return n
+
+
+## at start-up the mode and the map come back from the settings separately (web boot: if(mode==='bb')mapIdx=bi; else
+## if(MAPS[mapIdx].battle)mapIdx=0). The arena is only ever loaded in its own mode, and the mode only with its arena.
+func _bb_boot() -> void:
+	var arena := _bb_map()
+	if String(sel.get("mode", "")) == "bb":
+		if arena == "":
+			sel["mode"] = "single"   # this copy has no arena in its maps folder
+		else:
+			map_id = arena
+	elif map_id != "" and bool(_map_info(map_id).get("battle", false)):
+		map_id = ""   # (the usual first track is chosen just below)
+
+
+## the menu's mode changed (web modeSeg): choosing Balloon Battle loads its arena behind the menu, leaving the mode leaves the arena
+func _bb_mode_map() -> void:
+	if state != "menu" or T == null:
+		return
+	if String(sel.get("mode", "")) == "bb":
+		var arena := _bb_map()
+		if arena != "" and (arena != map_id or _preview_busy):
+			_menu_preview_map(arena)
+	elif T.battle or (_preview_busy and bool(_map_info(_preview_want).get("battle", false))):
+		var id := _first_track()
+		if id != "":
+			_menu_preview_map(id)
+
+
+## web bbNoNet: Balloon Battle is played off line for now. Hosting or joining a friends' race leaves the mode and its arena
+## (called from _web_host_room, _web_join, _menu_host and _menu_join; nothing in webnet.gd knows about the mode).
+func _bb_no_net() -> void:
+	if String(sel.get("mode", "")) == "bb":
+		sel["mode"] = "single"
+		if menu != null:
+			menu.mode = "single"
+	if menu != null and bool(_map_info(menu.map_id).get("battle", false)):
+		menu.map_id = _first_track()
+	if T == null or not T.battle:
+		return
+	var id := _first_track()
+	if id == "":
+		return
+	# the arena is behind the menu: put the first track there instead, and bring back the sheet this was asked from
+	var in_menu := state == "menu"
+	var sheet := menu.modal_kind if (menu != null and menu.modal != null) else ""
+	if not load_map(id):
+		return
+	_start_race({})
+	if in_menu:
+		state = "menu"
+		hud_race.visible = false
+		menu.visible = true
+		if sheet != "":
+			menu.show_modal(sheet)
 
 
 ## a glTF file from disk (the tracks exported from the web game), or the built-in copy
@@ -774,6 +857,8 @@ func _build_hud() -> void:
 		sel[k] = v
 		if k == "favs":
 			_save_settings()
+		if k == "mode":
+			_bb_mode_map()   # Balloon Battle's arena comes in behind the menu, and goes again with the mode
 		pass)
 	menu.modal_builders["mp"] = _mp_panel
 	# a friends' room (web rooms): the steps lead back to it, as the web's room screen does
@@ -1053,12 +1138,18 @@ func _start_race(cfg: Dictionary) -> void:
 	if auto_drive and net_role != "client":
 		kart.ai["auto"] = true
 	race.items_off = items_off()
+	if race.bb != null:
+		# a battle gives the bowling meatball to everyone, unlocked or not, unless it is switched off in Settings
+		# (items_off cannot tell "locked" from "switched off")
+		race.bb.meat_off = item_set.get("meatball", true) == false
+		bb_cam_f = 1.0
 	# the network log: a row a second of every online race (Settings > More > Network log)
 	NetLog.stop(_net_names())
 	if (net_role != "" or web.racing()) and not cfg.is_empty():
 		NetLog.start("client" if web.racing() else net_role, map_id, ["fast", "balanced", "ultra"][clampi(quality, 0, 2)], _net_names())
 	var lss := String(cfg.get("mode", "")) == "lss" if not cfg.is_empty() else (String(sel.get("mode", "")) == "lss" and gp.is_empty())
-	race.mode = "lss" if lss else ""
+	# an arena map is a Balloon Battle (the race set that up itself, scripts/race.gd setup_cfg); otherwise as before
+	race.mode = "bb" if race.bb != null else ("lss" if lss else "")
 	T.LAPS = maxi(2, race.karts.size() - 1) if race.mode == "lss" else T.laps0
 	spec_k = null
 	_spec_reset()
@@ -1080,7 +1171,12 @@ func _start_race(cfg: Dictionary) -> void:
 		add_child(ghost)
 	var best := Ach.best(map_id, String(cfg.get("cls", sel["cls"])) if not cfg.is_empty() else String(sel["cls"]))
 	hud.pb_text = ("Best " + Hud._fmt(float(best["t"]))) if not best.is_empty() else ""
-	if race.mode == "lss" or auto_drive:
+	if race.mode == "bb":
+		# a battle has no lap time: no best under the clock, no ghost, nothing recorded
+		hud.pb_text = ""
+		ghost.start({}, false, kart.ri, {})
+		ghost.recording = false
+	elif race.mode == "lss" or auto_drive:
 		ghost.start({}, false, kart.ri, {})
 		ghost.recording = not auto_drive
 	else:
@@ -1211,7 +1307,7 @@ func _sim_tick(dt: float) -> void:
 			all_done = race.lss_done
 		if all_done:
 			state = "finished"
-			fin_t = 3.5
+			fin_t = 2.4 if race.mode == "bb" else 3.5   # (the web shows a battle's results 2.4 s after "Time!")
 	elif state == "finished":
 		fin_t -= dt
 		if fin_t <= 0.0:
@@ -1223,7 +1319,7 @@ func _sim_tick(dt: float) -> void:
 
 
 func _finish_check() -> void:
-	if race.mode == "lss":
+	if race.mode == "lss" or race.mode == "bb":   # (a battle ends on the clock, with "Time!": no best time, no race achievements)
 		return
 	if kart.finished and not shown_finish:
 		shown_finish = true
@@ -1243,7 +1339,7 @@ func _progress_finish() -> void:
 	var cls := String(sel["cls"])
 	var run := ghost.finish() if ghost != null and race.mode != "lss" else {}
 	last_run = Ach.record(map_id, cls, kart.finish_time, kart.place, kart.ri, _my_build(), run)
-	Ach.n_tracks = maxi(1, maps.size())
+	Ach.n_tracks = maxi(1, _n_tracks())   # (the tracks there are to race on: the Balloon Battle arena is not one)
 	Ach.race_done(kart.place, was_last, cls, kart.ri, map_id, gp)
 	_ach_toasts()
 
@@ -1264,6 +1360,8 @@ func _ach_toasts() -> void:
 
 
 func _lap_check() -> void:
+	if race.mode == "bb":
+		return   # no laps in a battle: circling the middle of the table must not call "Lap 2" or the final-lap music
 	var lp := kart.lap()
 	if lp != last_lap and not kart.finished:
 		last_lap = lp
@@ -1397,7 +1495,7 @@ func _drain_events() -> void:
 				_shake(0.35)
 				_edge(Color("#fff3c4"), t == "absorb")
 		elif t == "flour":
-			var p := Vector3(float(ed["x"]), T.ground(float(ed["x"]), float(ed["y"])) + 5.0, float(ed["y"]))
+			var p := Vector3(float(ed["x"]), float(ed.get("h", T.ground(float(ed["x"]), float(ed["y"])))) + 5.0, float(ed["y"]))
 			sfx.play("boom", clampf(1.0 - p.distance_to(cam.global_position) / 500.0, 0.0, 1.0))
 			if Vector2(p.x - cam.global_position.x, p.z - cam.global_position.z).length() < 120.0:
 				_shake(0.5)
@@ -1517,6 +1615,28 @@ func _drain_events() -> void:
 		elif t == "ricochet":
 			var rp := Vector3(float(ed["x"]), T.ground(float(ed["x"]), float(ed["y"])), float(ed["y"]))
 			sfx.play("bump", clampf(1.0 - rp.distance_to(cam.global_position) / 420.0, 0.0, 1.0) * 0.45)
+		# ---- Balloon Battle (scripts/battle.gd): the web's banners and sounds from battleHit, bbPop and battleTick
+		elif t == "bb_pop":
+			var kp: Kart = ed["k"]
+			var np := _near(kp)
+			if np > 0.0:
+				sfx.play("bump", np * 0.8)
+		elif t == "bb_point":
+			if ed["k"] == kart:
+				sfx.play("ring")
+				_show_center("+1", 0.5, "sm")
+		elif t == "bb_out":
+			if ed["k"] == kart:
+				if bool(ed["edge"]):
+					_show_center("Off the table!" if int(ed["left"]) > 0 else "All popped! Back with %d" % race.bb.BACK, 1.4, "sm")
+				else:
+					_show_center("All popped! Back with %d" % race.bb.BACK, 1.6, "sm")
+		elif t == "bb_back":
+			if ed["k"] == _cam_kart():
+				cam_snap = true
+		elif t == "bb_time":
+			_show_center("Time!", 2.4, "md")
+			sfx.play("finish")
 	race.fx.clear()
 
 
@@ -1548,6 +1668,7 @@ func _web_name() -> String:
 
 
 func _web_join() -> void:
+	_bb_no_net()
 	_net_close()
 	web.join(web_code_text, _web_name())
 
@@ -1659,6 +1780,7 @@ func _web_host_load(pc: Dictionary) -> String:
 
 
 func _web_host_room() -> void:
+	_bb_no_net()
 	_net_close()
 	web.host(_web_name())
 
@@ -1804,12 +1926,14 @@ func _show_results() -> void:
 	var c1 := menu.vbox(5)
 	c1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cols.add_child(c1)
-	c1.add_child(menu.section_label("Race"))
+	c1.add_child(menu.section_label("Battle" if race.mode == "bb" else "Race"))
 	for i in st.size():
 		var k := st[i]
 		var rtxt := ("~" if k.est else "") + _fmt(k.finish_time)
 		if race.mode == "lss":
 			rtxt = ("out on lap %d" % k.elim_lap) if k.elim else ("last slice" if k.place == 1 else _fmt(k.finish_time))
+		elif race.mode == "bb":
+			rtxt = "%d %s" % [k.bb_s, "point" if k.bb_s == 1 else "points"]   # a battle is won on points (web results)
 		c1.add_child(_result_row(i + 1, k, rtxt, "+%d" % (Race.PTS[i] if i < Race.PTS.size() else 0) if not gp.is_empty() else ""))
 	if not gp.is_empty():
 		var c2 := menu.vbox(5)
@@ -1818,7 +1942,7 @@ func _show_results() -> void:
 		c2.add_child(menu.section_label("Cup standings"))
 		for i in gp_rows.size():
 			c2.add_child(_result_row(i + 1, gp_rows[i][0], "%d pts" % int(gp_rows[i][1]), ""))
-	var again_text := "Race again"
+	var again_text := "Battle again" if race.mode == "bb" else "Race again"
 	if not gp.is_empty():
 		again_text = "New Grand Prix" if gp_done else "Next race  ›"
 	if net_role == "client" or web.racing():
@@ -1834,13 +1958,17 @@ func _show_results() -> void:
 		_to_menu("")
 		menu.open("track"))
 	row.add_child(tb)
-	var mb := menu.button("Change track or driver", "ghost", 15.0, Vector4(12, 12, 12, 12))
+	var mb := menu.button("Change mode or driver" if race.mode == "bb" else "Change track or driver", "ghost", 15.0, Vector4(12, 12, 12, 12))
 	mb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mb.pressed.connect(_to_menu.bind(""))
 	row.add_child(mb)
 	v.add_child(row)
 	# down from the big button goes to the first of the two under it
 	again.focus_neighbor_bottom = again.get_path_to(tb)
+	if race.mode == "bb":
+		# a battle has one arena: nothing else to choose (web: trackBtn hidden)
+		tb.visible = false
+		again.focus_neighbor_bottom = again.get_path_to(mb)
 	if net_role != "" or web.racing():
 		var nb := menu.button("Network log", "ghost", 14.0, Vector4(12, 8, 12, 8))
 		nb.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -2033,7 +2161,7 @@ func _input_state() -> Dictionary:
 	if bool(o["use"]) and kart.item != "" and aim_back and not kart.item in Race.NOBACK:
 		o["back"] = true
 	# the TESTING cheat: the kart drives itself; your items are still yours
-	if test_drive and kart != null and race != null and state == "race" and not kart.finished:
+	if test_drive and kart != null and race != null and state == "race" and not kart.finished and race.mode != "bb":   # (it follows the road: there is none in a battle)
 		race.td_drive(kart, o)
 	return o
 
@@ -2262,11 +2390,18 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 	# the road under the kart: the ground plus the raised deck it is on (web rg = groundAt + kEy). Without the deck
 	# the camera sat well below the kart on every raised road
 	var rg := T.ground(rx, ry) + (T.k_ey(k.idx, rx, ry) if T.multi else 0.0)
+	if T.battle:
+		rg = race.bb.ground(rx, ry)   # the arena's own ground: the boxes, a ramp, the kitchen floor past the edge (web rg = battleG)
 	if not T.glide.is_empty():
 		var gyy := T.glide_y(rx, ry)
 		if rg < gyy - 20.0:
 			rg = minf(rz, gyy)
 	var cy := rz - 4.0 if k.glide else rg + (rz - rg) * 0.45
+	if T.battle and not k.glide:
+		# free driving: a kart can drop a long way, off the boxes or off the table. The race's rule aims between the kart
+		# and the ground under it, which then is far below: the kart left the picture. Here the camera keeps to the kart's
+		# own height, a little under it, all the way down (web: cy = rz - min(8, (rz - rg) * .55))
+		cy = rz - minf(8.0, (rz - rg) * 0.55)
 	# a toy track: the camera rises over the road behind on a descent and looks down the slope ahead (web cSA)
 	var c_sa := 0.0
 	if T.toy and T.multi and k.loop.is_empty() and not k.glide and not (k.z > 3.0):
@@ -2355,6 +2490,8 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 		cam.look_at(look, cam_up)
 	cam.rotate_object_local(Vector3(1, 0, 0), -cam_gp)
 	cam.rotate_object_local(Vector3(0, 0, 1), cam_gr + n3 * amp * 0.006)
+	if T.battle:
+		_bb_cam(rx, ry, rz)
 	var vs := get_viewport().get_visible_rect().size
 	var aspect := vs.x / maxf(1.0, vs.y)
 	var hf := deg_to_rad((96.0 if cam_far else 100.0) if k.boost > 0.0 else (90.0 if cam_far else 92.0))
@@ -2375,6 +2512,33 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 	if spec_on and spec_mode > 0:
 		_spec_camera(dt, rx, ry, rz, rma)
 	_fp_camera(k, n1 * amp, n2 * amp)
+
+
+## Balloon Battle's chase camera must not sit inside the boxes, the bins or a wall (web bbCam): walk from the kart out to
+## where the camera wants to be and stop short of the first thing of the arena that is higher than the camera there. It
+## closes in at once and eases back out. (The race's own pull-in above reads the bare table, as on the web.)
+## The kart here is where it is drawn (between physics steps); the web uses the step's own position: the same to the eye.
+var bb_cam_f := 1.0
+
+
+func _bb_cam(rx: float, ry: float, rz: float) -> void:
+	var ty := rz + 7.0
+	var c := cam.position
+	var ok := 1.0
+	for i in range(1, 17):
+		var f := i / 16.0
+		var g := minf(1.05, f + 0.05)
+		if race.bb.ground(rx + (c.x - rx) * g, ry + (c.z - ry) * g) > ty + (c.y - ty) * g - 2.0:
+			ok = (i - 1) / 16.0
+			break
+	bb_cam_f = ok if ok < bb_cam_f else minf(ok, bb_cam_f + 0.02)
+	var f2 := maxf(0.16, bb_cam_f)
+	if f2 >= 0.999:
+		return
+	cam.position = Vector3(rx + (c.x - rx) * f2, ty + (c.y - ty) * f2 + (1.0 - f2) * 9.0, ry + (c.z - ry) * f2)
+	var look := Vector3(cam_look.x, cam_look.y + cam_oy * 0.45, cam_look.z)
+	if cam.position.distance_to(look) > 0.1:
+		cam.look_at(look, cam_up)
 
 
 ## web incomingTick: the nearest item closing on you, shown at the bottom with an arrow toward it and a beep that
@@ -2451,6 +2615,8 @@ func _hud(dt: float) -> void:
 			sfx.play("roll", 0.5)
 	# wrong way: moving against the track for most of a second
 	var back := state == "race" and not k.finished and k.spin <= 0.0 and k.speed > 15.0 and (cos(k.ma) * T.tx[k.idx] + sin(k.ma) * T.ty[k.idx]) < -0.4
+	if T.battle:
+		back = false   # an arena has no right way round
 	hud.wrong_t = hud.wrong_t + dt if back else 0.0
 	var st := 0
 	for z in touches.values():
@@ -2466,7 +2632,7 @@ func _hud(dt: float) -> void:
 	hud.pad_mode = Time.get_ticks_msec() - pad_used_at < 20000
 	hud.tick(dt)
 	hud.td = {}
-	if test_drive and kart != null and race != null and state == "race" and not kart.finished and spec_k == null:
+	if test_drive and kart != null and race != null and state == "race" and not kart.finished and spec_k == null and race.mode != "bb":
 		hud.td = race.td_tick(kart)
 		hud.td["on"] = true
 
@@ -2599,6 +2765,15 @@ func _menu_go(o: Dictionary) -> void:
 		id = ts[0]
 	else:
 		gp = {}
+		# Balloon Battle has one arena, chosen for you, and nothing else is ever raced on it. Off line only: in a
+		# friends' race (or with no arena in the maps folder) the mode falls back to a single race.
+		var arena := _bb_map()
+		if String(o["mode"]) == "bb" and (arena == "" or net_role != "" or web.role != ""):
+			sel["mode"] = "single"
+		if String(sel["mode"]) == "bb":
+			id = arena
+		elif bool(_map_info(id).get("battle", false)):
+			id = _first_track()
 	menu.visible = false
 	while _preview_busy:
 		await get_tree().process_frame
@@ -3552,6 +3727,7 @@ func _menu_leave() -> void:
 func _menu_host() -> void:
 	if net_role == "host":
 		return
+	_bb_no_net()
 	_net_close()
 	var peer := ENetMultiplayerPeer.new()
 	if peer.create_server(NET_PORT, 7) != OK:
@@ -3599,6 +3775,7 @@ func _menu_join() -> void:
 	if ip == "":
 		_menu_refresh("Type the host's address first (they see it after choosing Host an online race)")
 		return
+	_bb_no_net()   # (after the address is read: leaving the arena rebuilds this sheet)
 	_net_close()
 	var peer := ENetMultiplayerPeer.new()
 	if peer.create_client(ip, NET_PORT) != OK:
@@ -3667,6 +3844,11 @@ func _on_server_gone() -> void:
 func _net_start() -> void:
 	if net_role != "host":
 		return
+	if T != null and T.battle:
+		# never an online race on the Balloon Battle arena (it is off line only): the first track instead
+		var ft := _first_track()
+		if ft == "" or not load_map(ft):
+			return
 	var peers: Array = [1]
 	peers.append_array(net_peers)
 	var pri := int(sel["ri"])

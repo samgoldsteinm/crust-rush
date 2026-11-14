@@ -69,7 +69,11 @@ var rollers: Array = []       # {j, ph, lat, x, y}
 var walkers: Array = []       # {j, lat, latT, v, ph, pause, H, along, x, y, face, hit_t}
 var train := {}               # {px, py, ux, uy, span, len, v, cars: [{off, L, t}], state, wait, pos, dir}
 var _bump_t := {}
-var mode := ""               # "lss": Last Slice Standing
+var mode := ""               # "lss": Last Slice Standing; "bb": Balloon Battle (set here, on an arena map)
+## Balloon Battle (scripts/battle.gd, the web's tools/mini/battle.js): made in setup_cfg when the map is an arena, else null.
+## Every battle hook in this file asks `bb != null` first, so a normal race reads none of it.
+const Battle := preload("res://scripts/battle.gd")   # (by its file, not a class name: a fresh checkout has no class list yet)
+var bb = null
 var lss_lap := 0
 var lss_done := false
 var items_off := {}         # items switched off (settings) or not yet won (award items): {name: true}
@@ -198,6 +202,14 @@ func setup_cfg(track: TrackData, roster: Dictionary, cfg: Dictionary, my_peer: i
 	race_time = 0.0
 	sim_time = 0.0
 	state = "countdown"
+	# an arena map is a Balloon Battle whatever else was asked for (web: BATTLE = !!def.battle; startRace calls battleStart):
+	# three balloons each, no points, the karts set down round the table instead of on a grid
+	bb = null
+	if T.battle:
+		bb = Battle.new()
+		bb.setup(self, T)
+		mode = "bb"
+		bb.start()
 	stand = standings()
 
 
@@ -693,10 +705,10 @@ func update(dt: float, player_inp: Dictionary) -> void:
 				var cap := 2 - (1 if k.item != "" else 0) - (1 if k.item2 != "" else 0) - (0 if k.held.is_empty() else 1) - k.pend.size()
 				var give := mini(cap, 2 if bool(b["dbl"]) else 1)
 				for g2 in give:
-					k.pend.append(roll_item(stand.find(k)))
+					k.pend.append(roll_item(3 if bb != null else stand.find(k)))   # (a battle's boxes do not go by place: web rollItem(BATTLE?3:...))
 				if give > 0 and k.roll <= 0.0:
 					k.roll = 1.1 if k.human else 0.5
-				fx.append({"t": "box", "x": float(b["x"]), "y": float(b["y"]), "h": (float(b["gy"]) if bool(b["air"]) else T.ground(float(b["x"]), float(b["y"]))), "k": k})
+				fx.append({"t": "box", "x": float(b["x"]), "y": float(b["y"]), "h": (float(b["gy"]) if (bool(b["air"]) or bb != null) else T.ground(float(b["x"]), float(b["y"]))), "k": k})   # (an arena's boxes stand on its shapes: some are up on the raised route)
 				break
 
 	# two items from different racers that meet cancel out
@@ -725,6 +737,11 @@ func update(dt: float, player_inp: Dictionary) -> void:
 	_hazards(dt)
 	cur_p = {}
 
+	if bb != null:
+		# web battleTick: the clock, karts over the table's edge, coming back in, time up. No laps in a battle: circling
+		# the ring of track points in the middle is not finishing
+		bb.tick(dt)
+		return
 	if mode == "lss":
 		if state == "race":
 			_lss_tick()
@@ -810,6 +827,8 @@ func _lss_elim(k: Kart, place: int, loud: bool) -> void:
 # ---------------------------------------------------------------- the computer drivers (web aiInput)
 
 func ai_input(k: Kart, dt: float) -> Dictionary:
+	if bb != null:
+		return bb.ai(k, dt)   # web: if(BATTLE)return battleAI(k,dt)
 	var ai := k.ai
 	ai["lane_t"] = float(ai["lane_t"]) - dt
 	if float(ai["lane_t"]) <= 0.0:
@@ -1195,6 +1214,8 @@ func item_intent(k: Kart, it: String, o: Dictionary) -> void:
 
 
 func roll_item(pos: int) -> String:
+	if bb != null:
+		return bb.roll()   # web: if(BATTLE)return bbRoll(): only pepperoni, trio, meatball, flour and chili
 	var n := karts.size()
 	var f := float(pos) / float(n - 1) if n > 1 else 0.0
 	var target := 1.0 + f * 4.0
@@ -1615,6 +1636,8 @@ func spin_out(k: Kart, kind: String, world := false, force := false) -> bool:
 		return false
 	k.spin = 1.1 * (1.25 - 0.25 * k.sm_wgt)
 	k.inv = k.spin + 3.0
+	if bb != null:
+		bb.hit(k, cur_p.get("owner"))   # web battleHit(k, CURP && CURP.owner): a balloon pops, whoever threw it scores
 	k.speed *= 0.3
 	k.drift = 0
 	k.charge = 0.0
@@ -1644,6 +1667,8 @@ static func abil_key(k: Kart) -> String:
 
 ## web useAbility
 func use_ability(k: Kart, back: bool) -> void:
+	if bb != null:
+		return   # no drivers' specials in a Balloon Battle (web: if(BATTLE)return)
 	var id := abil_key(k)
 	if not ABIL.has(id) or k.ab_c < 1.0 or not k.loop.is_empty() or k.finished:
 		return
@@ -1998,7 +2023,13 @@ func _projectiles(dt: float) -> void:
 		elif type != "wheel":
 			p["x"] = float(p["x"]) + float(p["vx"]) * dt
 			p["y"] = float(p["y"]) + float(p["vy"]) * dt
-			if p.get("storm", false):
+			if bb != null:
+				# web bbProjWalls: a thrown thing keeps to its level and turns back off the arena's walls. NOT the bowling
+				# meatball: on the web it is stepped by itemsProj, which has no battle branch, so it rolls straight through
+				# the arena's walls there (only the far rim turns it). Left the same here on purpose, to match the web.
+				if type != "meat2" and type != "torp" and type != "bomb":
+					bb.proj_walls(p)
+			elif p.get("storm", false):
 				_pep_wall(p)
 		var d := Vector2(float(p["x"]), float(p["y"])).length()
 		if d > T.RIM:
@@ -2024,7 +2055,7 @@ func _projectiles(dt: float) -> void:
 				if _held_block(k, p):
 					gone = true
 					break
-				if (k.x - float(p["x"])) ** 2 + (k.y - float(p["y"])) ** 2 < 484.0 and k.inv <= 0.0:
+				if (k.x - float(p["x"])) ** 2 + (k.y - float(p["y"])) ** 2 < 484.0 and k.inv <= 0.0 and (bb == null or bb.same_lvl(k, p)):   # (a battle: only karts on its level, web sameLvl)
 					if spin_out(k, "meat"):
 						fx.append({"t": "hit", "k": k, "type": "meat2", "x": float(p["x"]), "y": float(p["y"])})
 					p["hits"] = int(p["hits"]) + 1
@@ -2054,9 +2085,12 @@ func _projectiles(dt: float) -> void:
 				for k in karts:
 					if k == p["owner"] or not k.loop.is_empty():
 						continue
-					if (k.x - float(p["x"])) ** 2 + (k.y - float(p["y"])) ** 2 < 38.0 * 38.0:
+					if (k.x - float(p["x"])) ** 2 + (k.y - float(p["y"])) ** 2 < 38.0 * 38.0 and (bb == null or bb.same_lvl(k, p)):   # (a battle: only karts on the level it was thrown from)
 						spin_out(k, "flour")
-				fx.append({"t": "flour", "x": float(p["x"]), "y": float(p["y"])})
+				if bb != null:
+					fx.append({"t": "flour", "x": float(p["x"]), "y": float(p["y"]), "h": bb.proj_ground(p, float(p["x"]), float(p["y"]))})   # (the cloud is drawn on that level)
+				else:
+					fx.append({"t": "flour", "x": float(p["x"]), "y": float(p["y"])})
 				projectiles.remove_at(i)
 			i -= 1
 			continue
@@ -2135,7 +2169,7 @@ func _projectiles(dt: float) -> void:
 				hit = true   # a homing anchovy that reaches its protected target is used up; it does not circle and wait
 				p["pop"] = true
 				break
-			if (k.x - float(p["x"])) ** 2 + (k.y - float(p["y"])) ** 2 < (256.0 if type == "torp" else 200.0) and k.inv <= 0.0:
+			if (k.x - float(p["x"])) ** 2 + (k.y - float(p["y"])) ** 2 < (256.0 if type == "torp" else 200.0) and k.inv <= 0.0 and (bb == null or bb.same_lvl(k, p)):   # (a battle: only karts on its level, web sameLvl)
 				spin_out(k, "pep" if type == "torp" else type)
 				hit = true
 				p["pop"] = true
@@ -2239,6 +2273,8 @@ func haz_ti(h: Dictionary) -> int:
 func haz_ground(h: Dictionary) -> float:
 	var x := float(h["x"])
 	var y := float(h["y"])
+	if bb != null:
+		return maxf(0.0, bb.ground(x, y))   # web hazEy in a battle: whatever of the arena it lies on
 	if not T.multi:
 		return T.ground(x, y)
 	if h.has("ny"):
@@ -2266,6 +2302,8 @@ func haz_slope(h: Dictionary) -> Array:
 
 
 func same_lvl(k: Kart, h: Dictionary) -> bool:
+	if bb != null:
+		return bb.same_lvl(k, h)
 	return not T.multi or absf(k.wy - haz_ground(h)) < 18.0
 
 

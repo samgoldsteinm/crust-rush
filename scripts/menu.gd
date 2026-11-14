@@ -26,10 +26,11 @@ const MUTED := Color("#c2a58c")
 const OVEN := Color("#160c09")
 const OVEN2 := Color("#25150f")
 
-const MODES := [["gp", "Grand Prix"], ["single", "Single race"], ["lss", "Last Slice"]]
+const MODES := [["gp", "Grand Prix"], ["single", "Single race"], ["lss", "Last Slice"], ["bb", "Balloon Battle"]]
 const CLASSES := [["small", "50cc"], ["medium", "100cc"], ["large", "200cc"], ["reverse", "Reverse"]]
 const CLS_NOTE := {"small": "50cc: a relaxed speed for learning the tracks.", "medium": "100cc: the standard race speed.", "large": "200cc: much faster karts and sharper rivals.", "reverse": "Every track runs backwards at 200cc speed."}
-const MODE_NOTE := {"lss": "Last Slice Standing: each time the leader completes a lap, the racer in last place is out. Seven laps, one slice left."}
+const MODE_NOTE := {"lss": "Last Slice Standing: each time the leader completes a lap, the racer in last place is out. Seven laps, one slice left.",
+	"bb": "Balloon Battle: three minutes on the prep table. Everybody starts with three balloons. Pop a rival's balloon with a pepperoni for a point; lose all of yours and you come back with three and half your points. Most points wins."}
 const CUPS := [["Margherita Cup", "#f7c948"], ["Supreme Cup", "#3f9a35"], ["Deep Dish Cup", "#e0452c"], ["Meat Lover's Cup", "#b06a3c"], ["Neon Cup", "#3ff0ff"], ["Miniature Mayhem Cup", "#ff6a12"]]
 
 var f_disp: Font
@@ -834,11 +835,18 @@ func _home() -> Control:
 	s1.add_child(section_label("Mode"))
 	var mode_note := para(MODE_NOTE.get(mode, ""), 13.0, MUTED, 300.0)
 	mode_note.visible = MODE_NOTE.has(mode)
-	s1.add_child(seg("mode", MODES, mode, func(k):
+	# Balloon Battle is offered when its arena is in the maps folder, and not in a friends' room (it is off line only)
+	var modes: Array = MODES.filter(func(m): return m[0] != "bb" or (_arena() != "" and net == ""))
+	s1.add_child(seg("mode", modes, mode, func(k):
 		mode = k
+		# the arena belongs to Balloon Battle alone: the mode brings it, any other mode leaves it (web modeSeg)
+		if k == "bb":
+			map_id = _arena()
+		elif bool(_map(map_id).get("battle", false)):
+			map_id = _first_track()
 		mode_note.text = MODE_NOTE.get(k, "")
 		mode_note.visible = MODE_NOTE.has(k)
-		setting_changed.emit("mode", k), 15.0, 10.0))
+		setting_changed.emit("mode", k), 15.0 if modes.size() < 4 else 14.0, 10.0))
 	s1.add_child(mode_note)
 	col.add_child(s1)
 	var s2 := vbox(8)
@@ -1191,11 +1199,20 @@ func _track() -> Control:
 		if c[0] == cls:
 			cls_label = c[1]
 	var gp := mode == "gp"
+	# Balloon Battle has one arena, chosen for you: no track list, only what it is and START BATTLE (web: "Arena: Prep
+	# Table Showdown", the track list hidden). In every other mode the arena is never the pick.
+	var bb := mode == "bb" and _arena() != "" and net == ""
+	if bb:
+		map_id = _arena()
+	elif bool(_map(map_id).get("battle", false)):
+		map_id = _first_track()
 	var three := KartBuilder.ready()
 	var small := ("Step 3 of 3 · " + build_summary()) if three else ("Step 2 of 2 · " + cls_label)
 	if mode == "lss":
 		small += " · Last Slice"
-	v.add_child(_step_head("‹ Kart" if three else "‹ Driver", "garage" if three else "driver", small, "Cup" if gp else "Track", ("SET CUP  ›" if gp else "SET TRACK  ›") if net == "host" else ("START GRAND PRIX" if gp else "START RACE"), func():
+	elif bb:
+		small += " · Balloon Battle"
+	v.add_child(_step_head("‹ Kart" if three else "‹ Driver", "garage" if three else "driver", small, "Cup" if gp else ("Arena" if bb else "Track"), ("SET CUP  ›" if gp else "SET TRACK  ›") if net == "host" else ("START GRAND PRIX" if gp else ("START BATTLE" if bb else "START RACE")), func():
 		if net == "host" and gp:
 			net_cup.emit(cup)   # a Grand Prix for the room: its first race is the cup's first track
 		elif net == "host":
@@ -1224,7 +1241,10 @@ func _track() -> Control:
 	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left.size_flags_stretch_ratio = 1.45
-	body.add_child(left)
+	if bb:
+		left.free()   # nothing to pick: the arena's card fills the screen
+	else:
+		body.add_child(left)
 	body.add_child(detail)
 	var show_detail := func():
 		for c in dv.get_children():
@@ -1253,8 +1273,13 @@ func _track() -> Control:
 		else:
 			var m := _map(map_id)
 			var ci := int(m.get("cup", -1))
-			dv.add_child(label((cls_label + " · " + (CUPS[ci][0] if ci >= 0 and ci < CUPS.size() else "Special track")).to_upper(), f_bold, 11.0, MUTED))
+			dv.add_child(label((cls_label + " · " + ("Battle arena" if bb else (CUPS[ci][0] if ci >= 0 and ci < CUPS.size() else "Special track"))).to_upper(), f_bold, 11.0, MUTED))
 			dv.add_child(label(String(m.get("name", map_id)).to_upper(), f_disp, 24.0, CHEESE, SAUCE_DARK, Vector2(0, 3)))
+			if bb:
+				# the arena's card: what the mode is, and its pictures once they have been made
+				dv.add_child(para(MODE_NOTE["bb"], 14.0, CREAM, 560.0))
+				if _shot(map_id, "h") == null:
+					return
 			var pic2 := _Portrait.new()
 			pic2.tex = _shot(map_id, "h")
 			pic2.radius = z(12)
@@ -1281,8 +1306,10 @@ func _track() -> Control:
 			grid.add_child(card)
 			if ci == cup:
 				sel_focus = card
-	else:
+	elif not bb:
 		for m in maps:
+			if bool(m.get("battle", false)):
+				continue   # the Balloon Battle arena is not a track to race on
 			var id: String = m["id"]
 			var card2 := _map_card(m)
 			card2.pressed.connect(func():
@@ -1351,6 +1378,22 @@ func _map(id: String) -> Dictionary:
 		if m["id"] == id:
 			return m
 	return {"id": id, "name": id}
+
+
+## the Balloon Battle arena's id, or "" when this copy's maps folder has none
+func _arena() -> String:
+	for m in maps:
+		if bool(m.get("battle", false)):
+			return String(m["id"])
+	return ""
+
+
+## the first real track: where the pick goes when it leaves the arena
+func _first_track() -> String:
+	for m in maps:
+		if not bool(m.get("battle", false)):
+			return String(m["id"])
+	return map_id
 
 
 func _shot(id: String, kind: String) -> Texture2D:
@@ -2554,6 +2597,8 @@ func _records() -> Control:
 	var ms := maps.duplicate()
 	ms.sort_custom(func(a, b): return int(a.get("mi", 0)) < int(b.get("mi", 0)))
 	for m in ms:
+		if bool(m.get("battle", false)):
+			continue   # the Balloon Battle arena has no lap times
 		var id := String(m["id"])
 		var r := Ach.best(id, rec_cls)
 		var card := panel(glass(10.0, Vector4(6, 6, 10, 6)))

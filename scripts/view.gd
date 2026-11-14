@@ -402,6 +402,8 @@ func clear() -> void:
 			(v["held"] as Node).queue_free()
 		if v.get("dl") != null:
 			(v["dl"] as Node).queue_free()
+		if v.get("bb") != null:
+			(v["bb"] as Node).queue_free()   # Balloon Battle: its balloons
 	views.clear()
 	for n in box_nodes:
 		(n["n"] as Node).queue_free()
@@ -485,6 +487,14 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 			var hB := T.ground(x + ca * fR, y + sa * fR)
 			var hL := T.ground(x - sa * fW, y + ca * fW)
 			var hR := T.ground(x + sa * fW, y - ca * fW)
+			if T.battle:
+				# Balloon Battle: the body stands on the arena's own ground (a ramp, the boxes), not the bare table of the
+				# height map (web syncKart: hF = BATTLE ? battleG(...) : surfH(...); "the car sort of floats on the object")
+				var arena = race.bb
+				hF = arena.ground(x + ca * fF, y + sa * fF)
+				hB = arena.ground(x + ca * fR, y + sa * fR)
+				hL = arena.ground(x - sa * fW, y + ca * fW)
+				hR = arena.ground(x + sa * fW, y - ca * fW)
 			var sF := (hF - hB) / (fF - fR)
 			var sR := (hL - hR) / (2.0 * fW)
 			var ff := minf(1.0, 16.0 * dt)
@@ -796,9 +806,103 @@ func _draw_held(k: Kart) -> void:
 	var hx := float(v["rx"]) - ca * L - sa * sw
 	var hz := float(v["ry"]) - sa * L + ca * sw
 	hn2.position = Vector3(hx, (float(v["rz"]) + 1.0 if k.air else T.ground(hx, hz)) + 2.4, hz)
+	if T.battle and not k.air:
+		hn2.position.y = race.bb.ground(float(v["rx"]), float(v["ry"])) + 2.4   # the arena's ground under its kart (web k.rg)
 	hn2.scale = Vector3.ONE * (1.15 if want == "pepperoni" or want == "dough" else 1.0)
 	hn2.rotation = Vector3(0, -rma + (time * 6.0 if want == "pepperoni" else 0.0), 0)
 	hn2.visible = (v["g"] as Node3D).visible
+
+
+# ---------------------------------------------------------------- Balloon Battle: the balloons (web bbBalloons, battleRender)
+
+var _bb_mesh: SphereMesh
+var _bb_str_mesh: CylinderMesh
+var _bb_str_mat: StandardMaterial3D
+
+
+## a bunch tied to the back of each kart, one bob apart, in the kart's own colour: as many as it has left. The web's
+## numbers: a ball of 1.9 stretched 1.22 tall, 14 up, 3 apart, trailing up to 6 behind with speed, on a thin cream string.
+## Made the first time they are drawn (like a held item), freed in clear().
+func _draw_balloons(k: Kart) -> void:
+	var v: Dictionary = views[k]
+	var arena = race.bb
+	if not v.has("bb"):
+		if _bb_mesh == null:
+			_bb_mesh = SphereMesh.new()
+			_bb_mesh.radius = 1.9
+			_bb_mesh.height = 3.8 * 1.22
+			_bb_mesh.radial_segments = 14
+			_bb_mesh.rings = 10
+			_bb_str_mesh = CylinderMesh.new()
+			_bb_str_mesh.top_radius = 0.07
+			_bb_str_mesh.bottom_radius = 0.07
+			_bb_str_mesh.height = 1.0
+			_bb_str_mesh.radial_segments = 4
+			_bb_str_mesh.rings = 1
+			_bb_str_mat = StandardMaterial3D.new()
+			_bb_str_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			_bb_str_mat.albedo_color = Color("#f4f1ea")
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = arena.colour(k)
+		mat.roughness = 0.25
+		mat.metallic = 0.0
+		var grp := Node3D.new()
+		add_child(grp)
+		var made: Array = []
+		for i in int(arena.START):
+			var b := MeshInstance3D.new()
+			b.mesh = _bb_mesh
+			b.material_override = mat
+			var st := MeshInstance3D.new()
+			st.mesh = _bb_str_mesh
+			st.material_override = _bb_str_mat
+			st.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			grp.add_child(b)
+			grp.add_child(st)
+			made.append([b, st, float(i) * 1.9 + float(k.bb_i)])
+		v["bb"] = grp
+		v["bb_l"] = made
+	var g: Node3D = v["bb"]
+	g.visible = (v["g"] as Node3D).visible and not (k.bb_out > 0.0)
+	if not g.visible:
+		return
+	var px := float(v["rx"])
+	var py := float(v["rz"])
+	var pz := float(v["ry"])
+	var ca := cos(k.a)
+	var sa := sin(k.a)
+	var c2 := cos(k.a + 1.5708)
+	var s2 := sin(k.a + 1.5708)
+	var bx := px - ca * 5.0
+	var bz := pz - sa * 5.0
+	var lag := minf(6.0, absf(k.speed) * 0.03)
+	var l: Array = v["bb_l"]
+	var n := l.size()
+	for i in n:
+		var q: Array = l[i]
+		var ball: MeshInstance3D = q[0]
+		var cord: MeshInstance3D = q[1]
+		var on := i < k.bal
+		ball.visible = on
+		cord.visible = on
+		if not on:
+			continue
+		var ph: float = q[2]
+		var sp := float(i) - float(mini(k.bal, n) - 1) / 2.0
+		var sw := sin(time * 2.1 + ph) * 0.9
+		var x := bx - ca * lag + c2 * sp * 3.0 + sw * 0.4
+		var z := bz - sa * lag + s2 * sp * 3.0
+		var y := py + 14.0 - absf(sp) * 1.1 + sin(time * 1.7 + ph) * 0.5
+		ball.position = Vector3(x, y, z)
+		# the string: from the back of the kart to just under the balloon (the mesh is one unit long: its up axis is stretched to fit)
+		var p0 := Vector3(bx, py + 3.5, bz)
+		var d := Vector3(x, y - 2.6, z) - p0
+		var up := d.normalized()
+		var ax := up.cross(Vector3.RIGHT)
+		if ax.length() < 0.01:
+			ax = up.cross(Vector3.BACK)
+		ax = ax.normalized()
+		cord.transform = Transform3D(Basis(ax, d, ax.cross(up)), p0 + d * 0.5)
 
 
 # ---------------------------------------------------------------- items, boxes, traps
@@ -863,7 +967,9 @@ func _draw_boxes() -> void:
 		(bn["ring"] as Node3D).basis = Basis.from_euler(Vector3(PI / 2.0 + sin(time * 2.0 + sv) * 0.35, 0.0, time), EULER_ORDER_XYZ) * Basis(Vector3(1, 0, 0), PI / 2.0)
 
 
-func _proj_ground(x: float, y: float) -> float:
+func _proj_ground(x: float, y: float, pd := {}) -> float:
+	if T.battle:
+		return race.bb.proj_ground(pd, x, y)   # Balloon Battle: the level it is on (web pGround: p.bh, else the arena under it)
 	var pg := T.ground(x, y)
 	if not T.glide.is_empty():
 		var gyy := T.glide_y(x, y)
@@ -893,7 +999,7 @@ func _draw_projectiles(al: float, dt: float) -> void:
 			add_child(nn)
 			proj_nodes[id] = {"n": nn, "age": 0.0, "sp": 0.0, "roll": 0.0, "halo": halo, "type": type, "lf": null}
 			var c: Color = ITEM_GLOW.get(type, TRAIL.get(type, Color("#ffe066")))
-			var gy := _proj_ground(x, y) + 4.0
+			var gy := _proj_ground(x, y, pd) + 4.0
 			fx.spawn_a(x, gy, y, 0, 0, 0, c, 16.0, 5.0, 0.16)
 			for n in 6:
 				var a := randf() * TAU
@@ -904,7 +1010,7 @@ func _draw_projectiles(al: float, dt: float) -> void:
 		pn["pop"] = pd.get("pop", false)
 		var ms: Node3D = pn["n"]
 		var age: float = pn["age"]
-		var pg := _proj_ground(x, y)
+		var pg := _proj_ground(x, y, pd)
 		var pop := 0.35 + 0.65 * (1.0 - pow(1.0 - age / 0.22, 3.0)) if age < 0.22 else 1.0
 		if type == "wheel":
 			_draw_wheel(pd, pn, pg, x, y)
@@ -1204,6 +1310,9 @@ func draw(al: float, dt: float, racing: bool, paused: bool) -> void:
 		draw_kart(k, own_al if k == own_k else al, dt, racing, paused)
 	for k in race.karts:
 		_draw_held(k)
+	if T.battle:
+		for k in race.karts:
+			_draw_balloons(k)
 	_draw_boxes()
 	_draw_projectiles(al, 0.0 if paused else dt)
 	_draw_hazards()
@@ -1546,7 +1655,7 @@ func race_event(ed: Dictionary) -> void:
 	elif t == "flour":
 		var fx_ := float(ed["x"])
 		var fy := float(ed["y"])
-		var g3 := T.ground(fx_, fy)
+		var g3 := float(ed["h"]) if ed.has("h") else T.ground(fx_, fy)   # ("h": Balloon Battle, the level it was thrown from)
 		for n in 26:
 			var a5 := randf() * TAU
 			var u2 := 0.3 + randf() * 0.7
@@ -1640,3 +1749,18 @@ func race_event(ed: Dictionary) -> void:
 		var rx2 := float(ed["x"])
 		var ry2 := float(ed["y"])
 		fx.burst(rx2, T.ground(rx2, ry2) + 6.0, ry2, 10, _cols(["#ff5a2a", "#ffe066", "#ffffff"]), 60.0, 2.0)
+	# ---- Balloon Battle (scripts/battle.gd)
+	elif t == "bb_pop":
+		# a balloon bursts above its kart, in its own colour (web bbPop)
+		var kp: Kart = ed["k"]
+		var pcol: Color = race.bb.colour(kp)
+		var py := kp.wy + 16.0
+		fx.burst(kp.x, py, kp.y, 22, [pcol, Color("#ffffff"), Color("#ffe066")], 80.0, 2.6)
+		fx.ring(kp.x, py, kp.y, pcol, 18.0, 0.3, false)
+	elif t == "bb_back":
+		# set down on the table again (web battleTick)
+		var kb2: Kart = ed["k"]
+		fx.ring(kb2.x, kb2.wy + 0.6, kb2.y, Color("#7fe8ff"), 40.0, 0.6)
+	elif t == "bb_ric":
+		# a thrown thing turned back off one of the arena's walls (web bbProjWalls)
+		fx.burst(float(ed["x"]), float(ed["h"]) + 6.0, float(ed["y"]), 8, _cols(["#ff5a2a", "#ffe066", "#ffffff"]), 50.0, 2.0)

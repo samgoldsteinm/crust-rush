@@ -15,7 +15,8 @@ func _ready() -> void:
 	main.auto_drive = true
 	add_child(main)
 	for m in main.maps:
-		ids.append(m["id"])
+		if not bool(m.get("battle", false)):   # (the Balloon Battle arena has no lap to get round, and this test asks for distance: tests/battle.gd tests it)
+			ids.append(m["id"])
 	print("MAPS found %d: %s" % [ids.size(), ", ".join(PackedStringArray(ids))])
 
 
