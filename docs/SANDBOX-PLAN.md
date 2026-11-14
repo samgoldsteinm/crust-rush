@@ -219,3 +219,28 @@ lobby with ready-up, the host starting it, on "a screen similar to the online sc
   pin at each start line is a fast-travel point. Y / Select, M, or Map under Resume.
 - Backwards: ramps from behind and loops the other way round, in Sandbox only. Stop: both brake buttons, or Park.
 - Still to build from the brief: the clock, activities, the shop, online free roam, the start-line lobby; new land round the pizza tracks.
+
+## Sandbox on the PC: the plan (written 2026-11-14; nothing built)
+The PC draws a track from an exported glTF and drives it from an exported json; it has none of the web's scenery code. So what Sandbox
+reads from "what is drawn" on the web cannot be worked out on the PC: it must be exported with the track, and the PC must use the same
+numbers. Do it in this order, each step testable on its own.
+1. EXPORT, in `godot/tools/ciexport.py` (after the race data): start Sandbox on the map in the page (`mode='sb'`, `sbArm()` as goRace does)
+   and write `d['sandbox']`: the kind (toy / open / road); for the free kinds the columns grid exactly as `SB.col` has it (x0, z0, nx, nz, C,
+   cap, b, then `cnt`, `thin` and `sp` as base64 of the raw bytes, deflated: the grid is sparse); `SB.rim`; `SB.loops`; the gates as built
+   (`SB.gates`: id, to, at, label, x, y, z, nx, nz, hw, road, plain, j); the coins (x, y, z, rare, id); the flag; the track hash is rebuilt
+   on the PC from the lap (`sbHashTrack` is a few lines). A place's gates depend on where it stood last time on the web (`crust-sb`.g):
+   export with an empty save so every export gives the same arches.
+2. THE GROUND AND WALLS, a new `scripts/sandbox.gd` mirroring `tools/mini/sandbox.js` line for line: `sbSurf`, `sbG`, `sbBlocked`, `sbTouch`,
+   `sbWalls`, `sbIdx`, `sbLvl`, the cliff and water rules. Hooks in `kart.gd` at the same places as Balloon Battle's (the map of those is
+   docs/PC-BALLOON-BATTLE-MAP.md): the web asks `BATTLE?battleG(...)`, and battle.js hands over to Sandbox when SBX is set. Plus patch27's
+   Sandbox-only rules: a ramp from behind, a loop the other way round, loops and pads only for a kart that is at them, the canyon crossed
+   backwards, no finish, no lap banner, `sbStop`.
+   Test as the web does: port `tools/neon/sbworld.py`'s checks into `tests/sbworld.gd` (lap forwards, lap backwards, arches and hidden
+   coins reachable) and compare a few probe points' `sbG` with the web's for the same map (they must be equal to the eighth of a unit).
+3. THE MODE: one kart, no clock, the HUD line (coins, hidden coins found), coins collected and saved, the start line's race offer and the
+   way back, Park and the full stop, the map key (Y / Select).
+4. TRAVEL: a passage loads the next map (`load_map` blocks on the PC too) under a cover. The warp look: a Godot shader on the mouth and the
+   tunnel (the web's is `sbWarpMat`, a dozen lines of GLSL), the last frame held as a texture during the load, the kart kept on top.
+   Signs: `Label3D` on a board.
+5. THE MAP: a `Control` that draws what `sbMapDraw` draws (the house to scale, the twenty places, the passages, pins, zoom).
+The PC's tracks must be re-exported with step 1 before any of it can run: one CI export (about half an hour) after the exporter changes.
