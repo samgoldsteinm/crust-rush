@@ -55,6 +55,12 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
     a different address (as CI will), nothing failed, all textures drawn. The game's own site drops from 79 MB to 46.
   - Bigger worlds (Sandbox): the same mechanism takes more repositories, one per group of regions, if ever needed.
 
+### 2026-11-13 (web v190): Balloon Battle's scoreboard is one small line
+The owner: "Remove the hud that lets you see how many balloons everyone has it's way too big and In the way." The list of eight
+karts is gone (`bbHud` in tools/mini/battle.js). What is left, top left: the clock, your points, your place. Everybody's balloons
+are on their karts; the full table is the results screen. Do not bring a list back. (PC: Balloon Battle is not ported yet;
+port it with this small line.)
+
 ### 2026-11-13 (web v188): Sandbox, the first slice: free driving in the back garden
 
 The owner chose passage-joined regions for Sandbox (docs/SANDBOX-PLAN.md has their words and what they ask of a passage).
@@ -104,7 +110,7 @@ How it was laid out without guessing: a pocket turtle in garden metres (scratch 
 against the landmarks' coordinates before the real generator closed the lap; the two straights it solves must not be parallel.
 
 ### Where web and PC stand (2026-11-13, end of the session)
-- Web v189 (online 109). PC build 06c70bde = web v186 (online 109): PC and web race together. v187 (phone fix), v188
+- Web v190 (online 109). PC build 06c70bde = web v186 (online 109): PC and web race together. v187 (phone fix), v188
   (Sandbox, first slice) and v189 (the second site's plumbing, switched off) are web only; nothing that moves a kart in a race changed.
 - Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
   (docs/BALLOON-BATTLE-PLAN.md). Sandbox: the first slice (the back garden) is on the web (v188); docs/SANDBOX-PLAN.md.

@@ -98,3 +98,5 @@ the work. Update it as things are built.
   in the item settings. A corner arrow board stood on the table (`neonSigns` is off in a battle). The "of 8" read-out is
   hidden. About 28 pops a round now.
 
+## 2026-11-13 (web v190): the scoreboard
+The owner had the list of everyone's balloons removed ("way too big and in the way"). The HUD is one small line: clock, your points, your place.
