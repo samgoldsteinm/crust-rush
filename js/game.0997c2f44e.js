@@ -4350,10 +4350,11 @@ function battleRender(time){if(SBX)return sbRender(time);if(!BATTLE||!BB.grp)ret
         x=bx-Math.cos(a)*lag+Math.cos(a+1.5708)*sp*3.0+sw*.4,z=bz-Math.sin(a)*lag+Math.sin(a+1.5708)*sp*3.0,y=py+14+Math.abs(sp)*-1.1+Math.sin(time*1.7+q.ph)*.5;
       q.b.position.set(x,y,z);q.s.position.set(bx,py+3.5,bz);q.s.lookAt(x,y-2.6,z);q.s.rotateX(Math.PI/2);q.s.scale.set(1,Math.hypot(x-bx,y-2.6-py-3.5,z-bz),1);}}}
 /* ---- the scoreboard and the clock ---- */
-function bbHud(make){if(SBX)return sbHud();let e=BB.el;if(!e){e=BB.el=document.createElement('div');e.id='bbHud';e.style.cssText='position:absolute;left:max(10px,env(safe-area-inset-left));top:64px;z-index:6;font:700 13px/1.25 system-ui,sans-serif;color:#fff4dc;background:rgba(18,9,6,.62);border-radius:12px;padding:8px 10px;min-width:150px;pointer-events:none;text-shadow:0 1px 2px #000';stage.appendChild(e);}
+/* The owner, 2026-11-13: "Remove the hud that lets you see how many balloons everyone has it's way too big and In the way."
+   So no list: one small line with the clock, your own points and your place. Everybody's balloons are on their karts; the full table is the results screen. */
+function bbHud(make){if(SBX)return sbHud();let e=BB.el;if(!e){e=BB.el=document.createElement('div');e.id='bbHud';e.style.cssText='position:absolute;left:max(10px,env(safe-area-inset-left));top:64px;z-index:6;font:700 14px/1 system-ui,sans-serif;color:#fff4dc;background:rgba(18,9,6,.55);border-radius:10px;padding:6px 10px;pointer-events:none;text-shadow:0 1px 2px #000;white-space:nowrap';stage.appendChild(e);}
   e.hidden=!BATTLE||state==='menu';document.body.classList.toggle('battle',BATTLE);if(e.hidden)return;const t=Math.max(0,Math.ceil(BB.t)),mm=Math.floor(t/60),ss=('0'+t%60).slice(-2);
-  let h='<div style="font-size:20px;letter-spacing:.5px;margin-bottom:4px">'+mm+':'+ss+'</div>';for(const k of bbRank()){const c=BB_COL[k.bbI%8],me=k===player,nm=(k.netName||(RACERS[k.ri]&&RACERS[k.ri].name)||'Racer');
-    h+='<div style="display:flex;gap:6px;align-items:center;'+(me?'color:#ffe066':'')+(k.bbOut>0?';opacity:.5':'')+'"><span style="width:16px;text-align:right">'+(k.bbS||0)+'</span><span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:92px">'+nm+'</span><span style="color:'+c+';letter-spacing:-1px">'+'●'.repeat(Math.max(0,k.bal||0))+'</span></div>';}
+  let h=mm+':'+ss;if(player){const r=bbRank().indexOf(player)+1,p=player.bbS||0;h+=' <span style="opacity:.55">\u00b7</span> <span style="color:#ffe066">'+p+(p===1?' pt':' pts')+'</span> <span style="opacity:.55">\u00b7</span> '+r+(r===1?'st':r===2?'nd':r===3?'rd':'th');}
   e.innerHTML=h;}
 /* ---- the arena as the game sees it: shapes, spawn places, ramps for the CPU drivers, item boxes ---- */
 function battleSetup(def){BB.shapes=bbArena();BB.spawn=[[-300,-90],[300,60],[-120,90],[150,-110],[-300,60],[40,100],[300,-120],[-40,-110]];
