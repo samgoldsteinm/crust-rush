@@ -8,6 +8,7 @@ extends Control
 signal go(opts: Dictionary)          # start a race: {mode, cls, ri, map, cup}
 signal net_ready                     # in a friends' room: the guest is done in the garage (web: Ready)
 signal net_track(map: String)        # in a friends' room: the host has picked the track
+signal net_cup(cup: int)             # in a friends' room: the host has picked a cup (a Grand Prix on line)
 signal net_room                      # back to the room's lobby
 signal host_online
 signal join_online(addr: String)
@@ -1194,10 +1195,10 @@ func _track() -> Control:
 	var small := ("Step 3 of 3 · " + build_summary()) if three else ("Step 2 of 2 · " + cls_label)
 	if mode == "lss":
 		small += " · Last Slice"
-	if net == "host":
-		gp = false
-	v.add_child(_step_head("‹ Kart" if three else "‹ Driver", "garage" if three else "driver", small, "Cup" if gp else "Track", "SET TRACK  ›" if net == "host" else ("START GRAND PRIX" if gp else "START RACE"), func():
-		if net == "host":
+	v.add_child(_step_head("‹ Kart" if three else "‹ Driver", "garage" if three else "driver", small, "Cup" if gp else "Track", ("SET CUP  ›" if gp else "SET TRACK  ›") if net == "host" else ("START GRAND PRIX" if gp else "START RACE"), func():
+		if net == "host" and gp:
+			net_cup.emit(cup)   # a Grand Prix for the room: its first race is the cup's first track
+		elif net == "host":
 			net_track.emit(map_id)
 		else:
 			_go()))

@@ -780,7 +780,21 @@ func _build_hud() -> void:
 	menu.net_ready.connect(func():
 		web.set_ready(true)
 		_mp_back())
+	menu.net_cup.connect(func(c):
+		# a Grand Prix for the room (web: the host starts the cup, cfg.gp goes out with every race)
+		var ts: Array = []
+		for m in maps:
+			if int(m.get("cup", -1)) == int(c):
+				ts.append(String(m["id"]))
+		if ts.is_empty():
+			return
+		gp = {"cup": int(c), "race": 0, "pts": [0, 0, 0, 0, 0, 0, 0, 0], "np": {}, "tracks": ts, "net": true}
+		web.pend_map = String(ts[0])
+		sel["map"] = String(ts[0])
+		web._lobby_sync()
+		_mp_back())
 	menu.net_track.connect(func(m):
+		gp = {}
 		web.pend_map = String(m)
 		sel["map"] = String(m)
 		web._lobby_sync()
@@ -788,6 +802,11 @@ func _build_hud() -> void:
 	menu.net_room.connect(_mp_back)
 	menu.modal_builders["set"] = _settings_panel
 	menu.modal_builders["netlog"] = _netlog_panel
+	# the controller's cursor in the menus (scripts/pad_cursor.gd): the last child, so it hears every input before the menus do
+	var pcur: Node = preload("res://scripts/pad_cursor.gd").new()   # (by its file, not its class name: a fresh checkout has no class list yet)
+	pcur.name = "PadCursor"
+	pcur.main = self
+	add_child(pcur)
 	loading = _loading_screen()
 	loading.visible = false
 	ml.add_child(loading)
@@ -1554,7 +1573,7 @@ func _web_load(c: Dictionary) -> String:
 	pc["map"] = mid
 	if String(c.get("mode", "")) == "lss":
 		pc["mode"] = "lss"
-	gp = {}
+	gp = _gp_from_wire(c.get("gp"))   # the host's cup, if this race is one of a Grand Prix
 	if menu != null:
 		menu.close_modal()
 	_start_race(pc)
@@ -1566,8 +1585,64 @@ func _web_load(c: Dictionary) -> String:
 
 
 ## hosting: the race you start for the room (the browser friends load it at the same time)
+## a Grand Prix on line: the cup as the host sends it with every race (web cfg.gp). A computer racer's points are kept under the racer,
+## as off line; a player's under the player (np, by the room's number for them): two friends may drive the same racer.
+func _gp_from_wire(g) -> Dictionary:
+	if typeof(g) != TYPE_DICTIONARY:
+		return {}
+	var ci := int(g.get("cup", 0))
+	var ts: Array = []
+	for m in maps:
+		if int(m.get("cup", -1)) == ci:
+			ts.append(String(m["id"]))
+	var pts: Array = [0, 0, 0, 0, 0, 0, 0, 0]
+	var gv = g.get("pts", [])
+	if typeof(gv) == TYPE_ARRAY:
+		for i in mini(8, (gv as Array).size()):
+			pts[i] = int(gv[i])
+	var np := {}
+	var gn = g.get("np", {})
+	if typeof(gn) == TYPE_DICTIONARY:
+		for k in gn:
+			np[str(k)] = int(gn[k])
+	if ts.is_empty():
+		ts = [map_id]
+	return {"cup": ci, "race": int(g.get("race", 0)), "pts": pts, "np": np, "tracks": ts, "net": true}
+
+
+## the cup for the race's settings (webnet._build_cfg), or null when the room is not in a Grand Prix
+func gp_wire():
+	if gp.is_empty() or not bool(gp.get("net", false)):
+		return null
+	return {"cup": int(gp["cup"]), "race": int(gp["race"]), "pts": gp["pts"], "last": [0, 0, 0, 0, 0, 0, 0, 0], "np": gp.get("np", {})}
+
+
+## this race's points by the standings as they are, and the cup with them added (web netGpNow). The cup itself is only moved on when
+## the host starts the next race, so a friend who finishes late is counted.
+func _gp_net_now() -> Dictionary:
+	var st := race.standings()
+	var pts: Array = (gp["pts"] as Array).duplicate()
+	var np: Dictionary = (gp.get("np", {}) as Dictionary).duplicate()
+	var rows: Array = []
+	for i in st.size():
+		var k: Kart = st[i]
+		var pt: int = Race.PTS[i] if i < Race.PTS.size() else 0
+		var tot := 0
+		if k.peer > 0:
+			var key := str(k.peer - 1)
+			np[key] = int(np.get(key, 0)) + pt
+			tot = int(np[key])
+		else:
+			pts[k.ri] = int(pts[k.ri]) + pt
+			tot = int(pts[k.ri])
+		rows.append([k, tot])
+	rows.sort_custom(func(a, b): return a[1] > b[1])
+	return {"pts": pts, "np": np, "rows": rows}
+
+
 func _web_host_load(pc: Dictionary) -> String:
-	gp = {}
+	if not bool(gp.get("net", false)):
+		gp = {}
 	if menu != null:
 		menu.close_modal()
 		menu.visible = false
@@ -1685,7 +1760,11 @@ func _show_results() -> void:
 	var me_place := st.find(kart) + 1
 	var gp_done := false
 	var gp_rows: Array = []
-	if not gp.is_empty():
+	if bool(gp.get("net", false)):
+		# a Grand Prix on line: the cup with this race counted, by the table as it stands (added to the cup when the host goes on)
+		gp_rows = _gp_net_now()["rows"]
+		gp_done = int(gp["race"]) >= (gp["tracks"] as Array).size() - 1
+	elif not gp.is_empty():
 		# points for this race, then the cup table
 		if not bool(gp.get("scored", false)):
 			for i in st.size():
@@ -1704,7 +1783,7 @@ func _show_results() -> void:
 			if gp_rows[i][0] == kart:
 				cp = i + 1
 		title = ("You win the %s!" % Menu.CUPS[int(gp["cup"])][0]) if cp == 1 else ("%s in the cup" % _ordinal(cp))
-		if not auto_drive:
+		if not auto_drive and not bool(gp.get("net", false)):
 			Ach.cup_done(gp, cp, String(sel["cls"]))
 			_ach_toasts()
 	v.add_child(menu.label(title, menu.f_disp, 48.0, Color("#f7c948"), Color("#7d1d0e"), Vector2(0, 4)))
@@ -1809,6 +1888,16 @@ func _results_primary() -> void:
 		return
 	if web.role == "host":
 		panel_results.visible = false
+		if bool(gp.get("net", false)):
+			# a Grand Prix on line: the race just run is added to the cup now, and the next of its tracks is the one to load
+			var now := _gp_net_now()
+			if int(gp["race"]) >= (gp["tracks"] as Array).size() - 1:
+				gp = {"cup": int(gp["cup"]), "race": 0, "pts": [0, 0, 0, 0, 0, 0, 0, 0], "np": {}, "tracks": gp["tracks"], "net": true}
+			else:
+				gp["pts"] = now["pts"]
+				gp["np"] = now["np"]
+				gp["race"] = int(gp["race"]) + 1
+			web.pend_map = String(gp["tracks"][int(gp["race"])])
 		var e := web.host_start()
 		if e != "":
 			_to_menu("")

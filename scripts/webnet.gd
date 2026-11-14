@@ -1039,7 +1039,8 @@ func _build_cfg(mi: int) -> Dictionary:
 	var cls := String(main.sel["cls"])
 	if cls == "reverse":
 		cls = "large"
-	return {"mi": mi, "cls": cls, "mode": "lss" if String(main.sel.get("mode", "")) == "lss" else "single", "gp": null, "karts": ks}
+	var cup = main.gp_wire()   # a Grand Prix for the room: the cup goes out with every race, as the web's does
+	return {"mi": mi, "cls": cls, "mode": "gp" if cup != null else ("lss" if String(main.sel.get("mode", "")) == "lss" else "single"), "gp": cup, "karts": ks}
 
 
 ## start a race for everyone in the room on the track you picked (web netHostStart)
