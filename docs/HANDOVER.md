@@ -55,6 +55,31 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
     a different address (as CI will), nothing failed, all textures drawn. The game's own site drops from 79 MB to 46.
   - Bigger worlds (Sandbox): the same mechanism takes more repositories, one per group of regions, if ever needed.
 
+### 2026-11-13 (web v191): Sandbox in every room of the house; collision read from what is drawn; passages; races from the start line
+
+The owner: "Keep working on the rest of the sandbox mode". Sandbox now starts in the bedroom, the kitchen, the garage or the
+garden (the menu's track list shows the four while in Sandbox). Nothing is listed by hand any more: what stops the kart is
+computed from the room's own triangles when Sandbox starts, so you drive under the bed, the desk and the kitchen table and
+are stopped by their legs. How it works and what is left out: docs/SANDBOX-PLAN.md, "Collision from what is drawn".
+| What broke while building it | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| In the rooms the kart kept dropping 1.6 units and coming back | The track lookup entered each lap point only for the squares on the line across the track; where lap points are 8 apart (rooms) that left gaps | Each lap point is entered for its whole strip of track (`sbHashTrack`) | `sbtest.py <room>`: worstHeightGap |
+| A wall across the bedroom's start line | A square holds a fixed number of solid stretches; the ceiling and other high things filled them and the store joined the floor plate to the banner beam | Nothing more than 70 units above the track's highest point is kept; six stretches a square | The lap test in every region |
+| The kart stopped at 93% of the kitchen lap | The drawn track runs through the front edge of the worktop | "The lap is always open": on the track at its own level nothing drawn blocks (`sbBlocked`) | Same |
+| Coins inside a cardboard box | A box is a hollow shell: its inside is not "blocked" | The line was moved; the test floods the floor from the track and fails on any coin it cannot reach | `sbtest.py`: "coins: every one on the floor can be driven to" |
+- PASSAGES between the four places and A RACE FROM THE START LINE (the owner's request of the same day) are in this version
+  too: docs/SANDBOX-PLAN.md, "Passages" and "A race from the start line". Two more faults met on the way: the engine's round
+  outer limit (`RIM`) held the kart at a room's wall (off in Sandbox now), and a gate's mouth must reach 20 units into a
+  room, past the skirting board.
+- Tests: `sbtest.py` passes in all four places at Ultra (walls, open ground, the lap, the coins' reach, every passage both
+  ways, the race offer, the race, the return); races (Bedroom, Kitchen, Backyard, Margherita), Balloon Battle and the phone
+  session rerun after it.
+- Not yet: the load cut into slices (so the duct is not needed to hide it), the way out to the street, the map, the clock,
+  things to do, the shop, PC, friends in Sandbox and the start-line lobby.
+- BALLOON BATTLE, from the owner's play-test the same day (docs/BALLOON-BATTLE-PLAN.md, last section): three balloons; only
+  pepperoni, trio and chili; sixteen boxes; ramps as wide as their ledges; the fifth pan and the peel's handle gone; the
+  rolling pin's handles solid. Keep the game's shapes (`bbArena`) and the Blender models (`battle.py`) the same thing: change both.
+
 ### 2026-11-13 (web v190): Balloon Battle's scoreboard is one small line
 The owner: "Remove the hud that lets you see how many balloons everyone has it's way too big and In the way." The list of eight
 karts is gone (`bbHud` in tools/mini/battle.js). What is left, top left: the clock, your points, your place. Everybody's balloons
@@ -110,10 +135,17 @@ How it was laid out without guessing: a pocket turtle in garden metres (scratch 
 against the landmarks' coordinates before the real generator closed the lap; the two straights it solves must not be parallel.
 
 ### Where web and PC stand (2026-11-13, end of the session)
-- Web v190 (online 109). PC build 06c70bde = web v186 (online 109): PC and web race together. v187 (phone fix), v188
+- Web v191 (online 109). PC build 06c70bde = web v186 (online 109): PC and web race together. v187 (phone fix), v188
   (Sandbox, first slice) and v189 (the second site's plumbing, switched off) are web only; nothing that moves a kart in a race changed.
 - Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
   (docs/BALLOON-BATTLE-PLAN.md). Sandbox: the first slice (the back garden) is on the web (v188); docs/SANDBOX-PLAN.md.
+- OWED TO THE PC (the owner, 2026-11-13: "make sure to commit these changes to the pc version as well"): Balloon Battle
+  (mode, arena, rules as of web v191, the one-line scoreboard) and Sandbox (everything in docs/SANDBOX-PLAN.md that the web has).
+  Neither exists in the Godot project yet. Port Balloon Battle first (its rules are settled), then Sandbox once the web's
+  reaches every track, so it is ported once.
+- OWED TO THE WEBSITE (the owner, same day: "once all the changes are complete lets update the website"): `pc.html` in the app
+  repository says seventeen tracks and the old modes. Update it when the PC has the new modes: the count (20 tracks, 4 toy
+  tracks, the battle arena), Balloon Battle, Sandbox, new stills; then a fresh trailer if the owner wants one.
 - Not checked by eye on the PC: the Blender garden, the garage's open door and front yard, the leaf cards and tree pictures.
   The PC build compiled and its own checks passed; nobody has looked at those scenes in it yet (the exported tracks could
   not be fetched to this machine: there is no `gh` here).
@@ -430,7 +462,8 @@ so the PC build of that push does not publish), and runs are watched through the
 2. `neon/simtest.py <track> medium 230` and `reverse`: all 8 finish, 0 respawns, 0 stuck.
 3. `neon/chase.py` (the game's own camera round the lap) and `neon/shots.py` (free camera) for looks.
 4. One regular track as a regression (`simtest.py margherita medium 200`).
-4c. Sandbox: `neon/sbtest.py` (any change to the kart's physics, the toy tracks, the garden or battle.js): SANDBOX TEST passed.
+4c. Sandbox: `neon/sbtest.py`, then `neon/sbtest.py bedroom`, `kitchen`, `garage` (any change to the kart's physics, the toy
+    tracks or rooms, a room's furniture, or battle.js): SANDBOX TEST passed in each.
 4b. A phone session: `neon/phonetest.py bedroom kitchen bedroom margherita grid bedroom` (any change to textures, materials,
     scenery caches or track loading): PHONE TEST passed, and look at `scratch/phone_*.png` for the repeat visits.
 5. PC: export from CI, `tests/tmp_neon` (AI race), `tests/tmp_cam` (pictures), then push.

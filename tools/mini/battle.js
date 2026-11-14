@@ -1,6 +1,6 @@
 /* ================= BALLOON BATTLE =================
    A mode with no lap: karts drive anywhere in an arena, hit each other with items, and each hit pops one of the victim's
-   balloons. Timed score battle: five balloons to start, a point for every balloon you pop, at none you come back with
+   balloons. Timed score battle: three balloons to start (five until 2026-11-13), a point for every balloon you pop, at none you come back with
    three and half your score, most points when the clock runs out wins. The plan and the reasons: docs/BALLOON-BATTLE-PLAN.md.
    BATTLE is the switch. A normal race never reads anything here. The engine's hooks into this file (patch19.py):
      stepKart   no track walls, kerbs or off-road slowing; the ground and the walls come from BB.shapes
@@ -13,19 +13,22 @@
    One rule gives every wall: nothing drives up a step higher than BB_STEP. What you can see is what stops you, because the
    models are built to these same shapes. */
 let BATTLE=false;
-const BB={shapes:[],spawn:[],ramps:[],T:180,t:0,over:false,hudT:0,el:null,grp:null},BB_STEP=5.5,BB_R=6.5,BB_START=5,BB_BACK=3;
+const BB={shapes:[],spawn:[],ramps:[],T:180,t:0,over:false,hudT:0,el:null,grp:null},BB_STEP=5.5,BB_R=6.5,BB_START=3,BB_BACK=3;/* three balloons each (the owner, 2026-11-13; it was five) */
 const BB_COL=['#e3271d','#1f6fd6','#f6c41f','#35a84a','#ff7ab8','#8a4fd6','#ff8a1f','#22b8c8'];
 /* ---- the prep table: 760 x 520, a lip all round; bins along the north edge with gaps; a raised route (stacked pizza boxes, a
-   board) along the south and east edges, up a propped pizza-box lid in the south-west and down a bread board in the north-east */
+   board) along the south and east edges, up a propped pizza-box lid in the south-west and down a bread board in the north-east.
+   Changed 2026-11-13 from the owner's play-test (docs/NEXT-MODES-BRIEF.md has the words): each ramp is as wide as the ledge it leads to
+   (beside a narrower ramp was a pocket a kart got stuck in); the fifth pan is gone (the east ramp's foot ran into it); the rolling pin's
+   handles are solid (they were drawn but could be driven through). tools/blender/battle.py draws exactly these shapes. */
 function bbArena(){const S=[],X=380,Z=260,H=42;
   /* the table stands in an alcove: tiled walls on its north, east and south sides (nothing gets over those); along the open west
      side, where the cook stands, only the table's raised edge: enough to stop a kart on its wheels, not one in the air */
   S.push({t:'box',x0:-X-8,x1:X+60,z0:-Z-60,z1:-Z,h:500,k:'wall'},{t:'box',x0:-X-8,x1:X+60,z0:Z,z1:Z+60,h:500,k:'wall'},{t:'box',x0:X,x1:X+60,z0:-Z,z1:Z,h:500,k:'wall'},{t:'box',x0:-X-8,x1:-X,z0:-Z,z1:Z,h:7,k:'rim'});
-  for(let i=0;i<5;i++){const x0=-338+i*144;S.push({t:'box',x0,x1:x0+100,z0:-212,z1:-150,h:36,k:'bin',i});}
-  S.push({t:'ramp',x0:-335,x1:-215,z0:136,z1:232,h0:0,h1:H,ax:'x',k:'lid'});
+  for(let i=0;i<4;i++){const x0=-338+i*144;S.push({t:'box',x0,x1:x0+100,z0:-212,z1:-150,h:36,k:'bin',i});}
+  S.push({t:'ramp',x0:-335,x1:-215,z0:130,z1:260,h0:0,h1:H,ax:'x',k:'lid'});
   S.push({t:'box',x0:-215,x1:232,z0:130,z1:260,h:H,k:'boxes'},{t:'box',x0:232,x1:380,z0:-58,z1:260,h:H,k:'board'});
-  S.push({t:'ramp',x0:262,x1:352,z0:-170,z1:-58,h0:0,h1:H,ax:'z',k:'bread'});
-  S.push({t:'cyl',x:70,z:-10,r:12,h:90,k:'mill'},{t:'box',x0:-170,x1:-50,z0:34,z1:52,h:17,k:'pin'},{t:'cyl',x:-262,z:-60,r:36,h:22,k:'plates'});
+  S.push({t:'ramp',x0:232,x1:380,z0:-170,z1:-58,h0:0,h1:H,ax:'z',k:'bread'});
+  S.push({t:'cyl',x:70,z:-10,r:12,h:90,k:'mill'},{t:'box',x0:-170,x1:-50,z0:34,z1:52,h:17,k:'pin'},{t:'box',x0:-203,x1:-170,z0:38.5,z1:47.5,h:12.5,k:'pin'},{t:'box',x0:-50,x1:-17,z0:38.5,z1:47.5,h:12.5,k:'pin'},{t:'cyl',x:-262,z:-60,r:36,h:22,k:'plates'});
   return S;}
 const BB_X0=-388,BB_FLOOR=-312;/* west of the table's edge there is nothing but the kitchen floor, 90 cm down */
 function battleG(x,z,wy){if(SBX)return sbG(x,z,wy);if(x<BB_X0)return BB_FLOOR;let h=0;for(const s of BB.shapes){let t=-1;if(s.t==='cyl'){const dx=x-s.x,dz=z-s.z;if(dx*dx+dz*dz<=s.r*s.r)t=s.h;}
@@ -94,7 +97,13 @@ function bbBalloons(){if(BB.grp)scene.remove(BB.grp);BB.grp=new THREE.Group();sc
   const sm=new THREE.MeshBasicMaterial({color:'#f4f1ea'});for(const k of karts){const c=BB_COL[k.bbI%8],m=new THREE.MeshStandardMaterial({color:c,roughness:.25,metalness:0,envMapIntensity:.9}),G=new THREE.Group();G.userData.b=[];
     for(let i=0;i<BB_START;i++){const b=new THREE.Mesh(g,m),s=new THREE.Mesh(sg,sm);b.castShadow=true;G.add(b);G.add(s);G.userData.b.push({b,s,ph:i*1.9+k.bbI});}k.bbG=G;BB.grp.add(G);}}
 function bbPop(k){const y=(k.wy||0)+16;burst(k.x,y,k.y,22,[BB_COL[k.bbI%8],'#ffffff','#ffe066'],80,2.6);spawnRing(k.x,y,k.y,BB_COL[k.bbI%8],18,.3,false);if(near(k)>0&&SFX.bump)SFX.bump(near(k)*.8);}
-function battleRender(time){if(SBX)return sbRender(time);if(!BATTLE||!BB.grp)return;for(const k of karts){const G=k.bbG;if(!G)continue;const m=k.m&&k.m.g;G.visible=!!m&&m.visible&&!(k.bbOut>0);if(!G.visible)continue;
+/* the chase camera must not sit inside the boxes, the block or a pan: walk from the kart out to where the camera wants to be and stop short of the
+   first thing of the arena that is higher than the camera there. It closes in at once and eases back out. */
+function bbCam(){const k=camT;if(!k||state==='menu')return;const tx=k.x,tz=k.y,ty=(k.wy||0)+7,cx=camera.position.x,cy=camera.position.y,cz=camera.position.z;let ok=1;
+  for(let i=1;i<=16;i++){const f=i/16,g=Math.min(1.05,f+.05);if(battleG(tx+(cx-tx)*g,tz+(cz-tz)*g)>ty+(cy-ty)*g-2){ok=(i-1)/16;break;}}
+  const was=BB.camF==null?1:BB.camF;BB.camF=ok<was?ok:Math.min(ok,was+.02);const f=Math.max(.16,BB.camF);if(f>=.999)return;
+  camera.position.set(tx+(cx-tx)*f,ty+(cy-ty)*f+(1-f)*9,tz+(cz-tz)*f);camera.lookAt(cam.look.x,cam.look.y+cam.oy*.45,cam.look.z);}
+function battleRender(time){if(SBX)return sbRender(time);if(!BATTLE)return;bbCam();if(!BB.grp)return;for(const k of karts){const G=k.bbG;if(!G)continue;const m=k.m&&k.m.g;G.visible=!!m&&m.visible&&!(k.bbOut>0);if(!G.visible)continue;
     const px=m.position.x,py=m.position.y,pz=m.position.z,a=k.a,bx=px-Math.cos(a)*5,bz=pz-Math.sin(a)*5,n=G.userData.b.length;
     for(let i=0;i<n;i++){const q=G.userData.b[i],on=i<(k.bal||0);q.b.visible=q.s.visible=on;if(!on)continue;const sp=(i-(Math.min(k.bal,n)-1)/2),sw=Math.sin(time*2.1+q.ph)*.9,lag=Math.min(6,Math.abs(k.speed)*.03),
         x=bx-Math.cos(a)*lag+Math.cos(a+1.5708)*sp*3.0+sw*.4,z=bz-Math.sin(a)*lag+Math.sin(a+1.5708)*sp*3.0,y=py+14+Math.abs(sp)*-1.1+Math.sin(time*1.7+q.ph)*.5;
@@ -107,9 +116,10 @@ function bbHud(make){if(SBX)return sbHud();let e=BB.el;if(!e){e=BB.el=document.c
   let h=mm+':'+ss;if(player){const r=bbRank().indexOf(player)+1,p=player.bbS||0;h+=' <span style="opacity:.55">\u00b7</span> <span style="color:#ffe066">'+p+(p===1?' pt':' pts')+'</span> <span style="opacity:.55">\u00b7</span> '+r+(r===1?'st':r===2?'nd':r===3?'rd':'th');}
   e.innerHTML=h;}
 /* ---- the arena as the game sees it: shapes, spawn places, ramps for the CPU drivers, item boxes ---- */
-function battleSetup(def){BB.shapes=bbArena();BB.spawn=[[-300,-90],[300,60],[-120,90],[150,-110],[-300,60],[40,100],[300,-120],[-40,-110]];
-  BB.ramps=[{foot:[-346,184],top:[-205,184]},{foot:[307,-184],top:[307,-48]}];
-  for(const [x,z] of [[-90,-40],[150,60],[-10,-238],[-200,-238],[200,-238],[0,192],[306,120],[-320,-120]])boxes.push({x,y:z,r:0,sv:boxes.length*3,gy:battleG(x,z),dbl:false});}
+function battleSetup(def){BB.shapes=bbArena();BB.spawn=[[-300,-90],[300,60],[-120,90],[150,-110],[-300,60],[40,100],[300,-215],[-40,-110]];
+  BB.ramps=[{foot:[-346,195],top:[-205,195]},{foot:[306,-184],top:[306,-48]}];
+  /* sixteen item boxes (it was eight): a hit is the only way to score, so nobody should be far from one */
+  for(const [x,z] of [[-90,-40],[150,60],[-10,-238],[-200,-238],[200,-238],[0,192],[306,120],[-320,-120],[-200,90],[60,-90],[-330,20],[200,-60],[-100,195],[120,195],[306,0],[0,72]])boxes.push({x,y:z,r:0,sv:boxes.length*3,gy:battleG(x,z),dbl:false});}
 /* on every map load: leaving the arena takes its balloons and its scoreboard away; the HUD's lap and place read-outs are hidden in a battle */
 function battleLoad(){if(SBX)sbOff();/* a different world is coming in */if(!document.getElementById('bbCss')){const st=document.createElement('style');st.id='bbCss';st.textContent='body.battle #posNum,body.battle #posSuf,body.battle #tbProg,body.battle #hudLap,body.battle #lapBars,body.battle #hudPB,body.battle #hudTime,body.battle #mini,body.battle #wrong,body.battle #abilBtn,body.battle .lapbox,body.battle .posbox{display:none!important}';document.head.appendChild(st);}
   document.body.classList.toggle('battle',BATTLE);if(!BATTLE){if(BB.grp){scene.remove(BB.grp);BB.grp=null;}if(BB.el)BB.el.hidden=true;BB.shapes=[];}}
@@ -126,7 +136,12 @@ function bbTarget(k,back){let best=null,bs=1e9;for(const o of karts){if(o===k||o
 function bbLeader(k){for(const o of bbRank())if(o!==k&&!(o.bbOut>0))return o;return null;}
 /* Balloon Battle is played off line for now: starting or joining a friends' race leaves the mode and its arena */
 function bbNoNet(){if(mode!=='bb'&&mode!=='sb')return;mode='single';try{store.set('crust-mode',mode);}catch(e){}if(MAPS[mapIdx].battle){mapIdx=0;loadMap(0,false);resetRace(true);}try{refreshMenu();}catch(e){}}
-/* what a battle's item boxes give: only the things that work with no track under them (thrown, dropped, or worn), and only those the player has left switched on.
-   The others ride the lap (the cannon and the twister follow the road, the sauce and the swap go by race position) and would do nonsense here */
-const BB_ITEMS=[['pepperoni',3],['trio',2],['dough',2],['oil',2],['flour',2],['chili',1.5],['garlic',1.5],['rush',1]];
-function bbRoll(){if(SBX)return sbRoll();const L=BB_ITEMS.filter(q=>itemOn(q[0]));if(!L.length)return 'pepperoni';let t=0;for(const q of L)t+=q[1];let r=Math.random()*t;for(const q of L){r-=q[1];if(r<=0)return q[0];}return L[0][0];}
+/* what a battle's item boxes give. The owner, 2026-11-13: "any homing items should be removed for the balloon game mode, as well as items that drop
+   on the floor. It should only be projectiles the player has to aim or speed boosts. The auto drive speed boost items should also be removed".
+   So: the pepperoni and the trio (fired where you point), and the chili (a boost you steer yourself). Gone: the dough ball (it homes), the
+   olive oil (dropped), the delivery rush (drives itself), the garlic shield (neither).
+   Then, the same day: "add flour bomb and meatball to the balloon game mode". The flour bomb is lobbed where you point; the bowling meatball
+   rolls straight where you point and turns back off the walls. The meatball is one of the items a player unlocks for races; in a battle
+   everybody has it. Only those the player has left switched on. */
+const BB_ITEMS=[['pepperoni',3],['trio',2],['meatball',2],['flour',1.5],['chili',2]];
+function bbRoll(){if(SBX)return sbRoll();const L=BB_ITEMS.filter(q=>q[0]==='meatball'?ITEMSET[q[0]]!==false:itemOn(q[0]));if(!L.length)return 'pepperoni';let t=0;for(const q of L)t+=q[1];let r=Math.random()*t;for(const q of L){r-=q[1];if(r<=0)return q[0];}return L[0][0];}

@@ -4,7 +4,7 @@
    held up by blue plastic piers. Layout data comes from /home/claude/mini (same fields as the Neon Cup's tracks). */
 const TU=3.47;const tcm=v=>v*TU;
 /* the furniture a track can stand on: boxes in room coordinates [x0,x1,z0,z1,top] */
-let TOYF=[],TOYP=[],TOYB=[],TOYENV=null,TOYPOSTS=[];/* TOYPOSTS: where the track's posts stand [x,z,top], for Sandbox, where they are solid *//* TOYENV: where the room is photographed from for its reflections [x,height,z] *//* TOYP: places where a pier must stand (on a stack of books, say) */
+let TOYF=[],TOYP=[],TOYB=[],TOYENV=null,TOYPOSTS=[],TOYROOM=null;/* TOYROOM: the room's own edges [x0,x1,z0,z1] in the karts' coordinates (its walls, the garden's fences): Sandbox's outer limit *//* TOYPOSTS: where the track's posts stand [x,z,top], for Sandbox, where they are solid *//* TOYENV: where the room is photographed from for its reflections [x,height,z] *//* TOYP: places where a pier must stand (on a stack of books, say) */
 function toyUnder(x,z,below){let h=0;for(const b of TOYF)if(x>=b[0]&&x<=b[1]&&z>=b[2]&&z<=b[3]&&b[4]<=below+.5&&b[4]>h)h=b[4];return h;}
 /* The set comes in coloured sections, the way toy track does. TOYSEC lists them per room as [from,to,colour] in fractions of
    the lap (the lap as it is laid out, whichever way it is raced); everything else is orange. Looks only: the race never reads it. */
@@ -41,7 +41,7 @@ function toyDecks(def){if(def.battle)return;const W=TOYW()+3,inGl=j=>GLIDE&&j>=G
   for(let j=0;j<N;j++){const p=P(j),q=P(j+1);if(inGl(j)||inGl(j+1))continue;const pe=p.ey||0,qe=q.ey||0;if(pe<1.5&&qe<1.5)continue;const c=(t,o,h)=>[t.x+t.nx*o,h,t.y+t.ny*o],kc=toyColAt(def,j),und=unds[kc]||(unds[kc]=[]);
     und.push(...c(p,-W,pe-1.6),...c(q,W,qe-1.6),...c(q,-W,qe-1.6),...c(p,-W,pe-1.6),...c(p,W,pe-1.6),...c(q,W,qe-1.6));}
   const mk=(arr,mat,cast)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));g.computeVertexNormals();const m=new THREE.Mesh(g,mat);m.userData.noLift=true;m.castShadow=!!cast;m.receiveShadow=true;world.add(m);return m;};
-  for(const kc in unds)mk(unds[kc],toySmooth(new THREE.MeshStandardMaterial({color:new THREE.Color(TOYCOL[kc]).multiplyScalar(.82),roughness:.45,side:THREE.DoubleSide})),true);
+  for(const kc in unds)mk(unds[kc],toySmooth(new THREE.MeshStandardMaterial({color:new THREE.Color(TOYCOL[kc]).multiplyScalar(.82),roughness:.45,side:THREE.DoubleSide})),true).userData.noCol=true;/* (Sandbox takes the track from the lap itself, not from its drawn pieces) */
   /* piers every 30 cm or so: two tapered posts, a cross beam under the track, tie bars on the tall ones and round feet; none where another road runs underneath */
   const post=[],beam=[],foot=[],tie=[],arm=[];let last=-99;
   for(let j=0;j<N;j++){const p=P(j),e=p.ey||0,force=TOYP.some(q=>(q[0]-p.x)**2+(q[1]-p.y)**2<20);if(e<7||inGl(j)||(j-last<13&&!force))continue;const base=toyUnder(p.x,p.y,e-2);if(e-base<6)continue;let blocked=false;
@@ -68,7 +68,7 @@ function toyWall(ax,at,a0,a1,H,hole,m,face,tile){const T=12*TM.U,mk=(u0,u1,v0,v1
     b.position.set(c[0],c[1],c[2]);b.receiveShadow=true;b.castShadow=true;b.userData.noLift=true;world.add(b);};
   if(!hole){mk(a0,a1,0,H);return;}const [h0,h1,y0,y1]=hole;mk(a0,h0,0,H);mk(h1,a1,0,H);mk(h0,h1,0,y0);mk(h0,h1,y1,H);}
 /* ---- Bedroom Blitz: a teenager's bedroom, 4.0 x 4.8 m ---- */
-function toyBedroom(def){const U=TM.U,X=695,Y=833,H=868,M=TM;
+function toyBedroom(def){const U=TM.U,X=695,Y=833,H=868,M=TM;TOYROOM=[-X,X,-Y,Y];
   /* light: a low afternoon sun that reaches the room only through the window (sunBeam, below): warm, hard-edged patches on the desk
      and across the middle of the floor; the rest of the room is in cooler shade, lit by the sky and by what the floor throws back up */
   renderer.toneMappingExposure=.98;hemi.color.set('#cfdcf0');hemi.groundColor.set('#b3937a');hemi.intensity=.54;sun.color.set('#ffdcaa');sun.intensity=2.7;sunDir.set(-.1,.56,-.82).normalize();rimL.intensity=.16;rimL.color.set('#cfe0ff');
@@ -126,7 +126,7 @@ function toyLoop(L,def){const p=L.p,g0=L.g0,SEG=96,LEAD=3,W=TOYW(),TH=3,H=4.2,po
     for(const sd of [-1,1]){pos.push(...at(lat+sd*W,0));uv.push(sd<0?0:1,arc/120);secs[sd<0?0:1].push([at(lat+sd*W,0),at(lat+sd*W,H),at(lat+sd*(W+TH),H),at(lat+sd*(W+TH),-1.6)]);}
     if(i<SEG){const a=(i+LEAD)*2;idx.push(a,a+1,a+2,a+1,a+3,a+2);}}
   const lg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));lg.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));lg.setIndex(idx);lg.computeVertexNormals();
-  const lm=new THREE.Mesh(lg,toyRoadMat());lm.castShadow=lm.receiveShadow=true;lm.userData.noLift=true;world.add(lm);
+  const lm=new THREE.Mesh(lg,toyRoadMat());lm.castShadow=lm.receiveShadow=true;lm.userData.noLift=true;lm.userData.col=true;/* the loop is solid in Sandbox */world.add(lm);
   for(const k of [0,1])for(let i=0;i<secs[k].length-1;i++)toyRailQuad(rails,secs[k][i],secs[k][i+1],k?1:-1);toyRailMesh(rails);
   /* the frame: a blue arch over the top of the loop that the track clips into, on wide feet, and a spine along the floor between the way in and the way out */
   const G=new THREE.Group();G.position.set(p.x,g0,p.y);G.rotation.y=-p.ang;G.userData.noLift=true;world.add(G);const bl=TOYBL(),top=2*LOOPR,o=L.S+W+TH+9,M=TM;
@@ -156,7 +156,7 @@ function toyPads(def){if(def.battle)return;const m=TM.mat('toypad',()=>new THREE
   const put1=j=>{pads.push({j,lat:0,w:RW+4});const pm=strip(j-2,j+2,-RW-4,RW+4,.14,m,32);if(pm&&pm.isMesh){pm.userData.noMerge=true;pm.castShadow=false;}TOYB.push(j);};
   (def.npads||[]).forEach(q=>put1(nfj(q[0])));for(const L of LOOPS)if(L.full)put1((L.j-13+N)%N);}
 function toyRamps(def){const c=TM.can('toyramp',256,256,(g,w,h)=>{g.fillStyle='#ff6a12';g.fillRect(0,0,w,h);g.fillStyle='#fff4dc';for(let y=-40;y<300;y+=64){g.beginPath();g.moveTo(40,y+52);g.lineTo(128,y);g.lineTo(216,y+52);g.lineTo(216,y+74);g.lineTo(128,y+22);g.lineTo(40,y+74);g.closePath();g.fill();}g.fillStyle='#1769d6';g.fillRect(0,0,14,h);g.fillRect(w-14,0,14,h);}),
-    topM=new THREE.MeshPhysicalMaterial({map:T2(c,1,1),roughness:.32,clearcoat:.5,clearcoatRoughness:.3}),sideM=new THREE.MeshPhysicalMaterial({color:'#1769d6',roughness:.35,clearcoat:.4,side:THREE.DoubleSide});
+    topM=new THREE.MeshPhysicalMaterial({map:T2(c,1,1),roughness:.32,clearcoat:.5,clearcoatRoughness:.3}),sideM=new THREE.MeshPhysicalMaterial({color:'#1769d6',roughness:.35,clearcoat:.4,side:THREE.DoubleSide});topM.name=sideM.name='toyramp';/* (named so Sandbox leaves it to the engine's own ramp rule) */
   for(const f of def.nramps||[]){let j=nfj(f);if(curRev)j=(j-4+N)%N;const r={j,len:4*T.L/N,w:RW+2,h:6};ramps.push(r);buildRamp(r,topM,sideM);}}
 /* a shortcut is a single lane of the same orange track */
 const TOYSW=sc=>(sc.w||SCW)+5;/* a shortcut lane is drawn this much wider than its driving line each side, so karts stay clear of its edges */
@@ -188,7 +188,7 @@ function toyRoomEnv(){const P=TOYENV;if(P&&world)try{sunShadeAll();const rt=new 
    skirting, the view outside, the afternoon sun through the window and the spot the room is photographed from for its reflections.
    o: {key, X, Y, H (half width, half length, height), win:[x0,x1,y0,y1], dr:[x0,x1,y0,y1], walls:[north,south,west,east], floor:material, tile:cm, env:[x,height,z]}
    (the bedroom was built before this existed and keeps its own copy of these steps) */
-function toyShell(o){const U=TM.U,M=TM,X=o.X,Y=o.Y,H=o.H,win=o.win,dr=o.dr;
+function toyShell(o){const U=TM.U,M=TM,X=o.X,Y=o.Y,H=o.H,win=o.win,dr=o.dr;TOYROOM=[-X,X,-Y,Y];
   renderer.toneMappingExposure=.98;hemi.color.set('#cfdcf0');hemi.groundColor.set('#b3937a');hemi.intensity=.54;sun.color.set('#ffdcaa');sun.intensity=2.7;if(o.sun)sunDir.set(o.sun[0],o.sun[1],o.sun[2]).normalize();else sunDir.set(-.1,.56,-.82).normalize();/* (o.sun: a room lit from another side, as the garage through its big door) */rimL.intensity=.16;rimL.color.set('#cfe0ff');
   scene.fog=new THREE.Fog('#d8cfc0',6000,30000);scene.background=new THREE.Color('#bcd6f2');Object.assign(POST.grade,{sat:1.04,con:1.05,tint:[1.01,1,.985],vig:.16,bloom:.22,thr:.97});
   const fg=new THREE.PlaneGeometry(2*X,2*Y,1,1);fg.rotateX(-Math.PI/2);M.uvw(fg,o.tile,true);const fl=new THREE.Mesh(fg,o.floor);fl.position.y=-.1;fl.receiveShadow=true;fl.userData.noLift=true;world.add(fl);
@@ -293,7 +293,7 @@ function toyGarage(def){const U=TM.U,X=695,Y=833,H=868,M=TM,win=[-420,80,430,764
 /* ---- Backyard Mega Circuit: the whole back garden, 25 x 7 m, as tools/blender/outside.py draws it for the windows ----
    Garden coordinates in metres: x east from the bedroom window, y north from the house wall (0) to the back fence (7).
    The numbers match tools/mini/t_backyard.py. Outdoors: no window sun (TOYSUN stays empty), the ordinary sun and shadows. */
-function toyYard(def){const U=TM.U,M=TM,m=100*U,GX=g=>(g+.75)*m,GY=g=>(g-3.5)*m,put=(o,gx,gy,ry,y0)=>toyPut(o,GX(gx),GY(gy),ry||0,y0||0),W0=-13.9,W1=11.6;
+function toyYard(def){const U=TM.U,M=TM,m=100*U,GX=g=>(g+.75)*m,GY=g=>(g-3.5)*m,put=(o,gx,gy,ry,y0)=>toyPut(o,GX(gx),GY(gy),ry||0,y0||0),W0=-13.9,W1=11.6;TOYROOM=[GX(W0),GX(W1),-GY(7),-GY(0)];
   renderer.toneMappingExposure=1;hemi.color.set('#d4e6ff');hemi.groundColor.set('#7c9a52');hemi.intensity=.8;sun.color.set('#fff0d2');sun.intensity=2.9;sunDir.set(-.1,.56,-.82).normalize();rimL.intensity=.18;rimL.color.set('#cfe0ff');
   scene.fog=new THREE.Fog('#cfe2f4',14000,70000);scene.background=new THREE.Color('#a8cdf3');Object.assign(POST.grade,{sat:1.06,con:1.04,tint:[1,1,.99],vig:.14,bloom:.2,thr:.97});TOYENV=null;/* no picture of the surroundings for reflections here: the open sky in it washed the glossy track out to pastel */
   /* the sky: a dome over the garden carrying the sky rendered in Blender from the garden's own scene (outside.py -- sky), the same sky the rooms' windows show.
@@ -353,7 +353,7 @@ function toyYard(def){const U=TM.U,M=TM,m=100*U,GX=g=>(g+.75)*m,GY=g=>(g-3.5)*m,
   put(M.setbox(),1.6,1.45,-.2);put(M.trackpiece({l:22}),2.5,1.5,.6);put(M.ball({kind:'tennis'}),-11.4,2.8,0);put(M.bricks({seed:5,n:9,spread:9}),6.9,1.5,0);put(M.cube({seed:8}),-6.2,2.7,.5);
   /* shade the sun's own shadow map does not reach: under the tree, north of the shed and of the back fence */
   toyShade(GX(1.2),GX(5),GY(4.2),GY(6.9),.3);toyShade(GX(-12.6),GX(-9.8),GY(6.1),GY(6.95),.4);toyShade(GX(-11),GX(9),GY(6.6),GY(7),.25);}
-function buildToy(def){TOYF=[];TOYP=[];TOYB=[];if(def.look==='bedroom')toyBedroom(def);else if(def.look==='kitchen')toyKitchen(def);else if(def.look==='garage')toyGarage(def);else if(def.look==='backyard')toyYard(def);else if(def.look==='battle')toyBattle(def);}
+function buildToy(def){TOYF=[];TOYP=[];TOYROOM=null;TOYB=[];if(def.look==='bedroom')toyBedroom(def);else if(def.look==='kitchen')toyKitchen(def);else if(def.look==='garage')toyGarage(def);else if(def.look==='backyard')toyYard(def);else if(def.look==='battle')toyBattle(def);}
 /* ---- Prep Table Showdown: the Balloon Battle arena (the shapes that are its floor and walls: bbArena in battle.js) ----
    A pizzeria's steel prep table, at the toy scale: the table top is the floor, the kitchen's own floor is 90 cm below. */
 function toyBattle(def){const U=TM.U,M=TM;battleSetup(def);

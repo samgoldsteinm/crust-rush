@@ -100,3 +100,20 @@ the work. Update it as things are built.
 
 ## 2026-11-13 (web v190): the scoreboard
 The owner had the list of everyone's balloons removed ("way too big and in the way"). The HUD is one small line: clock, your points, your place.
+
+## 2026-11-13 (web v191): the owner's play-test of the arena and the rules
+Their words are in docs/NEXT-MODES-BRIEF.md. What changed, all in `tools/mini/battle.js` (and the models in `tools/blender/battle.py`):
+- Three balloons each (it was five); you still come back with three and half your points.
+- Items: only what you aim or steer yourself: pepperoni, pepperoni trio, bowling meatball, flour bomb, chili boost (the
+  owner added the flour bomb and the meatball back by name the same day; the meatball is given to everyone here, unlocked or
+  not). Gone from this mode: dough ball (homes), olive oil (dropped), delivery rush (drives itself), garlic shield.
+  Do not add an item that homes, lies on the table or drives the kart.
+- Sixteen item boxes (it was eight).
+- Each ramp is as wide as the ledge it leads to (beside the narrower ones was a pocket a kart got stuck in); the fifth
+  pan is gone and the peel with its handle is a plain bread board (the handle lay across the table into that pan); the
+  rolling pin's handles are solid.
+- Checked: a full battle run fast (38 pops, nothing stuck, nothing but those three items ever held, nothing left on the table).
+- The same day, from the top of the boxes: "the camera angle is really bad and the car sort of floats on the object". The camera's
+  height, the drawn ground and the car body's footing read the lap's ground (the bare table) instead of the arena's. They read
+  `battleG` now (`tools/mini/patch25.py`), and `bbCam` keeps the camera out of the boxes, the block and the pans. Pictures of the
+  kart on every raised part: the session's `bbtop.py` (keep the idea: place the kart on each surface and look).

@@ -4,9 +4,10 @@
 Every model is built in the ARENA'S OWN PLACE (the table's middle is the origin), so the game puts each at (0, 0) unturned.
 Arena coordinates are x east, z south; here X = x / 347 and Y = -z / 347 (a model's -Y side is its south).
   bbtable   the steel top with its raised front edge, legs, an undershelf
-  bbbins    five steel ingredient pans along the back wall: mozzarella, tomato sauce, pepperoni, olives, mushrooms
-  bbboxes   four stacks of three pizza boxes along the south wall, and an opened-out box leaning on them: the ramp up
-  bbblock   a butcher's block against the east wall (the raised route's other half) and a pizza peel leaning on it: the way down
+  bbbins    four steel ingredient pans along the back wall: mozzarella, tomato sauce, pepperoni, olives
+  bbboxes   four stacks of three pizza boxes along the south wall, and an opened-out box leaning on them: the ramp up, as wide as the stacks are deep
+  bbblock   a butcher's block against the east wall (the raised route's other half) and a bread board leaning on its whole north end: the way down
+  (2026-11-13, the owner's play-test: ramps the full width of their ledges, no fifth pan in the east ramp's way, no peel handle on the table)
   bbprops   a pepper mill, a rolling pin, a stack of plates
 Run: D:/blender/blender.exe --background --python D:/crust-rush/source/tools/blender/battle.py [-- name ...]
 then py.cmd tools/blender/pack_glb.py <name ...>
@@ -49,7 +50,7 @@ if want('bbtable'):
 if want('bbbins'):
     s = reset(); M = mats(); P = []; r = np.random.RandomState(5)
     fills = ('cheese', 'sauce', 'pep', 'olive', 'mush')
-    for i in range(5):
+    for i in range(4):
         x0 = -338 + i * 144; x1 = x0 + 100; z0, z1 = -212, -150; cx, cy = ax((x0 + x1) / 2), ay((z0 + z1) / 2); w, d = 100 / U, 62 / U; H = 36 / U
         # a steel pan: four walls, a floor, a rolled lip
         t = .004
@@ -90,7 +91,7 @@ if want('bbboxes'):
             P.append(abox(f'flap{i}{j}', a0 - .25, a1 + .25, z0 - .2, z0 + .6, j * 14 + 9.5, (j + 1) * 14 - .1, M['card'], .001, 1))             # the lid's front flap, tucked down
             P.append(abox(f'seam{i}{j}', a0 + 1, a1 - 1, z0 + .1, z0 + .5, j * 14 + 8.6, j * 14 + 9.2, M['cardin'], 0))                             # the lid's edge shows as a paler line
     # the ramp: a box opened out flat (lid and base in one sheet, 66 cm) would be too long: it is one lid torn off, its flaps still on
-    rx0, rx1, rz0, rz1 = -335, -215, 136, 232
+    rx0, rx1, rz0, rz1 = -335, -215, 130, 260
     V = [(ax(rx0), ay(rz0), 0), (ax(rx1), ay(rz0), H / U), (ax(rx1), ay(rz1), H / U), (ax(rx0), ay(rz1), 0)]; t = .004
     sheet = mesh('lid', V + [(v[0], v[1], v[2] - t) for v in V], [(0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)], M['cardin'], False); P.append(sheet)
     for k, zz in enumerate((rz0, rz1)):                                                                      # its side flaps stand up a little: low kerbs along the ramp (looks only: lower than a step)
@@ -110,10 +111,9 @@ if want('bbblock'):
         for sz in (z0 + 10, z1 - 22): P.append(abox(f'bfoot{sx}{sz}', sx, sx + 12, sz, sz + 12, 0, 6.2, M['dark'], .002, 1))
     P.append(abox('skirt', x0 + 6, x1 - 6, z0 + 6, z1 - 6, 2, 6.2, M['dark'], 0))
     # the peel: its blade leans from the table up to the block's top, its handle lies back along the table
-    px0, px1, pz0, pz1 = 262, 352, -170, -58; t = .008
+    px0, px1, pz0, pz1 = 232, 380, -170, -58; t = .008
     V = [(ax(px0), ay(pz0), 0), (ax(px1), ay(pz0), 0), (ax(px1), ay(pz1), H / U), (ax(px0), ay(pz1), H / U)]
     P.append(mesh('blade', V + [(v[0], v[1], v[2] - t) for v in V], [(0, 1, 2, 3), (7, 6, 5, 4), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)], M['wood'], False))
-    P.append(tube('handle', [(ax(307), ay(pz0 + 4), .004), (ax(307), ay(pz0 - 26), .010), (ax(307), ay(pz0 - 70), .012)], .011, M['wood'], .02, 10, 3))
     P.append(abox('chock', px0 + 8, px1 - 8, pz1 - 30, pz1 - 4, 0, 30, M['dark'], .002, 1))
     finish_model('bbblock', P, 6.5, views=((30, 24), (-120, 20)), floor=True)
 

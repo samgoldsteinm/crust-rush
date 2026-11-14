@@ -119,8 +119,8 @@ PC: every milestone is ported after the web's has been driven by the owner (as a
 - A REGION IS A TRACK'S OWN WORLD, loaded exactly as for a race (same memory, same pictures; the race is untouched).
   Sandbox changes only what is under the one kart: `sbG(x,z,height)` is the ground and `sbWalls` the walls, in place of the
   lap's. The ground is the floor, the track as a ribbon with its real heights (a grid of lap points, `sbHashTrack`; it
-  crosses over itself, so the level is chosen by the kart's own height), and the region's things (`SB_REG[id].shapes()`:
-  boxes and cylinders with a top and, where you can pass beneath, an underside). One rule makes every wall: nothing
+  crosses over itself, so the level is chosen by the kart's own height), and EVERYTHING THAT IS DRAWN (since v191:
+  `sbColumns`, see below; v188 listed the garden's things by hand). One rule makes every wall: nothing
   climbs a step higher than `SB_STEP`, and what is overhead is not in the way. The track's raised edge is a 4-unit bump:
   you drive on and off the track anywhere it lies on the ground (the brief's "natural access points"; no rail of a race
   is changed), and where it is high you fall off its side. The track's posts are solid (`TOYPOSTS`).
@@ -139,6 +139,72 @@ The first plan made the whole house one region. Each room alone loads 150 to 300
 `freeCanvases` exists), so four at once would get the tab killed on the owner's iPhone. With the owner's choice of
 passages, each room is a region and its doors are the passages: the back door (garden to kitchen), the hall (kitchen,
 bedroom, garage), the garage's open door (to the front street). Milestone 1 becomes:
-  1a. the back garden (done, v188)   1b. the other three rooms' things and coins   1c. the door passages, seamless
+  1a. the back garden (done, v188)   1b. the other three rooms' things and coins (done, v191)   1c. the passages (done, v191, first form: see "Passages")
   (loadMap split into slices that run while you drive through; the bar is in "DECIDED BY THE OWNER" above).
 Next after 1b/1c: the map (milestone 2), which needs at least two regions to be worth opening.
+
+## Collision from what is drawn (web v191)
+- `sbColumns(bounds)` runs once when Sandbox starts in a region. It goes through every triangle of the loaded world and
+  keeps, for each square of floor (5 units in a room, 6 in the garden), up to six upright stretches that are solid there,
+  each a top and an underside. `sbSurf` hands those to the same step rule as before. So a wall stops you, a table's legs
+  stop you and its top does not, you can drive under the bed, and none of it is listed anywhere. A new room or a new
+  prop needs nothing done.
+- Left out on purpose (the reasons are in the comment above `SB_SOFT`): what is hidden; what is see-through or cut out
+  (glass, nets, leaves, grass, cloth); the track's own surface, edges, undersides and jump ramps (the lap and the engine
+  give those exactly); unnamed instanced things (the item boxes); anything flatter than 1.2 units; anything more than 70
+  units above the track's highest point (ceilings: they filled a square's six places and made false walls).
+- The room's own edge is `TOYROOM` (set by toyShell, toyBedroom, toyYard): past it is a wall, which is what closes an
+  open door until it is a passage.
+- THE LAP IS ALWAYS OPEN (`sbBlocked`): on the track's own surface at the kart's own level nothing drawn is in the way.
+  The pictures are not exact where the track meets furniture: the kitchen's climb runs through the worktop's front edge,
+  the bedroom's start line has a plate and a banner beam. In a race none of that matters; here the track wins.
+- Cost, measured at Ultra on the PC: 0.2 to 0.5 s and 2.3 MB for a room, 0.2 s and 14.5 MB for the garden (it is
+  fifteen times a room's floor). It happens once, as Sandbox starts. For passages it will have to be done in slices.
+- The test draws what Sandbox understands: `py.cmd tools/neon/sbtest.py <region>` writes `scratch/sb_plan_<region>.png`
+  (white floor, grey drive-up, black wall, blue drive-under, green track, coins). Coins were placed from those plans. The
+  test also floods the floor from the track and fails if a coin lies where the kart cannot drive, drives the whole lap,
+  and (garden) the walls. It found the three faults fixed in v191: gaps in the track lookup where lap points are 8
+  apart, the false wall at the bedroom's start line, the worktop across the kitchen's climb.
+- You choose where to start: in Sandbox the menu's track list shows the four places
+  (`sbMenu`). Coins: gold trails on every track and on open floor; five or six pepperoni coins a room, under the bed,
+  the desk, the table, the bench, in corners, and one hanging off the highest bend where a room has one.
+
+## Passages (web v191, first form)
+- A gate is an arched opening low in a wall with the next place's name on a plate above it (`SB_REG[..].gates`: wall,
+  place along it, where it leads, which gate you come out of; drawn and made passable by `sbGates`). Today:
+  garden (house wall, beside the back door) <-> kitchen (east wall, north) ; kitchen (east wall, south) <-> bedroom (west
+  wall) ; bedroom (east wall) <-> garage (west wall). The garage's open door is kept for the way out to the street.
+- Driving in: past the wall is a straight dark duct. As the kart goes in, the picture gives way to the duct (dark, ribs
+  rushing past); the next room is built; the kart comes out of the matching gate at the speed it went in with, the
+  room's name shown once. No loading screen, nothing to press. Measured on the PC at Ultra: 3 to 7 s from pointing at
+  the gate to driving in the next room.
+- HOW THE WAIT IS HIDDEN, AND ITS LIMIT. Building a room is still one long step (`loadMap`), during which the page
+  cannot draw. The ribs are a page animation of transform and opacity only, which the browser's compositor keeps moving
+  by itself, and the engine's sound keeps running, so the duct does not freeze. What does stop for that step is
+  steering: the duct is straight, so there is nothing to steer. On a phone the step is several seconds on a room's
+  first visit. The owner's bar is "without interruption": this meets it to the eye; the real cure, cutting `loadMap`
+  into slices that run while the kart still drives in 3D, is the next work on passages (and is what the bigger world
+  needs anyway). Check on the owner's phone how long the duct lasts.
+- Placing a gate: `wallscan.py` (tools/neon/wallscan.py <region>) prints, per
+  wall, the stretches with clear floor in front. A gate needs about 200 units clear so the kart does not come out into
+  something. The engine's round outer limit (`RIM`) is off in Sandbox: a room's corners and the ducts lie outside it.
+- The scale gateway (house to the street, toy to full size) will be this same thing with a longer duct: the owner's
+  point, "the player won't notice the scale changing".
+
+## A race from the start line (web v191), and the owner's online half of it (not built)
+The owner, 2026-11-13 (word for word in docs/NEXT-MODES-BRIEF.md): drive up to a track's start line to start a race there;
+start lines carry "little visible markers"; on line, up to 4 players at the start line join the same race through a
+lobby with ready-up, the host starting it, on "a screen similar to the online screen we have now".
+- Built (off line): `sbFlag` puts a chequered ring on the road and a small turning chequered flag at the region's start
+  line. Within 46 units a button offers "Race here: <track>" (tap; Enter; D-pad up). It starts an ordinary single race on
+  that track at the chosen speed class. Leaving the race or its results (`toMenu` asks `sbBack`) returns to Sandbox in the
+  same place; the results screen's second button reads "Back to Sandbox". Tested by `sbtest.py` in every region.
+- To build with friends in Sandbox (milestone 8), in this order:
+  1. Friends share a region: each kart's place sent as in a race (the relay and WebRTC are there: `NET`), no host
+     authority over free driving; coins and unlocks stay each player's own.
+  2. The start line as a meeting point: a player who stops at the marker opens a lobby for that track; others in the
+     region see "<name> is at the start line of <track>: join" and, driving to the marker, join it. Four at most.
+  3. The lobby screen: the existing friends' lobby (`netShowLobby`) with a Ready button per player; the one who opened
+     it is the host and can start only when everyone in it is ready. Leaving the marker's circle leaves the lobby.
+  4. The race is the existing friends' race (host prepares, `netHostPrepare`); afterwards everyone is back in Sandbox
+     at the start line. Online version to be bumped on web and PC together when the messages are added.

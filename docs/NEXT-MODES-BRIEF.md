@@ -86,3 +86,24 @@ Test with two actual sessions. Have one player open the map while the other keep
 Start from the normal menu and reach every track by driving. Use the world map to navigate at least one unfamiliar route. Test Select on controller, verify that Map sits directly beneath Resume on mobile, and fast travel to every marked destination. Drive along region edges and through apparent gaps to check that visible scenery and collision agree. Complete a challenge, find a hidden coin, buy a vehicle, restart, and equip it. Finally, run the original race and Grand Prix modes to verify their layouts and rules still work.
 
 When finished, summarize the connected regions using their actual names, the areas players can explore for the first time, the fast-travel destinations, the new kart unlocks and prices, the two recent cars selected, measured performance, and what you verified online."
+
+## Added by the owner, 2026-11-13 (Sandbox: races from the start line)
+"In sand box mode if you drive up to the start line of a race you can initiate the race track to start a race, the start lines of race tracks should have little visible markers for the player to see if they want to start a race. In online play if up to 4 players go to the start line they can all join the same race. It will first create a lobby and the host will have to start the race after everyone that's joined has ready-ed up. There will be a screen similar to the online screen we have now showing each player and giving them a ready up option before the race starts"
+
+## Added by the owner, 2026-11-13 (later): the race from Sandbox, and Balloon Battle changes
+"Once the race starts it's like as if you were racing directly on that track until the race is over and then it goes back to like sandbox where you can drive anywhere
+Also on the balloon map part of one of the wooden ramps runs straight into the large square piece on the ground. Also some of the objects placed around can be driven through. The ramps only cover about half of the actual ledge, they should go from end to end because right now there are little spots next to the ramp the player can get stuck in. There should also be more item boxes because you can only eliminate people with items. Each player should have 3 balloons and any homing items should be removed for the balloon game mode , as well as items that drop on the floor. It should only be projectiles the player has to aim or speed boosts. The auto drive speed boost items should also be removed for this game mode"
+
+## Added by the owner, 2026-11-13 (later still)
+"add flour bomb and meatball to the balloon game mode and continue with the sandbox between the rest of the maps in the game."
+
+## Added by the owner, 2026-11-13 (two more)
+"make sure to commit these changes to the pc version as well"
+"also once all the changes are complete lets update the website"
+(The website beside the game is the PC Edition page, `pc.html` in the app repository, with `pc/` its trailer and stills. It still says seventeen tracks and names only single races, Grand Prix, Reverse and Last Slice Standing.)
+
+## Added by the owner, 2026-11-13 (from a play-test of Kitchen Chaos and the toy cup, with screenshots)
+- "this is an image of the track going through the kitchen counter on the kitchen map lets fix this" / "there is also something invisible on the track in the second image that was stopping me from going forward" (on the blue climb, lap 2 of 4, near the right-hand rail)
+- "the books also slightly run into the track"
+- "also make the shortcuts like this not have any curve and just be straight. when they curve to the right slightly back into the track it forces the player to run into the wall. there are a few tracks that have shortcuts like this in the hotwheels grand prix so look over them and fix any that have the issue"
+- "also im noticing every race is ending slightly before the actual finish line lets fix this as well"
