@@ -31,8 +31,9 @@ def make():
     a10 = t.A(110, 90, h=0)
     s11 = t.S(840, h=0)                         # north up the east side: the jump
     a12 = t.A(110, 90, h=0)
-    s13 = t.S(890, h=230)                       # the climb west, under the bridge
-    a14 = t.A(140, -180, h=314)                 # round onto the worktop
+    s13 = t.S(890, h=262)                       # the climb west, under the bridge
+    a14 = t.A(140, -95, h=314)                  # round toward the worktop: at its height (314) before its front edge (y 618), which this arc reaches at about 101 degrees
+    a14b = t.A(140, -85, h=314)                 # ... and level onto it (web v192: one arc climbing all the way round ran through the worktop's edge 33 below its top)
     s15 = t.S(170, h=314)                       # to the line
     t.build(close=(s15, s11))               # the two straights whose lengths are solved so the lap closes (they must not be parallel)
     for seg, f in [(s7, .55), (s11, .08), (s13, .04)]:

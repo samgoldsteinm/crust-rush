@@ -31,7 +31,7 @@ def make():
         t.ramp(seg, f)
     for seg, f in [(s4, .1), (s10, .82), (s13, .5)]:
         t.box(seg, f)
-    t.short(s8, .93, s10, .5, 0)                # a one-lane cut across the corner after the loop
+    t.short(s8, .85, s10, .18, 0)               # a one-lane cut across the corner after the loop: STRAIGHT, leaving and rejoining at about 45 degrees (web v192: it was .93 to .5, which left at 72 degrees)
     t.loops = [(s8, .435, .36)]
     t.S0 = s0
     return t

@@ -25,8 +25,8 @@ const SB={shapes:[],gates:[],hash:null,col:null,coins:[],rare:[],im:null,grp:nul
 const SB_SOFT=/grass|tuft|leaf|petal|cards|ynet|lace|ycl\d|outside|sky|toyroad|toyorange|toyplastic_|toydash|toypad|toyramp|stripes|aoshade|shadow|glow/;
 /* (a square is 5 units across in a room and 6 in the garden, which is fifteen times a room's floor; nothing more than 70 units above the track's
    highest point is kept: no kart gets there, and ceilings and high shelves used to fill a square's six places and make false walls) */
-function sbColumns(b){let cap=0;for(const p of track)if((p.ey||0)>cap)cap=p.ey;cap+=70;const C=(b[1]-b[0])*(b[3]-b[2])>1.2e7?6:5,x0=b[0]-10,z0=b[2]-10,nx=Math.ceil((b[1]-b[0]+20)/C),nz=Math.ceil((b[3]-b[2]+20)/C),cnt=new Uint8Array(nx*nz),sp=new Int16Array(nx*nz*SB_K*2),K=SB_K,Q=SB_Q,t0=performance.now();let tris=0,used=0;
-  const ins=(c,lo,hi)=>{const o=c*K*2,n=cnt[c];let l=Math.max(-32000,Math.floor(lo*Q)),h=Math.min(32000,Math.ceil(hi*Q));
+function sbColumns(b){let cap=0;for(const p of track)if((p.ey||0)>cap)cap=p.ey;cap+=70;const C=(b[1]-b[0])*(b[3]-b[2])>1.2e7?6:5,x0=b[0]-10,z0=b[2]-10,nx=Math.ceil((b[1]-b[0]+20)/C),nz=Math.ceil((b[3]-b[2]+20)/C),cnt=new Uint8Array(nx*nz),thin=new Uint8Array(nx*nz),sp=new Int16Array(nx*nz*SB_K*2),K=SB_K,Q=SB_Q,t0=performance.now();let tris=0,used=0,isThin=false;
+  const ins=(c,lo,hi)=>{if(isThin)thin[c]=1;const o=c*K*2,n=cnt[c];let l=Math.max(-32000,Math.floor(lo*Q)),h=Math.min(32000,Math.ceil(hi*Q));
     for(let i=0;i<n;i++){const a=sp[o+i*2],e=sp[o+i*2+1];if(l<=e+12&&h>=a-12){/* touches one already there: they become one (and that may now touch another) */l=Math.min(l,a);h=Math.max(h,e);sp[o+i*2]=sp[o+(n-1)*2];sp[o+i*2+1]=sp[o+(n-1)*2+1];cnt[c]--;return ins(c,l/Q,h/Q);}}
     if(n<K){sp[o+n*2]=l;sp[o+n*2+1]=h;cnt[c]=n+1;return;}
     /* full: join the nearest one (never loses a solid, may fill a gap) */let bi=0,bd=1e9;for(let i=0;i<n;i++){const a=sp[o+i*2],e=sp[o+i*2+1],d=l>e?l-e:a-h;if(d<bd){bd=d;bi=i;}}sp[o+bi*2]=Math.min(sp[o+bi*2],l);sp[o+bi*2+1]=Math.max(sp[o+bi*2+1],h);};
@@ -40,13 +40,13 @@ function sbColumns(b){let cap=0;for(const p of track)if((p.ey||0)>cap)cap=p.ey;c
   const v=new THREE.Vector3(),M4=new THREE.Matrix4(),W=[0,0,0,0,0,0,0,0,0];world.updateMatrixWorld(true);
   world.traverse(o=>{if(!o.isMesh||!o.geometry||!o.geometry.attributes||!o.geometry.attributes.position||o.userData.noCol)return;for(let p=o;p;p=p.parent)if(!p.visible)return;const m=Array.isArray(o.material)?o.material[0]:o.material;if(!m)return;
     if(!o.userData.col){if(m.transparent||m.alphaTest>0||m.depthWrite===false||m.isShaderMaterial||SB_SOFT.test(m.name||''))return;if(o.isInstancedMesh&&!m.name)return;}
-    const g=o.geometry;if(!g.boundingBox)g.computeBoundingBox();const pa=g.attributes.position,ix=g.index,nt=(ix?ix.count:pa.count)/3,ni=o.isInstancedMesh?o.count:1;
+    isThin=/toyblue/.test(m.name||'');/* the track's posts, bars and gates: solid to a kart, but the camera looks past them (sbSolid) */const g=o.geometry;if(!g.boundingBox)g.computeBoundingBox();const pa=g.attributes.position,ix=g.index,nt=(ix?ix.count:pa.count)/3,ni=o.isInstancedMesh?o.count:1;
     for(let q=0;q<ni;q++){if(o.isInstancedMesh){o.getMatrixAt(q,M4);M4.premultiply(o.matrixWorld);}else M4.copy(o.matrixWorld);
       /* nowhere near the room, or wholly on the floor: skip it without looking at a triangle */const bb=g.boundingBox;let in0=false,top=-1e9;for(let c=0;c<8;c++){v.set(c&1?bb.max.x:bb.min.x,c&2?bb.max.y:bb.min.y,c&4?bb.max.z:bb.min.z).applyMatrix4(M4);if(v.y>top)top=v.y;}
       {const lo=new THREE.Vector3(1e9,1e9,1e9),hi=new THREE.Vector3(-1e9,-1e9,-1e9);for(let c=0;c<8;c++){v.set(c&1?bb.max.x:bb.min.x,c&2?bb.max.y:bb.min.y,c&4?bb.max.z:bb.min.z).applyMatrix4(M4);lo.min(v);hi.max(v);}in0=hi.x>=x0&&lo.x<=x0+nx*C&&hi.z>=z0&&lo.z<=z0+nz*C;}
       if(!in0||top<1.2)continue;used++;
       for(let t=0;t<nt;t++){for(let c=0;c<3;c++){const idx=ix?ix.getX(t*3+c):t*3+c;v.fromBufferAttribute(pa,idx).applyMatrix4(M4);W[c*3]=v.x;W[c*3+1]=v.y;W[c*3+2]=v.z;}tri(W[0],W[1],W[2],W[3],W[4],W[5],W[6],W[7],W[8]);}}});
-  SB.col={x0,z0,nx,nz,C,cap,cnt,sp,tris,used,ms:Math.round(performance.now()-t0),b};}
+  SB.col={x0,z0,nx,nz,C,cap,cnt,thin,sp,tris,used,ms:Math.round(performance.now()-t0),b};}
 
 /* ---- the save: one record for the whole of Sandbox ---- */
 function sbSave(){if(!SB.save){try{SB.save=JSON.parse(store.get('crust-sb')||'null');}catch(e){}if(!SB.save||typeof SB.save!=='object')SB.save={c:0,r:{}};if(!SB.save.r)SB.save.r={};SB.save.c=+SB.save.c||0;}return SB.save;}
@@ -95,11 +95,17 @@ function sbSurf(x,z){const S=SB.S;let n=0;const put=(t,b,j)=>{let q=S[n];if(!q)q
   {const c=SB.col;if(c){if(x<c.b[0]||x>c.b[1]||z<c.b[2]||z>c.b[3])put(1e6,-1e9,-1);/* past the room's own edge */else{const i=Math.floor((x-c.x0)/c.C),k=Math.floor((z-c.z0)/c.C),q=i*c.nz+k,o=q*SB_K*2;for(let e=0;e<c.cnt[q];e++)put(c.sp[o+e*2+1]/SB_Q,c.sp[o+e*2]/SB_Q,-1);}}}
   const a=SB.hash&&SB.hash.get((Math.floor(x/SB_C)+2048)*4096+Math.floor(z/SB_C)+2048);
   if(a){const sl=T.L/N,W=TOYW(),n0=n;for(const j of a){const p=track[j],dx=x-p.x,dz=z-p.y,u=dx*p.tx+dz*p.ty;if(u<-sl*.75||u>sl*.75)continue;const lat=dx*p.nx+dz*p.ny,al=Math.abs(lat);if(al>W+3.2)continue;
-      const f=u/sl,fi=Math.floor(f),e=eyAt(((j+fi)%N+N)%N,f-fi),top=e+(al>W?SB_RAIL:0);let hit=false;for(let i=n0;i<n;i++){const q=S[i];if(Math.abs(q[1]+2.5-e)<6){hit=true;if(Math.abs(u)<q[3]){q[0]=top;q[1]=e-2.5;q[2]=j;q[3]=Math.abs(u);q[4]=al<=W?1:0;}break;}}
+      /* (how far along, with the bend allowed for exactly as the race does in kEy: on the outside of a bend the lap points are further apart than on the
+         middle line. Without this the height stepped a little at every lap point on a climbing bend or spiral: the owner's "choppy") */
+      const kap=(p.bend||0)/(20*sl),f=Math.max(-2,Math.min(2,u/(1-Math.max(-.7,Math.min(.7,kap*lat)))/sl)),fi=Math.floor(f),e=eyAt(((j+fi)%N+N)%N,f-fi),top=e+(al>W?SB_RAIL:0);let hit=false;for(let i=n0;i<n;i++){const q=S[i];if(Math.abs(q[1]+2.5-e)<6){hit=true;if(Math.abs(u)<q[3]){q[0]=top;q[1]=e-2.5;q[2]=j;q[3]=Math.abs(u);q[4]=al<=W?1:0;}break;}}
       if(!hit){put(top,e-2.5,j);S[n-1][3]=Math.abs(u);S[n-1][4]=al<=W?1:0;}}}
   return n;}
 /* the ground under a point for something at height wy: the highest surface it could be standing on (no wy: the highest of all) */
-function sbG(x,z,wy){if(wy==null)wy=1e9;const n=sbSurf(x,z),S=SB.S;let h=0;for(let i=0;i<n;i++){const t=S[i][0];if(t<=wy+SB_STEP&&t>h)h=t;}return h;}
+function sbG(x,z,wy){if(wy==null)wy=1e9;const n=sbSurf(x,z),S=SB.S;
+  /* on the track's own surface, at the kart's own level, the ground IS the track: nothing drawn there lifts the kart (a start plate, the foot of a banner,
+     the root of the tree the spiral winds round: each was a jolt). The same idea as "the lap is always open" below. */
+  {let r=-1e9;for(let i=0;i<n;i++)if(S[i][2]>=0&&S[i][4]&&Math.abs(S[i][1]+2.5-wy)<=SB_STEP+1&&S[i][0]>r)r=S[i][0];if(r>-1e8)return r;}
+  let h=0;for(let i=0;i<n;i++){const t=S[i][0];if(t<=wy+SB_STEP&&t>h)h=t;}return h;}
 /* THE LAP IS ALWAYS OPEN: where the point is on the track's own surface at the kart's own level, nothing drawn there is in the way. The race
    proves nothing real stands on the track; where the picture has the track run through the edge of a worktop or under a low beam, the track wins. */
 function sbBlocked(x,z,wy){const n=sbSurf(x,z),S=SB.S;for(let i=0;i<n;i++)if(S[i][2]>=0&&S[i][4]&&Math.abs(S[i][1]+2.5-wy)<=SB_STEP+1)return false;for(let i=0;i<n;i++)if(S[i][0]>wy+SB_STEP&&S[i][1]<wy+SB_HEAD)return true;return false;}
@@ -210,11 +216,11 @@ function sbTick(dt){if(state!=='race'){sbRaceBtn(false);return;}const k=player;i
 const _sbM=new THREE.Matrix4(),_sbQ=new THREE.Quaternion(),_sbP=new THREE.Vector3(),_sbS=new THREE.Vector3(),_sbE=new THREE.Euler();
 /* the chase camera must not look from inside a fence or the shed: walk from the kart out to where the camera wants to be and stop short of the
    first solid thing at that height (the track is never in the way: you can see over it). It closes in at once and eases back out. */
-function sbSolid(x,z,y){for(const g of SB.gates){const d=(x-g.x)*g.nx+(z-g.z)*g.nz;if(d>-12&&d<SB_GLEN+10&&Math.abs((x-g.x)*g.tx+(z-g.z)*g.tz)<SB_GW+1)return false;}{const c=SB.col;if(c){if(x<c.b[0]||x>c.b[1]||z<c.b[2]||z>c.b[3])return true;for(let dx=-2;dx<=2;dx+=2)for(let dz=-2;dz<=2;dz+=2){const i=Math.floor((x+dx-c.x0)/c.C),k=Math.floor((z+dz-c.z0)/c.C);if(i<0||k<0||i>=c.nx||k>=c.nz)continue;const q=i*c.nz+k,o=q*SB_K*2;for(let e=0;e<c.cnt[q];e++)if(c.sp[o+e*2]/SB_Q<=y+1&&c.sp[o+e*2+1]/SB_Q>=y-1)return true;}}}for(const s of SB.shapes){if(s.h<=y||s.b>=y)continue;if(s.t==='cyl'){const dx=x-s.x,dz=z-s.z,r=s.r+2;if(dx*dx+dz*dz<=r*r)return true;}else if(x>=s.x0-3&&x<=s.x1+3&&z>=s.z0-3&&z<=s.z1+3)return true;}return false;}
+function sbSolid(x,z,y){for(const g of SB.gates){const d=(x-g.x)*g.nx+(z-g.z)*g.nz;if(d>-12&&d<SB_GLEN+10&&Math.abs((x-g.x)*g.tx+(z-g.z)*g.tz)<SB_GW+1)return false;}{const c=SB.col;if(c){if(x<c.b[0]||x>c.b[1]||z<c.b[2]||z>c.b[3])return true;for(let dx=-2;dx<=2;dx+=2)for(let dz=-2;dz<=2;dz+=2){const i=Math.floor((x+dx-c.x0)/c.C),k=Math.floor((z+dz-c.z0)/c.C);if(i<0||k<0||i>=c.nx||k>=c.nz)continue;const q=i*c.nz+k,o=q*SB_K*2;if(c.thin[q])continue;for(let e=0;e<c.cnt[q];e++)if(c.sp[o+e*2]/SB_Q<=y+1&&c.sp[o+e*2+1]/SB_Q>=y-1)return true;}}}for(const s of SB.shapes){if(s.h<=y||s.b>=y)continue;if(s.t==='cyl'){const dx=x-s.x,dz=z-s.z,r=s.r+2;if(dx*dx+dz*dz<=r*r)return true;}else if(x>=s.x0-3&&x<=s.x1+3&&z>=s.z0-3&&z<=s.z1+3)return true;}return false;}
 function sbCam(){const k=camT;if(!k||state==='menu')return;const tx=k.x,tz=k.y,ty=(k.wy||0)+7,cx=camera.position.x,cy=camera.position.y,cz=camera.position.z;let ok=1;
   for(let i=1;i<=16;i++){const f=i/16,g=Math.min(1.06,f+.06);if(sbSolid(tx+(cx-tx)*g,tz+(cz-tz)*g,ty+(cy-ty)*g)){ok=(i-1)/16;break;}}
   const was=SB.camF==null?1:SB.camF;SB.camF=ok<was?ok:Math.min(ok,was+.02);const f=Math.max(.16,SB.camF);if(f>=.999)return;
-  camera.position.set(tx+(cx-tx)*f,ty+(cy-ty)*f+(1-f)*9,tz+(cz-tz)*f);camera.lookAt(cam.look.x,cam.look.y+cam.oy*.45,cam.look.z);}
+  camera.position.set(tx+(cx-tx)*f,ty+(cy-ty)*f+(1-f)*9,tz+(cz-tz)*f);{/* pulled in close, it looks more and more at the kart itself, so the kart stays in the picture */const w=Math.min(1,(1-f)*1.6);camera.lookAt(cam.look.x+(tx-cam.look.x)*w,cam.look.y+cam.oy*.45+(ty-2-cam.look.y-cam.oy*.45)*w,cam.look.z+(tz-cam.look.z)*w);}}
 function sbRender(time){sbDuctShow();if(!SB.grp)return;sbCam();if(SB.flag){SB.flag.F.rotation.y=time*1.6;SB.flag.F.position.y=12+Math.sin(time*2.2)*1.2;}const im=SB.im;for(const c of SB.coins){const a=time*2.6+c.ph;if(c.rare){if(c.m&&c.m.visible){c.m.rotation.y=a;c.m.position.y=c.y+Math.sin(time*2+c.ph)*.8;}continue;}
     _sbE.set(0,a,0);_sbQ.setFromEuler(_sbE);_sbP.set(c.x,c.y,c.z);const s=c.t>0?0:1;_sbS.set(s,s,s);_sbM.compose(_sbP,_sbQ,_sbS);im.setMatrixAt(c.i,_sbM);}
   if(im)im.instanceMatrix.needsUpdate=true;}

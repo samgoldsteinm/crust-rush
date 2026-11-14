@@ -134,36 +134,36 @@ Props that stood in the new lap were moved (`clearcheck.py backyard`: its list i
 How it was laid out without guessing: a pocket turtle in garden metres (scratch only) printed where each piece ended
 against the landmarks' coordinates before the real generator closed the lap; the two straights it solves must not be parallel.
 
-### OPEN WORK, in the order to do it (written 2026-11-13 after web v191; the owner's words for each are in docs/NEXT-MODES-BRIEF.md)
-1. ONE RELEASE THAT CHANGES RACING (web and PC together, online version 109 -> 110, then `release_pc.py`):
-   a. Kitchen Chaos, an invisible stop on the blue climb. FOUND: the jump ramp on the bridge (lap 0.096) stops karts on the climb
-      passing UNDER it (lap 0.814, right-hand lane): the engine's ramp rule (`for(const r of ramps)` in stepKart) goes by place
-      only, never by level. Fix: skip a ramp whose track height differs from the kart's by more than about 20. Same in
-      `godot/scripts/kart.gd` (`for r in T.ramps`). `py.cmd tools/neon/kblock.py kitchen .70 .985` reproduces it ("stops").
-   b. Kitchen Chaos, the track runs through the worktop's front edge. The last U-turn (`a14` in tools/mini/t_kitchen.py) crosses
-      the edge (design y 618) at height 279; the worktop's top is 312. Fix worked out: `s13` to h=262, then
-      `A(140,-95,h=314)` and `A(140,-85,h=314)`, so it is at 314 before the edge.
-   c. Kitchen Chaos, a stack of books on the worktop touches the track: move it clear (toyKitchen in mini.js).
-   d. Shortcut lanes on the toy tracks (bedroom, kitchen, garage: `t.short(...)` in their t_*.py; drawn by toyShortcut, driven by
-      scStep) curve back into the track at their far end and steer the player into the wall: make each a straight lane.
-   e. "Every race is ending slightly before the actual finish line". MEASURED (`py.cmd tools/neon/finishtest.py <maps>`): a kart
-      is marked finished when its count of lap points reaches laps x N. That count runs ahead of where the kart is by 4 to 22
-      points after loops, shortcuts and glides (35 units early on the toy tracks, up to 180 on Laser Slice Skyway), and even with
-      no drift it trips half a point (4 units) before the line. Fix planned: finish on the final lap only once the kart has
-      wrapped past point 0 AND is at or beyond the line (distance along the line's own direction >= 0); and set the count right
-      each time a kart crosses the line. Same in `godot/scripts/race.gd` and `kart.gd`.
-2. SANDBOX, small things from play: the chase camera when you drop from high track to the ground (it falls away below the
-   kart: follow the kart's own height while it is in the air); "choppy" going up ramps and spirals (suspect: `sbCam` pulls the
-   camera in for every thin post it passes: make it ignore thin things); the patio "flashing" from high up (the patio lies on
-   top of the lawn 0.06 apart: cut the lawn so nothing lies under the patio).
-3. SANDBOX ON THE OTHER 20 TRACKS. Drafted, not applied, not tested: `tools/mini/drafts/world_sandbox_edits.py` (edits to
-   sandbox.js) and `tools/mini/drafts/world_engine_patch.py` (engine hooks; it will be patch 26). The design is in their headers:
-   pizza tracks free roam with arches in the crust, Sauce Spiral and the Neon tracks keep to the road with a lane arch, the
-   garage's open door leads to Margherita Ring. The world map with fast travel is drafted in `tools/mini/drafts/sbmap_draft.js`.
-4. THE PC: Balloon Battle, then Sandbox (see "OWED TO THE PC" below). 5. THE WEBSITE (`pc.html`), last.
+### OPEN WORK, in the order to do it (rewritten 2026-11-14 after web v192; the owner's words for each are in docs/NEXT-MODES-BRIEF.md)
+1. SANDBOX ON THE OTHER 20 TRACKS. Drafted, not applied, not tested: `tools/mini/drafts/world_sandbox_edits.py` (edits to
+   sandbox.js) and `tools/mini/drafts/world_engine_patch.py` (engine hooks; number it after the last patch in tools/mini). Both
+   were written against web v191's sandbox.js: v192 changed `sbG`, `sbSurf` and `sbCam`, so apply them by hand, piece by piece.
+   The design is in their headers: pizza tracks free roam with arches in the crust, Sauce Spiral and the Neon tracks keep to the
+   road with a lane arch, the garage's open door leads to Margherita Ring. The world map with fast travel is drafted in
+   `tools/mini/drafts/sbmap_draft.js`.
+2. THE PC: Balloon Battle, then Sandbox (see "OWED TO THE PC" below).
+3. THE WEBSITE (`pc.html`), last.
+4. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
+   line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
+
+### 2026-11-14 (web v192, PC to match, online version 110): racing fixes from the owner's play-test of the toy cup
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| "every race is ending slightly before the actual finish line" | A kart was finished when its count of lap points reached laps x N. Loops, shortcuts and glides each leave that count a few points ahead of the kart (measured 35 units early on the toy tracks, up to 180 on Laser Slice Skyway), and with no drift it tripped half a point before the line | `finAt(k)` (web), `_fin_at(k)` (PC race.gd): on the last lap, past lap point 0 and at or beyond the line itself. The count is also set right at every line crossing (stepKart; kart.gd) | `py.cmd tools/neon/finishtest.py <maps>`: every kart 0 to 3 units past the line |
+| Kitchen Chaos: "something invisible on the track ... stopping me" on the blue climb | The jump ramp on the bridge overhead: the ramp rule went by place, never by level | A ramp more than its rise + 26 from the kart's height is skipped (stepKart; kart.gd) | `py.cmd tools/neon/kblock.py kitchen .70 .985`: stops [] |
+| Kitchen Chaos: the track ran through the worktop's front edge | The last U-turn climbed all the way round and crossed the edge 33 below the worktop's top | `tools/mini/t_kitchen.py`: the climb ends at 262, the first 95 degrees of the turn reach 314, the rest is level | Look at it: `shots.py kitchen ...` (the view is in this entry's commit message) |
+| Kitchen Chaos: "the books also slightly run into the track" | 17 cm between the track and the wall, a stack 24 cm wide | Moved east of the bend (toyKitchen) | |
+| Toy shortcut lanes curved back into the track at their far end and steered the player into the wall | makePath drew every lane as an S-curve | On toy tracks a lane is one straight line (`str8` in makePath); it may run a little closer to the track (WALLD+W-2); the bedroom's lane was moved so it leaves and rejoins at about 45 degrees | `neon shortcut does not fit` in the console means a lane was rejected: the track then has NO shortcut |
+- Sandbox, same version (looks only): the camera keeps to the kart's own height in a long drop (it aimed halfway to the ground and
+  lost the kart); the track's height on a bend is worked out as the race does it (it stepped at every lap point: "choppy"); on the
+  track's own surface nothing drawn lifts the kart; the camera looks past the track's blue posts; its look along the slope follows the
+  way the kart is going. Test: `py.cmd tools/neon/sbfall.py <region>`. The garden's lawn is laid round the patio, not under it
+  (the two flickered from high up).
+- PC: the same ramp and finish rules are in `kart.gd` and `race.gd`, PROTO 110; the tracks, the straight lanes, the kitchen and the
+  lawn come with the re-export (`release_pc.py`). `tests/smoke.tscn` passes locally with them.
 
 ### Where web and PC stand (2026-11-13, end of the session)
-- Web v191 (online 109). PC build 06c70bde = web v186 (online 109): PC and web race together. v187 (phone fix), v188
+- Web v192 (online 110). The PC build for it is made by `release_pc.py` straight after; until it is out, PC (109) and web (110) cannot race together. v187 (phone fix), v188
   (Sandbox, first slice) and v189 (the second site's plumbing, switched off) are web only; nothing that moves a kart in a race changed.
 - Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
   (docs/BALLOON-BATTLE-PLAN.md). Sandbox: the first slice (the back garden) is on the web (v188); docs/SANDBOX-PLAN.md.
