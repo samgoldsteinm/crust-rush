@@ -1,6 +1,6 @@
 // Crust Rush service worker: installs the game as an app and keeps every file for offline play.
 // Game files have their content hash in the name, so a saved copy never goes stale; only the page itself is re-checked.
-const VERSION = 'crust-rush-v190';
+const VERSION = 'crust-rush-v191';
 const SHELL = [
   "./",
   "./index.html",
@@ -113,9 +113,9 @@ const SHELL = [
   "./assets/geo/toy_ytreec_hq.0bdd9f8a54.bin",
   "./assets/geo/toy_gdooro_hq.3e7f41de1b.bin",
   "./assets/geo/toy_bbtable_hq.d0fb65bf20.bin",
-  "./assets/geo/toy_bbbins_hq.b5c5e858fc.bin",
-  "./assets/geo/toy_bbboxes_hq.e442f69122.bin",
-  "./assets/geo/toy_bbblock_hq.b574f473b6.bin",
+  "./assets/geo/toy_bbbins_hq.570b3423aa.bin",
+  "./assets/geo/toy_bbboxes_hq.b3e7c50725.bin",
+  "./assets/geo/toy_bbblock_hq.130722ac0b.bin",
   "./assets/geo/toy_bbprops_hq.9f7ed5fc55.bin",
   "./assets/tex/tex_ar_arena.f7dc7fc88b.jpg",
   "./assets/tex/tex_ar_track.579b73460a.jpg",
@@ -257,7 +257,7 @@ const SHELL = [
   "./assets/shots/preptable-m.02ee47e84f.jpg",
   "./assets/shots/preptable-a.d7b3293702.jpg",
   "./css/style.73b71ed3b3.css",
-  "./js/game.0997c2f44e.js",
+  "./js/game.20e7d3c04b.js",
   "./vendor/three-0.149.0.min.js"
 ];
 
