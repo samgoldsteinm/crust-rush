@@ -139,9 +139,9 @@ against the landmarks' coordinates before the real generator closed the lap; the
    and, as a friend in a web host's cup, shows plain results. Give `main.gd`/`webnet.gd` the same: the cup in the race's settings, the
    cup table on the results from the table's own order (`netGpNow`), "Next race" for the host, a player's points kept under the player
    (`gp.np`, by the room's number for them), not under the racer. No message changes shape, so the online version stays.
-2. THE CONTROLLER'S ON-SCREEN CURSOR (the owner: "instead of the yellow boxes on controller it should just be an on screen cursor ...
-   controlled with the left stick ... scrolling a right stick function as well"; the screen scrolls when the cursor reaches its top
-   or bottom edge). Web: `padPoll`'s menu branch and `padNav` (the yellow focus ring is `body.padnav`). PC: the same in `menu.gd`.
+2. THE CONTROLLER'S ON-SCREEN CURSOR, ON THE PC. The web has it (v194, patch29: see that entry). The PC's menus still walk a focus box
+   between buttons (`menu.gd`): give them the same arrow (move the pointer with the left stick, press with A, scroll with the right stick
+   and at the edges).
 3. THE NEW TREES ON THE OLDER TRACKS, THEN NEW PREVIEW PHOTOS (the owner: "some of the older maps still have the old blocky trees and
    shrubs. take new photos for their preview when you finish"). The real trees came in web v180 for the garden; the pizza tracks'
    trees and bushes are still the code-built ones. Previews: `tools/neon/embed_shots.py` / `menushot.py`.
@@ -153,6 +153,18 @@ against the landmarks' coordinates before the real generator closed the lap; the
    ready-up. On the pizza tracks only what is drawn is there to explore: no new side roads or buildings have been modelled.
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
+
+### 2026-11-14 (web v194; Sandbox and menus only, no online change): the portal crash on phones; the tunnel seen from outside; the controller's cursor
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| On the owner's phone: "when going through the portals it send me back to the menu screen and never loads" | The cover over the load (`#sbDuct`) had five streak layers, each a box 1.8 screens across with `will-change`. The browser keeps every such layer as a picture of its own: on a phone about 100 MB each. The page ran out of memory, was thrown out and loaded again from the start (the menu). A PC never noticed | A layer is 256 px across and its transform alone makes it big (`sbDuctKf` writes the scale for the screen); the cover is `display:none` whenever it is not showing | NEVER size an animated layer by the screen: size it small and scale it. The desktop WebKit test (`sbphone.py`) does not have a phone's memory limit and passed with the fault in |
+| "some of the space effect is not just in the tunnels but also behind them" | The tunnel's walls are drawn from their inner side; from outside that means the far wall shows through the near one, above a pizza's low crust | The tunnel's inside (`g.inside`) is shown only to a camera that has reached the mouth (`sbWarpTick`) | Look at an arch from the side: `sbprobe.py basil` with the kart 230 from a gate at an angle |
+- THE CONTROLLER'S CURSOR (tools/mini/patch29.py; the owner: "instead of the yellow boxes on controller it should just be an on screen cursor ...
+  controlled with the left stick ... scrolling a right stick function as well"): in every menu the left stick (and D-pad) moves an arrow,
+  A presses what is under it, B is Back; the right stick scrolls what is under the arrow, and so does holding the arrow against the top or
+  bottom (or side) of anything that scrolls. What is under the arrow lights up; nothing is ringed in yellow (`padNav` does nothing now). A new
+  screen puts the arrow on its main button. Test: `py.cmd tools/neon/padtest.py` (a pretend controller): CONTROLLER CURSOR TEST passed.
+  NOT ON THE PC YET (OPEN WORK).
 
 ### 2026-11-14 (web v193; Sandbox only, nothing a race reads; no online change): the whole game is one Sandbox world; warp tunnels; map; Park
 What the owner asked (word for word in NEXT-MODES-BRIEF.md): Sandbox "between the rest of the maps in the game"; "i dont want the car to dissappear
@@ -233,7 +245,7 @@ in the pause menu and on controller make the y button open the map"; "signs abov
   lawn come with the re-export (`release_pc.py`). `tests/smoke.tscn` passes locally with them.
 
 ### Where web and PC stand (2026-11-13, end of the session)
-- Web v193 (online 110; v193 changed Sandbox only). PC build c424cba7 = web v192 (online 110): PC and web race together. v187 (phone fix), v188
+- Web v194 (online 110). PC build c424cba7 = web v192 (online 110): PC and web race together. What the web has and the PC has not is listed in OPEN WORK. v187 (phone fix), v188
   (Sandbox, first slice) and v189 (the second site's plumbing, switched off) are web only; nothing that moves a kart in a race changed.
 - Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
   (docs/BALLOON-BATTLE-PLAN.md). Sandbox: the first slice (the back garden) is on the web (v188); docs/SANDBOX-PLAN.md.
