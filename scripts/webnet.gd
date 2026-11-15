@@ -7,7 +7,7 @@ extends Node
 ## takes that and replays the controls the host hasn't seen yet, so steering is instant. Everything else is drawn as the
 ## host sends it. PC-to-PC races (ENet) are separate and unchanged.
 
-const PROTO := 112   # (112: web v200, a grid may have fewer than eight)
+const PROTO := 113   # (113: web v202, the abilities evened out; 112: web v200, a grid may have fewer than eight)
 const TOP := "crustrush/v2/"
 const BROKERS := ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884/mqtt", "wss://test.mosquitto.org:8081/mqtt"]
 const STEP := 1.0 / 120.0

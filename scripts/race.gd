@@ -24,20 +24,20 @@ const ITEM_COL2 := {"jalapeno": "#4fd02a", "meatball": "#9a5a32", "torpedo": "#8
 const PTS := [15, 12, 10, 8, 6, 4, 2, 1]
 ## every racer's special (web ABIL): name, what it does, its colour
 const ABIL := {
-	"pep": ["Pepperoni Storm", "Fires a fan of six spinning pepperoni slices low along the track, ahead or, while you look back, behind you. Each slice ricochets between the track walls and off anything it hits and vanishes on its third hit.", "#ff5a2a"],
+	"pep": ["Pepperoni Storm", "Fires a fan of six spinning pepperoni slices low along the track, ahead or, while you look back, behind you. Each slice ricochets between the track walls and off anything it hits and vanishes on its third hit. The first bounce bends a slice toward the nearest racer ahead of it.", "#ff5a2a"],
 	"basil": ["Pesto Rush", "The longest ability boost: nothing can hit you while it lasts, and it ignores the slow cheese.", "#3fd06a"],
-	"olive": ["Slick Trail", "Leaves ten olive-oil slicks behind; nothing can touch you while you lay them. Drive through one and you spin out fast, then your tyres stay slick for 3 seconds.", "#c8b23a"],
-	"mozz": ["Melt Shield", "Wraps the kart in stretchy cheese that blocks every hit for a while, with a quick burst of speed.", "#fff4c0"],
+	"olive": ["Slick Trail", "Leaves ten wide olive-oil slicks behind, with a quick boost; nothing can touch you while you lay them. Drive through one and you spin out fast, then your tyres stay slick for 3 seconds.", "#c8b23a"],
+	"mozz": ["Melt Shield", "Wraps the kart in stretchy cheese that blocks three hits for a while, with two seconds of extra speed. A Spiky Shockwave only pops it, with no spin.", "#fff4c0"],
 	"chili": ["Fire Trail", "A fiery boost that leaves burning flames on the road: anyone who drives into them spins out and catches fire. Nothing can hit you while it burns.", "#ff3a12"],
-	"shroom": ["Mega Shroom", "Grows huge and unstoppable and flattens anyone it touches for 3 seconds.", "#c8a06a"],
-	"pineapple": ["Spiky Shockwave", "A huge spiky blast that spins out every racer anywhere near you, even in the air. Goes through every protection.", "#ffd23a"],
-	"anchovy": ["School of Fish", "Launches three anchovies that hunt down the next three racers ahead, or the three behind if you look back. A well-timed hop dodges one.", "#8fc8e8"],
+	"shroom": ["Mega Shroom", "Grows huge and unstoppable and flattens anyone it touches for 2 seconds.", "#c8a06a"],
+	"pineapple": ["Spiky Shockwave", "A spiky blast that spins out every racer close to you. It goes through ability boosts and pops a shield without a spin. Karts in the air, and anyone still blinking after a hit, are safe.", "#ffd23a"],
+	"anchovy": ["School of Fish", "Launches three anchovies that hunt down the next three racers ahead, or the three behind if you look back. A well-timed hop dodges one, and an item held behind you stops one.", "#8fc8e8"],
 }
 const ABIL_TIME := 30.0
-const MEGA_T := 5.5
+const MEGA_T := 4.5
 const PESTO_T := 5.9
 const OLIVE_T := 2.6
-const FLAT_T := 3.0
+const FLAT_T := 2.0
 const BURN_T := 2.0
 ## Olive's slick (web SLICK_SPIN, SLICK_T, OIL_T): a fast spin on the spot, then slippery tyres. oil_t counts down through both:
 ## above SLICK_T the spin is the fast one, at or below it the tyres are slick
@@ -1657,11 +1657,17 @@ var cur_p: Dictionary = {}
 
 func spin_out(k: Kart, kind: String, world := false, force := false) -> bool:
 	if force:
-		if not k.loop.is_empty():
+		# the Spiky Shockwave (web patch 37): misses karts in the air and anyone blinking after a hit, and only pops a shield
+		if not k.loop.is_empty() or k.air or k.glide or k.inv > 0.0:
 			return false
-		k.shield = 0.0
+		if k.shield > 0.0 or k.sh_l > 0:
+			k.shield = 0.0
+			k.mz_h = 0
+			k.sh_l = 0
+			k.abs_t = 0.6
+			fx.append({"t": "melt", "k": k})
+			return false
 		k.abs_t = 0.0
-		k.mz_h = 0
 	else:
 		if k.inv > 0.0 or k.rush > 0.0 or ab_inv(k) or k.abs_t > 0.0 or k.ghost_t > 0.0:
 			return false
@@ -1733,6 +1739,8 @@ func use_ability(k: Kart, back: bool) -> void:
 					P["hp"] = 3
 					P["t"] = 8.0
 					P["ign"] = {}
+					P["vx"] = float(P["vx"]) * 1.15
+					P["vy"] = float(P["vy"]) * 1.15
 			vol.call()
 			k.ab_q = [[0.25, vol]]
 		"basil":
@@ -1758,12 +1766,13 @@ func use_ability(k: Kart, back: bool) -> void:
 						first["t"] = 0.0
 					hazards.append({"id": _nid(), "x": k.x - cos(k.ma) * 22.0, "y": k.y - sin(k.ma) * 22.0, "t": 1.0e9, "born": 0.0, "owner": k, "armed": false, "olive": true})])
 			k.olive_t = OLIVE_T - (10 - T.SLICKN) * 0.25
+			k.boost = maxf(k.boost, 1.2)
 			k.ab_fx = k.olive_t
 			k.ab_col = col
 		"mozz":
 			k.shield = 7.0
 			k.mz_h = 3
-			k.boost = maxf(k.boost, 0.7)
+			k.boost = maxf(k.boost, 2.0)
 			k.p_boost = 0.0
 		"chili":
 			k.boost = maxf(k.boost, 2.2)
@@ -1779,7 +1788,7 @@ func use_ability(k: Kart, back: bool) -> void:
 			k.b_age = 9.0
 			k.b_pk = k.boost
 		"pineapple":
-			blast(k.x, k.y, 260.0, k, "pep", true)
+			blast(k.x, k.y, 150.0, k, "pep", true)
 			k.inv = maxf(k.inv, 0.6)
 		"anchovy":
 			for j in range(1, 4):
@@ -1903,6 +1912,36 @@ func _oil_up(k: Kart) -> void:
 
 # ---------------------------------------------------------------- thrown items
 
+## a storm slice's first wall bounce turns it, at most .5 rad, toward the nearest racer ahead of it within 420 (web pepAim, patch 37)
+func _pep_aim(p: Dictionary) -> void:
+	var vx := float(p["vx"])
+	var vy := float(p["vy"])
+	var sp := maxf(1e-9, sqrt(vx * vx + vy * vy))
+	var ux := vx / sp
+	var uy := vy / sp
+	var best: Kart = null
+	var bd := 420.0 * 420.0
+	for k in karts:
+		if k == p["owner"] or not k.loop.is_empty() or k.finished:
+			continue
+		var dx := k.x - float(p["x"])
+		var dy := k.y - float(p["y"])
+		var d2 := dx * dx + dy * dy
+		if d2 >= bd:
+			continue
+		var d := maxf(1e-9, sqrt(d2))
+		if (dx * ux + dy * uy) / d < 0.6:
+			continue
+		best = k
+		bd = d2
+	if best == null:
+		return
+	var cur := atan2(uy, ux)
+	var na := cur + clampf(Kart.ang_diff(atan2(best.y - float(p["y"]), best.x - float(p["x"])), cur), -0.5, 0.5)
+	p["vx"] = cos(na) * sp
+	p["vy"] = sin(na) * sp
+
+
 ## Pepperoni Storm slices ricochet off the road's edges: two bounces, the third wall smashes them (web pepWall)
 func _pep_wall(p: Dictionary) -> void:
 	if not p.has("rp"):
@@ -1943,6 +1982,9 @@ func _pep_wall(p: Dictionary) -> void:
 	p["x"] = float(p["x"]) - nx * ov
 	p["y"] = float(p["y"]) - ny * ov
 	p["rl"] = float(p["rl"]) - sg * ov
+	if not p.has("hm"):
+		p["hm"] = true
+		_pep_aim(p)
 	fx.append({"t": "ricochet", "x": float(p["x"]), "y": float(p["y"])})
 
 
@@ -2160,7 +2202,9 @@ func _projectiles(dt: float) -> void:
 				p["pop"] = true
 				projectiles.remove_at(i)
 			elif tg.loop.is_empty() and (tg.x - float(p["x"])) ** 2 + (tg.y - float(p["y"])) ** 2 < 256.0 and not (tg.rush > 0.0 or ab_inv(tg) or tg.abs_t > 0.0):
-				if tg.air and not tg.glide:
+				if _absorb_held(tg):
+					pass   # a held item stops the fish (web patch 37)
+				elif tg.air and not tg.glide:
 					fx.append({"t": "dodge", "k": tg})
 				elif spin_out(tg, "pep", true):
 					tg.spin *= 0.6
@@ -2371,7 +2415,7 @@ func _hazards(dt: float) -> void:
 			if not k.loop.is_empty() or (k == o and (bool(h.get("olive", false)) or not bool(h["armed"]))):
 				continue
 			# only karts on the trap's own level: one on an upper road no longer catches karts driving underneath
-			if (k.x - float(h["x"])) ** 2 + (k.y - float(h["y"])) ** 2 < 200.0 and k.inv <= 0.0 and same_lvl(k, h):
+			if (k.x - float(h["x"])) ** 2 + (k.y - float(h["y"])) ** 2 < (320.0 if h.get("olive", false) else 200.0) and k.inv <= 0.0 and same_lvl(k, h):
 				if h.get("olive", false):
 					if k.air or k.glide or k.shield > 0.0 or k.rush > 0.0 or ab_inv(k) or k.oil_t > 4.5:
 						continue

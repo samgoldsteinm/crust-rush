@@ -14,7 +14,7 @@ const HITC := {"flour": ["#ffffff", "#f6f1e6", "#e9dfc8"], "wheel": ["#ff3b1a", 
 const TRICKS := [[Vector3(0, 0, 1), 1.0], [Vector3(0, 1, 0), 1.0], [Vector3(0, 0, 1), -1.0], [Vector3(1, 0, 0), -1.0], [Vector3(1, 0, 0), 1.0]]
 const PROJ_NODE := {"pep": "pep", "dough": "dough", "flour": "flour", "lob": "lob", "wheel": "wheel", "torp": "torpedo", "meat2": "meatball", "bomb": "bomb", "twist": "twister"}
 ## traps on the road: which model, how much bigger it is drawn, and its glow (web hazDecorate)
-const TRAP := {"oil": ["oil", 1.2, "#ffd23a", 16.0, 4.5], "olive": ["oil", 1.2, "#ffd23a", 16.0, 4.5], "forks": ["forks", 1.9, "#d8ecff", 13.0, 4.5], "boxes": ["boxes", 1.3, "#ffb040", 16.0, 6.0]}
+const TRAP := {"oil": ["oil", 1.2, "#ffd23a", 16.0, 4.5], "olive": ["oil", 1.5, "#ffd23a", 16.0, 4.5], "forks": ["forks", 1.9, "#d8ecff", 13.0, 4.5], "boxes": ["boxes", 1.3, "#ffb040", 16.0, 6.0]}
 const HELD_NODE := {"pepperoni": "pep", "dough": "dough", "flour": "flour"}
 
 var T: TrackData
@@ -1324,6 +1324,9 @@ func _draw_hazards() -> void:
 			ring.position.y = 0.26
 			ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			root.add_child(ring)
+			if tk == "olive":   # Olive's slicks catch a wider circle (web patch 37)
+				edge.scale = Vector3.ONE * 1.27
+				ring.scale = Vector3.ONE * 1.27
 			var glow := _halo(Color("#35c8ff") if own else Color(String(tr[2])), float(tr[3]))
 			glow.position.y = float(tr[4])
 			root.add_child(glow)
