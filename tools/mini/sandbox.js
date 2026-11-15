@@ -132,8 +132,14 @@ function sbG(x,z,wy){if(wy==null)wy=1e9;const n=sbSurf(x,z),S=SB.S;if(SB.inG&&SB
   let h=SB.kind==='toy'?0:groundAt(x,z);for(let i=0;i<n;i++){const t=S[i][0];if(t<=wy+SB_STEP&&t>h)h=t;}return h;}
 /* THE LAP IS ALWAYS OPEN: where the point is on the track's own surface at the kart's own level, nothing drawn there is in the way. The race
    proves nothing real stands on the track; where the picture has the track run through the edge of a worktop or under a low beam, the track wins. */
+/* climbing (web v200): how much of the engine's pull back down a slope a kart feels going up, and the steepest ground it can climb at all
+   (as a rise over SB_R, the distance the walls are looked for at), both from its off-road (statMods .off: -3.6 to 3.6, 0 a middle kart; with
+   kart stats off, 0). A middle kart: 45% of the pull, up to about 40 degrees; the best off-road 15%, 50 degrees; the worst 85%, 26 degrees */
+function sbOffRd(k){const sm=k&&k.sm;return sm&&isFinite(sm.off)?sm.off:0;}
+function sbGrav(k){return clamp(.45-.085*sbOffRd(k),.12,.9);}
+function sbClimb(k){return SB_R*clamp(.84+.1*sbOffRd(k),.45,1.2);}
 function sbBlocked(x,z,wy){const n=sbSurf(x,z),S=SB.S,lv=sbLvl();for(let i=0;i<n;i++)if(S[i][2]>=0&&S[i][4]&&Math.abs(S[i][1]+2.5-wy)<=lv)return false;
-  if(SB.kind==='open'&&!SB.inG){/* a pizza's own ground: a face that rises more than a step from where the kart stands is a cliff, not a hill (the land beside some tracks climbs 180 in a few lengths), and water deeper than the wheels is a shore */const g0=groundAt(x,z);if(g0>wy+SB_STEP||(WATER_Y!=null&&g0<WATER_Y-3&&wy<WATER_Y+SB_HEAD))return true;}
+  if(SB.kind==='open'&&!SB.inG){/* a pizza's own ground: a face that rises more than a step from where the kart stands is a cliff, not a hill (the land beside some tracks climbs 180 in a few lengths), and water deeper than the wheels is a shore */const g0=groundAt(x,z);if(g0>wy+sbClimb(player)||(WATER_Y!=null&&g0<WATER_Y-3&&wy<WATER_Y+SB_HEAD))return true;}
 for(let i=0;i<n;i++)if(S[i][0]>wy+SB_STEP&&S[i][1]<wy+SB_HEAD)return true;return false;}
 function sbTouch(x,z,wy,out){let nx=0,nz=0,n=0;for(let i=0;i<8;i++){const a=i*.785398,sx=Math.cos(a),sz=Math.sin(a);if(sbBlocked(x+sx*SB_R,z+sz*SB_R,wy)){nx+=sx;nz+=sz;n++;}}
   if(!n)return 0;const l=Math.hypot(nx,nz);if(l<1e-6){out.x=0;out.z=0;return 2;}out.x=nx/l;out.z=nz/l;return 1;}
@@ -272,7 +278,7 @@ function* sbTripG(g,mi,sp){const k=player;
   else{/* no gate to come out of (fast travel): the start line, a little behind it */const j=(N-Math.round(40/(T.L/N)))%N,p=track[j];k.x=k.px=p.x;k.y=k.py=p.y;k.a=k.ma=k.pa=k.pma=Math.atan2(p.ty,p.tx);k.idx=j;}
   k.speed=sp;k.wvy=0;k.gRate=0;k.air=false;k.big=false;k.drift=0;k.charge=0;k.spin=0;k.z=k.pz=0;k.bpx=k.x;k.bpy=k.y;
   if(SBF){const lvl=a&&!a.road?a.y:((SB.kind==='toy'?0:groundAt(k.x,k.y))+(track[k.idx].ey||0));k.wy=k.pwy=k.lastG=sbG(k.x,k.y,lvl+2);k.idx=sbIdx(k,k.idx);}else k.wy=k.pwy=k.lastG=kGround(k);
-  k.rx=k.x;k.ry=k.y;k.rz=k.wy;k.rg=k.wy;k.rma=k.ma;cam.a=k.ma;camSnap=true;yield "trip4";
+  k.rx=k.x;k.ry=k.y;k.rz=k.wy;k.rg=k.wy;k.rma=k.ma;cam.a=k.ma;camSnap=true;if(g.shop)sbShopPut(k);/* (fast travel to the mechanic's shop) */yield "trip4";
   yield* sbWarmG();}
 /* the new place made ready to draw, a little at a time (done at once, as warmScene alone does it, this was one wait of 0.3 to 1.8 s):
    1. its shaders: renderer.compile on eight things at a time (F: a scene that lends the real one's lights, environment and fog, so the
@@ -369,10 +375,10 @@ function sbFound(){let n=0,t=0;for(const c of SB.coins)if(c.rare){t++;if(c.t<0)n
 function sbArm(){const def=MAPS[mapIdx],R=def&&sbRegOf(def.id),on=mode==='sb'&&!NET.cfg&&!!R;if(!on){if(SBX)sbOff();return;}
   SBX=true;SB.regId=def.id;SB.reg=R;SB.kind=R.kind||'toy';SBF=SB.kind!=='road';BATTLE=SBF;SB.shapes=R.shapes?R.shapes():[];SB.rim=0;SB.col=null;SB.hash=null;SB.gates=[];SB.loops=LOOPS.filter(L=>L.full).map(L=>({p:L.p,g0:L.g0,r:LOOPR+34,a:-L.S-L.W-10,b:L.shift-L.S+L.W+10}));
   if(SBF){let b=TOYROOM;if(SB.kind==='open'){const r=RIM+70;b=[-r,r,-r,r];SB.rim=RIM;}else if(!b){b=[1e9,-1e9,1e9,-1e9];for(const p of track){b[0]=Math.min(b[0],p.x-400);b[1]=Math.max(b[1],p.x+400);b[2]=Math.min(b[2],p.y-400);b[3]=Math.max(b[3],p.y+400);}}sbColumns(b);sbHashTrack();}
-  sbCoins();sbGates();{/* the map remembers this place's tunnels */const sv=sbSave();if(!sv.g)sv.g={};sv.g[SB.regId]=SB.gates.map(g=>[Math.round(g.x),Math.round(g.z),g.label]);sbKeep();}sbFlag();try{sbActArm();sbEggArm();}catch(e){console.warn('activities',e);}SB.hudT=0;SB.msgT=0;SB.camF=1;if(!SB.trav)sbPark(false);sbMapBtn();document.body.classList.add('battle');sbClockArm();}
-function sbOff(){if(!SBX)return;try{sbActOff();}catch(e){}sbClockOff();/* the place's own light back, before anything else reads it */SBX=false;SBF=false;const def=MAPS[mapIdx];BATTLE=!!(def&&def.battle);if(SB.grp){/* the passages' own shapes, signs and shaders go with the place (everything else in the group is shared) */for(const G of SB.grp.children)if(G.userData.sbGate)G.traverse(o=>{if(!o.isMesh)return;o.geometry.dispose();const m=o.material;if(m.map)m.map.dispose();m.dispose();});scene.remove(SB.grp);SB.grp=null;SB.im=null;}SB.coins=[];SB.shapes=[];SB.gates=[];SB.hash=null;SB.col=null;if(SB.el)SB.el.hidden=true;SB.flag=null;sbRaceBtn(false);sbPull(false);SB.park=false;if(SB.parkEl)SB.parkEl.hidden=true;if(SB.spdEl)SB.spdEl.hidden=true;sbMapBtn();document.body.classList.toggle('battle',BATTLE);}
+  sbCoins();sbGates();{/* the map remembers this place's tunnels */const sv=sbSave();if(!sv.g)sv.g={};sv.g[SB.regId]=SB.gates.map(g=>[Math.round(g.x),Math.round(g.z),g.label]);sbKeep();}sbFlag();try{sbActArm();sbEggArm();}catch(e){console.warn('activities',e);}try{sbShopBuild();}catch(e){console.warn('shop',e);}SB.hudT=0;SB.msgT=0;SB.camF=1;if(!SB.trav)sbPark(false);sbMapBtn();document.body.classList.add('battle');document.body.classList.add('sbx');{/* (web v200: abilities in Sandbox; on a pad its key is R3, Y being the map) */const ph=document.querySelector('#abilBtn .ph');if(ph)ph.textContent='R3';}sbClockArm();}
+function sbOff(){if(!SBX)return;try{sbActOff();}catch(e){}sbClockOff();/* the place's own light back, before anything else reads it */SBX=false;SBF=false;const def=MAPS[mapIdx];BATTLE=!!(def&&def.battle);if(SB.grp){/* the passages' own shapes, signs and shaders go with the place (everything else in the group is shared) */for(const G of SB.grp.children)if(G.userData.sbGate)G.traverse(o=>{if(!o.isMesh)return;o.geometry.dispose();const m=o.material;if(m.map)m.map.dispose();m.dispose();});scene.remove(SB.grp);SB.grp=null;SB.im=null;}SB.coins=[];SB.shapes=[];SB.gates=[];SB.hash=null;SB.col=null;if(SB.el)SB.el.hidden=true;SB.flag=null;sbRaceBtn(false);sbPull(false);SB.park=false;if(SB.parkEl)SB.parkEl.hidden=true;if(SB.spdEl)SB.spdEl.hidden=true;sbMapBtn();document.body.classList.toggle('battle',BATTLE);document.body.classList.remove('sbx');{const ph=document.querySelector('#abilBtn .ph');if(ph)ph.textContent='Y';}}
 function sbStart(){for(const k of karts){k.bal=0;k.bbS=0;k.bbOut=0;if(SBF){k.wy=k.pwy=k.lastG=sbG(k.x,k.y,(SB.kind==='toy'?0:groundAt(k.x,k.y))+(track[k.idx].ey||0)+2);k.wvy=0;k.gRate=0;k.air=false;k.bpx=k.x;k.bpy=k.y;}}
-  if(BB.grp){scene.remove(BB.grp);BB.grp=null;}sbHud();const f=sbFound();showBanner(SB.reg.name,2.2,'md');sbClockMats();sbClockApply();try{sbWarpPrime();}catch(e){}/* (the karts have just been built again: their paint and lights join the clock) */}
+  if(BB.grp){scene.remove(BB.grp);BB.grp=null;}sbHud();const f=sbFound();showBanner(SB.reg.name,2.2,'md');sbClockMats();sbClockApply();try{sbWarpPrime();}catch(e){}if(SB.shopPut&&player){SB.shopPut=false;sbShopPut(player);}/* (the karts have just been built again: their paint and lights join the clock) */}
 /* ---- stopping (web v193) ----
    The owner: "if you hold down both brake buttons in sandbox it should completely stop the car and there should be a park button on screen
    that will stop the car in place that way you can stop at races easier". SB.park is the Park button's state (K on a keyboard and D-pad down
@@ -388,7 +394,7 @@ function sbParkBtn(){let b=SB.parkEl;const show=SBX&&(state==='race'||state==='c
   if(b.hidden===show)b.hidden=!show;}
 function sbTick(dt){sbParkBtn();sbSpdUi();if(state!=='race'){sbRaceBtn(false);sbActBtn(null);return;}const k=player;if(!k)return;sbClockTick(dt);
   if(sbStop()&&!k.loop&&!k.air){const sp=k.speed,d=Math.min(Math.abs(sp),(140+Math.abs(sp)*5)*dt);k.speed=sp-Math.sign(sp)*d;if(Math.abs(k.speed)<1.5)k.speed=0;k.boost=0;k.drift=0;k.charge=0;}
-{const f=SB.flag,near=!!f&&!SB.trav&&(k.x-f.x)**2+(k.y-f.z)**2<46*46&&Math.abs((k.wy||0)-f.y)<10;sbRaceBtn(near);if(near){try{const gp=navigator.getGamepads&&navigator.getGamepads()[PAD.idx];const up=!!gp&&gp.buttons[12]&&gp.buttons[12].pressed;if(up&&!SB.padUp)sbRaceHere();SB.padUp=up;}catch(e){}}}try{sbActTick(k,dt);sbEggTick(k,dt);sbActPad();}catch(e){console.warn('activities',e);}sbGuide(k,dt);if(SB.cool>0)SB.cool-=dt;else for(const g of SB.gates){const d=(k.x-g.x)*g.nx+(k.y-g.z)*g.nz;if(d>(g.road?0:g.plain?64:SB_GLEN-70)&&(!g.road||(d<26&&Math.abs((k.wy||0)-g.y)<14))&&Math.abs((k.x-g.x)*g.tx+(k.y-g.z)*g.tz)<g.hw+2&&Math.cos(k.ma)*g.nx+Math.sin(k.ma)*g.nz>.2){sbTravel(g);return;}}
+{const f=SB.flag,near=!!f&&!SB.trav&&(k.x-f.x)**2+(k.y-f.z)**2<46*46&&Math.abs((k.wy||0)-f.y)<10;sbRaceBtn(near);if(near){try{const gp=navigator.getGamepads&&navigator.getGamepads()[PAD.idx];const up=!!gp&&gp.buttons[12]&&gp.buttons[12].pressed;if(up&&!SB.padUp)sbRaceHere();SB.padUp=up;}catch(e){}}}try{sbActTick(k,dt);sbEggTick(k,dt);sbActPad();}catch(e){console.warn('activities',e);}sbShopTick(k);if(state!=='race')return;sbGuide(k,dt);if(SB.cool>0)SB.cool-=dt;else for(const g of SB.gates){const d=(k.x-g.x)*g.nx+(k.y-g.z)*g.nz;if(d>(g.road?0:g.plain?64:SB_GLEN-70)&&(!g.road||(d<26&&Math.abs((k.wy||0)-g.y)<14))&&Math.abs((k.x-g.x)*g.tx+(k.y-g.z)*g.tz)<g.hw+2&&Math.cos(k.ma)*g.nx+Math.sin(k.ma)*g.nz>.2){sbTravel(g);return;}}
   const sv=sbSave(),y=(k.wy||0)+3.5;let ch=false;
   for(const c of SB.coins){if(c.t<0)continue;if(c.t>0){c.t-=dt;if(c.t<=0){c.t=0;}continue;}const dx=c.x-k.x,dz=c.z-k.y,r=c.rare?12:10.5;if(dx*dx+dz*dz>r*r||Math.abs(c.y-y)>(c.rare?14:10))continue;
     if(c.rare){c.t=-1;sv.r[c.id]=1;sv.c+=10;if(c.m)c.m.visible=false;burst(c.x,c.y,c.z,26,['#ffd65a','#d8402a','#ffffff'],70,2.4);spawnRing(c.x,c.y,c.z,'#ffd65a',26,.5,false);const f=sbFound();showBanner('Pepperoni coin! '+f[0]+' of '+f[1],1.6,'sm');try{SFX.ready();}catch(e){}}
@@ -482,7 +488,12 @@ function sbSpdUi(){let e=SB.spdEl;const show=SBX&&(state==='race'||state==='coun
     e.addEventListener('pointerdown',ev=>{ev.preventDefault();ev.stopPropagation();SB.spdDrag=ev.pointerId;try{e.setPointerCapture(ev.pointerId);}catch(x){}at(ev);});e.addEventListener('pointermove',ev=>{if(SB.spdDrag===ev.pointerId){ev.preventDefault();at(ev);}});for(const n of ['pointerup','pointercancel'])e.addEventListener(n,ev=>{if(SB.spdDrag===ev.pointerId)SB.spdDrag=null;});
     for(const n of ['touchstart','touchmove','touchend','mousedown'])e.addEventListener(n,ev=>ev.stopPropagation());stage.appendChild(e);
     addEventListener('keydown',ev=>{if(!SBX||state!=='race'||SBM.open||SB.trav)return;if(ev.code==='BracketLeft'&&!KEYC.BracketLeft){ev.preventDefault();sbSpdStep(-1);}else if(ev.code==='BracketRight'&&!KEYC.BracketRight){ev.preventDefault();sbSpdStep(1);}});}
-  if(e.hidden===show)e.hidden=!show;if(!show)return;const v=sbSpd();if(SB.spdDraw===v)return;SB.spdDraw=v;const f=(v-.25)/.75*100;e.querySelector('b').textContent=Math.round(v*100)+'%';e.querySelector('u').style.height=f+'%';e.querySelector('s').style.bottom=f+'%';e.setAttribute('aria-valuenow',String(Math.round(v*100)));}
+  if(e.hidden===show)e.hidden=!show;if(!show)return;
+  /* (web v200, the owner's phone: "The speed slider overlaps the item slots by just a little". Twice a second it is set below whichever of
+     the item and ability buttons stand above it, with their letter badges, and its track is shortened to fit what is left above the pedals) */
+  {const now=performance.now();if(!SB.spdPosT||now-SB.spdPosT>500){SB.spdPosT=now;const er=e.getBoundingClientRect();let lo=0;for(const id of ['itemBtn','itemBtn2','abilBtn','slot2']){const b=document.getElementById(id);if(!b||b.offsetParent===null)continue;const r=b.getBoundingClientRect();if(r.width&&r.right>er.left-4&&r.left<er.right+4&&r.top<er.bottom)lo=Math.max(lo,r.bottom);}
+    const top=Math.round(Math.max(162,innerHeight/2-64,lo?lo+18:0));if(e.style.top!==top+'px'){e.style.top=top+'px';e.querySelector('i').style.height=Math.max(56,Math.min(150,innerHeight-top-170))+'px';SB.spdDraw=null;}}}
+  const v=sbSpd();if(SB.spdDraw===v)return;SB.spdDraw=v;const f=(v-.25)/.75*100;e.querySelector('b').textContent=Math.round(v*100)+'%';e.querySelector('u').style.height=f+'%';e.querySelector('s').style.bottom=f+'%';e.setAttribute('aria-valuenow',String(Math.round(v*100)));}
 /* heading into a mouth a little off its middle, the kart is eased sideways into it instead of meeting the jamb: only in the last 110 units
    before the wall, only when it is pointing in and already within reach of the mouth, and never faster than a kart could steer there */
 function sbGuide(k,dt){if(!SBF||k.air||k.loop||!(k.speed>20))return;for(const g of SB.gates){if(g.road)continue;const d=(k.x-g.x)*g.nx+(k.y-g.z)*g.nz;if(d<-110||d>30)continue;const l=(k.x-g.x)*g.tx+(k.y-g.z)*g.tz,lim=Math.max(4,g.hw-10);if(Math.abs(l)<=lim||Math.abs(l)>g.hw+26)continue;if(Math.cos(k.ma)*g.nx+Math.sin(k.ma)*g.nz<.55)continue;if(Math.abs((k.wy||0)-g.y)>12)continue;
@@ -490,7 +501,7 @@ function sbGuide(k,dt){if(!SBF||k.air||k.loop||!(k.speed>20))return;for(const g 
 addEventListener('keydown',ev=>{if(SBM.open&&(ev.code==='Escape'||ev.code==='KeyM')){ev.preventDefault();ev.stopImmediatePropagation();if(SBM.pick&&ev.code==='Escape')sbMapPick(null);else sbMap(false);}else if(!SBM.open&&SBX&&state==='race'&&ev.code==='KeyM'&&!ev.repeat&&!KEYC.KeyM){ev.preventDefault();sbMap(true,'drive');}},true);
 function sbMapPick(p){SBM.pick=p;SBM.zoom=p?p.id:null;const e=sbMapEl(),say=e.querySelector('#sbMapSay'),go=e.querySelector('#sbMapGo'),no=e.querySelector('#sbMapNo');
   const me=e.querySelector('#sbMapMe');
-  if(p){const R=sbRegOf(p.id),here=SBX&&p.id===SB.regId,n=sbMapGates(p.id).length;say.textContent=p.track+(R?' · '+R.name.split(' · ')[0]:'')+(here?' · you are here (the blue arrow)':'')+(n?' · the purple rings are its tunnels':' · its tunnels show once you have been there');go.hidden=false;no.hidden=false;no.textContent='World map';me.hidden=here;go.textContent=here?'To the start line':'Travel here';go.focus();}
+  if(p){const R=sbRegOf(p.id),here=SBX&&p.id===SB.regId,n=R?sbMapGates(p.id).length:0;if(p.id==='shop'){SBM.zoom=SB_SHOP.id;say.textContent="Mechanic's shop, in the garage: drive in to change your driver and kart";go.hidden=false;no.hidden=false;no.textContent='World map';me.hidden=false;go.textContent='Travel here';go.focus();sbMapDraw();return;}say.textContent=p.track+(R?' · '+R.name.split(' · ')[0]:'')+(here?' · you are here (the blue arrow)':'')+(n?' · the purple rings are its tunnels':' · its tunnels show once you have been there');go.hidden=false;no.hidden=false;no.textContent='World map';me.hidden=here;go.textContent=here?'To the start line':'Travel here';go.focus();}
   else{say.textContent='Pick a chequered pin to look closer at a place and travel to it. Every place can also be driven to.';go.hidden=true;no.hidden=true;me.hidden=!SBX;}
   sbMapDraw();
   for(const q of SBM.pins)q.b.setAttribute('aria-pressed',String(!!p&&q.id===p.id));}
@@ -519,13 +530,17 @@ function sbMapDraw(){const cv=SBM.cv,box=cv.parentNode.parentNode,Z=SBM.zoom,V=Z
   /* you: an arrow where you are, pointing the way you face */
   SBM.me=null;if(SBX&&player){const p=sbMapAt(SB.regId,player.x,player.y);if(p){const a=player.ma,r=(Z?14:9)*dpr;g.save();g.translate(X(p[0]),Y(p[1]));g.rotate(a);g.beginPath();g.moveTo(r*1.25,0);g.lineTo(-r*.8,r*.8);g.lineTo(-r*.35,0);g.lineTo(-r*.8,-r*.8);g.closePath();g.fillStyle='#39d0ff';g.fill();g.strokeStyle='#06222e';g.lineWidth=2*dpr;g.stroke();g.restore();SBM.me=[X(p[0])/dpr,Y(p[1])/dpr];}}
   /* the pins sit over the picture as real buttons (so a finger, a mouse and a controller all reach them) */
-  for(const q of SBM.pins){const x=X(q.at[0])/dpr,y=Y(q.at[1])/dpr;q.b.style.left=x+'px';q.b.style.top=y+'px';q.b.hidden=!!Z&&q.id!==Z;}}
+  for(const q of SBM.pins){const x=X(q.at[0])/dpr,y=Y(q.at[1])/dpr;q.b.style.left=x+'px';q.b.style.top=y+'px';q.b.hidden=!!Z&&q.id!==Z&&!(q.id==='shop'&&Z===SB_SHOP.id);}}
 function sbMapGate(id,gid){const R=SB_REG[id],W=SB_WORLD[id];if(!R||!W)return null;const d=(R.gates||[]).find(q=>q.id===gid);if(!d)return null;const b=W.box;if(R.room){const y=(b[2]+b[3])/2+d.p/100,x=(b[0]+b[1])/2+d.p/100;return d.w==='E'?[b[1],y]:d.w==='W'?[b[0],y]:d.w==='N'?[x,b[3]]:[x,b[2]];}return d.w==='S'?[d.p,b[2]]:d.w==='N'?[d.p,b[3]]:d.w==='E'?[b[1],d.p]:[b[0],d.p];}
 function sbMapPins(){const box=sbMapEl().querySelector('#sbMapIn');for(const q of SBM.pins)q.b.remove();SBM.pins=[];
   for(const id of Object.keys(SB_WORLD).concat(Object.keys(SB_SPOT))){const t=sbMapTrack(id);if(!t)continue;const b=document.createElement('button');b.type='button';b.className='sbpin';b.setAttribute('aria-label','Travel to '+t.name);
     b.style.cssText='position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:3px solid #ffd45a;padding:0;cursor:pointer;background:conic-gradient(#141210 25%,#fbf6ea 0 50%,#141210 0 75%,#fbf6ea 0) 0 0/12px 12px;box-shadow:0 2px 6px rgba(0,0,0,.6)';
     b.innerHTML='<span style="position:absolute;left:50%;'+(id==='backyard'?'bottom:100%;margin-bottom:3px;':'top:100%;margin-top:3px;')+'transform:translateX(-50%);font:800 10.5px/1 system-ui,sans-serif;color:#fff;white-space:nowrap;text-shadow:0 1px 3px #000,0 0 6px #000;pointer-events:none">'+t.name+'</span>';
     b.onclick=()=>sbMapPick(SBM.zoom===id?null:{id,track:t.name});b.addEventListener('focus',()=>{try{b.scrollIntoView({block:'nearest',inline:'nearest'});}catch(e){}});box.appendChild(b);SBM.pins.push({id,b,at:t.start,name:t.name});}
+  /* the mechanic's shop: a pin of its own, round with a spanner, blue (a place to go, not a track) */{const at=sbMapAt(SB_SHOP.id,SB_SHOP.x,SB_SHOP.z);if(at){const b=document.createElement('button');b.type='button';b.className='sbpin';b.setAttribute('aria-label',"Travel to the mechanic's shop");
+    b.style.cssText='position:absolute;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;border:3px solid #fff4dc;padding:0;cursor:pointer;background:#2a5bd7;box-shadow:0 2px 6px rgba(0,0,0,.6);color:#fff;font:900 15px/22px system-ui,sans-serif';
+    b.innerHTML='&#128295;<span style="position:absolute;left:50%;top:100%;margin-top:3px;transform:translateX(-50%);font:800 10.5px/1 system-ui,sans-serif;color:#fff;white-space:nowrap;text-shadow:0 1px 3px #000,0 0 6px #000;pointer-events:none">Mechanic</span>';
+    b.onclick=()=>sbMapPick({id:'shop',track:"Mechanic's shop"});box.appendChild(b);SBM.pins.push({id:'shop',b,at,name:"Mechanic's shop"});}}
   if(!document.getElementById('sbPinCss')){const st=document.createElement('style');st.id='sbPinCss';st.textContent='.sbpin:focus-visible,.sbpin[aria-pressed=true]{outline:3px solid #39d0ff;outline-offset:3px}';document.head.appendChild(st);}}
 /* open or close. from: 'drive' (straight from driving: closing goes back to driving) or 'pause' (from the pause menu: closing goes back to it) */
 function sbMap(open,from){const e=sbMapEl();if(open===SBM.open)return;if(open){if(!SBX||SB.trav||(state!=='race'&&state!=='paused'))return;SBM.from=from||'drive';
@@ -535,7 +550,7 @@ function sbMap(open,from){const e=sbMapEl();if(open===SBM.open)return;if(open){i
     const first=SBM.pins.find(q=>q.id===SB.regId)||SBM.pins[0];if(first)try{first.b.focus({preventScroll:true});}catch(err){first.b.focus();}}
   else{SBM.open=false;e.hidden=true;SBM.pick=null;SBM.zoom=null;if(SBM.from==='pause'){pauseOv.hidden=false;const r=document.getElementById('resumeBtn');if(r)r.focus();}else if(state==='paused')togglePause();}}
 /* fast travel: to a place's start line. Only this player moves. */
-function sbMapTravel(id){if(!sbRegOf(id))return;SBM.from='drive';sbMap(false);if(state!=='race')return;sbPark(false);sbTravel({to:id,start:true});}
+function sbMapTravel(id){if(id==='shop'){SBM.from='drive';sbMap(false);if(state!=='race')return;sbPark(false);sbTravel({to:SB_SHOP.id,start:true,shop:true});return;}if(!sbRegOf(id))return;SBM.from='drive';sbMap(false);if(state!=='race')return;sbPark(false);sbTravel({to:id,start:true});}
 /* the pause menu's Map button, directly under Resume, in Sandbox only */
 function sbMapBtn(){let b=document.getElementById('sbMapBtn');if(!b){if(!SBX)return;const r=document.getElementById('resumeBtn');if(!r)return;b=document.createElement('button');b.id='sbMapBtn';b.className='cta';b.type='button';b.textContent='Map';b.style.cssText='background:var(--oven-2);box-shadow:0 5px 0 rgba(0,0,0,.35);border:2px solid var(--oven-3)';r.insertAdjacentElement('afterend',b);b.onclick=()=>sbMap(true,'pause');}
   b.hidden=!SBX;sbBackBtn();}
@@ -644,3 +659,46 @@ function sbClockOff(){const R=SBC.rec;if(!R)return;/* (nothing was written down:
   if(SBC.stars){scene.remove(SBC.stars);SBC.stars.geometry.dispose();SBC.stars.material.dispose();SBC.stars=null;}if(SB.save&&SB.clock!=null){SB.save.t=+SB.clock.toFixed(4);sbKeep();}}
 /* for the tests and for looking: set the hour and light the place for it at once */
 function sbClockSet(t){if(!SB_CLOCK)return null;SB.clock=((+t||0)%1+1)%1;sbClockApply();SB.hudT=0;return SB.clock;}
+/* ---- the mechanic's shop (web v200) ----
+   The owner, 2026-11-15: "in the garage map add a section in the corner or somewhere in the room that will be added to the mini map and have a
+   fast travel point. It will be a little mechanic garage shop we can pull the car into and we will enter the garage menu and character select
+   where we can change characters and vehicles from inside the game without having to exit and restart".
+   A toy garage playset on the garage floor (SB_SHOP: an open spot between the green bin and the tyre, in front of the shelf, chosen by
+   searching the floor for room and headroom away from the track). Its walls are solid (SB.shapes); drive in through the open front and the
+   driver screen opens (then Build kart, as from the menu); "Back to Sandbox" (the driver screen's back button, or the garage's last button)
+   brings you back out of the shop's door with what you chose. On the world map it is a pin of its own in the garage ("Mechanic's shop"),
+   and fast travel to it sets you down at its door. */
+const SB_SHOP={id:'garage',x:205,z:-443,w:100,d:90,h:46};
+function sbShopIn(){return SBX&&SB.regId===SB_SHOP.id;}
+function sbShopBuild(){if(!sbShopIn()||!SB.grp)return;const S=SB_SHOP,G=new THREE.Group(),x0=S.x-S.w/2,x1=S.x+S.w/2,z0=S.z-S.d/2,z1=S.z+S.d/2,H=S.h,T=4;
+  const pl=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.38,metalness:.02},o||{}));
+  const box=(w,h,d,m,x,y,z)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;G.add(o);return o;};
+  const red=pl('#d8342a'),yel=pl('#f5c21b'),blu=pl('#2a5bd7'),gry=pl('#8d949c',{roughness:.6}),drk=pl('#2b2f35',{roughness:.7});
+  /* the base and its painted floor */box(S.w+8,2,S.d+8,gry,S.x,1,S.z);
+  {const c=cnv(256,256),g=c.getContext('2d');g.fillStyle='#5d636b';g.fillRect(0,0,256,256);g.strokeStyle='#f5c21b';g.lineWidth=10;g.setLineDash([26,16]);g.strokeRect(40,30,176,200);g.setLineDash([]);g.fillStyle='rgba(255,255,255,.12)';for(let i=0;i<8;i++)g.fillRect(0,i*32,256,2);const t=T2(c);t.userData.keepCanvas=true;
+    const f=new THREE.Mesh(new THREE.PlaneGeometry(S.w-2*T,S.d-T),new THREE.MeshStandardMaterial({map:t,roughness:.55}));f.rotation.x=-Math.PI/2;f.position.set(S.x,2.05,S.z-T/2);f.receiveShadow=true;G.add(f);}
+  /* walls: the back and the two sides, red with a yellow band; the roof blue, with an overhang over the open front */
+  box(S.w,H,T,red,S.x,H/2+2,z0+T/2);for(const sx of [x0+T/2,x1-T/2])box(T,H,S.d,red,sx,H/2+2,S.z);
+  for(const sx of [x0+T/2,x1-T/2])box(T+.6,5,S.d+.6,yel,sx,H*.62+2,S.z);box(S.w+.6,5,T+.6,yel,S.x,H*.62+2,z0+T/2);
+  box(S.w+10,4,S.d+16,blu,S.x,H+4,S.z+4);
+  /* the sign over the door */{const c=cnv(512,128),g=c.getContext('2d');g.fillStyle='#fbf3df';g.fillRect(0,0,512,128);g.strokeStyle='#d8342a';g.lineWidth=10;g.strokeRect(5,5,502,118);g.fillStyle='#1b1f26';g.font='900 64px Arial';g.textAlign='center';g.textBaseline='middle';g.fillText('MECHANIC',284,68);
+    /* a spanner */g.save();g.translate(72,64);g.rotate(-.7);g.fillStyle='#8d949c';g.fillRect(-36,-7,72,14);g.beginPath();g.arc(-40,0,16,0,6.283);g.arc(40,0,16,0,6.283);g.fill();g.fillStyle='#fbf3df';g.fillRect(-58,-6,16,12);g.fillRect(42,-6,16,12);g.restore();
+    const t=T2(c);t.userData.keepCanvas=true;const b=new THREE.Mesh(new THREE.PlaneGeometry(S.w*.86,S.w*.86/4),new THREE.MeshBasicMaterial({map:t,toneMapped:false}));b.position.set(S.x,H+14,z1+12.2);G.add(b);
+    box(S.w*.88,S.w*.88/4+2,1.2,drk,S.x,H+14,z1+11.4);}
+  /* inside: a stack of tyres, a toolbox, two lift posts */
+  {const tg=new THREE.TorusGeometry(5,2.4,10,22);for(let i=0;i<3;i++){const o=new THREE.Mesh(tg,drk);o.rotation.x=Math.PI/2;o.position.set(x0+14,4.5+i*4.6,z0+14);o.castShadow=true;G.add(o);}}
+  box(16,12,9,red,x1-16,8,z0+10);box(16.4,2,9.4,gry,x1-16,14.6,z0+10);for(let i=0;i<3;i++)box(14,.6,.4,gry,x1-16,4+i*3.4,z0+14.8);
+  for(const sx of [S.x-24,S.x+24])box(3,30,3,yel,sx,17,S.z-14);box(52,2.4,3,yel,S.x,30,S.z-14);
+  G.traverse(o=>{o.userData.sunlit=true;});SB.grp.add(G);SB.shopG=G;
+  /* solid: the walls (the roof is overhead, out of a kart's way) */const wall=(a,b,c,d)=>SB.shapes.push({t:'box',x0:a,x1:b,z0:c,z1:d,b:0,h:H+2});
+  wall(x0,x1,z0,z0+T);wall(x0,x0+T,z0,z1);wall(x1-T,x1,z0,z1);SB.shopIn=false;}
+/* each step: driving in opens the driver screen (once a visit: you have to leave the shop before it opens again) */
+function sbShopTick(k){if(!sbShopIn())return;const S=SB_SHOP,inside=k.x>S.x-S.w/2+10&&k.x<S.x+S.w/2-10&&k.y>S.z-S.d/2+6&&k.y<S.z+S.d/2-22&&Math.abs(k.wy||0)<8;
+  if(inside&&!SB.shopIn&&!SB.trav&&state==='race'){SB.shopIn=true;sbShopOpen();return;}if(!inside&&k.y>S.z+S.d/2+10)SB.shopIn=false;}
+function sbShopOpen(){if(SBA&&SBA.act)sbActEnd('cancel');SB.shopBack=true;try{SFX.ready();}catch(e){}toMenu();goStep('driver');sbShopLabels(true);}
+function sbShopLabels(on){const d=document.querySelector('[data-step="driver"] .st-back'),g=$('gDone');if(on){if(d){d.dataset.was=d.innerHTML;d.innerHTML='‹ Sandbox';}if(g){g.dataset.was=g.innerHTML;g.innerHTML='Back to Sandbox ›';}}
+  else{if(d&&d.dataset.was){d.innerHTML=d.dataset.was;delete d.dataset.was;}if(g&&g.dataset.was){g.innerHTML=g.dataset.was;delete g.dataset.was;}}}
+/* the driver screen's back, or the garage's last button: back into Sandbox, out of the shop's door (true: handled) */
+function sbShopDone(){if(!SB.shopBack)return false;SB.shopBack=false;sbShopLabels(false);try{closeGarage();}catch(e){}const mi=MAPS.findIndex(m=>m.id===SB_SHOP.id);if(mi<0)return false;mode='sb';SB.shopPut=true;introSkip=true;/* (no fly-over: straight back out of the door) */menu.hidden=true;goRace(mi);return true;}
+/* where the kart comes out: just in front of the door, facing away from it */
+function sbShopPut(k){const S=SB_SHOP;k.x=k.px=S.x;k.y=k.py=S.z+S.d/2+34;k.a=k.ma=k.pa=k.pma=Math.PI/2;k.speed=0;k.wy=k.pwy=k.lastG=sbG(k.x,k.y,2);k.idx=sbIdx(k,k.idx);k.rx=k.x;k.ry=k.y;k.rz=k.wy;k.rma=k.ma;cam.a=k.ma;camSnap=true;SB.shopIn=false;}

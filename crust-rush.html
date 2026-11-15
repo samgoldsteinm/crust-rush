@@ -275,6 +275,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .set-group .label+.set-row{border-top:0}
 .set-t{display:flex;flex-direction:column;gap:2px;min-width:0}.set-t b{font-size:15px}.set-t small{font-size:12.5px;color:var(--muted);line-height:1.35}.set-t small:empty{display:none}
 .set-row .seg button{padding:8px 4px;font-size:14px}
+.cpu-step{display:grid;grid-template-columns:52px 1fr 52px;align-items:center}.cpu-step b{text-align:center;font-size:20px;font-weight:900}.cpu-step button{font-size:22px;font-weight:900}
 .stats-help .set-row{grid-template-columns:1fr}.stats-help .g-note{margin:0 0 6px;font-size:12.5px;line-height:1.45;color:rgba(255,244,220,.72)}
 @media (max-width:560px){.set-row{grid-template-columns:1fr}}
 .vol{display:flex;align-items:center;gap:12px}.vol input{flex:1;accent-color:#ff8a1f;min-width:0}.vol output{min-width:3ch;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
@@ -834,6 +835,7 @@ body.pad .ph{display:grid}.ph.a{background:#3fa641}.ph.b{background:#d93a2f}.ph.
       <div class="home-panel">
         <section><h2 class="label">Mode</h2><div class="seg seg5" id="modeSeg"><button data-m="gp">Grand Prix</button><button data-m="single">Single race</button><button data-m="lss">Last Slice</button><button data-m="bb">Balloon Battle</button><button data-m="sb">Sandbox</button></div><p class="seg-note" id="modeNote" hidden></p></section>
         <section><h2 class="label">Speed class</h2><div class="seg seg4" id="clsSeg"><button data-c="small">50cc</button><button data-c="medium">100cc</button><button data-c="large">200cc</button><button data-c="reverse">Reverse</button></div><p class="seg-note" id="clsNote"></p></section>
+        <section><h2 class="label">Computer racers</h2><div class="seg cpu-step" id="cpuSeg"><button type="button" data-d="-1" aria-label="Fewer computer racers">&minus;</button><b id="cpuVal" aria-live="polite">7</b><button type="button" data-d="1" aria-label="More computer racers">+</button></div><p class="seg-note" id="cpuNote"></p></section>
         <div class="m-tools"><button id="howBtn" class="iconbtn" type="button" aria-label="How to play"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M9.3 9.2a2.8 2.8 0 1 1 3.9 2.6c-.8.4-1.2 1-1.2 1.9v.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.4" r="1.3" fill="currentColor"/></svg><span>How to play</span></button><button id="recBtn" class="iconbtn" type="button" aria-label="Records"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v4.5a5 5 0 0 1-10 0z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M7 5H4a3 3 0 0 0 3 4M17 5h3a3 3 0 0 1-3 4M12 12.5V17M8 20.5h8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>Records</span></button><button id="achBtn" class="iconbtn" type="button" aria-label="Achievements"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2.5h8l-1.6 6.2h-4.8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="15" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="m12 12 1 2 2.2.3-1.6 1.5.4 2.2-2-1.1-2 1.1.4-2.2-1.6-1.5L11 14z" fill="currentColor"/></svg><span>Awards</span></button><button id="setBtn" class="iconbtn" type="button" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8zm8.3 4.9.1-1.5-.1-1.5 2-1.6-2-3.4-2.4 1a8 8 0 0 0-2.6-1.5L14.9 2h-3.8l-.4 2.5A8 8 0 0 0 8.1 6l-2.4-1-2 3.4 2 1.6-.1 1.5.1 1.5-2 1.6 2 3.4 2.4-1a8 8 0 0 0 2.6 1.5l.4 2.5h3.8l.4-2.5a8 8 0 0 0 2.6-1.5l2.4 1 2-3.4z" fill="currentColor"/></svg><span>Settings</span></button></div>
         <button id="toDriver" class="cta" type="button">Choose driver <span aria-hidden="true">›</span></button>
         <button id="mpBtn" class="ghost mp-btn" type="button">Play with friends</button>
@@ -5514,7 +5516,7 @@ function battleSetup(def){BB.shapes=bbArena();BB.grid=null;const P=Math.PI;
   for(const [x,z] of [[-470,-356],[-290,-356],[-50,-356],[190,-356],[-386,-301],[-242,-301],[46,-301],[350,-290],[-490,-120],[-490,60],[-310,-220],[-380,-130],[-30,-90],[110,-80],[320,40],[100,30],[70,190],[210,200],[-230,180],[-460,180],
       [-130,60],[220,-80],[0,-250],[-310,170],[-250,310],[-50,310],[150,310],[500,300],[420,330],[465,-40],[-525,310]])boxes.push({x,y:z,r:0,sv:boxes.length*3,gy:battleG(x,z),dbl:false});}
 /* on every map load: leaving the arena takes its balloons and its scoreboard away; the HUD's lap and place read-outs are hidden in a battle */
-function battleLoad(){if(SBX)sbOff();/* a different world is coming in */if(!document.getElementById('bbCss')){const st=document.createElement('style');st.id='bbCss';st.textContent='body.battle #posNum,body.battle #posSuf,body.battle #tbProg,body.battle #hudLap,body.battle #lapBars,body.battle #hudPB,body.battle #hudTime,body.battle #mini,body.battle #wrong,body.battle #abilBtn,body.battle .lapbox,body.battle .posbox{display:none!important}';document.head.appendChild(st);}
+function battleLoad(){if(SBX)sbOff();/* a different world is coming in */if(!document.getElementById('bbCss')){const st=document.createElement('style');st.id='bbCss';st.textContent='body.battle #posNum,body.battle #posSuf,body.battle #tbProg,body.battle #hudLap,body.battle #lapBars,body.battle #hudPB,body.battle #hudTime,body.battle #mini,body.battle #wrong,body.battle:not(.sbx) #abilBtn,body.battle .lapbox,body.battle .posbox{display:none!important}';document.head.appendChild(st);}
   document.body.classList.toggle('battle',BATTLE);if(!BATTLE){if(BB.grp){scene.remove(BB.grp);BB.grp=null;}if(BB.el)BB.el.hidden=true;BB.shapes=[];}}
 /* ---- thrown things in the arena (the engine's hooks: patch20.py) ----
    p.bh is the level a thrown thing is on: it follows the ground down a drop and up a ramp, and anything higher than a step is a wall */
@@ -5673,8 +5675,14 @@ function sbG(x,z,wy){if(wy==null)wy=1e9;const n=sbSurf(x,z),S=SB.S;if(SB.inG&&SB
   let h=SB.kind==='toy'?0:groundAt(x,z);for(let i=0;i<n;i++){const t=S[i][0];if(t<=wy+SB_STEP&&t>h)h=t;}return h;}
 /* THE LAP IS ALWAYS OPEN: where the point is on the track's own surface at the kart's own level, nothing drawn there is in the way. The race
    proves nothing real stands on the track; where the picture has the track run through the edge of a worktop or under a low beam, the track wins. */
+/* climbing (web v200): how much of the engine's pull back down a slope a kart feels going up, and the steepest ground it can climb at all
+   (as a rise over SB_R, the distance the walls are looked for at), both from its off-road (statMods .off: -3.6 to 3.6, 0 a middle kart; with
+   kart stats off, 0). A middle kart: 45% of the pull, up to about 40 degrees; the best off-road 15%, 50 degrees; the worst 85%, 26 degrees */
+function sbOffRd(k){const sm=k&&k.sm;return sm&&isFinite(sm.off)?sm.off:0;}
+function sbGrav(k){return clamp(.45-.085*sbOffRd(k),.12,.9);}
+function sbClimb(k){return SB_R*clamp(.84+.1*sbOffRd(k),.45,1.2);}
 function sbBlocked(x,z,wy){const n=sbSurf(x,z),S=SB.S,lv=sbLvl();for(let i=0;i<n;i++)if(S[i][2]>=0&&S[i][4]&&Math.abs(S[i][1]+2.5-wy)<=lv)return false;
-  if(SB.kind==='open'&&!SB.inG){/* a pizza's own ground: a face that rises more than a step from where the kart stands is a cliff, not a hill (the land beside some tracks climbs 180 in a few lengths), and water deeper than the wheels is a shore */const g0=groundAt(x,z);if(g0>wy+SB_STEP||(WATER_Y!=null&&g0<WATER_Y-3&&wy<WATER_Y+SB_HEAD))return true;}
+  if(SB.kind==='open'&&!SB.inG){/* a pizza's own ground: a face that rises more than a step from where the kart stands is a cliff, not a hill (the land beside some tracks climbs 180 in a few lengths), and water deeper than the wheels is a shore */const g0=groundAt(x,z);if(g0>wy+sbClimb(player)||(WATER_Y!=null&&g0<WATER_Y-3&&wy<WATER_Y+SB_HEAD))return true;}
 for(let i=0;i<n;i++)if(S[i][0]>wy+SB_STEP&&S[i][1]<wy+SB_HEAD)return true;return false;}
 function sbTouch(x,z,wy,out){let nx=0,nz=0,n=0;for(let i=0;i<8;i++){const a=i*.785398,sx=Math.cos(a),sz=Math.sin(a);if(sbBlocked(x+sx*SB_R,z+sz*SB_R,wy)){nx+=sx;nz+=sz;n++;}}
   if(!n)return 0;const l=Math.hypot(nx,nz);if(l<1e-6){out.x=0;out.z=0;return 2;}out.x=nx/l;out.z=nz/l;return 1;}
@@ -5813,7 +5821,7 @@ function* sbTripG(g,mi,sp){const k=player;
   else{/* no gate to come out of (fast travel): the start line, a little behind it */const j=(N-Math.round(40/(T.L/N)))%N,p=track[j];k.x=k.px=p.x;k.y=k.py=p.y;k.a=k.ma=k.pa=k.pma=Math.atan2(p.ty,p.tx);k.idx=j;}
   k.speed=sp;k.wvy=0;k.gRate=0;k.air=false;k.big=false;k.drift=0;k.charge=0;k.spin=0;k.z=k.pz=0;k.bpx=k.x;k.bpy=k.y;
   if(SBF){const lvl=a&&!a.road?a.y:((SB.kind==='toy'?0:groundAt(k.x,k.y))+(track[k.idx].ey||0));k.wy=k.pwy=k.lastG=sbG(k.x,k.y,lvl+2);k.idx=sbIdx(k,k.idx);}else k.wy=k.pwy=k.lastG=kGround(k);
-  k.rx=k.x;k.ry=k.y;k.rz=k.wy;k.rg=k.wy;k.rma=k.ma;cam.a=k.ma;camSnap=true;yield "trip4";
+  k.rx=k.x;k.ry=k.y;k.rz=k.wy;k.rg=k.wy;k.rma=k.ma;cam.a=k.ma;camSnap=true;if(g.shop)sbShopPut(k);/* (fast travel to the mechanic's shop) */yield "trip4";
   yield* sbWarmG();}
 /* the new place made ready to draw, a little at a time (done at once, as warmScene alone does it, this was one wait of 0.3 to 1.8 s):
    1. its shaders: renderer.compile on eight things at a time (F: a scene that lends the real one's lights, environment and fog, so the
@@ -5910,10 +5918,10 @@ function sbFound(){let n=0,t=0;for(const c of SB.coins)if(c.rare){t++;if(c.t<0)n
 function sbArm(){const def=MAPS[mapIdx],R=def&&sbRegOf(def.id),on=mode==='sb'&&!NET.cfg&&!!R;if(!on){if(SBX)sbOff();return;}
   SBX=true;SB.regId=def.id;SB.reg=R;SB.kind=R.kind||'toy';SBF=SB.kind!=='road';BATTLE=SBF;SB.shapes=R.shapes?R.shapes():[];SB.rim=0;SB.col=null;SB.hash=null;SB.gates=[];SB.loops=LOOPS.filter(L=>L.full).map(L=>({p:L.p,g0:L.g0,r:LOOPR+34,a:-L.S-L.W-10,b:L.shift-L.S+L.W+10}));
   if(SBF){let b=TOYROOM;if(SB.kind==='open'){const r=RIM+70;b=[-r,r,-r,r];SB.rim=RIM;}else if(!b){b=[1e9,-1e9,1e9,-1e9];for(const p of track){b[0]=Math.min(b[0],p.x-400);b[1]=Math.max(b[1],p.x+400);b[2]=Math.min(b[2],p.y-400);b[3]=Math.max(b[3],p.y+400);}}sbColumns(b);sbHashTrack();}
-  sbCoins();sbGates();{/* the map remembers this place's tunnels */const sv=sbSave();if(!sv.g)sv.g={};sv.g[SB.regId]=SB.gates.map(g=>[Math.round(g.x),Math.round(g.z),g.label]);sbKeep();}sbFlag();try{sbActArm();sbEggArm();}catch(e){console.warn('activities',e);}SB.hudT=0;SB.msgT=0;SB.camF=1;if(!SB.trav)sbPark(false);sbMapBtn();document.body.classList.add('battle');sbClockArm();}
-function sbOff(){if(!SBX)return;try{sbActOff();}catch(e){}sbClockOff();/* the place's own light back, before anything else reads it */SBX=false;SBF=false;const def=MAPS[mapIdx];BATTLE=!!(def&&def.battle);if(SB.grp){/* the passages' own shapes, signs and shaders go with the place (everything else in the group is shared) */for(const G of SB.grp.children)if(G.userData.sbGate)G.traverse(o=>{if(!o.isMesh)return;o.geometry.dispose();const m=o.material;if(m.map)m.map.dispose();m.dispose();});scene.remove(SB.grp);SB.grp=null;SB.im=null;}SB.coins=[];SB.shapes=[];SB.gates=[];SB.hash=null;SB.col=null;if(SB.el)SB.el.hidden=true;SB.flag=null;sbRaceBtn(false);sbPull(false);SB.park=false;if(SB.parkEl)SB.parkEl.hidden=true;if(SB.spdEl)SB.spdEl.hidden=true;sbMapBtn();document.body.classList.toggle('battle',BATTLE);}
+  sbCoins();sbGates();{/* the map remembers this place's tunnels */const sv=sbSave();if(!sv.g)sv.g={};sv.g[SB.regId]=SB.gates.map(g=>[Math.round(g.x),Math.round(g.z),g.label]);sbKeep();}sbFlag();try{sbActArm();sbEggArm();}catch(e){console.warn('activities',e);}try{sbShopBuild();}catch(e){console.warn('shop',e);}SB.hudT=0;SB.msgT=0;SB.camF=1;if(!SB.trav)sbPark(false);sbMapBtn();document.body.classList.add('battle');document.body.classList.add('sbx');{/* (web v200: abilities in Sandbox; on a pad its key is R3, Y being the map) */const ph=document.querySelector('#abilBtn .ph');if(ph)ph.textContent='R3';}sbClockArm();}
+function sbOff(){if(!SBX)return;try{sbActOff();}catch(e){}sbClockOff();/* the place's own light back, before anything else reads it */SBX=false;SBF=false;const def=MAPS[mapIdx];BATTLE=!!(def&&def.battle);if(SB.grp){/* the passages' own shapes, signs and shaders go with the place (everything else in the group is shared) */for(const G of SB.grp.children)if(G.userData.sbGate)G.traverse(o=>{if(!o.isMesh)return;o.geometry.dispose();const m=o.material;if(m.map)m.map.dispose();m.dispose();});scene.remove(SB.grp);SB.grp=null;SB.im=null;}SB.coins=[];SB.shapes=[];SB.gates=[];SB.hash=null;SB.col=null;if(SB.el)SB.el.hidden=true;SB.flag=null;sbRaceBtn(false);sbPull(false);SB.park=false;if(SB.parkEl)SB.parkEl.hidden=true;if(SB.spdEl)SB.spdEl.hidden=true;sbMapBtn();document.body.classList.toggle('battle',BATTLE);document.body.classList.remove('sbx');{const ph=document.querySelector('#abilBtn .ph');if(ph)ph.textContent='Y';}}
 function sbStart(){for(const k of karts){k.bal=0;k.bbS=0;k.bbOut=0;if(SBF){k.wy=k.pwy=k.lastG=sbG(k.x,k.y,(SB.kind==='toy'?0:groundAt(k.x,k.y))+(track[k.idx].ey||0)+2);k.wvy=0;k.gRate=0;k.air=false;k.bpx=k.x;k.bpy=k.y;}}
-  if(BB.grp){scene.remove(BB.grp);BB.grp=null;}sbHud();const f=sbFound();showBanner(SB.reg.name,2.2,'md');sbClockMats();sbClockApply();try{sbWarpPrime();}catch(e){}/* (the karts have just been built again: their paint and lights join the clock) */}
+  if(BB.grp){scene.remove(BB.grp);BB.grp=null;}sbHud();const f=sbFound();showBanner(SB.reg.name,2.2,'md');sbClockMats();sbClockApply();try{sbWarpPrime();}catch(e){}if(SB.shopPut&&player){SB.shopPut=false;sbShopPut(player);}/* (the karts have just been built again: their paint and lights join the clock) */}
 /* ---- stopping (web v193) ----
    The owner: "if you hold down both brake buttons in sandbox it should completely stop the car and there should be a park button on screen
    that will stop the car in place that way you can stop at races easier". SB.park is the Park button's state (K on a keyboard and D-pad down
@@ -5929,7 +5937,7 @@ function sbParkBtn(){let b=SB.parkEl;const show=SBX&&(state==='race'||state==='c
   if(b.hidden===show)b.hidden=!show;}
 function sbTick(dt){sbParkBtn();sbSpdUi();if(state!=='race'){sbRaceBtn(false);sbActBtn(null);return;}const k=player;if(!k)return;sbClockTick(dt);
   if(sbStop()&&!k.loop&&!k.air){const sp=k.speed,d=Math.min(Math.abs(sp),(140+Math.abs(sp)*5)*dt);k.speed=sp-Math.sign(sp)*d;if(Math.abs(k.speed)<1.5)k.speed=0;k.boost=0;k.drift=0;k.charge=0;}
-{const f=SB.flag,near=!!f&&!SB.trav&&(k.x-f.x)**2+(k.y-f.z)**2<46*46&&Math.abs((k.wy||0)-f.y)<10;sbRaceBtn(near);if(near){try{const gp=navigator.getGamepads&&navigator.getGamepads()[PAD.idx];const up=!!gp&&gp.buttons[12]&&gp.buttons[12].pressed;if(up&&!SB.padUp)sbRaceHere();SB.padUp=up;}catch(e){}}}try{sbActTick(k,dt);sbEggTick(k,dt);sbActPad();}catch(e){console.warn('activities',e);}sbGuide(k,dt);if(SB.cool>0)SB.cool-=dt;else for(const g of SB.gates){const d=(k.x-g.x)*g.nx+(k.y-g.z)*g.nz;if(d>(g.road?0:g.plain?64:SB_GLEN-70)&&(!g.road||(d<26&&Math.abs((k.wy||0)-g.y)<14))&&Math.abs((k.x-g.x)*g.tx+(k.y-g.z)*g.tz)<g.hw+2&&Math.cos(k.ma)*g.nx+Math.sin(k.ma)*g.nz>.2){sbTravel(g);return;}}
+{const f=SB.flag,near=!!f&&!SB.trav&&(k.x-f.x)**2+(k.y-f.z)**2<46*46&&Math.abs((k.wy||0)-f.y)<10;sbRaceBtn(near);if(near){try{const gp=navigator.getGamepads&&navigator.getGamepads()[PAD.idx];const up=!!gp&&gp.buttons[12]&&gp.buttons[12].pressed;if(up&&!SB.padUp)sbRaceHere();SB.padUp=up;}catch(e){}}}try{sbActTick(k,dt);sbEggTick(k,dt);sbActPad();}catch(e){console.warn('activities',e);}sbShopTick(k);if(state!=='race')return;sbGuide(k,dt);if(SB.cool>0)SB.cool-=dt;else for(const g of SB.gates){const d=(k.x-g.x)*g.nx+(k.y-g.z)*g.nz;if(d>(g.road?0:g.plain?64:SB_GLEN-70)&&(!g.road||(d<26&&Math.abs((k.wy||0)-g.y)<14))&&Math.abs((k.x-g.x)*g.tx+(k.y-g.z)*g.tz)<g.hw+2&&Math.cos(k.ma)*g.nx+Math.sin(k.ma)*g.nz>.2){sbTravel(g);return;}}
   const sv=sbSave(),y=(k.wy||0)+3.5;let ch=false;
   for(const c of SB.coins){if(c.t<0)continue;if(c.t>0){c.t-=dt;if(c.t<=0){c.t=0;}continue;}const dx=c.x-k.x,dz=c.z-k.y,r=c.rare?12:10.5;if(dx*dx+dz*dz>r*r||Math.abs(c.y-y)>(c.rare?14:10))continue;
     if(c.rare){c.t=-1;sv.r[c.id]=1;sv.c+=10;if(c.m)c.m.visible=false;burst(c.x,c.y,c.z,26,['#ffd65a','#d8402a','#ffffff'],70,2.4);spawnRing(c.x,c.y,c.z,'#ffd65a',26,.5,false);const f=sbFound();showBanner('Pepperoni coin! '+f[0]+' of '+f[1],1.6,'sm');try{SFX.ready();}catch(e){}}
@@ -6023,7 +6031,12 @@ function sbSpdUi(){let e=SB.spdEl;const show=SBX&&(state==='race'||state==='coun
     e.addEventListener('pointerdown',ev=>{ev.preventDefault();ev.stopPropagation();SB.spdDrag=ev.pointerId;try{e.setPointerCapture(ev.pointerId);}catch(x){}at(ev);});e.addEventListener('pointermove',ev=>{if(SB.spdDrag===ev.pointerId){ev.preventDefault();at(ev);}});for(const n of ['pointerup','pointercancel'])e.addEventListener(n,ev=>{if(SB.spdDrag===ev.pointerId)SB.spdDrag=null;});
     for(const n of ['touchstart','touchmove','touchend','mousedown'])e.addEventListener(n,ev=>ev.stopPropagation());stage.appendChild(e);
     addEventListener('keydown',ev=>{if(!SBX||state!=='race'||SBM.open||SB.trav)return;if(ev.code==='BracketLeft'&&!KEYC.BracketLeft){ev.preventDefault();sbSpdStep(-1);}else if(ev.code==='BracketRight'&&!KEYC.BracketRight){ev.preventDefault();sbSpdStep(1);}});}
-  if(e.hidden===show)e.hidden=!show;if(!show)return;const v=sbSpd();if(SB.spdDraw===v)return;SB.spdDraw=v;const f=(v-.25)/.75*100;e.querySelector('b').textContent=Math.round(v*100)+'%';e.querySelector('u').style.height=f+'%';e.querySelector('s').style.bottom=f+'%';e.setAttribute('aria-valuenow',String(Math.round(v*100)));}
+  if(e.hidden===show)e.hidden=!show;if(!show)return;
+  /* (web v200, the owner's phone: "The speed slider overlaps the item slots by just a little". Twice a second it is set below whichever of
+     the item and ability buttons stand above it, with their letter badges, and its track is shortened to fit what is left above the pedals) */
+  {const now=performance.now();if(!SB.spdPosT||now-SB.spdPosT>500){SB.spdPosT=now;const er=e.getBoundingClientRect();let lo=0;for(const id of ['itemBtn','itemBtn2','abilBtn','slot2']){const b=document.getElementById(id);if(!b||b.offsetParent===null)continue;const r=b.getBoundingClientRect();if(r.width&&r.right>er.left-4&&r.left<er.right+4&&r.top<er.bottom)lo=Math.max(lo,r.bottom);}
+    const top=Math.round(Math.max(162,innerHeight/2-64,lo?lo+18:0));if(e.style.top!==top+'px'){e.style.top=top+'px';e.querySelector('i').style.height=Math.max(56,Math.min(150,innerHeight-top-170))+'px';SB.spdDraw=null;}}}
+  const v=sbSpd();if(SB.spdDraw===v)return;SB.spdDraw=v;const f=(v-.25)/.75*100;e.querySelector('b').textContent=Math.round(v*100)+'%';e.querySelector('u').style.height=f+'%';e.querySelector('s').style.bottom=f+'%';e.setAttribute('aria-valuenow',String(Math.round(v*100)));}
 /* heading into a mouth a little off its middle, the kart is eased sideways into it instead of meeting the jamb: only in the last 110 units
    before the wall, only when it is pointing in and already within reach of the mouth, and never faster than a kart could steer there */
 function sbGuide(k,dt){if(!SBF||k.air||k.loop||!(k.speed>20))return;for(const g of SB.gates){if(g.road)continue;const d=(k.x-g.x)*g.nx+(k.y-g.z)*g.nz;if(d<-110||d>30)continue;const l=(k.x-g.x)*g.tx+(k.y-g.z)*g.tz,lim=Math.max(4,g.hw-10);if(Math.abs(l)<=lim||Math.abs(l)>g.hw+26)continue;if(Math.cos(k.ma)*g.nx+Math.sin(k.ma)*g.nz<.55)continue;if(Math.abs((k.wy||0)-g.y)>12)continue;
@@ -6031,7 +6044,7 @@ function sbGuide(k,dt){if(!SBF||k.air||k.loop||!(k.speed>20))return;for(const g 
 addEventListener('keydown',ev=>{if(SBM.open&&(ev.code==='Escape'||ev.code==='KeyM')){ev.preventDefault();ev.stopImmediatePropagation();if(SBM.pick&&ev.code==='Escape')sbMapPick(null);else sbMap(false);}else if(!SBM.open&&SBX&&state==='race'&&ev.code==='KeyM'&&!ev.repeat&&!KEYC.KeyM){ev.preventDefault();sbMap(true,'drive');}},true);
 function sbMapPick(p){SBM.pick=p;SBM.zoom=p?p.id:null;const e=sbMapEl(),say=e.querySelector('#sbMapSay'),go=e.querySelector('#sbMapGo'),no=e.querySelector('#sbMapNo');
   const me=e.querySelector('#sbMapMe');
-  if(p){const R=sbRegOf(p.id),here=SBX&&p.id===SB.regId,n=sbMapGates(p.id).length;say.textContent=p.track+(R?' · '+R.name.split(' · ')[0]:'')+(here?' · you are here (the blue arrow)':'')+(n?' · the purple rings are its tunnels':' · its tunnels show once you have been there');go.hidden=false;no.hidden=false;no.textContent='World map';me.hidden=here;go.textContent=here?'To the start line':'Travel here';go.focus();}
+  if(p){const R=sbRegOf(p.id),here=SBX&&p.id===SB.regId,n=R?sbMapGates(p.id).length:0;if(p.id==='shop'){SBM.zoom=SB_SHOP.id;say.textContent="Mechanic's shop, in the garage: drive in to change your driver and kart";go.hidden=false;no.hidden=false;no.textContent='World map';me.hidden=false;go.textContent='Travel here';go.focus();sbMapDraw();return;}say.textContent=p.track+(R?' · '+R.name.split(' · ')[0]:'')+(here?' · you are here (the blue arrow)':'')+(n?' · the purple rings are its tunnels':' · its tunnels show once you have been there');go.hidden=false;no.hidden=false;no.textContent='World map';me.hidden=here;go.textContent=here?'To the start line':'Travel here';go.focus();}
   else{say.textContent='Pick a chequered pin to look closer at a place and travel to it. Every place can also be driven to.';go.hidden=true;no.hidden=true;me.hidden=!SBX;}
   sbMapDraw();
   for(const q of SBM.pins)q.b.setAttribute('aria-pressed',String(!!p&&q.id===p.id));}
@@ -6060,13 +6073,17 @@ function sbMapDraw(){const cv=SBM.cv,box=cv.parentNode.parentNode,Z=SBM.zoom,V=Z
   /* you: an arrow where you are, pointing the way you face */
   SBM.me=null;if(SBX&&player){const p=sbMapAt(SB.regId,player.x,player.y);if(p){const a=player.ma,r=(Z?14:9)*dpr;g.save();g.translate(X(p[0]),Y(p[1]));g.rotate(a);g.beginPath();g.moveTo(r*1.25,0);g.lineTo(-r*.8,r*.8);g.lineTo(-r*.35,0);g.lineTo(-r*.8,-r*.8);g.closePath();g.fillStyle='#39d0ff';g.fill();g.strokeStyle='#06222e';g.lineWidth=2*dpr;g.stroke();g.restore();SBM.me=[X(p[0])/dpr,Y(p[1])/dpr];}}
   /* the pins sit over the picture as real buttons (so a finger, a mouse and a controller all reach them) */
-  for(const q of SBM.pins){const x=X(q.at[0])/dpr,y=Y(q.at[1])/dpr;q.b.style.left=x+'px';q.b.style.top=y+'px';q.b.hidden=!!Z&&q.id!==Z;}}
+  for(const q of SBM.pins){const x=X(q.at[0])/dpr,y=Y(q.at[1])/dpr;q.b.style.left=x+'px';q.b.style.top=y+'px';q.b.hidden=!!Z&&q.id!==Z&&!(q.id==='shop'&&Z===SB_SHOP.id);}}
 function sbMapGate(id,gid){const R=SB_REG[id],W=SB_WORLD[id];if(!R||!W)return null;const d=(R.gates||[]).find(q=>q.id===gid);if(!d)return null;const b=W.box;if(R.room){const y=(b[2]+b[3])/2+d.p/100,x=(b[0]+b[1])/2+d.p/100;return d.w==='E'?[b[1],y]:d.w==='W'?[b[0],y]:d.w==='N'?[x,b[3]]:[x,b[2]];}return d.w==='S'?[d.p,b[2]]:d.w==='N'?[d.p,b[3]]:d.w==='E'?[b[1],d.p]:[b[0],d.p];}
 function sbMapPins(){const box=sbMapEl().querySelector('#sbMapIn');for(const q of SBM.pins)q.b.remove();SBM.pins=[];
   for(const id of Object.keys(SB_WORLD).concat(Object.keys(SB_SPOT))){const t=sbMapTrack(id);if(!t)continue;const b=document.createElement('button');b.type='button';b.className='sbpin';b.setAttribute('aria-label','Travel to '+t.name);
     b.style.cssText='position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:3px solid #ffd45a;padding:0;cursor:pointer;background:conic-gradient(#141210 25%,#fbf6ea 0 50%,#141210 0 75%,#fbf6ea 0) 0 0/12px 12px;box-shadow:0 2px 6px rgba(0,0,0,.6)';
     b.innerHTML='<span style="position:absolute;left:50%;'+(id==='backyard'?'bottom:100%;margin-bottom:3px;':'top:100%;margin-top:3px;')+'transform:translateX(-50%);font:800 10.5px/1 system-ui,sans-serif;color:#fff;white-space:nowrap;text-shadow:0 1px 3px #000,0 0 6px #000;pointer-events:none">'+t.name+'</span>';
     b.onclick=()=>sbMapPick(SBM.zoom===id?null:{id,track:t.name});b.addEventListener('focus',()=>{try{b.scrollIntoView({block:'nearest',inline:'nearest'});}catch(e){}});box.appendChild(b);SBM.pins.push({id,b,at:t.start,name:t.name});}
+  /* the mechanic's shop: a pin of its own, round with a spanner, blue (a place to go, not a track) */{const at=sbMapAt(SB_SHOP.id,SB_SHOP.x,SB_SHOP.z);if(at){const b=document.createElement('button');b.type='button';b.className='sbpin';b.setAttribute('aria-label',"Travel to the mechanic's shop");
+    b.style.cssText='position:absolute;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;border:3px solid #fff4dc;padding:0;cursor:pointer;background:#2a5bd7;box-shadow:0 2px 6px rgba(0,0,0,.6);color:#fff;font:900 15px/22px system-ui,sans-serif';
+    b.innerHTML='&#128295;<span style="position:absolute;left:50%;top:100%;margin-top:3px;transform:translateX(-50%);font:800 10.5px/1 system-ui,sans-serif;color:#fff;white-space:nowrap;text-shadow:0 1px 3px #000,0 0 6px #000;pointer-events:none">Mechanic</span>';
+    b.onclick=()=>sbMapPick({id:'shop',track:"Mechanic's shop"});box.appendChild(b);SBM.pins.push({id:'shop',b,at,name:"Mechanic's shop"});}}
   if(!document.getElementById('sbPinCss')){const st=document.createElement('style');st.id='sbPinCss';st.textContent='.sbpin:focus-visible,.sbpin[aria-pressed=true]{outline:3px solid #39d0ff;outline-offset:3px}';document.head.appendChild(st);}}
 /* open or close. from: 'drive' (straight from driving: closing goes back to driving) or 'pause' (from the pause menu: closing goes back to it) */
 function sbMap(open,from){const e=sbMapEl();if(open===SBM.open)return;if(open){if(!SBX||SB.trav||(state!=='race'&&state!=='paused'))return;SBM.from=from||'drive';
@@ -6076,7 +6093,7 @@ function sbMap(open,from){const e=sbMapEl();if(open===SBM.open)return;if(open){i
     const first=SBM.pins.find(q=>q.id===SB.regId)||SBM.pins[0];if(first)try{first.b.focus({preventScroll:true});}catch(err){first.b.focus();}}
   else{SBM.open=false;e.hidden=true;SBM.pick=null;SBM.zoom=null;if(SBM.from==='pause'){pauseOv.hidden=false;const r=document.getElementById('resumeBtn');if(r)r.focus();}else if(state==='paused')togglePause();}}
 /* fast travel: to a place's start line. Only this player moves. */
-function sbMapTravel(id){if(!sbRegOf(id))return;SBM.from='drive';sbMap(false);if(state!=='race')return;sbPark(false);sbTravel({to:id,start:true});}
+function sbMapTravel(id){if(id==='shop'){SBM.from='drive';sbMap(false);if(state!=='race')return;sbPark(false);sbTravel({to:SB_SHOP.id,start:true,shop:true});return;}if(!sbRegOf(id))return;SBM.from='drive';sbMap(false);if(state!=='race')return;sbPark(false);sbTravel({to:id,start:true});}
 /* the pause menu's Map button, directly under Resume, in Sandbox only */
 function sbMapBtn(){let b=document.getElementById('sbMapBtn');if(!b){if(!SBX)return;const r=document.getElementById('resumeBtn');if(!r)return;b=document.createElement('button');b.id='sbMapBtn';b.className='cta';b.type='button';b.textContent='Map';b.style.cssText='background:var(--oven-2);box-shadow:0 5px 0 rgba(0,0,0,.35);border:2px solid var(--oven-3)';r.insertAdjacentElement('afterend',b);b.onclick=()=>sbMap(true,'pause');}
   b.hidden=!SBX;sbBackBtn();}
@@ -6185,6 +6202,49 @@ function sbClockOff(){const R=SBC.rec;if(!R)return;/* (nothing was written down:
   if(SBC.stars){scene.remove(SBC.stars);SBC.stars.geometry.dispose();SBC.stars.material.dispose();SBC.stars=null;}if(SB.save&&SB.clock!=null){SB.save.t=+SB.clock.toFixed(4);sbKeep();}}
 /* for the tests and for looking: set the hour and light the place for it at once */
 function sbClockSet(t){if(!SB_CLOCK)return null;SB.clock=((+t||0)%1+1)%1;sbClockApply();SB.hudT=0;return SB.clock;}
+/* ---- the mechanic's shop (web v200) ----
+   The owner, 2026-11-15: "in the garage map add a section in the corner or somewhere in the room that will be added to the mini map and have a
+   fast travel point. It will be a little mechanic garage shop we can pull the car into and we will enter the garage menu and character select
+   where we can change characters and vehicles from inside the game without having to exit and restart".
+   A toy garage playset on the garage floor (SB_SHOP: an open spot between the green bin and the tyre, in front of the shelf, chosen by
+   searching the floor for room and headroom away from the track). Its walls are solid (SB.shapes); drive in through the open front and the
+   driver screen opens (then Build kart, as from the menu); "Back to Sandbox" (the driver screen's back button, or the garage's last button)
+   brings you back out of the shop's door with what you chose. On the world map it is a pin of its own in the garage ("Mechanic's shop"),
+   and fast travel to it sets you down at its door. */
+const SB_SHOP={id:'garage',x:205,z:-443,w:100,d:90,h:46};
+function sbShopIn(){return SBX&&SB.regId===SB_SHOP.id;}
+function sbShopBuild(){if(!sbShopIn()||!SB.grp)return;const S=SB_SHOP,G=new THREE.Group(),x0=S.x-S.w/2,x1=S.x+S.w/2,z0=S.z-S.d/2,z1=S.z+S.d/2,H=S.h,T=4;
+  const pl=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.38,metalness:.02},o||{}));
+  const box=(w,h,d,m,x,y,z)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;G.add(o);return o;};
+  const red=pl('#d8342a'),yel=pl('#f5c21b'),blu=pl('#2a5bd7'),gry=pl('#8d949c',{roughness:.6}),drk=pl('#2b2f35',{roughness:.7});
+  /* the base and its painted floor */box(S.w+8,2,S.d+8,gry,S.x,1,S.z);
+  {const c=cnv(256,256),g=c.getContext('2d');g.fillStyle='#5d636b';g.fillRect(0,0,256,256);g.strokeStyle='#f5c21b';g.lineWidth=10;g.setLineDash([26,16]);g.strokeRect(40,30,176,200);g.setLineDash([]);g.fillStyle='rgba(255,255,255,.12)';for(let i=0;i<8;i++)g.fillRect(0,i*32,256,2);const t=T2(c);t.userData.keepCanvas=true;
+    const f=new THREE.Mesh(new THREE.PlaneGeometry(S.w-2*T,S.d-T),new THREE.MeshStandardMaterial({map:t,roughness:.55}));f.rotation.x=-Math.PI/2;f.position.set(S.x,2.05,S.z-T/2);f.receiveShadow=true;G.add(f);}
+  /* walls: the back and the two sides, red with a yellow band; the roof blue, with an overhang over the open front */
+  box(S.w,H,T,red,S.x,H/2+2,z0+T/2);for(const sx of [x0+T/2,x1-T/2])box(T,H,S.d,red,sx,H/2+2,S.z);
+  for(const sx of [x0+T/2,x1-T/2])box(T+.6,5,S.d+.6,yel,sx,H*.62+2,S.z);box(S.w+.6,5,T+.6,yel,S.x,H*.62+2,z0+T/2);
+  box(S.w+10,4,S.d+16,blu,S.x,H+4,S.z+4);
+  /* the sign over the door */{const c=cnv(512,128),g=c.getContext('2d');g.fillStyle='#fbf3df';g.fillRect(0,0,512,128);g.strokeStyle='#d8342a';g.lineWidth=10;g.strokeRect(5,5,502,118);g.fillStyle='#1b1f26';g.font='900 64px Arial';g.textAlign='center';g.textBaseline='middle';g.fillText('MECHANIC',284,68);
+    /* a spanner */g.save();g.translate(72,64);g.rotate(-.7);g.fillStyle='#8d949c';g.fillRect(-36,-7,72,14);g.beginPath();g.arc(-40,0,16,0,6.283);g.arc(40,0,16,0,6.283);g.fill();g.fillStyle='#fbf3df';g.fillRect(-58,-6,16,12);g.fillRect(42,-6,16,12);g.restore();
+    const t=T2(c);t.userData.keepCanvas=true;const b=new THREE.Mesh(new THREE.PlaneGeometry(S.w*.86,S.w*.86/4),new THREE.MeshBasicMaterial({map:t,toneMapped:false}));b.position.set(S.x,H+14,z1+12.2);G.add(b);
+    box(S.w*.88,S.w*.88/4+2,1.2,drk,S.x,H+14,z1+11.4);}
+  /* inside: a stack of tyres, a toolbox, two lift posts */
+  {const tg=new THREE.TorusGeometry(5,2.4,10,22);for(let i=0;i<3;i++){const o=new THREE.Mesh(tg,drk);o.rotation.x=Math.PI/2;o.position.set(x0+14,4.5+i*4.6,z0+14);o.castShadow=true;G.add(o);}}
+  box(16,12,9,red,x1-16,8,z0+10);box(16.4,2,9.4,gry,x1-16,14.6,z0+10);for(let i=0;i<3;i++)box(14,.6,.4,gry,x1-16,4+i*3.4,z0+14.8);
+  for(const sx of [S.x-24,S.x+24])box(3,30,3,yel,sx,17,S.z-14);box(52,2.4,3,yel,S.x,30,S.z-14);
+  G.traverse(o=>{o.userData.sunlit=true;});SB.grp.add(G);SB.shopG=G;
+  /* solid: the walls (the roof is overhead, out of a kart's way) */const wall=(a,b,c,d)=>SB.shapes.push({t:'box',x0:a,x1:b,z0:c,z1:d,b:0,h:H+2});
+  wall(x0,x1,z0,z0+T);wall(x0,x0+T,z0,z1);wall(x1-T,x1,z0,z1);SB.shopIn=false;}
+/* each step: driving in opens the driver screen (once a visit: you have to leave the shop before it opens again) */
+function sbShopTick(k){if(!sbShopIn())return;const S=SB_SHOP,inside=k.x>S.x-S.w/2+10&&k.x<S.x+S.w/2-10&&k.y>S.z-S.d/2+6&&k.y<S.z+S.d/2-22&&Math.abs(k.wy||0)<8;
+  if(inside&&!SB.shopIn&&!SB.trav&&state==='race'){SB.shopIn=true;sbShopOpen();return;}if(!inside&&k.y>S.z+S.d/2+10)SB.shopIn=false;}
+function sbShopOpen(){if(SBA&&SBA.act)sbActEnd('cancel');SB.shopBack=true;try{SFX.ready();}catch(e){}toMenu();goStep('driver');sbShopLabels(true);}
+function sbShopLabels(on){const d=document.querySelector('[data-step="driver"] .st-back'),g=$('gDone');if(on){if(d){d.dataset.was=d.innerHTML;d.innerHTML='‹ Sandbox';}if(g){g.dataset.was=g.innerHTML;g.innerHTML='Back to Sandbox ›';}}
+  else{if(d&&d.dataset.was){d.innerHTML=d.dataset.was;delete d.dataset.was;}if(g&&g.dataset.was){g.innerHTML=g.dataset.was;delete g.dataset.was;}}}
+/* the driver screen's back, or the garage's last button: back into Sandbox, out of the shop's door (true: handled) */
+function sbShopDone(){if(!SB.shopBack)return false;SB.shopBack=false;sbShopLabels(false);try{closeGarage();}catch(e){}const mi=MAPS.findIndex(m=>m.id===SB_SHOP.id);if(mi<0)return false;mode='sb';SB.shopPut=true;introSkip=true;/* (no fly-over: straight back out of the door) */menu.hidden=true;goRace(mi);return true;}
+/* where the kart comes out: just in front of the door, facing away from it */
+function sbShopPut(k){const S=SB_SHOP;k.x=k.px=S.x;k.y=k.py=S.z+S.d/2+34;k.a=k.ma=k.pa=k.pma=Math.PI/2;k.speed=0;k.wy=k.pwy=k.lastG=sbG(k.x,k.y,2);k.idx=sbIdx(k,k.idx);k.rx=k.x;k.ry=k.y;k.rz=k.wy;k.rma=k.ma;cam.a=k.ma;camSnap=true;SB.shopIn=false;}
 
 /* ================= SANDBOX: THINGS TO DO (web v200; the owner's brief, section 5) =================
    "Add optional activities that start and finish in the world. Include a pizza delivery between two regions with a safe route and a riskier
@@ -7474,6 +7534,10 @@ function makeKart(ri,slot,isPlayer,diff,build){
     ai:{lane:lat,laneTarget:lat,laneT:1+Math.random()*3,skill:sk,itemDelay:0,inBend:false}};
   k.wy=k.lastG=kGround(k);k.pwy=k.wy;k.wvy=0;k.gRate=0;k.loop=null;k.loopTh=0;k.pth=0;k.px=k.x;k.py=k.y;k.pa=k.a;k.pma=k.ma;k.pz=0;k.rx=k.x;k.ry=k.y;k.rz=k.wy;k.rg=k.wy;k.rma=k.ma;return k;
 }
+let CPUS=(()=>{const v=parseInt(store.get('crust-cpus'),10);return isNaN(v)?7:clamp(v,0,7);})();
+/* how many computer racers this race has (patch 35) */
+function cpuCount(demo){if(demo)return 7;return (mode==='lss'||mode==='bb')?Math.max(1,CPUS):CPUS;}
+function cpuNote(){const n=cpuCount(false),m=(mode==='lss'||mode==='bb')&&CPUS===0;return (n===0?'None: drive the track on your own':n===1?'One rival: a one-on-one':n+' rivals'+(n===7?': a full grid':''))+(m?' (at least one here)':'')+(mode==='sb'?' · for races from a start line':'')+(NET.role==='host'?' · friends take seats first':'');}
 function resetRace(demo){
   const diff=DIFFS[demo?'normal':aiKey()];
   const others=RACERS.map((_,i)=>i).filter(i=>demo||i!==selected);
@@ -7482,7 +7546,7 @@ function resetRace(demo){
   for(const k of karts){if(k.cutM){k.cutM.forEach(m=>scene.remove(m));k.cutM=null;}if(k.held)dropHeld(k);}
   karts=[];if(!demo&&NET.cfg){for(const c of NET.cfg.karts){const k=makeKart(c.ri,c.slot,c.who===NET.me,diff,Object.assign({},c.build,{u:c.who>=0?c.slot+1:0}));if(c.who>0&&NET.role==='host'){k.netId=c.who;k.auto=false;}if(c.who>=0)k.netName=c.name;karts.push(k);}}
   else if(SBX&&!demo)karts.push(makeKart(selected,4,true,diff,playerBuild));
-  else for(let s=0;s<8;s++){if(!demo&&s===4)karts.push(makeKart(selected,s,true,diff,playerBuild));else{const ri=others.shift();karts.push(makeKart(ri,s,false,diff,cpuBuilds[ri]));}}
+  else{/* the player in slot 4, the rivals in the slots nearest it (patch 35: fewer than seven is a smaller grid) */const nc=cpuCount(demo),near=[3,5,2,6,1,7,0].slice(0,nc).concat(demo?[4]:[]);for(let s=0;s<8;s++){if(!demo&&s===4)karts.push(makeKart(selected,s,true,diff,playerBuild));else if(near.includes(s)){const ri=others.shift();karts.push(makeKart(ri,s,false,diff,cpuBuilds[ri]));}}}
   const keep=new Set(karts.map(k=>k.m));modelCache.forEach(m=>{m.g.visible=keep.has(m);});pruneModels(keep);
   {const me=demo?null:(karts.find(k=>k.isPlayer)||karts[4]);player=me;camT=me||karts[4];}mfzReset();if(SPEC&&SPEC.on){SPEC.on=false;document.body.classList.remove('spectating');$('specBar').hidden=true;}
   if(typeof sauceFx==='function'&&_sauceEl)sauceFx(false);projectiles.forEach(p=>scene.remove(p.mesh));hazards.forEach(h=>scene.remove(h.mesh));projectiles=[];hazards=[];
@@ -8318,7 +8382,7 @@ const ABIL={pep:['Pepperoni Storm','Fires a fan of six spinning pepperoni slices
   anchovy:['School of Fish','Launches three anchovies that hunt down the next three racers ahead, or the three behind you if you launch them looking back. They always reach their target, but a well-timed hop dodges one.','#8fc8e8']};
 const ABIL_TIME=30,MEGA_T=5.5,PESTO_T=5.9;
 const abilKey=k=>k.r.name.toLowerCase();
-function useAbility(k,back){if(BATTLE)return;const id=abilKey(k),A=ABIL[id];if(!A||!(k.abC>=1)||k.loop||k.finished)return;k.abC=0;const st=standCache,i=st.indexOf(k),v=near(k);back=!!back;
+function useAbility(k,back){if(BATTLE&&!SBX)return;const id=abilKey(k),A=ABIL[id];if(!A||!(k.abC>=1)||k.loop||k.finished)return;k.abC=0;const st=standCache,i=st.indexOf(k),v=near(k);back=!!back;
   itemFx(k,A[2],50);spawnRing(k.x,(k.wy||0)+.6,k.y,A[2],70,.8);if(k===player){SFX.ability();showBanner(A[0],1.1,'sm');shake(.6);abilFlash(A[2]);}else if(v>0)SFX.ability();
   if(id==='pep'){const vol=()=>{const n0=projectiles.length;fireItem(k,'trio',back);for(let q=n0;q<projectiles.length;q++){const P=projectiles[q];P.storm=1;P.hp=3;P.wb=0;P.t=8;}};vol();k.abQ=[[.25,vol]];}/* storm slices ricochet: walls, racers and items each count as a hit; the third hit ends the slice */
   else if(id==='basil'){/* the longest ability boost (normal boost speed), untouchable while it lasts but it doesn't spin anyone out */k.boost=Math.max(k.boost,PESTO_T);k.rush=Math.max(k.rush||0,PESTO_T);k.pestoT=PESTO_T;k.abFx=PESTO_T;k.abCol=A[2];if(k===player)SFX.boost(3);}
@@ -8491,7 +8555,7 @@ function stepKart(k,inp,dt){
     if(k.brake>.04){if(k.speed>2)k.speed-=200*k.brake*dt;else k.speed=Math.max(-55,k.speed-100*k.brake*dt);}
     else if(k.speed<max){const f=1-.72*clamp(k.speed/max,0,1);k.speed=Math.min(max,k.speed+(ACCEL*sm.acc*(k.boost>0?2.8:1)*f+(k.speed<0?220:0))*dt);}
     else k.speed+=(max-k.speed)*Math.min(1,dt*1.5);
-    if(!k.air){const ca=Math.cos(k.ma),sa=Math.sin(k.ma),sl=(groundAt(k.x+ca*5,k.y+sa*5)-groundAt(k.x-ca*5,k.y-sa*5))/10;k.speed-=sl*165*dt;}
+    if(!k.air){const ca=Math.cos(k.ma),sa=Math.sin(k.ma),sl=(groundAt(k.x+ca*5,k.y+sa*5)-groundAt(k.x-ca*5,k.y-sa*5))/10;k.speed-=sl*165*(SBX&&sl>0?sbGrav(k):1)*dt;}
     const sp=Math.abs(k.speed),dir=(k.speed<0?-1:1)*(k.air&&k.big?.35:1);
     const hs=clamp((sp-40)/(BASE_MAX-40),0,1),lo=sp<1?0:Math.min(1,sp/35),tfN=lo*(1-.52*hs)*(isHuman(k)?1:1.4)*sm.hnd*(1+.4*clamp((sp-BASE_MAX)/(BASE_MAX*.58),0,1))/* steering keeps more authority at speed, and gains some above top speed, so a boost (an item's or an ability's) can still be steered through a bend */,tfD=lo*(1-.38*hs)*1.02*sm.hnd*(1+.55*clamp((sp-BASE_MAX)/(BASE_MAX*.58),0,1));/* drifting: a touch tighter than before, and much tighter above top speed so a boost doesn't carry you wide */
     let dRel=false;if(k.spin>0||k.sink!=null)k.dLatch=false;if(dPress&&k.air&&!k.drift){if(!trickNow&&!(k.glide&&(k.gH||0)>16)){k.dLatch=!k.dLatch;k.dWant=0;}}/* tapped mid-air (jump or glide): stay armed and drift the moment you land */else if(dPress&&k.drift&&!k.air)dRel=true;else{if(dPress&&!k.drift)k.dWant=.6;if(k.dWant>0&&inp.brake)k.dWant=Math.max(k.dWant,.12);
@@ -9226,7 +9290,7 @@ $('howBtn').onclick=()=>{menu.hidden=true;howOv.hidden=false;howOv.scrollTop=0;}
   $('tipsDone').onclick=()=>{$('tipsOv').hidden=true;menu.hidden=false;};}$('recBtn').onclick=()=>{recCls=clsKey;renderRecords();menu.hidden=true;$('recOv').hidden=false;$('recOv').scrollTop=0;};$('recDone').onclick=()=>{$('recOv').hidden=true;menu.hidden=false;};$('achBtn').onclick=openAch;$('cheatF').onsubmit=e=>{e.preventDefault();applyCheat($('cheatIn').value);$('cheatIn').value='';$('cheatIn').blur();};$('achDone').onclick=closeAch;$('howDone').onclick=()=>{howOv.hidden=true;menu.hidden=false;};
 addEventListener('keydown',e=>{if(e.code!=='Escape')return;if(!setOv.hidden)closeSettings();else if(!howOv.hidden)$('howDone').onclick();else if(!$('tipsOv').hidden)$('tipsDone').onclick();else if(!$('recOv').hidden)$('recDone').onclick();else if(!$('achOv').hidden)closeAch();else if(garageOpen)closeGarage();else if(state==='race'||state==='countdown'||state==='paused')togglePause();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&(state==='race'||state==='countdown'))togglePause();});
-document.querySelectorAll('#clsSeg button').forEach(b=>b.onclick=()=>{clsKey=b.dataset.c;store.set('crust-cls',clsKey);refreshMenu();});
+document.querySelectorAll('#clsSeg button').forEach(b=>b.onclick=()=>{clsKey=b.dataset.c;store.set('crust-cls',clsKey);refreshMenu();});document.querySelectorAll('#cpuSeg button').forEach(b=>b.onclick=()=>{CPUS=clamp(CPUS+(+b.dataset.d),0,7);store.set('crust-cpus',String(CPUS));refreshMenu();});
 document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{if((b.dataset.m==='bb'||b.dataset.m==='sb')&&NET.role)return;/* Balloon Battle is off line only for now */mode=b.dataset.m;store.set('crust-mode',mode);{const bi=MAPS.findIndex(m=>m.battle),si=sbRegOf(MAPS[mapIdx].id)?mapIdx:MAPS.findIndex(m=>m.id==='backyard'),want=mode==='bb'?bi:mode==='sb'?si:mapIdx===bi?0:mapIdx;if(want!==mapIdx&&mode!=='gp'){mapIdx=want;loadMap(want,false);resetRace(true);}}if(mode==='gp'){const t=CUP_TRACKS[cupIdx][0];if(t!==mapIdx){mapIdx=t;loadMap(t,false);resetRace(true);}}refreshMenu();});
 document.querySelectorAll('#qual button').forEach(b=>b.onclick=()=>{qKey=b.dataset.q;store.set('crust-q',qKey);applyQuality();refreshMenu();});
 function applyQuality(){const q=QUAL[qKey];LIVQ.value=q.hqAll?2:qKey==='sharp'?1:0;{sunBox();rimL.intensity=q.hqAll?.28:0;}renderer.shadowMap.type=q.soft?THREE.PCFSoftShadowMap:THREE.PCFShadowMap;sun.shadow.mapSize.set(q.sm,q.sm);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
@@ -9236,7 +9300,7 @@ function applyQuality(){const q=QUAL[qKey];LIVQ.value=q.hqAll?2:qKey==='sharp'?1
   pr=Math.min(DPR,q.start);capPR=Math.min(DPR,q.cap);raisedAt=-1;ladBest=0;{const v=+store.get(ladKey());applyLad(v>0?v:0,false);}fit();}
 let menuStep='home';
 function goStep(st){menuStep=st;if(st==='home')requestAnimationFrame(fitLogo);if(st==='kart'){document.querySelectorAll('#menu .step').forEach(e=>e.hidden=e.dataset.step!=='driver');openGarage();return;}document.querySelectorAll('#menu .step').forEach(e=>e.hidden=e.dataset.step!==st);menu.hidden=false;refreshMenu();}
-function refreshMenu(){requestAnimationFrame(fitLogo);document.querySelectorAll('#qual button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.q===qKey));$('qualNote').textContent=QUAL[qKey].note;document.querySelectorAll('#clsSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.c===clsKey));$('clsNote').textContent=CLASSES[clsKey].note;document.querySelectorAll('#modeSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===mode));
+function refreshMenu(){requestAnimationFrame(fitLogo);document.querySelectorAll('#qual button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.q===qKey));$('qualNote').textContent=QUAL[qKey].note;document.querySelectorAll('#clsSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.c===clsKey));$('clsNote').textContent=CLASSES[clsKey].note;{const v=$('cpuVal');if(v)v.textContent=String(CPUS);const n=$('cpuNote');if(n)n.textContent=cpuNote();}document.querySelectorAll('#modeSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===mode));
   $('cups').hidden=mode!=='gp';$('maps').hidden=mode==='gp'||mode==='bb';if($('mapsWrap'))$('mapsWrap').hidden=mode==='gp'||mode==='bb';$('trackLabel').textContent=mode==='gp'?'Cup':mode==='bb'?'Arena: Prep Table Showdown':mode==='sb'?'World. Start in':'Track';sbMenu();{const mn=$('modeNote');if(mn&&mode==='sb'){mn.hidden=false;mn.textContent='Sandbox: drive anywhere, no race and no clock. One world: the house, and beyond the garage door every track of the game. Drive anywhere in the rooms and on the pizzas; warp tunnels lead from place to place. Gold coins lead the way; pepperoni coins are hidden everywhere. The map travels fast: Y on a controller, M on a keyboard, or Map in the pause menu. Park stops the car.';}else if(mn&&mode==='bb'){mn.hidden=false;mn.textContent='Balloon Battle: everybody starts with five balloons. Pop a rival\'s balloon with a pepperoni for a point. Lose all five and you come back with three, then with one; lose that one and you are out. The last driver left wins.';}else if(mn){mn.hidden=mode!=='lss';mn.textContent='Last Slice Standing: each time the leader completes a lap, the racer in last place is out. Seven laps, one slice left.';}}$('startBtn').textContent=mode==='sb'?'Start exploring':mode==='bb'?'Start battle':mode==='gp'?'Start Grand Prix':mode==='lss'?'Start elimination':'Start race';document.querySelectorAll('.cupc').forEach((x,j)=>x.setAttribute('aria-pressed',j===cupIdx));
   document.querySelectorAll('.card').forEach((x,j)=>x.setAttribute('aria-pressed',j===selected));$('buildSum').textContent=buildSummary();document.querySelectorAll('.mapc').forEach((x,j)=>x.setAttribute('aria-pressed',j===mapIdx));updateDriverDetail();updateTrackDetail();}
 const CARDCOL={kitchen:['#5a2e18','#c98b4e','#f3c046'],bay:['#157f9b','#c98b4e','#f3c046'],night:['#121633','#7a5232','#d8a83a'],freezer:['#8fbde6','#c98b4e','#f3dc8a']};
@@ -9333,8 +9397,8 @@ function buildGarage(){
     b.onclick=()=>{playerBuild.p=i;playerBuild.t='';saveBuild();refreshGarage(true);};$('pPaint').appendChild(b);});
   $('gStats').innerHTML=STAT_NAMES.map(n=>'<div class="st-row"><span>'+n+'</span><span class="st-bar">'+'<i></i>'.repeat(STAT_BARS)+'</span><span class="st-d"></span></div>').join('');
   document.querySelectorAll('#statSeg button').forEach(b=>b.onclick=()=>{statsOn=b.dataset.s==='1';store.set('crust-stats',statsOn?'1':'0');refreshGarage(false);});
-  $('gDone').onclick=()=>{if(gBig){setBig(false);return;}closeGarage();if(NET.role==='guest'){netSendPick(true);goStep('home');netShowLobby();return;}goStep('track');};$('garageBtn').onclick=()=>goStep('kart');$('gBack').onclick=()=>{if(gBig){setBig(false);return;}closeGarage();goStep('driver');};
-  $('toDriver').onclick=()=>goStep('driver');document.querySelectorAll('#menu .st-back').forEach(b=>b.onclick=()=>goStep(b.dataset.back));
+  $('gDone').onclick=()=>{if(gBig){setBig(false);return;}closeGarage();if(NET.role==='guest'){netSendPick(true);goStep('home');netShowLobby();return;}if(typeof sbShopDone==='function'&&sbShopDone())return;goStep('track');};$('garageBtn').onclick=()=>goStep('kart');$('gBack').onclick=()=>{if(gBig){setBig(false);return;}closeGarage();goStep('driver');};
+  $('toDriver').onclick=()=>goStep('driver');document.querySelectorAll('#menu .st-back').forEach(b=>b.onclick=()=>{if(b.dataset.back==='home'&&typeof sbShopDone==='function'&&sbShopDone())return;goStep(b.dataset.back);});
   document.querySelectorAll('.g-tabs button').forEach(t=>t.onclick=()=>{gTab=t.dataset.tab;if(gTab==='glider')gGlT=3.2;refreshGarage(false);});
   const cv=$('gCan'),PT=new Map();let pinch0=0,zoom0=1,tap=null;
   cv.addEventListener('pointerdown',e=>{PT.set(e.pointerId,{x:e.clientX,y:e.clientY});try{cv.setPointerCapture(e.pointerId);}catch(_){}
@@ -9974,7 +10038,7 @@ function musTick(){if(!ac||!master)return;musInit();if(!MUS.bus)return;
    Phones find each other through a short room code over a relay server; the race data uses a direct link when one opens. */
 const NET={role:null,code:'',peer:null,conns:[],me:0,pl:[],cfg:null,fromNet:false,loaded:new Set(),tick:0,seq:0,hist:[],outQ:[],inQ:{},inS:{},inLast:{},ack:{},
   snaps:[],mir:new Map(),mirH:new Map(),mirList:[],fxQ:[],nid:0,inUpd:false,finSeen:false,lastRecv:0,goT:0,waitTimer:0,replay:false,abQ:false,relay:null,lastFl:0,unack:[],ackRx:0};
-const NET_PROTO=111;/* bump when race messages or kart physics change: friends on different versions would drive differently */
+const NET_PROTO=112;/* bump when race messages or kart physics change: friends on different versions would drive differently */
 const NET_SLOTS=[4,3,5,2],NET_ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const netId=c=>'crustrush-v1-'+c.toUpperCase();
 const NET_REM=['x','y','a','ma','z','wy','speed','steer','drift','charge','boost','spin','air','glide','loopTh','onRamp','rush','shL','shield','mzH','sink','sinkT','trickK','trickT','frozen','acc','brake','dAmt','fx','prog','finished','place','finishTime','inv','big','ghostT','shrinkT','absT','idx','gRings','trick','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT','est','oliveT'];
@@ -10165,7 +10229,7 @@ function netOnHost(c,d){if(!d||!d.t)return;const P=NET.pl.find(q=>q.id===c._id);
 function netBuildCfg(mi){const pl=NET.pl.filter(p=>p.id===0||p.conn&&p.conn.open);const used=new Set(pl.map(p=>p.ri));const others=RACERS.map((_,i)=>i).filter(i=>!used.has(i));
   for(let i=others.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[others[i],others[j]]=[others[j],others[i]];}
   const ks=[];const taken=new Set();pl.forEach((p,i)=>{const slot=NET_SLOTS[i];taken.add(slot);ks.push({slot,ri:p.id===0?selected:p.ri,build:p.id===0?playerBuild:(p.build||randomBuild(p.ri)),who:p.id,name:p.name});});
-  for(let s=0;s<8;s++){if(taken.has(s))continue;const ri=others.shift()??(s%RACERS.length);ks.push({slot:s,ri,build:cpuBuilds[ri]||randomBuild(ri),who:-1});}
+  {let nc=cpuCount(false);/* the host's count of computer racers fills the seats the friends leave (patch 35) */for(const s of [3,5,2,6,1,7,0,4]){if(nc<=0)break;if(taken.has(s))continue;const ri=others.shift()??(s%RACERS.length);ks.push({slot:s,ri,build:cpuBuilds[ri]||randomBuild(ri),who:-1});taken.add(s);nc--;}}
   ks.sort((a,b)=>a.slot-b.slot);return {mi,cls:clsKey,mode,gp:gp?JSON.parse(JSON.stringify(gp)):null,karts:ks};}
 /* the host has chosen the track: wait in the lobby until every friend is ready (they finish in the garage at their own pace) */
 function netHostPrepare(mi){NET.pendMap=mi;NET.pendAt=performance.now();NET.pl[0].ri=selected;NET.pl[0].build=playerBuild;netLobbySync();netShowLobby();
@@ -10505,7 +10569,7 @@ function padPoll(){let gps;try{gps=navigator.getGamepads?navigator.getGamepads()
     if(SPEC&&SPEC.on){/* watching: left/right or the bumpers pick the racer, Y or X the camera, B goes back to the results */if(edge(M.LEFT)||M.I1.some(edge))specNext(-1);if(edge(M.RIGHT)||M.I2.some(edge))specNext(1);if(edge(M.Y)||edge(M.X))specCam();if(edge(M.B))specExit(true);}
     PAD.steer=SBX?sx:clamp(sx+(dr?1:0)-(dl?1:0),-1,1);if(SBX&&state==='race'&&!(SPEC&&SPEC.on)){if(edge(M.LEFT))sbSpdStep(-1);if(edge(M.RIGHT))sbSpdStep(1);}/* (in Sandbox the D-pad's left and right are the speed slider; the stick steers) */PAD.gas=M.GAS.some(pr);PAD.brake=M.D.some(pr);PAD.nb=PAD.gas&&M.D.some(pr);/* drift trigger with the throttle held: drift only, never brake */PAD.look=pr(M.X)||(pr(M.BACK)&&!SBX);/* (in Sandbox Select opens the map) */
     PAD.back=ay>.55;/* left stick pulled back: the next item goes behind you, no mirror needed; it never brakes or steers */
-    if(edge(M.Y)&&!(SPEC&&SPEC.on)){if(SBX)sbMap(true,'drive');else abilQueued=true;}if(SBX&&edge(M.BACK))sbMap(true,'drive');if(SBX&&edge(M.DOWN)&&state==='race')sbPark();
+    if(edge(M.Y)&&!(SPEC&&SPEC.on)){if(SBX)sbMap(true,'drive');else abilQueued=true;}if(SBX&&gp.mapping==='standard'&&edge(11))abilQueued=true;if(SBX&&edge(M.BACK))sbMap(true,'drive');if(SBX&&edge(M.DOWN)&&state==='race')sbPark();
     /* items: slot 1 and slot 2 */
     [[M.I1,1],[M.I2,2]].forEach(([btns,sl])=>{const down=btns.some(pr),was=PAD.held[sl];if(down===was)return;PAD.held[sl]=down;const k=player;if(!k||(SPEC&&SPEC.on))return;
       const it=sl===1?k.item:k.item2,suf=sl===2?'2':'';
@@ -10547,23 +10611,24 @@ function padCurShow(){const e=padCurEl();e.hidden=!PAD.curOn;document.body.class
 function padCurOff(){if(PAD.curOn){PAD.curOn=false;padCurShow();}PAD.cScope=null;}
 /* the nearest thing above el that scrolls along the axis ('Y' or 'X') */
 function padScroller(el,ax){const can=q=>q&&(ax==='Y'?q.scrollHeight>q.clientHeight+4:q.scrollWidth>q.clientWidth+4)&&/(auto|scroll)/.test(getComputedStyle(q)['overflow'+ax]);let q=el;while(q&&q!==document.body&&q!==document.documentElement&&!can(q))q=q.parentElement;return can(q)?q:null;}
+const PAD_MOB=()=>typeof COARSE!=='undefined'&&COARSE?.55:1,PAD_MOBS=()=>typeof COARSE!=='undefined'&&COARSE?.5:1;/* (patch 35: slower on a phone) */
 function padCursor(gp,M,ax,ay,pr,edge,now){const dt=Math.min(.05,Math.max(0,(now-(PAD.cT||now))/1000));PAD.cT=now;const W=innerWidth,H=innerHeight;if(PAD.cx==null){PAD.cx=W/2;PAD.cy=H/2;}
   /* a new screen: the arrow starts on its main button */
   {const sc=padScope();if(sc!==PAD.cScope){PAD.cScope=sc;const b=[...sc.querySelectorAll('.cta')].find(padVisible)||[...sc.querySelectorAll('button')].find(padVisible);if(b){const r=b.getBoundingClientRect();if(r.width&&r.bottom>8&&r.top<H-8){PAD.cx=clamp(r.left+r.width/2,2,W-3);PAD.cy=clamp(r.top+r.height/2,2,H-3);}}}}
   let el=PAD.curOn?document.elementFromPoint(PAD.cx,PAD.cy):null,hit=el&&el.closest?el.closest(PAD_CLICK):null;if(hit&&hit.disabled)hit=null;
   const slider=!!hit&&hit.tagName==='INPUT'&&hit.type==='range';
   /* the stick: faster the further it is pushed; the D-pad: a steady walk (on a slider its left and right move the slider) */
-  const dz=.16,m=Math.hypot(ax,ay);let vx=0,vy=0;if(m>dz){const f=Math.min(1,(m-dz)/(1-dz)),sp=(200+1300*f*f)*clamp(Math.min(W,H)/720,.7,1.6);vx=ax/m*sp;vy=ay/m*sp;}
+  const dz=.16,m=Math.hypot(ax,ay);let vx=0,vy=0;if(m>dz){const f=Math.min(1,(m-dz)/(1-dz)),sp=(200+1300*f*f)*clamp(Math.min(W,H)/720,.7,1.6)*PAD_MOB();vx=ax/m*sp;vy=ay/m*sp;}
   const dl=pr(M.LEFT),dr=pr(M.RIGHT);if(slider&&(dl||dr)){if(now>(PAD.slT||0)){PAD.slT=now+110;const st=+hit.step||1,v=clamp((+hit.value)+(dr?st:-st),+hit.min||0,hit.max===''?100:+hit.max);if(v!==+hit.value){hit.value=v;hit.dispatchEvent(new Event('input',{bubbles:true}));hit.dispatchEvent(new Event('change',{bubbles:true}));}}}
-  else vx+=((dr?1:0)-(dl?1:0))*430;vy+=((pr(M.DOWN)?1:0)-(pr(M.UP)?1:0))*430;
+  else vx+=((dr?1:0)-(dl?1:0))*430*PAD_MOB();vy+=((pr(M.DOWN)?1:0)-(pr(M.UP)?1:0))*430*PAD_MOB();
   if(vx||vy){if(!PAD.curOn){PAD.curOn=true;padCurShow();}PAD.cx=clamp(PAD.cx+vx*dt,2,W-3);PAD.cy=clamp(PAD.cy+vy*dt,2,H-3);}
   const e=padCurEl();if(e.hidden===PAD.curOn)padCurShow();e.style.transform='translate('+PAD.cx.toFixed(1)+'px,'+PAD.cy.toFixed(1)+'px)';
   if(hit!==PAD.hov){if(PAD.hov)PAD.hov.classList.remove('padhover');PAD.hov=hit;if(hit)hit.classList.add('padhover');}
   /* scrolling: the right stick; and the arrow held against an edge of whatever scrolls under it (the whole screen, a list, the map) */
   {const base=el||padScope(),sy=padScroller(base,'Y'),sx=padScroller(base,'X'),ry=gp.axes[3]||0,rx=gp.axes[2]||0,big=typeof garageOpen!=='undefined'&&garageOpen&&gBig;
-    if(!big&&Math.abs(ry)>.2){const d=ry*Math.abs(ry)*1700*dt;if(sy)sy.scrollBy(0,d);else padScroll(d);}
-    if(!big&&Math.abs(rx)>.3&&sx)sx.scrollBy(rx*Math.abs(rx)*1700*dt,0);
-    if(PAD.curOn){const z=Math.max(36,H*.075),pull=(d)=>(260+1100*clamp(d/z,0,1))*dt;
+    if(!big&&Math.abs(ry)>.2){const d=ry*Math.abs(ry)*1700*PAD_MOBS()*dt;if(sy)sy.scrollBy(0,d);else padScroll(d);}
+    if(!big&&Math.abs(rx)>.3&&sx)sx.scrollBy(rx*Math.abs(rx)*1700*PAD_MOBS()*dt,0);
+    if(PAD.curOn){const z=Math.max(36,H*.075),pull=(d)=>(260+1100*clamp(d/z,0,1))*PAD_MOBS()*dt;
       if(sy){const r=sy.getBoundingClientRect(),t=Math.max(0,r.top),b=Math.min(H,r.bottom);if(vy>0&&PAD.cy>b-z)sy.scrollBy(0,pull(PAD.cy-(b-z)));else if(vy<0&&PAD.cy<t+z)sy.scrollBy(0,-pull(t+z-PAD.cy));}
       else if(vy>0&&PAD.cy>H-z)padScroll(pull(PAD.cy-(H-z)));else if(vy<0&&PAD.cy<z)padScroll(-pull(z-PAD.cy));
       if(sx){const r=sx.getBoundingClientRect(),l=Math.max(0,r.left),q=Math.min(W,r.right);if(vx>0&&PAD.cx>q-z)sx.scrollBy(pull(PAD.cx-(q-z)),0);else if(vx<0&&PAD.cx<l+z)sx.scrollBy(-pull(l+z-PAD.cx),0);}}}

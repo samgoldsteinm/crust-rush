@@ -145,6 +145,42 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-15 (web v200 and the next PC build; ONLINE VERSION 112 on both: a grid may now have fewer than eight)
+The owner, after v199: the controller pointer and scrolling slower on a phone; the speed slider over the item slots; abilities in
+Sandbox; a mechanic's shop in the garage to change driver and kart without leaving; choose how many computer racers (none to practise,
+one for a one-on-one); hills in Sandbox you can drive up, harder the steeper, off-road helping. Engine patch: tools/mini/patch35.py.
+- COMPUTER RACERS: a stepper on the home panel ("Computer racers", 0 to 7, kept as crust-cpus; the PC: menu.gd `cpus`, sel "cpus").
+  `cpuCount()` (PC `_cpu_count`): the menu's background race always seven; Last Slice and Balloon Battle at least one. Offline the rivals
+  take the slots nearest the player's (3,5,2,6,1,7,0); online the host's count fills the seats the friends leave (web netBuildCfg, PC
+  webnet.gd and race.gd `trim_cpus`) and the guests race the list they are sent. NET_PROTO / PROTO 112 so an older build is not put in a
+  room with a short grid. Checked: a race alone finishes 1st with a one-row table; a one-on-one finishes; Last Slice with 0 gets 1; an
+  online cup with the host's 1 rival has three karts on both screens and the cup goes on (scratch/gpnet_cpu.py).
+- ABILITIES IN SANDBOX: `useAbility` returned in every battle-rules mode; now not in Sandbox (`BATTLE&&!SBX`), the button shows there
+  (battle.js `body.battle:not(.sbx)`), and on a pad it is R3 (Y is Sandbox's map: the owner's earlier choice); its badge says R3 there.
+  PC the same (race.gd, hud.gd, main.gd JOY_BUTTON_RIGHT_STICK).
+- HILLS IN SANDBOX: two things stopped a kart on the pizzas' slopes. (1) The engine pulls every kart back by the slope under it
+  (`k.speed-=sl*165*dt`): enough to stop one on anything over about 18 degrees. In Sandbox, uphill, it is now `sbGrav(k)` of that:
+  .45 for a middle kart, down to .12 for the best off-road and up to .9 for the worst (statMods .off). (2) The cliff test for a pizza's own
+  ground was a fixed step (5.5 over SB_R 6.5, about 40 degrees): now `sbClimb(k)`, about 40 degrees for a middle kart, 50 the best, 26 the
+  worst. Races are untouched (behind SBX). Measured (scratch/climb6.js: six hills per band, from 36 below, 4 s): middle every hill to 32
+  degrees, about half at 32-38; the best off-road every hill to 46; the worst fine to 20, struggling at 20-26, none steeper. Note: in
+  Sandbox the off-road share of top speed does not apply at all (the engine sets tp=1 under BATTLE), so this is where off-road counts.
+  PC: kart.gd (the pull) and sandbox.gd `blocked` (the cliff), the same numbers.
+  A NAME CLASH CAUGHT HERE: the first version named its helper `sbOff`, the name of the function that switches Sandbox off; the later
+  declaration won and the helper returned undefined. It is `sbOffRd`. Search for a name before adding a function to sandbox.js.
+- THE MECHANIC'S SHOP (sandbox.js SB_SHOP, sbShopBuild / sbShopTick / sbShopOpen / sbShopDone / sbShopPut; PC sandbox.gd SHOP, shop_put,
+  sandbox_view.gd _build_shop, main.gd _sb_shop_open / _sb_shop_done, menu.gd `shop` and `shop_done`): a toy garage playset on the
+  garage floor at (205, -443), door to the north, chosen by searching the floor for room and headroom away from the track (the first
+  choice, by the west wall, was under a shelf's beam). Its walls are SB.shapes; drive in and the driver screen opens with "‹ Sandbox";
+  the garage's last button says "Back to Sandbox"; either brings you out of the door with what you chose (no fly-over). A pin of its own
+  on the map ("Mechanic", blue with a spanner); travelling there sets you down at the door.
+- PHONES: patch 35's PAD_MOB / PAD_MOBS: on a touch screen the controller's pointer moves at 55% and every scroll it drives at 50%.
+  The speed slider (sbSpdUi) places itself below whichever item or ability buttons stand above it, twice a second, and shortens its track.
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| A kart could not drive up the hills beside the pizza tracks in Sandbox | The engine's pull back down a slope stops a kart past 18 degrees, and off-road did not matter in Sandbox | sbGrav / sbClimb (above) | scratch/climb6.js after any change to the kart's acceleration or the slope pull |
+| The speed slider overlapped the item slots on a phone | Its place was a fixed height from the top | It measures the buttons above it | |
+
 ### 2026-11-15 (PC build, with web v199's tracks): Sandbox's clock, things to do, Easter eggs and Back to the track on the PC
 - THE CLOCK: `scripts/sandbox_clock.gd` (a port of the web's sbClock*): made by the place's SandboxView when the place is the one being
   driven and the kart is out of any tunnel (the tunnel, sandbox_warp.gd, has the lights then); ten updates a second; `off()` when the view
@@ -501,7 +537,7 @@ in the pause menu and on controller make the y button open the map"; "signs abov
   lawn come with the re-export (`release_pc.py`). `tests/smoke.tscn` passes locally with them.
 
 ### Where web and PC stand (2026-11-13, end of the session)
-- Web v199 (online 111): Sandbox's clock, things to do, Easter eggs and Back to the track (web only for now), and the no-stop tunnel on the web too (web only: the PC has had its own since build 68030144). PC build 68030144 = web v197's tracks (online 111): PC and web race together and have the same modes (Grand Prix, single, Reverse, Last Slice, Balloon Battle 5-3-1, Sandbox). Web v198's only addition, Settings > Kart stats, is in that PC build too. Before that: web v198. Before that: web v196 (online 110). PC build 68030144 has web v196's tracks, Balloon Battle, Sandbox, online Grand Prix and the controller's cursor (online 110): PC and web race together, and the PC has every mode the web has. What the web has and the PC has not is listed in OPEN WORK. v187 (phone fix), v188
+- Web v200 (ONLINE 112): computer racers 0 to 7, abilities and climbable hills in Sandbox, the mechanic's shop, slower phone pointer. Until the PC build with the same is out, PC (111) and web (112) do not race together. Before that: web v199 (online 111): Sandbox's clock, things to do, Easter eggs and Back to the track, and the no-stop tunnel on the web too (web only: the PC has had its own since build 68030144). PC build 68030144 = web v197's tracks (online 111): PC and web race together and have the same modes (Grand Prix, single, Reverse, Last Slice, Balloon Battle 5-3-1, Sandbox). Web v198's only addition, Settings > Kart stats, is in that PC build too. Before that: web v198. Before that: web v196 (online 110). PC build 68030144 has web v196's tracks, Balloon Battle, Sandbox, online Grand Prix and the controller's cursor (online 110): PC and web race together, and the PC has every mode the web has. What the web has and the PC has not is listed in OPEN WORK. v187 (phone fix), v188
   (Sandbox, first slice) and v189 (the second site's plumbing, switched off) are web only; nothing that moves a kart in a race changed.
 - Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
   (docs/BALLOON-BATTLE-PLAN.md). Sandbox: the first slice (the back garden) is on the web (v188); docs/SANDBOX-PLAN.md.

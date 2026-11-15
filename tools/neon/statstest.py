@@ -30,5 +30,5 @@ async def main():
         row = await pg.evaluate("__ev(`(()=>{try{showStats(playerBuild);}catch(e){}const r=document.querySelectorAll('#gStats .st-row');return [...r].map(q=>q.querySelector('.st-d').textContent).join(' | ');})()`)")
         print('garage rows (speed first), body', r['neutral'], ':', row)
         await pg.screenshot(path=f'{OUT}/garage_slick_wing.png')
-        print('STATS TEST', 'passed' if r['nbad'] == 0 and r['proto'] == 111 and not errs else 'FAILED', 'errors', errs[:4]); await b.close()
+        print('STATS TEST', 'passed' if r['nbad'] == 0 and r['proto'] >= 111 and not errs else 'FAILED', 'errors', errs[:4]); await b.close()
 asyncio.run(main())
