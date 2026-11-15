@@ -220,7 +220,7 @@ lobby with ready-up, the host starting it, on "a screen similar to the online sc
 - Backwards: ramps from behind and loops the other way round, in Sandbox only. Stop: both brake buttons, or Park.
 - Still to build from the brief: the clock, activities, the shop, online free roam, the start-line lobby; new land round the pizza tracks.
 
-## Sandbox on the PC: the plan (written 2026-11-14; nothing built)
+## Sandbox on the PC: the plan (written 2026-11-14; BUILT the same day, PC build 68030144: what was done and how it differs is in docs/HANDOVER.md)
 The PC draws a track from an exported glTF and drives it from an exported json; it has none of the web's scenery code. So what Sandbox
 reads from "what is drawn" on the web cannot be worked out on the PC: it must be exported with the track, and the PC must use the same
 numbers. Do it in this order, each step testable on its own.

@@ -136,10 +136,9 @@ against the landmarks' coordinates before the real generator closed the lap; the
 
 ### OPEN WORK, in the order to do it (rewritten 2026-11-14 after web v193; the owner's words for each are in docs/NEXT-MODES-BRIEF.md)
 1. (done: a Grand Prix on line on the PC, the controller's cursor on the PC, the trees and previews: see the v195 entry.)
-4. THE PC: Sandbox (Balloon Battle is done: see its entry). The plan is the last section of docs/SANDBOX-PLAN.md; the web's half of the
-   export is `sbExport()` (web v196).
-5. THE WEBSITE: `py.cmd tools/site_pc.py` brings `app/pc.html` level with the PC build (done for build 82fc3a5a on 2026-11-14: 24 tracks, Balloon
-   Battle, online cups, the pointer, the size). When the PC has Sandbox: set `HAS['sandbox']` in it, run it, commit and push `app`.
+4. (done: Balloon Battle and Sandbox on the PC: see their entries. The PC now has every mode the web has.)
+5. THE WEBSITE: `py.cmd tools/site_pc.py` brings `app/pc.html` level with the PC build (done for build 68030144: 24 tracks, Balloon
+   Battle, Sandbox, online cups, the pointer, the size). Edit `HAS` in it when the PC's modes change, run it, commit and push `app`.
 6. SANDBOX, what the brief still asks for and is not built (docs/SANDBOX-PLAN.md has the plan for each): the shared clock (day and night),
    activities (deliveries, drift and jump challenges), the coin shop (kart and car unlocks), online free roam and the start-line lobby with
    ready-up. On the pizza tracks only what is drawn is there to explore: no new side roads or buildings have been modelled.
@@ -191,6 +190,86 @@ bigger". The rules, the table's plan with every coordinate, the drivers and the 
 - ONLY A PERSON CAN JUDGE: whether builds feel right now that gliders count for more and wheels a little less per point; the slider's place
   under a thumb on a real phone (it sits on the right edge between the item buttons and the drift button); whether the guide into a mouth is
   felt as help or as being pushed.
+
+### 2026-11-15 (web v198 and PC build 68030144, online 111 on both): the rest of the PC catching up, and what the owner reported
+- PC build 68030144 = web v197's tracks: Sandbox (entry below), the no-stop tunnel, Balloon Battle 5-3-1 on the bigger table, part
+  stats that stack (pc_stats.json = web_stats.json for all 3060 builds), the Sandbox speed slider and mouth guide, and the fixes below.
+  Web v198 adds only Settings > Kart stats (tools/mini/patch33.py; the PC has the same page in main.gd's "stats" tab: keep the two the
+  same, and change both if a stat's numbers change) and the speed slider hiding under the pause sheet and Settings.
+- THE NO-STOP TUNNEL (the owner: "the game will never freeze or stop to load it will be one fluid drive through the tunnel right out to
+  the other side"). The PC built the next place in `load_map`, which blocked for 1.3 to 3.6 s. Now `scripts/world_build.gd` builds it on a
+  thread (track json, glTF, sky, lights, every Hd* helper, props, the Race and the Sandbox object), off the tree, while the kart drives an
+  endless tunnel (`scripts/sandbox_warp.gd`); the main thread then takes the new place in a stage a frame (old world out and freed a slice
+  at a time, pieces in one a frame, a few frames drawn by a small camera at the exit on render layer 2, then the swap onto the exit gate).
+  `scripts/xf.gd` gives a node's world transform and a mesh's points or a picture without the tree or the graphics card, so the Hd*
+  helpers run off the tree. Measured, windowed, HD on: longest frame 22 to 38 ms on five trips, one of 52 ms (margherita -> basil); the
+  very first trip to a new kind of place may stutter once while a shader compiles (seen twice, about 1 s). KEEP IT: world_build.gd
+  repeats _build_world's steps: a change to one belongs in both. Nothing built on the thread may touch what the running game reads.
+  THE WEB still holds a picture of the last frame during its (shorter) load: the kart is a still image for that moment. Not changed yet.
+- THE KART LAY FLAT ON CLIMBS (owner's picture, Garage Overdrive by the PIT LANE sign; PC only). view.gd tilted the body by the ground's
+  height around the kart, but on a raised road (toy tracks, Sauce Spiral) the climb is the road's own height (`T.k_ey`), which it left
+  out; and neither platform knew a jump ramp's slope for the body. Fix: the body's four sample points add `T.k_ey`; `k.ramp_s` (looks
+  only, set where the ramp physics sets on_ramp) is added on a jump ramp; the web got the ramp part (`k.rampS`) in v197. Measured: road
+  slope 24.3 deg -> body 24.3 deg (was 0) on the garage, the same on kitchen, bedroom, backyard, spiral; a 10.6 deg jump ramp -> 10.5.
+- ITEM BOXES UNDER THE GLIDE RINGS (PC only). The web moves a box over a glide to the height the player will pass it (`airBoxY`), as the
+  rings do; the PC drew them at their exported height, up to 30 under the rings on Hologram Heights. Fix: `_air_box_y` in view.gd, a port
+  of airBoxY (only where the glide has a line, `T.glide.has("p")`: a short glide has none, and reading it there was 8000 script errors).
+- "MINIATURE MAYHEM CUP" RAN OVER THE NEXT PANEL (PC). The cup card's title had one size and no clip. Fix: menu.gd `_cup_card` shrinks
+  the name until it fits the card, and clips.
+- PART STATS (the owner: a wheel's +1 and a glider's +1 "would be a total of 2 speed increase instead of overlapping them"). The cards
+  showed raw numbers; the driving weighted body 1.5, wheel 1, glider .5 and squeezed the sum with tanh, so cards and bars disagreed.
+  Now: eBody = 4 tanh(1.5 body/4); e = clamp(eBody + (wheel + glider)/1.5, -4, 4); bars = round(6+1.5 eBody) + wheel + glider. NET_PROTO /
+  PROTO 111. Tests: tools/neon/statstest.py (web), tests/stats.tscn (PC; it writes pc_stats.json to diff with the web's).
+- THE WEBSITE: tools/site_pc.py now says Sandbox and six cups (it said five), and reruns safely.
+- STILL TO CHECK BY A PERSON: Sandbox driven by hand on the PC (walls, the tunnel, the swap, music across it), the slider under a thumb,
+  the guide into a mouth, the new stats' feel, a round of the new Balloon Battle, the Kart stats page on a phone.
+
+### 2026-11-15 (PC build 68030144, with web v197; written for the first try at this build, 2026-11-14): Sandbox on the PC
+- What: the web's Sandbox as it stands in v196 (the whole game as one world, free driving in the house and on the pizzas, keep-to-the-road
+  on Sauce Spiral and the Neon tracks, warp tunnels with signs, coins and hidden coins, the race from the start line and the way back,
+  Park, the map with zoom and fast travel). Off line only. The plan it followed is the last section of docs/SANDBOX-PLAN.md.
+- HOW IT IS FED. The PC cannot read walls from what is drawn, so the web works everything out and the export carries it:
+  `godot/tools/ciexport.py`, as its LAST step (after the json and the glTF are written), puts the page into Sandbox with an empty save and
+  stores `sbExport()` as `d['sandbox']` (kind, the columns grid, rim, loops, gates, coins, flag, plus `water`, `N`, `multi`), and writes an
+  `sb` card into `<id>.info.json` (kind, name, a short lap line for the map). A map is a Sandbox place on the PC only if its card has `sb`;
+  a gate to a place that is not installed is left out. On an `open` place (a pizza) the page is built once more WITH its rocks and bushes
+  for this step (`window.__hdPropsOff` in glbexport.js): the baked track leaves them out, but on the web they are in the way.
+  If the Sandbox step fails for a place the exporter now EXITS 3: the run fails, the old zip stays on the "maps" release and
+  `release_pc.py` builds nothing. (Before, it only printed "sandbox: NOT exported" and the place would have gone missing unseen.)
+- THE CODE (every hook behind `sb != null` or `sbf`; a race reads none of it): `scripts/sandbox.gd` is tools/mini/sandbox.js in GDScript
+  (surf, ground, blocked, touch, walls, idx_of, lvl, cliffs, water, solid, start, arrive, tick, save); `scripts/sandbox_view.gd` (coins, flag,
+  arches, signs as Label3D on boards, the warp shader, the tunnel, the load's cover); `scripts/sandbox_map.gd` (the map and fast travel).
+  Hooks: kart.gd (`sb`, `sbf`, `sb_off`, `r_bk`: walls, ground, the lap point, pads and loops only for a kart that is at them, a loop the
+  other way round, a ramp from behind, the canyon crossed backwards), race.gd (`sb_want`, one kart, `sb.tick`, chili only, no special, no
+  finish), main.gd (the mode, `_sb_travel`, the cover, `_sb_race_here` / `_sb_return`, Park, the keys and the pad, the camera kept out of
+  walls, Map in the pause menu), hud.gd (read-out, Park button, race offer), view.gd, menu.gd (the fifth mode, "World. Start in").
+  Keys: M / Y / Select the map, K / D-pad down Park, Enter / D-pad up the race at the start line. Coins are saved in `user://sandbox.json`
+  (the web's `crust-sb` shape); tests and `skip_menu` runs neither read nor write it (`Sandbox.no_save`).
+- THE COVER over a load: through a gate the last picture of the game is held (the kart in the tunnel, so it never leaves the screen: the
+  owner's words, "i dont want the car to dissappear") with the streaks over it; by the map it is dark with streaks. The streaks stand still
+  while `load_map` blocks (the web's keep moving). The cover is up two frames before the old place is freed.
+- CHECKED on this PC, on the eight places exported here (bedroom, kitchen, garage, backyard, margherita, basil, spiral, grid):
+  `CR_MAP=<id> CR_MODE=sb CR_HD=0 <godot> --headless --path . --fixed-fps 120 res://tests/sandbox.tscn` -> SANDBOX PASS on all eight (a lap
+  forwards, a lap backwards, arches and hidden coins reachable, Park, travel through a gate and back, fast travel, Race here and back, the
+  map). `smoke`, `battle`, `gpnet`, `padcur`, `allmaps` pass. Ten seeded ordinary races give the same kart positions and times before and
+  after the port. Web against PC ground at about 750 points a place (`godot/tools/sbground.py`, then `tests/sbground.tscn` with
+  `CR_PROBE=<file>`): no difference in ground or in blocked on bedroom, kitchen, backyard, margherita, basil, apart from 6 points on
+  margherita and 2 on basil where the PC's 10-unit race height map itself is off the web's ground formula (that is the race's map, not
+  Sandbox: a cliff or canyon edge can sit slightly differently there).
+- KEEP IT RIGHT:
+  - A change to tools/mini/sandbox.js that moves the kart or changes what stands where needs the same change in scripts/sandbox.gd AND a
+    track re-export (the walls come from the export). Web first, then `release_pc.py`.
+  - Two web sessions of the same pizza do not give exactly the same grid (moving scenery lands in different squares: about 300 of 50,000
+    on margherita). The export is one snapshot; do not chase a few squares of difference.
+  - The sixteen places not exported on this PC were first seen by the CI export of this build. If one misbehaves, export it here
+    (`WEB=D:/crust-rush/app OUT=maps MI=<index> py.cmd tools/ciexport.py` in godot) and run `tests/sandbox.tscn` on it.
+- DIFFERENT FROM THE WEB, on purpose or for now: no special ability in any kind of place; both-brakes full stop only for the two touch
+  pedals (keyboard and pad have Park); road places use the PC race's own airborne rule; a way-out face inside each tunnel (the PC draws
+  walls from both sides); "Back to the start line" in the pause menu; the flag and ring have no glow. Gliding in Sandbox counts toward the
+  gliding achievement (not checked what the web does).
+- NOT SEEN BY ANYONE IN MOTION (stills only, all with `CR_HD=0`): driving it by hand, a real controller (Y / Select, D-pad, the pointer on
+  the map's pins), a loop ridden backwards and a ramp from behind, the kart's outline through the wall at a tunnel's mouth, the coin
+  sounds (existing sounds reused), HD models on, the neon arch, a long place name in the banner. ASK THE OWNER TO DRIVE IT.
 
 ### 2026-11-14 (PC build after 254f835, with web v196): Balloon Battle on the PC
 - What: the mode as the web has it, off line only. The arena (map 24, `preptable`) is exported with its shapes: `d['battle']` in
@@ -330,7 +409,7 @@ in the pause menu and on controller make the y button open the map"; "signs abov
   lawn come with the re-export (`release_pc.py`). `tests/smoke.tscn` passes locally with them.
 
 ### Where web and PC stand (2026-11-13, end of the session)
-- Web v197 (ONLINE 111: part stats stack; Balloon Battle 5-3-1 and the bigger table; Sandbox speed slider; wider tunnel mouths). Until the PC build with the same changes is out, PC (110) and web (111) do not race together. Before that: web v196 (online 110). PC build 82fc3a5a has web v196's tracks, Balloon Battle, online Grand Prix and the controller's cursor (online 110): PC and web race together. The PC has no Sandbox yet. What the web has and the PC has not is listed in OPEN WORK. v187 (phone fix), v188
+- Web v198 (online 111). PC build 68030144 = web v197's tracks (online 111): PC and web race together and have the same modes (Grand Prix, single, Reverse, Last Slice, Balloon Battle 5-3-1, Sandbox). Web v198's only addition, Settings > Kart stats, is in that PC build too. Before that: web v196 (online 110). PC build 68030144 has web v196's tracks, Balloon Battle, Sandbox, online Grand Prix and the controller's cursor (online 110): PC and web race together, and the PC has every mode the web has. What the web has and the PC has not is listed in OPEN WORK. v187 (phone fix), v188
   (Sandbox, first slice) and v189 (the second site's plumbing, switched off) are web only; nothing that moves a kart in a race changed.
 - Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
   (docs/BALLOON-BATTLE-PLAN.md). Sandbox: the first slice (the back garden) is on the web (v188); docs/SANDBOX-PLAN.md.
