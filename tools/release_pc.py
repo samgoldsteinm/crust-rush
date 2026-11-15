@@ -53,7 +53,7 @@ git('add', '.github/workflows/maps.yml', 'tools/glbexport.js', 'tools/ciexport.p
 git('commit', '-q', '-m', f'Re-export the tracks for web {web} [quick]{TAIL}')
 git('fetch', '-q', 'origin'); git('merge-base', '--is-ancestor', 'origin/godot', 'HEAD'); git('push', '-q', 'origin', 'HEAD:godot')
 ex = git('log', '--format=%H', '-1'); print('export started', ex[:7], flush=True)
-time.sleep(40); wait('Export tracks', ex[:7], extra_idle=True); print('export done', flush=True)
+time.sleep(40); wait('Export tracks', ex[:7], extra_idle=True, minutes=170); print('export done', flush=True)   # (with Sandbox each track is read twice)
 # 2. the build
 open(f'{R}/godot/web_rev.txt', 'w', encoding='utf-8', newline='').write(f'The room and track data in this build come from web {web}.\n')
 git('add', '-A'); git('commit', '-q', '-m', f'PC: {title} (as web {web})' + ('\n\n' + body if body else '') + TAIL)
