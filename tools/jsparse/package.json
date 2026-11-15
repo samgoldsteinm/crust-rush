@@ -1,0 +1,6 @@
+{
+  "name": "crust-rush-jsparse",
+  "private": true,
+  "description": "The web build's load slicer (slice.js) and a span finder for patch scripts (span.js). Run `npm install` here once.",
+  "dependencies": { "acorn": "8.11.3", "acorn-walk": "8.3.2" }
+}

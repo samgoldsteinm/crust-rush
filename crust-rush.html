@@ -5291,7 +5291,7 @@ function toyBattle(def){const U=TM.U,M=TM;battleSetup(def);
     else if(q.t==='box')add(new THREE.BoxGeometry(q.x1-q.x0,q.h,q.z1-q.z0),m,(q.x0+q.x1)/2,q.h/2,(q.z0+q.z1)/2);
     else{/* a ramp: a wedge */const w=q.x1-q.x0,d=q.z1-q.z0,P=q.ax==='x'?[[q.x0,q.h0,q.z0],[q.x1,q.h1,q.z0],[q.x1,q.h1,q.z1],[q.x0,q.h0,q.z1]]:[[q.x0,q.h0,q.z0],[q.x1,q.h0,q.z0],[q.x1,q.h1,q.z1],[q.x0,q.h1,q.z1]],B=P.map(v=>[v[0],0,v[2]]),V=[],quad=(a,b,c,e)=>V.push(...a,...b,...c,...a,...c,...e);
       quad(P[0],P[3],P[2],P[1]);quad(P[0],P[1],B[1],B[0]);quad(P[1],P[2],B[2],B[1]);quad(P[2],P[3],B[3],B[2]);quad(P[3],P[0],B[0],B[3]);const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(V,3));g.computeVertexNormals();const o=add(g,m,0,0,0);o.material=m.clone();o.material.side=THREE.DoubleSide;}}}
-function toyScenery(def){if(def.battle)return;toyRails(def);TOYB.forEach(j=>toyBooster(j));/* the motor housings go on last, once the shortcuts are known */}
+function toyScenery(def){if(def.battle)return;toyRails(def);for(const j of TOYB)toyBooster(j);/* (a loop, not forEach: the web build slices it) *//* the motor housings go on last, once the shortcuts are known */}
 
 /* ================= BALLOON BATTLE =================
    A mode with no lap: karts drive anywhere in an arena, hit each other with items, and each hit pops one of the victim's
@@ -5580,14 +5580,14 @@ function sbColumns(b){const og=SB.kind==='open';let cap=0;for(const p of track){
       for(let e=0;e<4&&n;e++){const ax2=e<2?0:2,lim=e===0?X0:e===1?X1:e===2?Z0:Z1,sg=e%2?-1:1;let m=0;for(let q=0;q<n;q++){const u=q*3,v=((q+1)%n)*3,du=(P[u+ax2]-lim)*sg,dv=(P[v+ax2]-lim)*sg;if(du>=0){R[m*3]=P[u];R[m*3+1]=P[u+1];R[m*3+2]=P[u+2];m++;}if((du>=0)!==(dv>=0)){const t=du/(du-dv);R[m*3]=P[u]+(P[v]-P[u])*t;R[m*3+1]=P[u+1]+(P[v+1]-P[u+1])*t;R[m*3+2]=P[u+2]+(P[v+2]-P[u+2])*t;m++;}}n=m;for(let q=0;q<n*3;q++)P[q]=R[q];}
       if(!n)continue;let lo=1e9,hi=-1e9;for(let q=0;q<n;q++){const y=P[q*3+1];if(y<lo)lo=y;if(y>hi)hi=y;}if((og||hi>=1.2)&&hi>=minTop&&lo<=cap)ins(i*nz+k,lo,hi);}};
   const v=new THREE.Vector3(),M4=new THREE.Matrix4(),W=[0,0,0,0,0,0,0,0,0];world.updateMatrixWorld(true);
-  world.traverse(o=>{if(!o.isMesh||!o.geometry||!o.geometry.attributes||!o.geometry.attributes.position||o.userData.noCol)return;for(let p=o;p;p=p.parent)if(!p.visible)return;const m=Array.isArray(o.material)?o.material[0]:o.material;if(!m)return;
-    if(!o.userData.col){if(m.transparent||m.alphaTest>0||m.depthWrite===false||m.isShaderMaterial||SB_SOFT.test(m.name||''))return;if(o.isInstancedMesh&&!m.name)return;}
+  /* (a list, not traverse: the build slices it, web v199, and a loop can pause where a callback cannot) */const OBJ=[];world.traverse(o=>OBJ.push(o));sbObj: for(const o of OBJ){if(!o.isMesh||!o.geometry||!o.geometry.attributes||!o.geometry.attributes.position||o.userData.noCol)continue;for(let p=o;p;p=p.parent)if(!p.visible)continue sbObj;const m=Array.isArray(o.material)?o.material[0]:o.material;if(!m)continue;
+    if(!o.userData.col){if(m.transparent||m.alphaTest>0||m.depthWrite===false||m.isShaderMaterial||SB_SOFT.test(m.name||''))continue;if(o.isInstancedMesh&&!m.name)continue;}
     minTop=o.userData.colMin||0;/* (a loop's hoop: only what stands higher than a step is solid. Its low lips lie beside the lanes into and out of the loop, and a kart near the middle rail was bumped up onto them: the owner's "going around the loops is a little glitchy in sandbox mode") */isThin=/toyblue/.test(m.name||'');/* the track's posts, bars and gates: solid to a kart, but the camera looks past them (sbSolid) */const g=o.geometry;if(!g.boundingBox)g.computeBoundingBox();const pa=g.attributes.position,ix=g.index,nt=(ix?ix.count:pa.count)/3,ni=o.isInstancedMesh?o.count:1;
     for(let q=0;q<ni;q++){if(o.isInstancedMesh){o.getMatrixAt(q,M4);M4.premultiply(o.matrixWorld);}else M4.copy(o.matrixWorld);
       /* nowhere near the room, or wholly on the floor: skip it without looking at a triangle */const bb=g.boundingBox;let in0=false,top=-1e9;for(let c=0;c<8;c++){v.set(c&1?bb.max.x:bb.min.x,c&2?bb.max.y:bb.min.y,c&4?bb.max.z:bb.min.z).applyMatrix4(M4);if(v.y>top)top=v.y;}
       {const lo=new THREE.Vector3(1e9,1e9,1e9),hi=new THREE.Vector3(-1e9,-1e9,-1e9);for(let c=0;c<8;c++){v.set(c&1?bb.max.x:bb.min.x,c&2?bb.max.y:bb.min.y,c&4?bb.max.z:bb.min.z).applyMatrix4(M4);lo.min(v);hi.max(v);}in0=hi.x>=x0&&lo.x<=x0+nx*C&&hi.z>=z0&&lo.z<=z0+nz*C;}
       if(!in0||(top<1.2&&!og))continue;used++;
-      for(let t=0;t<nt;t++){for(let c=0;c<3;c++){const idx=ix?ix.getX(t*3+c):t*3+c;v.fromBufferAttribute(pa,idx).applyMatrix4(M4);W[c*3]=v.x;W[c*3+1]=v.y;W[c*3+2]=v.z;}tri(W[0],W[1],W[2],W[3],W[4],W[5],W[6],W[7],W[8]);}}});
+      for(let t=0;t<nt;t++){for(let c=0;c<3;c++){const idx=ix?ix.getX(t*3+c):t*3+c;v.fromBufferAttribute(pa,idx).applyMatrix4(M4);W[c*3]=v.x;W[c*3+1]=v.y;W[c*3+2]=v.z;}tri(W[0],W[1],W[2],W[3],W[4],W[5],W[6],W[7],W[8]);}}}
   SB.col={x0,z0,nx,nz,C,cap,cnt,thin,sp,tris,used,ms:Math.round(performance.now()-t0),b};}
 
 /* ---- the save: one record for the whole of Sandbox ---- */
@@ -5724,7 +5724,7 @@ function sbGates(){const R=SB.reg,id=SB.regId;SB.gates=[];
                       (sbPull) so it is seen going in, not cut off by the wall
        the tunnel     behind the mouth: streaks rush along its walls toward you, a lit road on its floor, a bright end. The kart drives it for real
        the sign       a board above the mouth with the name of where it leads (a gantry across the garage's open door)
-     On a road in the sky the mouth is an arch over the left-hand lane with no tunnel behind it: the warp picture covers the load (sbCover). */
+     On a road in the sky the mouth is an arch over the left-hand lane with no tunnel behind it: the kart drives the warp tunnel while the next place loads (sbTravel). */
   for(const g of SB.gates){const road=!!g.road,proud=R.room?6:0,G=new THREE.Group(),W=g.hw+1,H=road?31:27,arch=(w,h)=>{const sh=new THREE.Shape();sh.moveTo(-w,0);sh.lineTo(-w,h-w*.55);sh.absarc(0,h-w*.55,w,Math.PI,0,true);sh.lineTo(w,0);sh.lineTo(-w,0);return sh;};
     const neon=road&&!!(MAPS[mapIdx]&&MAPS[mapIdx].neon),wood=R.room?'#7a5636':SB.kind==='open'?'#a9743c':'#5d5148';
     /* the sign: its board, the name as large as fits, an arrow either side */
@@ -5774,68 +5774,109 @@ function sbWarpTick(dt){const k=player;SB_WU.value=(SB_WU.value+dt*.5)%1000;let 
     if(g.inside){const v=dc>-((SB.reg&&SB.reg.room?7.2:.9)+2)&&Math.abs(lc)<g.hw+14;/* (from just before the mouth's own face, which hides it until then) */if(g.inside[0].visible!==v)for(const o of g.inside)o.visible=v;}
     if((dk>-4&&Math.abs(lk)<g.hw+8)||(dc>0&&Math.abs(lc)<g.hw+12)){pull=true;if(Math.cos(k.rma)*g.nx+Math.sin(k.rma)*g.nz<0)dir=-1;}}
   SB_WV.value=(SB_WV.value+dt*.9*dir+1000)%1000;sbPull(pull);}
-/* ---- the cover over a load ----
-   Building the next region stops the game for a second or more. For that time the picture is held by a cover the browser itself animates
-   (it keeps moving while the game cannot): the last frame, warp streaks flying out of the tunnel's end over it, and the kart on top, cut out of
-   its own picture (drawn alone on black and on white: the difference is its outline). Afterwards the cover fades over the new place. */
-function sbDuctEl(){let e=SB.duct;if(!e){e=SB.duct=document.createElement('div');e.id='sbDuct';e.style.cssText='position:absolute;inset:0;z-index:5;background:#05030a;opacity:0;pointer-events:none;overflow:hidden';
-    const st=document.createElement('style');st.textContent='#sbDuct canvas{position:absolute;left:0;top:0;width:100%;height:100%}#sbDuct b{position:absolute;left:50%;top:46%;width:0;height:0}#sbDuct i{position:absolute;left:-128px;top:-128px;width:256px;height:256px;background:center/contain no-repeat;animation:sbwarp 1.05s linear infinite;will-change:transform,opacity}'
-      +'@keyframes sbbob{from{transform:translateY(-.3%)}to{transform:translateY(.3%)}}#sbDuctK{animation:sbbob .34s ease-in-out infinite alternate;will-change:transform}';document.head.appendChild(st);SB.ductKf=document.createElement('style');document.head.appendChild(SB.ductKf);
-    /* (web v194, the owner's phone: "when going through the portals it send me back to the menu screen and never loads". Each of the five streak layers was a
-       box 1.8 screens across that the browser keeps as a picture of its own: on a phone about 100 MB each, the page was thrown out and loaded again from
-       the start. Now a layer is 256 px across and its transform alone makes it big (sbDuctKf writes that scale for the screen's size); and the whole
-       cover is taken out of the page (display none) whenever it is not showing) */
-    /* the streaks: drawn once */const S=768,c=cnv(S,S),q=c.getContext('2d'),rnd=prng(4711);q.lineCap='round';for(let i=0;i<300;i++){const a=rnd()*6.28318,r0=(.1+rnd()*.5)*S/2,r1=Math.min(S/2,r0+(.08+rnd()*.34)*S/2),t=rnd(),col=t<.45?'255,248,255':t<.72?'160,118,255':t<.9?'110,160,255':'120,255,185',gr=q.createLinearGradient(S/2+Math.cos(a)*r0,S/2+Math.sin(a)*r0,S/2+Math.cos(a)*r1,S/2+Math.sin(a)*r1);
-      gr.addColorStop(0,'rgba('+col+',0)');gr.addColorStop(.7,'rgba('+col+','+(.5+rnd()*.5).toFixed(2)+')');gr.addColorStop(1,'rgba('+col+',0)');q.strokeStyle=gr;q.lineWidth=.8+rnd()*2.4;q.beginPath();q.moveTo(S/2+Math.cos(a)*r0,S/2+Math.sin(a)*r0);q.lineTo(S/2+Math.cos(a)*r1,S/2+Math.sin(a)*r1);q.stroke();}
-    let url='';try{url=c.toDataURL('image/png');}catch(err){}
-    const A=SB.covA=document.createElement('canvas');e.appendChild(A);for(let i=0;i<5;i++){const b=document.createElement('b');b.style.transform='rotate('+(i*67)+'deg)';const r=document.createElement('i');r.style.backgroundImage='url('+url+')';r.style.animationDelay=(-i*.21)+'s';b.appendChild(r);e.appendChild(b);}
-    const B=SB.covB=document.createElement('canvas');B.id='sbDuctK';e.appendChild(B);e.style.display='none';stage.appendChild(e);}return e;}
-function sbDuctKf(){const M=Math.max(innerWidth,innerHeight);if(SB.ductM===M||!SB.ductKf)return;SB.ductM=M;const a=(.18*M/256).toFixed(3),b=(4.2*M/256).toFixed(3);SB.ductKf.textContent='@keyframes sbwarp{from{transform:scale('+a+');opacity:0}14%{opacity:1}75%{opacity:.85}to{transform:scale('+b+');opacity:0}}';}
-const _sbBk=new THREE.Color('#000000'),_sbWh=new THREE.Color('#ffffff'),_sbV=new THREE.Vector3();
-function sbCover(g){const e=sbDuctEl(),A=SB.covA,B=SB.covB,sw=stage.clientWidth||innerWidth,sh=stage.clientHeight||innerHeight,w=Math.max(64,Math.min(800,sw)),h=Math.max(36,Math.round(w*sh/sw));A.width=B.width=w;A.height=B.height=h;
-  const ga=A.getContext('2d'),gb=B.getContext('2d');ga.fillStyle='#05030a';ga.fillRect(0,0,w,h);let vx=.5,vy=.44;
-  try{const cv=renderer.domElement,bg=scene.background,hid=[];renderer.setRenderTarget(null);renderer.render(scene,camera);ga.drawImage(cv,0,0,w,h);
-    if(g&&g.endAt){_sbV.set(g.endAt[0],g.endAt[1],g.endAt[2]).project(camera);if(_sbV.z<1&&Math.abs(_sbV.x)<.8&&Math.abs(_sbV.y)<.8){vx=(_sbV.x+1)/2;vy=(1-_sbV.y)/2;}}
-    /* the kart alone: everything else in the scene hidden for two pictures */let top=player.m.g;while(top.parent&&top.parent!==scene)top=top.parent;for(const o of scene.children)if(o!==top&&!o.isLight&&o.visible){hid.push(o);o.visible=false;}
-    const c1=cnv(w,h),c2=cnv(w,h),g1=c1.getContext('2d'),g2=c2.getContext('2d');
-    try{scene.background=_sbBk;renderer.render(scene,camera);g1.drawImage(cv,0,0,w,h);scene.background=_sbWh;renderer.render(scene,camera);g2.drawImage(cv,0,0,w,h);}finally{scene.background=bg;for(const o of hid)o.visible=true;}
-    const a=g1.getImageData(0,0,w,h).data,b=g2.getImageData(0,0,w,h).data,O=gb.createImageData(w,h),d=O.data;
-    for(let i=0;i<a.length;i+=4){const al=Math.max(0,Math.min(255,255-((b[i]-a[i])+(b[i+1]-a[i+1])+(b[i+2]-a[i+2]))/3));if(al<6)continue;const f=255/al;d[i]=Math.min(255,a[i]*f);d[i+1]=Math.min(255,a[i+1]*f);d[i+2]=Math.min(255,a[i+2]*f);d[i+3]=al;}
-    gb.putImageData(O,0,0);if(renderer.shadowMap)renderer.shadowMap.needsUpdate=true;}catch(err){console.warn('sandbox cover',err);}
-  e.querySelectorAll('b').forEach(q=>{q.style.left=(vx*100).toFixed(1)+'%';q.style.top=(vy*100).toFixed(1)+'%';});sbDuctKf();clearTimeout(SB.ductT);e.style.display='block';e.style.transition='none';e.style.opacity=1;SB.ductO=1;}
-function sbCoverOff(){const e=SB.duct;if(!e)return;e.style.transition='opacity .5s ease-out';e.style.opacity=0;SB.ductO=0;clearTimeout(SB.ductT);SB.ductT=setTimeout(()=>{if(!SB.ductO)e.style.display='none';},700);}
-function sbDuctShow(){/* (until web v193 the picture went dark by how deep in a passage the kart was; now the tunnel is real, and the cover comes only with the load) */}
-/* through a gate: the next region is built while the duct fills the picture, and the kart comes out of the matching gate */
-async function sbTravel(g){if(SB.trav)return;const mi=MAPS.findIndex(m=>m.id===g.to);if(mi<0||!sbRegOf(g.to))return;SB.trav=g;const k=player,sp=Math.max(70,Math.abs(k.speed));sbCover(g);state='loading';
-  try{await paint();await paint();projectiles.forEach(p=>scene.remove(p.mesh));hazards.forEach(h=>scene.remove(h.mesh));projectiles=[];hazards=[];
-    if(mi!==mapIdx||curRev){mapIdx=mi;try{store.set('crust-map',mi);}catch(e){}loadMap(mi,false);}for(const q of karts){q.idx=0;q.prog=0;q.loop=null;q.sc=null;q.glide=false;}
-    await Promise.all(Object.values(PROPT).map(t=>t.image&&t.image.decode&&!t.image.complete?t.image.decode().catch(()=>{}):null));}catch(e){console.warn('sandbox travel',e);}
-  sbArm();const a=g.start?null:SB.gates.find(q=>q.id===g.at)||SB.gates[0];
+/* ---- the no-stop tunnel (web v199) ----
+   The owner, 2026-11-14: "the game will never freeze or stop to load it will be one fluid drive through the tunnel right out to the other
+   side". (Until v198 the picture was held by a still cover for the second or more the load took.)
+   Through a gate the kart drives on in a tunnel of its own (SB.ws: a scene holding only the tube, its road, the light at the end, two lamps
+   and a copy of the kart, drawn through the game's own post pass: patch 34's drawNow) while the next place is built a few milliseconds a
+   frame. The web build cuts the builders into slices (build/slices.txt, tools/jsparse/slice.js: loadMap.G and sbArm.G are the sliced
+   forms; run from the source unbuilt they are missing and the load is one step, as before). The new place's shaders are then compiled in
+   the background where the browser can (KHR_parallel_shader_compile), its pictures go to the graphics card one a slice, and warmScene draws
+   it once. Then the kart is set down inside the far gate's own tunnel, driving out, and the race goes on.
+   While this runs nothing reads the place being built: the frame loop calls sbWarpFrame instead of the race (state 'loading'), and the
+   HUD waits. KEEP IT: sbTripG does what the old sbTravel did, in the same order; a new step in a place's load belongs in the sliced path. */
+const SB_WL=1800,_sbWM=new THREE.Matrix4(),_sbWN=new THREE.Matrix4(),_sbWQ=new THREE.Quaternion(),_sbWY=new THREE.Vector3(0,1,0);
+function sbWarpScene(){let w=SB.ws;if(w)return w;const S=new THREE.Scene(),rx=30,ry=34,L=SB_WL;S.background=new THREE.Color('#05030a');
+  const tg=new THREE.CylinderGeometry(1,1,L,40,1,true);tg.rotateX(Math.PI/2);tg.translate(0,0,-L/2+80);tg.scale(rx,ry,1);
+  const tube=new THREE.Mesh(tg,sbWarpMat(1,{rep:L/60,mat:{side:THREE.BackSide}}));tube.frustumCulled=false;S.add(tube);
+  const ft=sbRoadTex(L),fl=new THREE.Mesh(new THREE.PlaneGeometry(2*rx,L),new THREE.MeshBasicMaterial({map:ft,toneMapped:false}));fl.rotation.x=-Math.PI/2;fl.position.set(0,.3,-L/2+80);fl.frustumCulled=false;S.add(fl);
+  const end=new THREE.Mesh(new THREE.PlaneGeometry(2*rx,ry),sbWarpMat(0,{c:[.5,.42],s:.55,core:1.1}));end.position.set(0,ry/2,-L+81);S.add(end);
+  S.add(new THREE.HemisphereLight('#d6caff','#1c1030',1.25));const dl=new THREE.DirectionalLight('#ffffff',1.1);dl.position.set(0,60,40);S.add(dl);S.add(dl.target);
+  const cam=new THREE.PerspectiveCamera(60,16/9,1,4000);w=SB.ws={S,cam,ft,kart:null,base:new THREE.Vector3(),cb:new THREE.Vector3(),lat:0,cl:0,yaw:0};return w;}
+/* the copy of the player's kart, and the camera, moved as one from where they are to the tunnel's start (the kart at the origin facing -z) */
+function sbWarpKart(){const w=sbWarpScene(),k=player;if(w.kart){w.S.remove(w.kart);w.kart=null;}if(!k||!k.m||!k.m.g)return;let top=k.m.g;while(top.parent&&top.parent!==scene)top=top.parent;
+  top.updateMatrixWorld(true);camera.updateMatrixWorld(true);const c=top.clone(true);c.traverse(o=>{o.frustumCulled=false;});
+  _sbWM.makeRotationY(k.rma+Math.PI/2);_sbWN.makeTranslation(-k.rx,-(k.rz==null?k.wy||0:k.rz),-k.ry);_sbWM.multiply(_sbWN);
+  _sbWN.multiplyMatrices(_sbWM,top.matrixWorld);_sbWN.decompose(c.position,c.quaternion,c.scale);w.base.copy(c.position);w.q0=c.quaternion.clone();
+  _sbWN.multiplyMatrices(_sbWM,camera.matrixWorld);_sbWN.decompose(w.cam.position,w.cam.quaternion,w.cam.scale);w.cb.copy(w.cam.position);
+  w.cam.fov=camera.fov;w.cam.near=camera.near;w.cam.far=4000;w.cam.aspect=camera.aspect;w.cam.updateProjectionMatrix();w.S.add(c);w.kart=c;w.lat=0;w.cl=0;w.yaw=0;}
+/* through a gate (or fast travel: g.start): from here the kart is in the tunnel until the next place is ready */
+function sbTravel(g){if(SB.trav||SB.warp)return;if(g.start&&SBA.act&&!SBA.retry)sbActEnd('cancel');/* (fast travel cannot finish a delivery) */const mi=MAPS.findIndex(m=>m.id===g.to);if(mi<0||!sbRegOf(g.to))return;SB.trav=g;const k=player,sp=Math.max(70,Math.abs(k.speed));
+  const w=sbWarpScene();sbWarpKart();w.sp=sp;w.t=0;w.minT=g.start?1.1:.75;w.job=sbTripG(g,mi,sp);w.slow=0;w.log=[];w.pv=null;SB.warp=w;state='loading';sbRaceBtn(false);sbPull(false);}
+function* sbTripG(g,mi,sp){const k=player;
+  try{projectiles.forEach(p=>scene.remove(p.mesh));hazards.forEach(h=>scene.remove(h.mesh));projectiles=[];hazards=[];
+    if(mi!==mapIdx||curRev){mapIdx=mi;try{store.set('crust-map',mi);}catch(e){}if(loadMap.G)yield* loadMap.G(mi,false);else loadMap(mi,false);}for(const q of karts){q.idx=0;q.prog=0;q.loop=null;q.sc=null;q.glide=false;}
+    yield "trip1";let ok=false;Promise.all(Object.values(PROPT).map(t=>t.image&&t.image.decode&&!t.image.complete?t.image.decode().catch(()=>{}):null)).then(()=>{ok=true;},()=>{ok=true;});const t0=performance.now();while(!ok&&performance.now()-t0<5000)yield "trip2";}catch(e){console.warn('sandbox travel',e);}
+  if(sbArm.G)yield* sbArm.G();else sbArm();yield "trip3";const a=g.start?null:SB.gates.find(q=>q.id===g.at)||SB.gates[0];
   if(a&&a.road){k.x=k.px=a.x+a.nx*34;k.y=k.py=a.z+a.nz*34;k.a=k.ma=k.pa=k.pma=Math.atan2(a.nz,a.nx);k.idx=(a.j+Math.round(34/(T.L/N)))%N;}
   else if(a){const out=a.plain?46:SB_GLEN-60;k.x=k.px=a.x+a.nx*out;k.y=k.py=a.z+a.nz*out;const h=Math.atan2(-a.nz,-a.nx);k.a=k.ma=k.pa=k.pma=h;}
   else{/* no gate to come out of (fast travel): the start line, a little behind it */const j=(N-Math.round(40/(T.L/N)))%N,p=track[j];k.x=k.px=p.x;k.y=k.py=p.y;k.a=k.ma=k.pa=k.pma=Math.atan2(p.ty,p.tx);k.idx=j;}
   k.speed=sp;k.wvy=0;k.gRate=0;k.air=false;k.big=false;k.drift=0;k.charge=0;k.spin=0;k.z=k.pz=0;k.bpx=k.x;k.bpy=k.y;
   if(SBF){const lvl=a&&!a.road?a.y:((SB.kind==='toy'?0:groundAt(k.x,k.y))+(track[k.idx].ey||0));k.wy=k.pwy=k.lastG=sbG(k.x,k.y,lvl+2);k.idx=sbIdx(k,k.idx);}else k.wy=k.pwy=k.lastG=kGround(k);
-  k.rx=k.x;k.ry=k.y;k.rz=k.wy;k.rg=k.wy;k.rma=k.ma;cam.a=k.ma;camSnap=true;try{warmScene();}catch(e){}SB.cool=1;state='race';SB.trav=null;sbCoverOff();SB.hudT=0;sbHud();showBanner(SB.reg.name,2,'sm');}
+  k.rx=k.x;k.ry=k.y;k.rz=k.wy;k.rg=k.wy;k.rma=k.ma;cam.a=k.ma;camSnap=true;yield "trip4";
+  yield* sbWarmG();}
+/* the new place made ready to draw, a little at a time (done at once, as warmScene alone does it, this was one wait of 0.3 to 1.8 s):
+   1. its shaders: renderer.compile on eight things at a time (F: a scene that lends the real one's lights, environment and fog, so the
+      programs are the very ones the real draw will ask for), with the built game's three.js told not to wait for each (renderer.__crDefer);
+   2. a frame at a time until the driver has finished them (KHR_parallel_shader_compile);
+   3. its pictures to the graphics card, one a step;
+   4. each thing drawn once on its own into the post pass's target (render layer 30: everything else and the shadows left out). A driver
+      finishes a shader for the way it is drawn at its first draw (about 0.1 s each, ten or so on a new place: measured on ANGLE/D3D11) and the
+      shapes go up to the card; one a step spreads that out;
+   5. warmScene, which then has little left to do (about 0.09 s).
+   In Sandbox every shader compiled is then kept (its use count raised once): a place you come back to has none of this to do. */
+function* sbWarmG(){try{sunShadeAll();}catch(e){}yield "warm1";
+  const objs=[];scene.traverse(o=>{if(o.material)objs.push(o);});
+  try{const gl=renderer.getContext(),ext=renderer.extensions.get('KHR_parallel_shader_compile');
+    if(ext){const F=new THREE.Scene();F.environment=scene.environment;F.fog=scene.fog;F.traverseVisible=f=>scene.traverseVisible(x=>{if(x.isLight)f(x);});
+      for(let i=0;i<objs.length;i+=8){const ch=objs.slice(i,i+8);F.traverse=f=>{for(const x of ch)f(x);};const ck=renderer.debug.checkShaderErrors;renderer.debug.checkShaderErrors=false;renderer.__crDefer=true;
+        try{renderer.compile(F,camera);}catch(e){console.warn('sandbox shaders',e);}finally{renderer.debug.checkShaderErrors=ck;renderer.__crDefer=false;}yield "warm2";}
+      const t0=performance.now();for(;;){let all=true;for(const p of renderer.info.programs)if(!gl.getProgramParameter(p.program,ext.COMPLETION_STATUS_KHR)){all=false;break;}if(all||performance.now()-t0>8000)break;yield "warm3";}}}catch(e){console.warn('sandbox shaders',e);}
+  if(typeof renderer.initTexture==='function'){const seen=new Set(),tex=[];for(const o of objs){const ms=Array.isArray(o.material)?o.material:[o.material];for(const m of ms)for(const key in m){const v=m[key];if(v&&v.isTexture&&!seen.has(v)){seen.add(v);tex.push(v);}}}
+    for(const t of tex){try{if(!t.image||t.image.width||t.image.data||t.isRenderTargetTexture)renderer.initTexture(t);}catch(e){}yield "warm4";}}
+  {const lights=[];let wc=null,tgt=null;const au=renderer.shadowMap.autoUpdate,nu=renderer.shadowMap.needsUpdate;
+    try{scene.traverse(x=>{if(x.isLight&&!x.layers.isEnabled(30)){x.layers.enable(30);lights.push(x);}});wc=camera.clone();wc.layers.set(30);
+      try{if(!LOWQF()&&CFG.post!==false){postInit();const sz=renderer.getDrawingBufferSize(v2);postSize(sz.x,sz.y);tgt=POST.rt;}}catch(e){}if(!tgt)tgt=SB.wrt||(SB.wrt=new THREE.WebGLRenderTarget(64,64));
+      for(const x of objs){if(!(x.isMesh||x.isPoints||x.isLine||x.isSprite))continue;const fc=x.frustumCulled,L=x.layers.mask;x.layers.enable(30);x.frustumCulled=false;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=false;
+        try{renderer.setRenderTarget(tgt);renderer.render(scene,wc);}catch(e){}finally{renderer.setRenderTarget(null);x.layers.mask=L;x.frustumCulled=fc;renderer.shadowMap.autoUpdate=au;}yield "warm5";}}
+    catch(e){console.warn('sandbox draw',e);}finally{for(const x of lights)x.layers.disable(30);renderer.shadowMap.autoUpdate=au;renderer.shadowMap.needsUpdate=nu;}}
+  try{warmScene();}catch(e){}
+  if(SBX)for(const p of renderer.info.programs)if(!p.__crKeep){p.__crKeep=1;p.usedTimes++;}}
+/* each frame in the tunnel: drive, draw, then build for what is left of the frame */
+function sbWarpFrame(dt,time){const w=SB.warp,k=player;w.t+=dt;
+  if(w.kart){const st=clamp((keys.right?1:0)-(keys.left?1:0)+(PAD.act?PAD.steer:0),-1,1);w.lat=clamp(w.lat+st*dt*42,-14,14);w.yaw+=(-st*.16-w.yaw)*Math.min(1,dt*8);w.cl+=(w.lat*.8-w.cl)*Math.min(1,dt*5);
+    w.kart.position.set(w.base.x+w.lat,w.base.y+Math.sin(time*11)*.12,w.base.z);_sbWQ.setFromAxisAngle(_sbWY,w.yaw);w.kart.quaternion.copy(_sbWQ).multiply(w.q0);w.cam.position.set(w.cb.x+w.cl,w.cb.y,w.cb.z);}
+  if(k)k.speed=w.sp;SB_WU.value=(SB_WU.value+dt*.5)%1000;SB_WV.value=(SB_WV.value+dt*.9*Math.max(.7,w.sp/150)+1000)%1000;w.ft.offset.y=(w.ft.offset.y+w.sp*dt*w.ft.repeat.y/SB_WL)%1;
+  if(Math.abs(w.cam.aspect-camera.aspect)>1e-3){w.cam.aspect=camera.aspect;w.cam.updateProjectionMatrix();}
+  const td=performance.now();postRender.s=w.S;postRender.c=w.cam;try{drawNow();}finally{postRender.s=postRender.c=null;}{const d=performance.now()-td;if(d>30&&w.log.length<24)w.log.push([Math.round(d),'draw',w.pv]);}
+  if(w.job){const t0=performance.now(),B=COARSE?6:9;try{for(;;){let r;for(let i=0;i<16;i++){const a=performance.now();r=w.job.next();const d=performance.now()-a;if(d>30&&w.log.length<24)w.log.push([Math.round(d),w.pv]);/* (the slices that took long, and the yield before each: SB.lastWarp.log; ids in the build's SLICE_MAP) */w.pv=r.value;if(r.done)break;}if(r.done){w.job=null;break;}if(performance.now()-t0>B)break;}}catch(e){console.warn('sandbox travel',e);w.job=null;}
+    const d=performance.now()-t0;if(d>w.slow)w.slow=d;}
+  if(!w.job&&w.t>=w.minT)sbWarpOut();}
+/* at the start of Sandbox (sbStart): the tunnel's own scene and the kart's copy drawn once out of sight, so the first trip does not stop to
+   compile the kart's shaders for the tunnel's lights (0.3 s, measured) */
+function sbWarpPrime(){const w=sbWarpScene();sbWarpKart();if(!w.kart)return;let tgt=null;try{if(!LOWQF()&&CFG.post!==false){postInit();const sz=renderer.getDrawingBufferSize(v2);postSize(sz.x,sz.y);tgt=POST.rt;}}catch(e){}if(!tgt)tgt=SB.wrt||(SB.wrt=new THREE.WebGLRenderTarget(64,64));
+  try{renderer.compile(w.S,w.cam);renderer.setRenderTarget(tgt);renderer.render(w.S,w.cam);}catch(e){console.warn('sandbox warp',e);}finally{renderer.setRenderTarget(null);w.S.remove(w.kart);w.kart=null;}}
+function sbWarpOut(){const w=SB.warp;SB.warp=null;if(w&&w.kart){w.S.remove(w.kart);w.kart=null;}SB.lastWarp=w?{t:+w.t.toFixed(2),slow:Math.round(w.slow),log:w.log}:null;
+  SB.cool=1;state='race';acc=0;SB.trav=null;SB.hudT=0;sbHud();showBanner(SB.reg.name,2,'sm');if(SBA.retry)sbActArrived();}
 /* ---- a race from its start line ----
    The start line of the region's track carries a marker: a chequered ring on the road and a small chequered flag turning above it. Drive up
    to it and a button offers the race (tap it; Enter on a keyboard; D-pad up on a controller). The race is an ordinary single race on this
    track at the chosen speed class; when it is over, or left, you are back in Sandbox at the same start line. */
-function sbFlag(){const p=track[0],e=(SB.kind==='toy'?0:groundAt(p.x,p.y))+(p.ey||0),c=cnv(64,64),g=c.getContext('2d');for(let i=0;i<4;i++)for(let j=0;j<4;j++){g.fillStyle=(i+j)%2?'#141210':'#fbf6ea';g.fillRect(i*16,j*16,16,16);}
+function sbFlag(){if(SB.flag&&SB.flag.glow)SB.flag.glow.dispose();const p=track[0],e=(SB.kind==='toy'?0:groundAt(p.x,p.y))+(p.ey||0),c=cnv(64,64),g=c.getContext('2d');for(let i=0;i<4;i++)for(let j=0;j<4;j++){g.fillStyle=(i+j)%2?'#141210':'#fbf6ea';g.fillRect(i*16,j*16,16,16);}
   const t1=T2(c,6,1),t2=T2(c,1.5,1),G=new THREE.Group();t1.userData.keepCanvas=t2.userData.keepCanvas=true;
   const ring=new THREE.Mesh(new THREE.RingGeometry(11.5,15.5,40,1),new THREE.MeshBasicMaterial({map:t1,side:THREE.DoubleSide,toneMapped:false}));{const uv=ring.geometry.attributes.uv,ps=ring.geometry.attributes.position;for(let i=0;i<uv.count;i++){const a=Math.atan2(ps.getY(i),ps.getX(i)),r=Math.hypot(ps.getX(i),ps.getY(i));uv.setXY(i,a/6.28318+.5,r>13?1:0);}}
   ring.rotation.x=-Math.PI/2;ring.position.y=.55;G.add(ring);
   const F=new THREE.Group(),pole=new THREE.Mesh(new THREE.CylinderGeometry(.45,.45,17,8),new THREE.MeshStandardMaterial({color:'#e9e4d8',roughness:.5,metalness:.3}));pole.position.y=8.5;F.add(pole);
   const fl=new THREE.Mesh(new THREE.PlaneGeometry(10,6.6),new THREE.MeshBasicMaterial({map:t2,side:THREE.DoubleSide,toneMapped:false}));fl.position.set(5,13.6,0);F.add(fl);F.position.y=12;G.add(F);
-  try{const sp=new THREE.Sprite(glowMat('#fff2c0'));sp.scale.setScalar(30);sp.position.y=22;G.add(sp);}catch(e){}
-  G.position.set(p.x,e,p.y);G.traverse(o=>{o.userData.sunlit=true;});SB.grp.add(G);SB.flag={G,F,x:p.x,z:p.y,y:e};}
+  let glow=null;try{glow=glowMat('#fff2c0').clone();/* (its own copy: the clock dims it, and glowMat's are shared) */const sp=new THREE.Sprite(glow);sp.scale.setScalar(30);sp.position.y=22;G.add(sp);}catch(e){}
+  G.position.set(p.x,e,p.y);G.traverse(o=>{o.userData.sunlit=true;});SB.grp.add(G);SB.flag={G,F,x:p.x,z:p.y,y:e,mats:[ring.material,fl.material],glow};}
 function sbRaceBtn(on){let b=SB.raceEl;if(!b){if(!on)return;b=SB.raceEl=document.createElement('button');b.id='sbRace';b.type='button';
     b.style.cssText='position:absolute;left:50%;bottom:max(96px,calc(env(safe-area-inset-bottom) + 96px));transform:translateX(-50%);z-index:7;font:800 15px/1.15 system-ui,sans-serif;color:#1b0f0b;background:linear-gradient(#ffd97a,#f5b62e);border:0;border-radius:14px;padding:10px 18px 10px 44px;box-shadow:0 4px 0 #9b6a10,0 8px 18px rgba(0,0,0,.4);cursor:pointer;white-space:nowrap;text-align:left';
     b.innerHTML='<i style="position:absolute;left:12px;top:50%;width:22px;height:22px;margin-top:-11px;border-radius:5px;background:conic-gradient(#141210 25%,#fbf6ea 0 50%,#141210 0 75%,#fbf6ea 0) 0 0/11px 11px"></i><span id="sbRaceT"></span><small style="display:block;font-weight:600;font-size:11px;opacity:.75" id="sbRaceS"></small>';
     b.onclick=e=>{e.preventDefault();sbRaceHere();};b.addEventListener('pointerdown',e=>e.stopPropagation());stage.appendChild(b);
     addEventListener('keydown',e=>{if(SBX&&SB.raceOn&&state==='race'&&e.code==='Enter'){e.preventDefault();sbRaceHere();}});}
   if(on===SB.raceOn)return;SB.raceOn=on;b.hidden=!on;if(on){const m=MAPS[mapIdx],touch=typeof COARSE!=='undefined'&&COARSE;document.getElementById('sbRaceT').textContent='Race here: '+m.name;document.getElementById('sbRaceS').textContent=CLASSES[clsKey].label+' \u00b7 single race'+(touch?' \u00b7 tap':' \u00b7 Enter, or D-pad up');}}
-function sbRaceHere(){if(!SBX||SB.trav||state!=='race'||raceLoading)return;SB.back=SB.regId;sbRaceBtn(false);mode='single';goRace(mapIdx);}
+function sbRaceHere(){if(!SBX||SB.trav||state!=='race'||raceLoading)return;if(SBA.act)sbActEnd('cancel');SB.back=SB.regId;sbRaceBtn(false);mode='single';goRace(mapIdx);}
 /* leaving a race that began at a start line in Sandbox: back to Sandbox there (the engine's toMenu asks this first) */
 function sbBack(){if(!SB.back)return false;const id=SB.back;SB.back=null;if(NET.cfg||NET.role)return false;const mi=MAPS.findIndex(m=>m.id===id);if(mi<0||!sbRegOf(id))return false;mode='sb';results.hidden=true;pauseOv.hidden=true;goRace(mi);return true;}
 /* ---- coins ---- */
@@ -5869,10 +5910,10 @@ function sbFound(){let n=0,t=0;for(const c of SB.coins)if(c.rare){t++;if(c.t<0)n
 function sbArm(){const def=MAPS[mapIdx],R=def&&sbRegOf(def.id),on=mode==='sb'&&!NET.cfg&&!!R;if(!on){if(SBX)sbOff();return;}
   SBX=true;SB.regId=def.id;SB.reg=R;SB.kind=R.kind||'toy';SBF=SB.kind!=='road';BATTLE=SBF;SB.shapes=R.shapes?R.shapes():[];SB.rim=0;SB.col=null;SB.hash=null;SB.gates=[];SB.loops=LOOPS.filter(L=>L.full).map(L=>({p:L.p,g0:L.g0,r:LOOPR+34,a:-L.S-L.W-10,b:L.shift-L.S+L.W+10}));
   if(SBF){let b=TOYROOM;if(SB.kind==='open'){const r=RIM+70;b=[-r,r,-r,r];SB.rim=RIM;}else if(!b){b=[1e9,-1e9,1e9,-1e9];for(const p of track){b[0]=Math.min(b[0],p.x-400);b[1]=Math.max(b[1],p.x+400);b[2]=Math.min(b[2],p.y-400);b[3]=Math.max(b[3],p.y+400);}}sbColumns(b);sbHashTrack();}
-  sbCoins();sbGates();{/* the map remembers this place's tunnels */const sv=sbSave();if(!sv.g)sv.g={};sv.g[SB.regId]=SB.gates.map(g=>[Math.round(g.x),Math.round(g.z),g.label]);sbKeep();}sbFlag();SB.hudT=0;SB.msgT=0;SB.camF=1;if(!SB.trav)sbPark(false);sbMapBtn();document.body.classList.add('battle');sbClockArm();}
-function sbOff(){if(!SBX)return;sbClockOff();/* the place's own light back, before anything else reads it */SBX=false;SBF=false;const def=MAPS[mapIdx];BATTLE=!!(def&&def.battle);if(SB.grp){/* the passages' own shapes, signs and shaders go with the place (everything else in the group is shared) */for(const G of SB.grp.children)if(G.userData.sbGate)G.traverse(o=>{if(!o.isMesh)return;o.geometry.dispose();const m=o.material;if(m.map)m.map.dispose();m.dispose();});scene.remove(SB.grp);SB.grp=null;SB.im=null;}SB.coins=[];SB.shapes=[];SB.gates=[];SB.hash=null;SB.col=null;if(SB.el)SB.el.hidden=true;SB.flag=null;sbRaceBtn(false);sbPull(false);SB.park=false;if(SB.parkEl)SB.parkEl.hidden=true;if(SB.spdEl)SB.spdEl.hidden=true;sbMapBtn();if(SB.duct&&!SB.trav){SB.duct.style.opacity=0;SB.ductO=0;SB.duct.style.display='none';}document.body.classList.toggle('battle',BATTLE);}
+  sbCoins();sbGates();{/* the map remembers this place's tunnels */const sv=sbSave();if(!sv.g)sv.g={};sv.g[SB.regId]=SB.gates.map(g=>[Math.round(g.x),Math.round(g.z),g.label]);sbKeep();}sbFlag();try{sbActArm();sbEggArm();}catch(e){console.warn('activities',e);}SB.hudT=0;SB.msgT=0;SB.camF=1;if(!SB.trav)sbPark(false);sbMapBtn();document.body.classList.add('battle');sbClockArm();}
+function sbOff(){if(!SBX)return;try{sbActOff();}catch(e){}sbClockOff();/* the place's own light back, before anything else reads it */SBX=false;SBF=false;const def=MAPS[mapIdx];BATTLE=!!(def&&def.battle);if(SB.grp){/* the passages' own shapes, signs and shaders go with the place (everything else in the group is shared) */for(const G of SB.grp.children)if(G.userData.sbGate)G.traverse(o=>{if(!o.isMesh)return;o.geometry.dispose();const m=o.material;if(m.map)m.map.dispose();m.dispose();});scene.remove(SB.grp);SB.grp=null;SB.im=null;}SB.coins=[];SB.shapes=[];SB.gates=[];SB.hash=null;SB.col=null;if(SB.el)SB.el.hidden=true;SB.flag=null;sbRaceBtn(false);sbPull(false);SB.park=false;if(SB.parkEl)SB.parkEl.hidden=true;if(SB.spdEl)SB.spdEl.hidden=true;sbMapBtn();document.body.classList.toggle('battle',BATTLE);}
 function sbStart(){for(const k of karts){k.bal=0;k.bbS=0;k.bbOut=0;if(SBF){k.wy=k.pwy=k.lastG=sbG(k.x,k.y,(SB.kind==='toy'?0:groundAt(k.x,k.y))+(track[k.idx].ey||0)+2);k.wvy=0;k.gRate=0;k.air=false;k.bpx=k.x;k.bpy=k.y;}}
-  if(BB.grp){scene.remove(BB.grp);BB.grp=null;}sbHud();const f=sbFound();showBanner(SB.reg.name,2.2,'md');sbClockMats();sbClockApply();/* (the karts have just been built again: their paint and lights join the clock) */}
+  if(BB.grp){scene.remove(BB.grp);BB.grp=null;}sbHud();const f=sbFound();showBanner(SB.reg.name,2.2,'md');sbClockMats();sbClockApply();try{sbWarpPrime();}catch(e){}/* (the karts have just been built again: their paint and lights join the clock) */}
 /* ---- stopping (web v193) ----
    The owner: "if you hold down both brake buttons in sandbox it should completely stop the car and there should be a park button on screen
    that will stop the car in place that way you can stop at races easier". SB.park is the Park button's state (K on a keyboard and D-pad down
@@ -5886,9 +5927,9 @@ function sbParkBtn(){let b=SB.parkEl;const show=SBX&&(state==='race'||state==='c
     b.innerHTML='<b>P</b><span>PARK</span>';b.onclick=e=>{e.preventDefault();sbPark();b.blur();};for(const ev of ['pointerdown','touchstart'])b.addEventListener(ev,e=>e.stopPropagation());stage.appendChild(b);
     addEventListener('keydown',e=>{if(SBX&&state==='race'&&e.code==='KeyK'&&!e.repeat&&!(typeof KEYC!=='undefined'&&KEYC.KeyK)){e.preventDefault();sbPark();}});}
   if(b.hidden===show)b.hidden=!show;}
-function sbTick(dt){sbParkBtn();sbSpdUi();if(state!=='race'){sbRaceBtn(false);return;}const k=player;if(!k)return;sbClockTick(dt);
+function sbTick(dt){sbParkBtn();sbSpdUi();if(state!=='race'){sbRaceBtn(false);sbActBtn(null);return;}const k=player;if(!k)return;sbClockTick(dt);
   if(sbStop()&&!k.loop&&!k.air){const sp=k.speed,d=Math.min(Math.abs(sp),(140+Math.abs(sp)*5)*dt);k.speed=sp-Math.sign(sp)*d;if(Math.abs(k.speed)<1.5)k.speed=0;k.boost=0;k.drift=0;k.charge=0;}
-{const f=SB.flag,near=!!f&&!SB.trav&&(k.x-f.x)**2+(k.y-f.z)**2<46*46&&Math.abs((k.wy||0)-f.y)<10;sbRaceBtn(near);if(near){try{const gp=navigator.getGamepads&&navigator.getGamepads()[PAD.idx];const up=!!gp&&gp.buttons[12]&&gp.buttons[12].pressed;if(up&&!SB.padUp)sbRaceHere();SB.padUp=up;}catch(e){}}}sbGuide(k,dt);if(SB.cool>0)SB.cool-=dt;else for(const g of SB.gates){const d=(k.x-g.x)*g.nx+(k.y-g.z)*g.nz;if(d>(g.road?0:g.plain?64:SB_GLEN-70)&&(!g.road||(d<26&&Math.abs((k.wy||0)-g.y)<14))&&Math.abs((k.x-g.x)*g.tx+(k.y-g.z)*g.tz)<g.hw+2&&Math.cos(k.ma)*g.nx+Math.sin(k.ma)*g.nz>.2){sbTravel(g);return;}}
+{const f=SB.flag,near=!!f&&!SB.trav&&(k.x-f.x)**2+(k.y-f.z)**2<46*46&&Math.abs((k.wy||0)-f.y)<10;sbRaceBtn(near);if(near){try{const gp=navigator.getGamepads&&navigator.getGamepads()[PAD.idx];const up=!!gp&&gp.buttons[12]&&gp.buttons[12].pressed;if(up&&!SB.padUp)sbRaceHere();SB.padUp=up;}catch(e){}}}try{sbActTick(k,dt);sbEggTick(k,dt);sbActPad();}catch(e){console.warn('activities',e);}sbGuide(k,dt);if(SB.cool>0)SB.cool-=dt;else for(const g of SB.gates){const d=(k.x-g.x)*g.nx+(k.y-g.z)*g.nz;if(d>(g.road?0:g.plain?64:SB_GLEN-70)&&(!g.road||(d<26&&Math.abs((k.wy||0)-g.y)<14))&&Math.abs((k.x-g.x)*g.tx+(k.y-g.z)*g.tz)<g.hw+2&&Math.cos(k.ma)*g.nx+Math.sin(k.ma)*g.nz>.2){sbTravel(g);return;}}
   const sv=sbSave(),y=(k.wy||0)+3.5;let ch=false;
   for(const c of SB.coins){if(c.t<0)continue;if(c.t>0){c.t-=dt;if(c.t<=0){c.t=0;}continue;}const dx=c.x-k.x,dz=c.z-k.y,r=c.rare?12:10.5;if(dx*dx+dz*dz>r*r||Math.abs(c.y-y)>(c.rare?14:10))continue;
     if(c.rare){c.t=-1;sv.r[c.id]=1;sv.c+=10;if(c.m)c.m.visible=false;burst(c.x,c.y,c.z,26,['#ffd65a','#d8402a','#ffffff'],70,2.4);spawnRing(c.x,c.y,c.z,'#ffd65a',26,.5,false);const f=sbFound();showBanner('Pepperoni coin! '+f[0]+' of '+f[1],1.6,'sm');try{SFX.ready();}catch(e){}}
@@ -5919,7 +5960,9 @@ function sbExport(){if(!SBX)return null;const b64=a=>{const u=new Uint8Array(a.b
   const o={v:1,id:SB.regId,kind:SB.kind,free:SBF,name:SB.reg.name,rim:SB.rim||0,step:SB_STEP,r:SB_R,head:SB_HEAD,rail:SB_RAIL,q:SB_Q,k:SB_K,glen:SB_GLEN,lvl:sbLvl(),toyw:SB.kind==='toy'?TOYW():0,
     loops:SB.loops.map(L=>({x:L.p.x,y:L.p.y,tx:L.p.tx,ty:L.p.ty,nx:L.p.nx,ny:L.p.ny,g0:L.g0,r:L.r,a:L.a,b:L.b})),
     gates:SB.gates.map(g=>({id:g.id,to:g.to,at:g.at,label:g.label,x:g.x,y:g.y,z:g.z,nx:g.nx,nz:g.nz,hw:g.hw,road:g.road?1:0,plain:g.plain?1:0,j:g.j==null?-1:g.j})),
-    coins:SB.coins.map(c=>[+c.x.toFixed(2),+c.y.toFixed(2),+c.z.toFixed(2),c.rare?1:0,c.id||'']),flag:SB.flag?[SB.flag.x,SB.flag.y,SB.flag.z]:null,shapes:SB.shapes};
+    coins:SB.coins.map(c=>[+c.x.toFixed(2),+c.y.toFixed(2),+c.z.toFixed(2),c.rare?1:0,c.id||'']),flag:SB.flag?[SB.flag.x,SB.flag.y,SB.flag.z]:null,shapes:SB.shapes,
+    /* (web v199: the activities' markers and the place's Easter egg, activities.js; the PC keeps the same table of activities and eggs and takes the spots from here) */
+    acts:(typeof SBA!=='undefined'?SBA.marks:[]).map(m=>({id:m.a.id,x:+m.x.toFixed(2),y:+m.y.toFixed(2),z:+m.z.toFixed(2),j:m.j})),egg:typeof SBA!=='undefined'&&SBA.egg?{id:SBA.egg.E.id,x:+SBA.egg.x.toFixed(2),y:+SBA.egg.y.toFixed(2),z:+SBA.egg.z.toFixed(2),ry:+SBA.egg.G.rotation.y.toFixed(3)}:null};
   const c=SB.col;if(c){const n=c.nx*c.nz;let m=0,tot=0;for(let q=0;q<n;q++)if(c.cnt[q]){m++;tot+=c.cnt[q];}const cells=new Int32Array(m),cnt=new Uint8Array(m),thin=new Uint8Array(m),sp=new Int16Array(tot*2);let i=0,w=0;
     for(let q=0;q<n;q++){const k=c.cnt[q];if(!k)continue;cells[i]=q;cnt[i]=k;thin[i]=c.thin[q];i++;for(let e=0;e<k;e++){sp[w++]=c.sp[q*SB_K*2+e*2];sp[w++]=c.sp[q*SB_K*2+e*2+1];}}
     o.col={x0:c.x0,z0:c.z0,nx:c.nx,nz:c.nz,C:c.C,cap:c.cap,b:c.b,filled:m,spans:tot,cells:b64(cells),cnt:b64(cnt),thin:b64(thin),sp:b64(sp)};}
@@ -6036,7 +6079,30 @@ function sbMap(open,from){const e=sbMapEl();if(open===SBM.open)return;if(open){i
 function sbMapTravel(id){if(!sbRegOf(id))return;SBM.from='drive';sbMap(false);if(state!=='race')return;sbPark(false);sbTravel({to:id,start:true});}
 /* the pause menu's Map button, directly under Resume, in Sandbox only */
 function sbMapBtn(){let b=document.getElementById('sbMapBtn');if(!b){if(!SBX)return;const r=document.getElementById('resumeBtn');if(!r)return;b=document.createElement('button');b.id='sbMapBtn';b.className='cta';b.type='button';b.textContent='Map';b.style.cssText='background:var(--oven-2);box-shadow:0 5px 0 rgba(0,0,0,.35);border:2px solid var(--oven-3)';r.insertAdjacentElement('afterend',b);b.onclick=()=>sbMap(true,'pause');}
+  b.hidden=!SBX;sbBackBtn();}
+/* ---- Back to the track (web v199) ----
+   The owner, 2026-11-15: "add a button in the pause menu that can just take you right to the nearest spot on the track ... when you click
+   the button a confirmation pop up should pop up so the player doesn't accidentally hit the button and get teleported". The button sits
+   under Map in Sandbox's pause menu; it asks first (Move me / Cancel; Esc, a tap outside or the pad's pointer on Cancel), then sets the kart down standing still on the
+   middle of the nearest stretch of road at the same level (not on a loop), facing the way the track runs, and resumes. A challenge or
+   delivery under way goes on: you stay in the same place. */
+function sbBackBtn(){let b=document.getElementById('sbBackBtn');if(!b){if(!SBX)return;const m=document.getElementById('sbMapBtn');if(!m)return;b=document.createElement('button');b.id='sbBackBtn';b.className='cta';b.type='button';b.textContent='Back to the track';
+    b.style.cssText='background:var(--oven-2);box-shadow:0 5px 0 rgba(0,0,0,.35);border:2px solid var(--oven-3)';m.insertAdjacentElement('afterend',b);b.onclick=()=>sbBackAsk(true);}
   b.hidden=!SBX;}
+function sbBackAsk(on){let e=SB.backEl;if(!on){if(e)e.hidden=true;return;}if(!e){e=SB.backEl=document.createElement('div');e.id='sbBackAsk';e.setAttribute('role','dialog');e.setAttribute('aria-modal','true');
+    e.style.cssText='position:fixed;inset:0;z-index:90;display:grid;place-items:center;background:rgba(0,0,0,.55)';
+    e.innerHTML='<div style="max-width:min(88vw,380px);font:700 15px/1.35 system-ui,sans-serif;color:#fff4dc;background:#1d0f0a;border:2px solid rgba(255,244,220,.45);border-radius:18px;padding:18px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.6)">'
+      +'<div style="font:900 20px/1.2 system-ui,sans-serif;margin-bottom:8px">Back to the track?</div><div style="opacity:.85">Your kart will be moved to the nearest part of the track, standing still.</div>'
+      +'<div style="display:flex;gap:10px;justify-content:center;margin-top:16px"><button type="button" class="cta" id="sbBackYes">Move me</button><button type="button" class="cta" id="sbBackNo" style="background:var(--oven-2);border:2px solid var(--oven-3)">Cancel</button></div></div>';
+    document.body.appendChild(e);e.querySelector('#sbBackYes').onclick=ev=>{ev.preventDefault();sbBackAsk(false);sbBackGo();};e.querySelector('#sbBackNo').onclick=ev=>{ev.preventDefault();sbBackAsk(false);};
+    e.addEventListener('click',ev=>{if(ev.target===e)sbBackAsk(false);});addEventListener('keydown',ev=>{if(SB.backEl&&!SB.backEl.hidden&&ev.code==='Escape'){ev.preventDefault();ev.stopPropagation();sbBackAsk(false);}},true);}
+  e.hidden=false;try{document.getElementById('sbBackNo').focus();}catch(err){}}
+/* the nearest point of the track: by distance, with a difference in level counted three times over (a road overhead is not "near") */
+function sbBackJ(k){const sl=T.L/N;let bj=0,bd=1e18;for(let j=0;j<N;j++){if(LOOPS.some(L=>{let d=j-L.j;if(d>N/2)d-=N;if(d<-N/2)d+=N;return Math.abs(d)*sl<420;}))continue;const p=track[j],y=(SB.kind==='toy'?0:groundAt(p.x,p.y))+(p.ey||0),d=(p.x-k.x)**2+(p.y-k.y)**2+9*((k.wy||0)-y)**2;if(d<bd){bd=d;bj=j;}}return bj;}
+function sbBackGo(){if(!SBX||!player||SB.warp)return;const k=player,j=sbBackJ(k),p=track[j];k.x=k.px=p.x;k.y=k.py=p.y;k.a=k.ma=k.pa=k.pma=Math.atan2(p.ty,p.tx);k.idx=j;
+  k.speed=0;k.wvy=0;k.gRate=0;k.air=false;k.big=false;k.drift=0;k.charge=0;k.spin=0;k.boost=0;k.loop=null;k.z=k.pz=0;k.bpx=k.x;k.bpy=k.y;
+  if(SBF){const lvl=(SB.kind==='toy'?0:groundAt(k.x,k.y))+(p.ey||0);k.wy=k.pwy=k.lastG=sbG(k.x,k.y,lvl+2);k.idx=sbIdx(k,j);}else k.wy=k.pwy=k.lastG=kGround(k);
+  k.rx=k.x;k.ry=k.y;k.rz=k.wy;k.rg=k.wy;k.rma=k.ma;cam.a=k.ma;camSnap=true;SB.cool=1;if(state==='paused'&&!pauseOv.hidden)togglePause();showBanner('Back on the track',1.6,'sm');}
 /* ---- THE CLOCK (web v197): one day and night for the whole Sandbox world (the owner's brief, section 4) ----
    SB.clock runs 0..1 (0 midnight, .25 sunrise, .5 noon, .75 sunset); a day is SB_DAY seconds of driving; it is saved with the coins
    (crust-sb .t), so it carries through tunnels, fast travel, a race from the start line and a reload. It stands still while the
@@ -6052,7 +6118,7 @@ function sbMapBtn(){let b=document.getElementById('sbMapBtn');if(!b){if(!SBX)ret
 /* THE SWITCH. false: nothing of the clock runs (no record, no light or material write, no read-out, nothing saved): every
    entry point below returns at once and Sandbox is exactly as in web v196. UNFINISHED, 2026-11-14: leave it false until the
    night pictures of every kind of place have been looked at (see docs or the hand-back). To work on it: set it true here. */
-let SB_CLOCK=false;
+let SB_CLOCK=true;
 const SB_DAY=720,SBC={rec:null,list:[],seen:new Set(),acc:0,keep:0,stars:null};
 const _ckWarm=new THREE.Color('#ff9a4a'),_ckMoon=new THREE.Color('#9db8ff'),_ckNightSky=new THREE.Color('#6f8fe0'),_ckNightGnd=new THREE.Color('#10182c'),_ckLamp=new THREE.Color('#ffd2a0'),_ckLampG=new THREE.Color('#8a5a3a'),_ckDusk=new THREE.Color('#ffc8a0'),
   _ckTwTop=new THREE.Color('#1c2458'),_ckTwHor=new THREE.Color('#6a4f9a'),_ckTwBot=new THREE.Color('#1a1c3a'),_ckTwFog=new THREE.Color('#2c2a5e'),_ckTwHemi=new THREE.Color('#9a9ae0'),_ckSk=new THREE.Color(),_ckHz=new THREE.Color(),_ckC=new THREE.Color();
@@ -6072,7 +6138,7 @@ function sbClockArm(){if(!SB_CLOCK)return;sbClockOff();const def=MAPS[mapIdx],c=
   if(sky&&sky.material&&sky.material.uniforms&&sky.material.uniforms.top){const u=sky.material.uniforms;R.sky={u,top:c(u.top.value),hor:c(u.hor.value),bot:c(u.bot.value),sc:c(u.sunCol.value),sd:c(u.sunDir.value)};}
   SBC.list=[];SBC.seen=new Set();sbClockMats();
   if(R.kind==='out'&&(R.sky||def.id==='backyard')){/* stars, where there is an open sky: one small cloud of points that follows the camera */const P=[];let sd=977;const r=()=>(sd=sd*16807%2147483647)/2147483647;for(let i=0;i<620;i++){const a=r()*Math.PI*2,y=.1+r()*.9,q=Math.sqrt(1-y*y);P.push(Math.cos(a)*q*7600,y*7600,Math.sin(a)*q*7600);}
-    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));const st=SBC.stars=new THREE.Points(g,new THREE.PointsMaterial({color:'#eef2ff',size:2.1,sizeAttenuation:false,transparent:true,opacity:0,depthWrite:false,fog:false,toneMapped:false}));st.frustumCulled=false;st.renderOrder=-.5;st.visible=false;scene.add(st);}
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));const st=SBC.stars=new THREE.Points(g,new THREE.PointsMaterial({color:'#000000',size:2.1,sizeAttenuation:false,transparent:false,blending:THREE.AdditiveBlending,depthWrite:false,fog:false,toneMapped:false}));st.frustumCulled=false;st.renderOrder=-.9;st.visible=false;scene.add(st);/* (web v199: they were see-through things, drawn after everything solid and sorted among the other see-through things by distance, so they came out in front of the far tree cards, which stand further off than this ball of points. Now they are drawn among the solid things, straight after the sky (renderOrder -1) and before everything else, adding light and writing no depth: whatever is drawn later covers them. They fade by their colour, not by see-through) */}
   sbClockApply();}
 /* the materials the clock touches, listed once (again when the karts have been rebuilt): k 0 a lit surface (its share of the sky's
    light), 1 a surface with a little glow of its own that stands in for daylight (the tree cards), 2 a lamp (anything that glows
@@ -6082,7 +6148,7 @@ function sbClockArm(){if(!SB_CLOCK)return;sbClockOff();const def=MAPS[mapIdx],c=
 function sbClockMats(){if(!SB_CLOCK||!SBC.rec)return;const S=SBC.seen,walk=o=>{if(o===SB.grp||o===SBC.stars)return;const ms=o.material?(Array.isArray(o.material)?o.material:[o.material]):null;
     if(ms)for(const m of ms){if(!m||S.has(m))continue;S.add(m);
       if(m.isMeshStandardMaterial){const em=m.emissiveIntensity>0&&m.emissive.r+m.emissive.g+m.emissive.b>.02;SBC.list.push({m,k:em?(m.emissiveIntensity>=.3?2:1):0,env:m.envMapIntensity,ei:m.emissiveIntensity});}
-      else if((m.isMeshBasicMaterial||m.isSpriteMaterial)&&m.blending!==THREE.AdditiveBlending&&m.color){const far=m.map&&m.toneMapped===false&&(m.fog===false||/outside|ycards|sky|mount|skyline|pano|riverbed|space/.test((m.name||'')+' '+(m.map.name||'')));
+      else if((m.isMeshBasicMaterial||m.isSpriteMaterial)&&m.blending!==THREE.AdditiveBlending&&m.color){const far=m.name==='sky_window'/* (the kitchen's window panes: patch 34) */||m.map&&m.toneMapped===false&&(m.fog===false||/outside|ycards|sky|mount|skyline|pano|riverbed|space/.test((m.name||'')+' '+(m.map.name||'')));
         if(far)SBC.list.push({m,k:4,col:m.color.clone()});else if(m.toneMapped!==false)SBC.list.push({m,k:3,col:m.color.clone()});}}
     for(const ch of o.children)walk(ch);};walk(scene);}
 function sbClockApply(){const R=SBC.rec;if(!SB_CLOCK||!R)return;const F=sbClockF(),D=F.D,N=1-D,W=F.W,L=F.L,K=R.kind,G=POST.grade;sbSave().t=+F.t.toFixed(4);
@@ -6108,7 +6174,7 @@ function sbClockApply(){const R=SBC.rec;if(!SB_CLOCK||!R)return;const F=sbClockF
     sunDir.set(Math.cos(el)*Math.cos(az),Math.sin(el),Math.cos(el)*Math.sin(az));if(R.sky)R.sky.u.sunDir.value.copy(sunDir);}
   for(const r of SBC.list){const m=r.m;if(r.k<3){m.envMapIntensity=r.env*envK;if(r.k===1)m.emissiveIntensity=r.ei*fillK;else if(r.k===2)m.emissiveIntensity=r.ei*(r.ei>1?1+(lampK-1)*.4:lampK);}
     else if(r.k===3){m.color.copy(r.col).multiplyScalar(paintK);if(K==='out'){m.color.r*=1-.3*N;m.color.g*=1-.15*N;}}else m.color.copy(r.col).multiply(sk);}
-  const st=SBC.stars;if(st){const o=N*N*.95;st.visible=o>.02;st.material.opacity=o;}}
+  const st=SBC.stars;if(st){const o=N*N*.95;st.visible=o>.02;st.material.color.setRGB(.93*o,.95*o,o);}/* the start line's flag and ring (web v199): they are drawn unlit and bright, and the night's stronger bloom made a blaze of them; at night they keep about half their brightness and the glow over them a third */const fl=SB.flag;if(fl&&fl.mats){const k=.5+.5*D;for(const m of fl.mats)m.color.setScalar(k);if(fl.glow)fl.glow.opacity=.55*(.33+.67*D);}}
 /* each step of driving: the clock goes on; the light follows ten times a second (a step of a ten-thousandth of a day: nothing to see) */
 function sbClockTick(dt){if(!SB_CLOCK)return;SB.clock=(sbClockNow()+dt/SB_DAY)%1;SBC.acc+=dt;if(SBC.acc>=.1){SBC.acc=0;sbClockApply();}SBC.keep+=dt;if(SBC.keep>=20){SBC.keep=0;sbKeep();}}
 /* everything back as the place itself has it (a race, the menu, or another place is next) */
@@ -6119,6 +6185,136 @@ function sbClockOff(){const R=SBC.rec;if(!R)return;/* (nothing was written down:
   if(SBC.stars){scene.remove(SBC.stars);SBC.stars.geometry.dispose();SBC.stars.material.dispose();SBC.stars=null;}if(SB.save&&SB.clock!=null){SB.save.t=+SB.clock.toFixed(4);sbKeep();}}
 /* for the tests and for looking: set the hour and light the place for it at once */
 function sbClockSet(t){if(!SB_CLOCK)return null;SB.clock=((+t||0)%1+1)%1;sbClockApply();SB.hudT=0;return SB.clock;}
+
+/* ================= SANDBOX: THINGS TO DO (web v200; the owner's brief, section 5) =================
+   "Add optional activities that start and finish in the world. Include a pizza delivery between two regions with a safe route and a riskier
+   shortcut, a drift or jump challenge built around the existing handling, and hidden Easter eggs specific to individual maps. Show the
+   objective and coin reward when an activity starts, offer a quick retry, and save unique discoveries."
+   - Each activity starts at a marker in the world: a coloured ring on the road with its sign turning above it. Stop in the ring and a
+     button offers it, with what to do and the coins it pays (tap; Enter; D-pad up), the same way as "Race here".
+   - A delivery runs across places: the clock stands still in a tunnel (the game does), and fast travel, a race from a start line or
+     leaving Sandbox ends it ("fast travel can't complete a delivery"). The pizza goes to the start line of the place named.
+   - A challenge is done where it starts: drift for so many seconds, or be in the air for so many, before the clock runs out.
+   - The end shows what happened and the coins, with Retry (Enter, or A on the pad) and Close (Esc, or B).
+   - Saved with the coins (crust-sb): .a[id] = the best time or score and how many times it was done; .e[id] = an Easter egg found.
+     The first time an activity is done it pays in full, after that half (so the coins stay worth something).
+   Nothing here moves a kart: it reads the kart and pays coins. Off line only, like the rest of Sandbox. */
+const SB_ACTS=[
+  /* the delivery: Margherita's pizzeria to the start line of Sauce Spiral. Two ways: through Basil Boulevard, or the quicker way through the
+     Oven, whose road runs past the flames */
+  {id:'del_spiral',kind:'deliver',at:'margherita',f:.035,to:'spiral',T:210,coins:60,par:150,
+    name:'Pizza delivery',goal:'Take the pizza to the start line of Sauce Spiral',tip:'Safe: through Basil Boulevard. Quicker: through the Oven Rush Raceway, past the flames.'},
+  {id:'del_bedroom',kind:'deliver',at:'kitchen',f:.06,to:'bedroom',T:120,coins:40,par:75,
+    name:'Snack delivery',goal:'Take the snack to the start line of Bedroom Blitz',tip:'Through the hall: the garage door is the long way round.'},
+  {id:'drift_marg',kind:'drift',at:'margherita',f:.52,need:8,T:30,coins:30,name:'Drift challenge',goal:'Drift for 8 seconds in all, in 30 seconds',tip:'Out on the open pizza there is room for long drifts.'},
+  {id:'drift_bay',kind:'drift',at:'bay',f:.3,need:10,T:35,coins:35,name:'Harbour drift',goal:'Drift for 10 seconds in all, in 35 seconds',tip:''},
+  {id:'air_yard',kind:'air',at:'backyard',f:.12,need:5,T:45,coins:35,name:'Jump challenge',goal:'Be in the air for 5 seconds in all, in 45 seconds',tip:'The ramps on the track send you highest.'},
+  {id:'air_spiral',kind:'air',at:'spiral',f:.5,need:4,T:45,coins:30,name:'Jump challenge',goal:'Be in the air for 4 seconds in all, in 45 seconds',tip:''}];
+const SBA={marks:[],act:null,near:null,btn:null,bar:null,end:null,barT:0,padA:false};
+function sbActSave(){const sv=sbSave();if(!sv.a||typeof sv.a!=='object')sv.a={};if(!sv.e||typeof sv.e!=='object')sv.e={};return sv;}
+/* the marker: a ring on the road in the activity's colour and a sign turning above it (drawn on a canvas: no picture to load) */
+function sbActIcon(kind){const c=cnv(256,256),g=c.getContext('2d');g.clearRect(0,0,256,256);const col=kind==='deliver'?'#e8542f':kind==='drift'?'#2fa6e8':'#7bd14a';
+  g.fillStyle=col;g.beginPath();g.arc(128,128,118,0,6.2832);g.fill();g.lineWidth=14;g.strokeStyle='#fff4dc';g.stroke();g.fillStyle='#fff4dc';g.strokeStyle='#fff4dc';g.lineCap='round';g.lineJoin='round';
+  if(kind==='deliver'){/* a pizza box with a slice on the lid */g.fillRect(58,96,140,74);g.fillStyle=col;g.fillRect(70,108,116,50);g.fillStyle='#fff4dc';g.beginPath();g.moveTo(92,150);g.lineTo(164,150);g.lineTo(128,112);g.closePath();g.fill();}
+  else if(kind==='drift'){/* a swirl */g.lineWidth=16;g.beginPath();for(let a=0;a<11;a+=.1){const r=12+a*7.5;const x=128+Math.cos(a)*r,y=128+Math.sin(a)*r;a?g.lineTo(x,y):g.moveTo(x,y);}g.stroke();}
+  else{/* a ramp and an arrow up */g.beginPath();g.moveTo(50,184);g.lineTo(150,184);g.lineTo(150,140);g.closePath();g.fill();g.lineWidth=16;g.beginPath();g.moveTo(150,118);g.quadraticCurveTo(178,70,206,96);g.stroke();g.beginPath();g.moveTo(196,72);g.lineTo(210,100);g.lineTo(180,104);g.stroke();}
+  return c;}
+function sbActMark(a){const j=Math.round(a.f*N)%N,p=track[j],e=(SB.kind==='toy'?0:groundAt(p.x,p.y))+(p.ey||0),G=new THREE.Group(),col=a.kind==='deliver'?'#e8542f':a.kind==='drift'?'#2fa6e8':'#7bd14a';
+  const ring=new THREE.Mesh(new THREE.RingGeometry(13,16.5,40,1),new THREE.MeshBasicMaterial({color:col,side:THREE.DoubleSide,toneMapped:false,transparent:true,opacity:.9,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.position.y=.6;G.add(ring);
+  const t=T2(sbActIcon(a.kind));t.userData.keepCanvas=true;const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t,toneMapped:false,depthWrite:false}));sp.scale.setScalar(14);sp.position.y=17;G.add(sp);
+  G.position.set(p.x,e,p.y);G.traverse(o=>{o.userData.sunlit=true;});SB.grp.add(G);return {a,G,sp,x:p.x,z:p.y,y:e,j};}
+/* a place has been armed (sbArm): its markers, and the delivery's drop-off if one is under way to here */
+function sbActArm(){SBA.marks=[];SBA.near=null;for(const a of SB_ACTS)if(a.at===SB.regId)SBA.marks.push(sbActMark(a));sbActBtn(null);
+  const A=SBA.act;if(A&&A.a.kind==='deliver'&&A.a.to===SB.regId&&SB.flag){const f=SB.flag,m=new THREE.Mesh(new THREE.RingGeometry(18,23,48,1),new THREE.MeshBasicMaterial({color:'#e8542f',side:THREE.DoubleSide,toneMapped:false,transparent:true,opacity:.85,depthWrite:false}));
+    m.rotation.x=-Math.PI/2;m.position.set(f.x,f.y+.8,f.z);SB.grp.add(m);A.drop=m;}
+  if(A&&A.a.kind!=='deliver'&&A.a.at!==SB.regId)sbActEnd('left');}
+function sbActOff(){if(SBA.act&&!(SB.trav||SB.warp))sbActEnd('left',true);/* (a trip through a tunnel turns Sandbox off and on again: a delivery under way goes on) */SBA.marks=[];SBA.near=null;sbActBtn(null);if(SBA.bar)SBA.bar.hidden=true;}
+/* the offer, at a marker */
+function sbActBtn(m){let b=SBA.btn;if(!b){if(!m)return;b=SBA.btn=document.createElement('button');b.id='sbActB';b.type='button';
+    b.style.cssText='position:absolute;left:50%;bottom:max(96px,calc(env(safe-area-inset-bottom) + 96px));transform:translateX(-50%);z-index:7;max-width:min(92vw,520px);font:800 15px/1.2 system-ui,sans-serif;color:#1b0f0b;background:linear-gradient(#ffd97a,#f5b62e);border:0;border-radius:14px;padding:10px 18px;box-shadow:0 4px 0 #9b6a10,0 8px 18px rgba(0,0,0,.4);cursor:pointer;text-align:left';
+    b.innerHTML='<span id="sbActBT"></span><small style="display:block;font-weight:600;font-size:12px;opacity:.8;margin-top:2px" id="sbActBS"></small><small style="display:block;font-weight:600;font-size:11px;opacity:.65;margin-top:2px" id="sbActBK"></small>';
+    b.onclick=e=>{e.preventDefault();if(SBA.near)sbActStart(SBA.near.a);};b.addEventListener('pointerdown',e=>e.stopPropagation());stage.appendChild(b);}
+  if(m===SBA.shown)return;SBA.shown=m;b.hidden=!m;if(!m)return;const a=m.a,sv=sbActSave(),r=sv.a[a.id],first=!r||!r.n,pay=first?a.coins:Math.round(a.coins/2),touch=typeof COARSE!=='undefined'&&COARSE;
+  document.getElementById('sbActBT').textContent=a.name+': '+pay+' coins'+(first?'':' (done before)');document.getElementById('sbActBS').textContent=a.goal+(a.kind==='deliver'?' within '+sbActClock(a.T):'')+'.';
+  document.getElementById('sbActBK').textContent=(touch?'Tap to start':'Enter, or D-pad up, to start')+(r&&r.best?' · best '+(a.kind==='deliver'?sbActClock(r.best):r.best.toFixed(1)+' s'):'');}
+function sbActClock(s){s=Math.max(0,Math.ceil(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+/* the objective bar at the top while one runs */
+function sbActBar(){let e=SBA.bar;if(!e){e=SBA.bar=document.createElement('div');e.id='sbActBar';e.style.cssText='position:absolute;left:50%;top:max(12px,env(safe-area-inset-top));transform:translateX(-50%);z-index:6;max-width:min(94vw,560px);font:700 14px/1.25 system-ui,sans-serif;color:#fff4dc;background:rgba(18,9,6,.7);border:2px solid rgba(255,244,220,.35);border-radius:14px;padding:7px 14px;pointer-events:none;text-shadow:0 1px 2px #000;text-align:center';stage.appendChild(e);}
+  const A=SBA.act;if(!A||state!=='race'){e.hidden=true;return;}e.hidden=false;const a=A.a,left=a.T-A.t;
+  e.innerHTML='<div style="font-size:11px;letter-spacing:.6px;opacity:.8;text-transform:uppercase">'+a.name+'</div><div>'+(a.kind==='deliver'?'To '+sbActPlace(a.to)+' · '+sbActClock(left)+' left':(a.kind==='drift'?'Drifting ':'In the air ')+A.v.toFixed(1)+' / '+a.need+' s · '+sbActClock(left)+' left')+'</div>'
+    +'<div style="height:5px;border-radius:3px;background:rgba(255,244,220,.2);margin-top:5px;overflow:hidden"><div style="height:100%;width:'+(a.kind==='deliver'?Math.max(0,100*left/a.T):Math.min(100,100*A.v/a.need)).toFixed(1)+'%;background:'+(left<15?'#e8542f':'#ffd65a')+'"></div></div>';}
+function sbActPlace(id){const m=MAPS.find(q=>q.id===id);return m?m.name:id;}
+function sbActStart(a){if(SBA.act||state!=='race')return;sbActEndUi(null);const sv=sbActSave(),r=sv.a[a.id];SBA.act={a,t:0,v:0,first:!r||!r.n,from:SB.regId};SBA.near=null;sbActBtn(null);
+  showBanner(a.name+': '+a.goal.toLowerCase(),3,'sm');if(a.tip)setTimeout(()=>{if(SBA.act&&SBA.act.a===a&&state==='race')showBanner(a.tip,3.2,'sm');},3100);try{SFX.ready();}catch(e){}SBA.barT=0;sbActBar();}
+/* each step of driving (sbTick): markers, and the one under way */
+function sbActTick(k,dt){const A=SBA.act;
+  if(!A){let near=null;for(const m of SBA.marks){if((k.x-m.x)**2+(k.y-m.z)**2<26*26&&Math.abs((k.wy||0)-m.y)<12){near=m;break;}}SBA.near=near;sbActBtn(near);
+    if(near){try{const gp=navigator.getGamepads&&navigator.getGamepads()[PAD.idx];const up=!!gp&&gp.buttons[12]&&gp.buttons[12].pressed;if(up&&!SBA.padUp)sbActStart(near.a);SBA.padUp=up;}catch(e){}}}
+  else{const a=A.a;A.t+=dt;if(a.kind==='drift'){if(k.drift&&!k.air&&Math.abs(k.speed)>40)A.v+=dt;}else if(a.kind==='air'){if(k.air&&!k.loop)A.v+=dt;}
+    if(a.kind!=='deliver'&&A.v>=a.need)sbActEnd('done');else if(a.kind==='deliver'&&SB.regId===a.to&&SB.flag&&(k.x-SB.flag.x)**2+(k.y-SB.flag.z)**2<30*30&&Math.abs((k.wy||0)-SB.flag.y)<12)sbActEnd('done');
+    else if(A.t>=a.T)sbActEnd('time');}
+  for(const m of SBA.marks)if(m.sp)m.sp.material.rotation=Math.sin(performance.now()/600)*.15;
+  SBA.barT-=dt;if(SBA.barT<=0){SBA.barT=.2;sbActBar();}}
+/* the end of one: 'done', 'time', 'cancel' (fast travel, a race), 'left' (left the place of a challenge, or Sandbox) */
+function sbActEnd(why,quiet){const A=SBA.act;if(!A)return;SBA.act=null;if(A.drop){try{SB.grp.remove(A.drop);A.drop.geometry.dispose();A.drop.material.dispose();}catch(e){}}if(SBA.bar)SBA.bar.hidden=true;
+  const a=A.a,sv=sbActSave();let pay=0,best=false;
+  if(why==='done'){const r=sv.a[a.id]||(sv.a[a.id]={n:0});pay=A.first?a.coins:Math.round(a.coins/2);const sc=a.kind==='deliver'?A.t:A.t;/* (a challenge's score: how quickly it was done) */
+    if(!r.best||sc<r.best){r.best=+sc.toFixed(1);best=r.n>0;}r.n++;if(a.kind==='deliver'&&A.t<=a.par)pay+=Math.round(a.coins/3);sv.c+=pay;sbKeep();SB.hudT=0;try{SFX.ready();}catch(e){}
+    try{const k=player;burst(k.x,(k.wy||0)+8,k.y,30,['#ffd65a','#e8542f','#ffffff'],80,2.6);}catch(e){}}
+  if(quiet)return;sbActEndUi({a,why,pay,t:A.t,best,par:a.kind==='deliver'&&why==='done'&&A.t<=a.par});}
+function sbActEndUi(o){let e=SBA.end;if(!o){if(e)e.hidden=true;return;}if(!e){e=SBA.end=document.createElement('div');e.id='sbActEnd';e.style.cssText='position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:8;min-width:min(86vw,340px);max-width:92vw;font:700 15px/1.3 system-ui,sans-serif;color:#fff4dc;background:rgba(18,9,6,.88);border:2px solid rgba(255,244,220,.45);border-radius:18px;padding:16px 18px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.5)';
+    e.innerHTML='<div id="sbActET" style="font:900 22px/1.15 system-ui,sans-serif;margin-bottom:6px"></div><div id="sbActES" style="opacity:.9"></div><div style="display:flex;gap:10px;justify-content:center;margin-top:14px"><button type="button" id="sbActRetry" class="sbActBtn">Retry</button><button type="button" id="sbActClose" class="sbActBtn">Close</button></div>';
+    const st=document.createElement('style');st.textContent='.sbActBtn{font:800 15px/1 system-ui,sans-serif;color:#1b0f0b;background:linear-gradient(#ffd97a,#f5b62e);border:0;border-radius:12px;padding:11px 20px;cursor:pointer;box-shadow:0 3px 0 #9b6a10}#sbActClose{background:linear-gradient(#efe6d6,#cbbfa9);box-shadow:0 3px 0 #7d715c}';document.head.appendChild(st);
+    for(const b of e.querySelectorAll('button'))b.addEventListener('pointerdown',ev=>ev.stopPropagation());
+    e.querySelector('#sbActRetry').onclick=ev=>{ev.preventDefault();sbActRetry();};e.querySelector('#sbActClose').onclick=ev=>{ev.preventDefault();sbActEndUi(null);};
+    addEventListener('keydown',ev=>{if(!SBA.end||SBA.end.hidden||!SBX)return;if(ev.code==='Enter'){ev.preventDefault();sbActRetry();}else if(ev.code==='Escape'){ev.preventDefault();ev.stopPropagation();sbActEndUi(null);}},true);stage.appendChild(e);}
+  SBA.last=o;e.hidden=false;const a=o.a;const T={done:a.kind==='deliver'?'Delivered!':'Challenge done!',time:'Out of time',cancel:'Delivery ended',left:'Challenge ended'}[o.why];
+  e.querySelector('#sbActET').textContent=T;e.querySelector('#sbActES').innerHTML=o.why==='done'?('+'+o.pay+' coins'+(o.par?' (quick delivery bonus)':'')+' · '+sbActClock(o.t)+(o.best?' · a new best':'')):
+    o.why==='cancel'?'Fast travel or a race ends a delivery: the pizza has to go by road.':o.why==='left'?'A challenge is done where it starts.':(a.kind==='deliver'?'The pizza went cold.':'So close: try again.');SBA.endT=performance.now();}
+/* Retry: a challenge starts again where you are (if you are still in its place); a delivery takes you back to its marker by fast travel and starts again */
+function sbActRetry(){const o=SBA.last;sbActEndUi(null);if(!o||state!=='race')return;const a=o.a;
+  if(a.kind!=='deliver'&&SB.regId===a.at){sbActStart(a);return;}
+  if(SB.regId===a.at){const m=SBA.marks.find(q=>q.a===a);if(m){sbActPut(m);sbActStart(a);return;}}
+  SBA.retry=a;sbTravel({to:a.at,start:true});}
+/* after a fast travel made by Retry: set the kart down on the marker, then start */
+function sbActPut(m){const k=player,j=m.j,p=track[j];k.x=k.px=m.x;k.y=k.py=m.z;k.a=k.ma=k.pa=k.pma=Math.atan2(p.ty,p.tx);k.idx=j;k.speed=0;k.rx=k.x;k.ry=k.y;k.rma=k.ma;cam.a=k.ma;camSnap=true;}
+function sbActArrived(){const a=SBA.retry;SBA.retry=null;if(!a||SB.regId!==a.at)return;const m=SBA.marks.find(q=>q.a===a);if(m)sbActPut(m);sbActStart(a);}
+/* a controller on the end panel: A retries, B closes (read here: the panel is not one of the menus the pad's cursor walks) */
+function sbActPad(){if(!SBA.end||SBA.end.hidden)return;try{const gp=navigator.getGamepads&&navigator.getGamepads()[PAD.idx];if(!gp)return;const a=!!(gp.buttons[0]&&gp.buttons[0].pressed),b=!!(gp.buttons[1]&&gp.buttons[1].pressed);
+  if(performance.now()-(SBA.endT||0)>400){if(a&&!SBA.padA)sbActRetry();else if(b&&!SBA.padB)sbActEndUi(null);}SBA.padA=a;SBA.padB=b;}catch(e){}}
+/* ---- Easter eggs: one hidden thing a place, in eight places (the brief: "hidden Easter eggs specific to individual maps") ----
+   Each is a small model built here, in a spot off the racing line: on a pizza out on open ground that a kart can reach from the road (found
+   the way the pepperoni coins' spots are, with another seed, and well away from them); in a room beside one of the hidden coins' spots,
+   on clear floor; on a neon road at its far edge. Drive up to it: it hops, says what it is, pays 25 coins once and is saved (.e). The map
+   does not show them. */
+const SB_EGGS={margherita:{id:'cat',name:'a cat asleep in the sun'},bay:{id:'shell',name:'a seashell washed up on the crust'},frosty:{id:'snowman',name:'a very small snowman'},
+  laser:{id:'robot',name:'a lost little robot',f:.62},bedroom:{id:'duck',name:'the rubber duck from the bath',near:'corner'},kitchen:{id:'meatball',name:'a meatball that got away',near:'fridge'},
+  garage:{id:'wrench',name:'the wrench everyone was looking for',near:'shelf'},backyard:{id:'gnome',name:'a garden gnome, hiding',near:'far'}};
+function sbEggModel(id){const G=new THREE.Group(),S=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.55},o||{})),add=(g,m,x,y,z,sx,sy,sz)=>{const o=new THREE.Mesh(g,m);o.position.set(x,y,z);if(sx)o.scale.set(sx,sy,sz);o.castShadow=true;G.add(o);return o;},sph=new THREE.SphereGeometry(1,24,16);
+  if(id==='duck'){const y=S('#ffcf1f',{roughness:.22}),o=S('#ff7a1a',{roughness:.3});add(sph,y,0,4,0,6,4.4,5);add(sph,y,3.6,8.6,0,3.3,3.3,3.3);add(sph,o,6.6,8.3,0,1.8,.8,1.5);add(sph,y,-5,6,0,2,2.6,2.4);for(const s of [-1,1])add(sph,S('#111',{roughness:.2}),5.4,9.6,s*1.8,.45,.45,.45);}
+  else if(id==='cat'){const f=S('#d98a3c',{roughness:.85}),w=S('#f4e4cc',{roughness:.85});add(sph,f,0,3.2,0,7,3.4,4.6);add(sph,f,6.2,4.2,1,3.3,3,3.2);const ear=new THREE.ConeGeometry(1.2,2.4,10);for(const s of [-1,1]){const e=add(ear,f,6.6,7,1+s*1.8);e.rotation.z=-.2;}add(sph,w,8.7,3.6,1,1.4,1.1,1.5);const t=add(new THREE.TorusGeometry(5,1,10,24,3.4),f,-2,1.4,-2.6);t.rotation.x=Math.PI/2;}
+  else if(id==='shell'){const m=S('#f2c4a8',{roughness:.45});for(let i=0;i<11;i++){const r=add(new THREE.CylinderGeometry(.9,.2,9,8),m,0,0,0);r.position.set(Math.sin((i-5)*.27)*4.5,1.2,Math.cos((i-5)*.27)*4.5-3);r.rotation.set(Math.PI/2-.25,(i-5)*.27,0);}add(sph,m,0,1.2,-3.2,2.2,1.2,1.6);}
+  else if(id==='snowman'){const s=S('#f7f9ff',{roughness:.9});add(sph,s,0,4,0,4,4,4);add(sph,s,0,10,0,3,3,3);add(sph,s,0,14.6,0,2.1,2.1,2.1);const n=add(new THREE.ConeGeometry(.5,3,10),S('#ff7a1a'),0,14.6,2.6);n.rotation.x=Math.PI/2;for(const x of [-.8,.8])add(sph,S('#111'),x,15.3,1.8,.32,.32,.32);add(new THREE.CylinderGeometry(2.3,2.3,.5,20),S('#222'),0,16.4,0);add(new THREE.CylinderGeometry(1.5,1.5,2.4,20),S('#222'),0,17.8,0);}
+  else if(id==='robot'){const b=S('#9aa3ad',{metalness:.7,roughness:.35});add(new THREE.BoxGeometry(6,6,4.4),b,0,6,0);add(new THREE.BoxGeometry(4.6,3.6,3.6),b,0,11,0);for(const x of [-1.1,1.1])add(sph,S('#111',{emissive:'#39d0ff',emissiveIntensity:2.2}),x,11.3,1.85,.6,.6,.3);add(new THREE.CylinderGeometry(.18,.18,2.4,6),b,0,14,0);add(sph,S('#ff4b6e',{emissive:'#ff4b6e',emissiveIntensity:2}),0,15.3,0,.55,.55,.55);for(const x of [-1.6,1.6])add(new THREE.BoxGeometry(1.4,3,2),b,x,1.5,0);}
+  else if(id==='meatball'){const m=S('#6e3420',{roughness:.95}),g=new THREE.IcosahedronGeometry(5,3),p=g.attributes.position;for(let i=0;i<p.count;i++){const k=1+.07*Math.sin(i*12.9898)*Math.cos(i*4.1);p.setXYZ(i,p.getX(i)*k,p.getY(i)*k,p.getZ(i)*k);}g.computeVertexNormals();add(g,m,0,5,0);for(let i=0;i<6;i++)add(sph,S('#3f8a2e'),Math.cos(i)*3.6,7.4+Math.sin(i*3)*1.2,Math.sin(i)*3.6,.9,.25,.6);}
+  else if(id==='wrench'){const s=S('#c9ced4',{metalness:.9,roughness:.25});add(new THREE.BoxGeometry(16,.9,2.2),s,0,.6,0);for(const x of [-8.6,8.6]){const r=add(new THREE.TorusGeometry(2.1,.9,10,20,4.6),s,x,.6,0);r.rotation.set(Math.PI/2,0,x>0?-.75:2.4);}}
+  else if(id==='gnome'){add(sph,S('#2f5fb0'),0,4,0,3.4,4,3.4);add(sph,S('#f1c7a0'),0,9,0,2.4,2.4,2.4);add(new THREE.ConeGeometry(2.6,7,18),S('#d6302a'),0,13.6,0);add(new THREE.ConeGeometry(2.3,4,16),S('#f4f4f0',{roughness:.9}),0,6.6,1.7).rotation.x=Math.PI;add(sph,S('#e88c7a'),0,8.6,2.3,.8,.8,.8);for(const x of [-1.6,1.6])add(new THREE.BoxGeometry(1.8,1.2,3),S('#4a2c18'),x,.6,.6);}
+  G.traverse(o=>{o.userData.sunlit=true;});return G;}
+/* where it goes in this place, or null */
+function sbEggSpot(E){const R=SB.reg;
+  if(SB.kind==='open'){const rnd=prng(hashStr(SB.regId)+977);for(let t=0;t<500;t++){const a=rnd()*6.28318,r=(.35+rnd()*.55)*SB.rim,x=Math.cos(a)*r,z=Math.sin(a)*r,g0=groundAt(x,z);if(sbBlocked(x,z,g0))continue;
+      if(SB.coins.some(c=>c.rare&&(c.x-x)**2+(c.z-z)**2<300*300))continue;let bj=0,bd=1e18;for(let j=0;j<N;j+=4){const p=track[j],d=(p.x-x)**2+(p.y-z)**2;if(d<bd){bd=d;bj=j;}}const d=Math.sqrt(bd);if(d<WALLD+80)continue;
+      const p=track[bj];let ok=true,pw=groundAt(p.x,p.y);for(let q=d-RW;q>=0&&ok;q-=10){const xx=x+(p.x-x)*q/d,zz=z+(p.y-z)*q/d;if(sbBlocked(xx,zz,pw)||pitAt(xx,zz)>1)ok=false;pw=groundAt(xx,zz);}if(ok)return [x,g0,z];}return null;}
+  if(SB.kind==='road'){const j=Math.round((E.f||.5)*N)%N,p=track[j],s=-1,x=p.x+p.nx*(RW-9)*s,z=p.y+p.ny*(RW-9)*s;return [x,groundAt(x,z)+(p.ey||0),z];}
+  const q=(R.rare||[]).find(r=>r[3]===E.near);if(!q)return null;const gx=R.room?SB_RX:(g=>(g+.75)*SB_M),gz=R.room?SB_RZ:(g=>-(g-3.5)*SB_M),x0=gx(q[0]),z0=gz(q[1]);
+  const clear=(x,z)=>{const r=TOYW()+30;for(let j=0;j<N;j+=2){const p=track[j];if((p.x-x)**2+(p.y-z)**2<r*r)return false;}return true;};/* (never on or beside the track: hidden means off the racing line) */
+  for(let i=0;i<32;i++){const a=i*.3927,d=24+Math.floor(i/16)*16,x=x0+Math.cos(a)*d,z=z0+Math.sin(a)*d,y=sbG(x,z,0);if(!sbBlocked(x,z,y)&&Math.abs(y)<3&&clear(x,z))return [x,y,z];}return null;}
+function sbEggArm(){SBA.egg=null;const E=SB_EGGS[SB.regId];if(!E||!SB.grp)return;let s=null;try{s=sbEggSpot(E);}catch(e){console.warn('egg',e);}if(!s)return;const G=sbEggModel(E.id);G.position.set(s[0],s[1],s[2]);G.rotation.y=hashStr(E.id)%628/100;SB.grp.add(G);
+  SBA.egg={E,G,x:s[0],y:s[1],z:s[2],hop:0,found:!!sbActSave().e[E.id]};}
+function sbEggTick(k,dt){const g=SBA.egg;if(!g)return;if(g.hop>0){g.hop=Math.max(0,g.hop-dt);const h=Math.sin((1-g.hop/.8)*Math.PI);g.G.position.y=g.y+h*7;g.G.rotation.y+=dt*9;}
+  if(g.found)return;if((k.x-g.x)**2+(k.y-g.z)**2<18*18&&Math.abs((k.wy||0)-g.y)<14){g.found=true;g.hop=.8;const sv=sbActSave();sv.e[g.E.id]=1;sv.c+=25;sbKeep();SB.hudT=0;
+    const n=Object.keys(SB_EGGS).filter(r=>sv.e[SB_EGGS[r].id]).length;showBanner('Easter egg '+n+'/'+Object.keys(SB_EGGS).length+': '+g.E.name+' · +25',3.2,'sm');try{SFX.ready();}catch(e){}
+    try{burst(g.x,g.y+8,g.z,26,['#ffd65a','#ffffff','#7bd14a'],70,2.4);}catch(e){}}}
 /*MINI-END*/
 /*NEON-BEGIN*/
 /* ================= NEON CUP: tracks laid out by hand (straights and arcs, with a road height for each direction), with their own
@@ -7102,7 +7298,7 @@ function moonTex(){const S=512,c=cnv(S,S),g=c.getContext('2d');const gr=g.create
   for(let i=0;i<70;i++){const x=S/2+(rnd()-.5)*S*.85,y=S/2+(rnd()-.5)*S*.85;if(Math.hypot(x-S/2,y-S/2)>S*.45)continue;const r=4+rnd()*rnd()*46;g.fillStyle='rgba(120,128,150,'+(.12+rnd()*.2)+')';g.beginPath();g.arc(x,y,r,0,7);g.fill();g.strokeStyle='rgba(255,255,255,.18)';g.lineWidth=2;g.beginPath();g.arc(x-1,y-1,r,Math.PI*.9,Math.PI*1.7);g.stroke();}
   return T2(c);}
 /* kitchen dressing: tall windows of daylight, shelves of jars and tins, hanging copper pans */
-function kitchenDressing(R){const W=R+1700,shelfM=wm('#6e4527',{roughness:.6}),frame=wm('#f3ead8',{roughness:.5}),sky=new THREE.MeshBasicMaterial({color:'#bfe3ff',toneMapped:false,fog:false}),sun=new THREE.MeshBasicMaterial({color:'#fff6d8',toneMapped:false,transparent:true,opacity:.18,depthWrite:false,blending:THREE.AdditiveBlending,fog:false});
+function kitchenDressing(R){const W=R+1700,shelfM=wm('#6e4527',{roughness:.6}),frame=wm('#f3ead8',{roughness:.5}),sky=new THREE.MeshBasicMaterial({name:'sky_window',color:'#bfe3ff',toneMapped:false,fog:false}),sun=new THREE.MeshBasicMaterial({color:'#fff6d8',toneMapped:false,transparent:true,opacity:.18,depthWrite:false,blending:THREE.AdditiveBlending,fog:false});
   const g=new THREE.Group();g.userData.noLift=true;world.add(g);const S=new THREE.Group();g.add(S);
   for(const a of [0.15,1.75,3.3,4.9]){const x=Math.cos(a)*(W-6),z=Math.sin(a)*(W-6),w=new THREE.Group();w.position.set(x,520,z);w.lookAt(0,520,0);S.add(w);
     put(new THREE.PlaneGeometry(520,620),sky,0,0,0,w,false);for(const yy of [-310,0,310])put(new THREE.BoxGeometry(560,22,30),frame,0,yy,8,w,false);for(const xx of [-270,0,270])put(new THREE.BoxGeometry(22,640,30),frame,xx,0,8,w,false);
@@ -8653,7 +8849,7 @@ function render(time,dt){
   /* above ~85 fps the shadow map is redrawn every other frame: shadows still update 60+ times a second (exactly as at 60 fps), so they look
      the same, but a 120 Hz screen doesn't pay for the 4096 shadow map twice as often */
   renderer.shadowMap.needsUpdate=BENCH.noShUp?false:(LOWQF()||saverOn())?render.n%(QUAL[qKey].shEvery||2)===0:(render.fdt>.0118||render.n%2===0);/* half-rate shadows made moving shadows judder */
-  if(!LOWQF()&&CFG.post!==false&&!LADV.np&&!BENCH.noPost){try{postRender();}catch(e){console.warn('post',e);CFG.post=false;renderer.setRenderTarget(null);renderer.render(scene,camera);}}else if(APPLEWK&&!POST.liteFail){try{postLite();}catch(e){console.warn('post lite',e);POST.liteFail=true;renderer.setRenderTarget(null);renderer.render(scene,camera);}}else{renderer.render(scene,camera);render.calls=renderer.info.render.calls;render.tris=renderer.info.render.triangles;}
+  drawNow();
 }
 
 /* ================= HUD ================= */
@@ -9299,19 +9495,21 @@ function postSize(w,h){const lite=LOWQF()||CFG.post===false||LADV.np||BENCH.noPo
   POST.b1=new THREE.WebGLRenderTarget(w4,h4,opt);POST.b2=new THREE.WebGLRenderTarget(w4,h4,opt);POST.b3=new THREE.WebGLRenderTarget(w8,h8,opt);POST.b4=new THREE.WebGLRenderTarget(w8,h8,opt);}
 function pass(mat,target){POST.q.material=mat;renderer.setRenderTarget(target);renderer.render(POST.qs,POST.qc);}
 function postLite(){postInit();const sz=renderer.getDrawingBufferSize(v2);postSize(sz.x,sz.y);POST.rt.viewport.set(0,0,sz.x,sz.y);POST.rt.scissor.set(0,0,sz.x,sz.y);POST.rt.scissorTest=false;
-  renderer.setRenderTarget(POST.rt);renderer.render(scene,camera);render.calls=renderer.info.render.calls;render.tris=renderer.info.render.triangles;const U=POST.M.copy.uniforms;U.tex.value=POST.rt.texture;U.us.value.set(1,1);U.uc.value.set(1-.5/sz.x,1-.5/sz.y);pass(POST.M.copy,null);}
+  renderer.setRenderTarget(POST.rt);renderer.render((postRender.s||scene),(postRender.c||camera));render.calls=renderer.info.render.calls;render.tris=renderer.info.render.triangles;const U=POST.M.copy.uniforms;U.tex.value=POST.rt.texture;U.us.value.set(1,1);U.uc.value.set(1-.5/sz.x,1-.5/sz.y);pass(POST.M.copy,null);}
+/* the frame's last step: the post pass, or a plain draw (patch 34: also the Sandbox tunnel's, with postRender.s and .c set) */
+function drawNow(){if(!LOWQF()&&CFG.post!==false&&!LADV.np&&!BENCH.noPost){try{postRender();}catch(e){console.warn('post',e);CFG.post=false;renderer.setRenderTarget(null);renderer.render(postRender.s||scene,postRender.c||camera);}}else if(APPLEWK&&!POST.liteFail){try{postLite();}catch(e){console.warn('post lite',e);POST.liteFail=true;renderer.setRenderTarget(null);renderer.render(postRender.s||scene,postRender.c||camera);}}else{renderer.render(postRender.s||scene,postRender.c||camera);render.calls=renderer.info.render.calls;render.tris=renderer.info.render.triangles;}}
 function postRender(){postInit();const sz=renderer.getDrawingBufferSize(v2);postSize(sz.x,sz.y);const M=POST.M,G=POST.grade;
   const ds=DRS.s,ws=Math.max(1,Math.round(sz.x*ds)),hs=Math.max(1,Math.round(sz.y*ds));/* ambient occlusion reads the scaled region too, so PC Ultra can use dynamic resolution */POST.rt.viewport.set(0,0,ws,hs);POST.rt.scissor.set(0,0,ws,hs);POST.rt.scissorTest=ds<.999;
   const ux=ws/sz.x,uy=hs/sz.y,cx=ux-.5/sz.x,cy=uy-.5/sz.y;M.bright.uniforms.us.value.set(ux,uy);M.bright.uniforms.uc.value.set(cx,cy);M.final.uniforms.us.value.set(ux,uy);M.final.uniforms.uc.value.set(cx,cy);M.final.uniforms.px.value.set(1/sz.x,1/sz.y);M.final.uniforms.shp.value=CFG.sharpen===false?0:Math.max(saverOn()?.35:0,clamp((1-ds)*3.2,0,.8));/* 80% size: 0.64 · 70%: 0.8 (capped: more pushes fine far detail into grain) */
-  renderer.setRenderTarget(POST.rt);renderer.render(scene,camera);render.calls=renderer.info.render.calls;render.tris=renderer.info.render.triangles;/* the scene's own draw count, before the post passes overwrite the counters */
-  if(POST.aoW&&POST.ao1){const A=M.ao.uniforms;A.tD.value=POST.rt.depthTexture;A.pM.value.copy(camera.projectionMatrix);A.ipM.value.copy(camera.projectionMatrixInverse);A.px.value.set(1/sz.x,1/sz.y);A.asp.value.set(sz.y/sz.x,1);A.us.value.set(ux,uy);pass(M.ao,POST.ao1);
-    const B=M.aob.uniforms;B.tA.value=POST.ao1.texture;B.tD.value=POST.rt.depthTexture;B.ipM.value.copy(camera.projectionMatrixInverse);B.px.value.set(1/POST.ao1.width,1/POST.ao1.height);B.us.value.set(ux,uy);pass(M.aob,POST.ao2);M.final.uniforms.aoT.value=POST.ao2.texture;M.final.uniforms.aoOn.value=1;}
+  renderer.setRenderTarget(POST.rt);renderer.render((postRender.s||scene),(postRender.c||camera));render.calls=renderer.info.render.calls;render.tris=renderer.info.render.triangles;/* the scene's own draw count, before the post passes overwrite the counters */
+  if(POST.aoW&&POST.ao1){const A=M.ao.uniforms;A.tD.value=POST.rt.depthTexture;A.pM.value.copy((postRender.c||camera).projectionMatrix);A.ipM.value.copy((postRender.c||camera).projectionMatrixInverse);A.px.value.set(1/sz.x,1/sz.y);A.asp.value.set(sz.y/sz.x,1);A.us.value.set(ux,uy);pass(M.ao,POST.ao1);
+    const B=M.aob.uniforms;B.tA.value=POST.ao1.texture;B.tD.value=POST.rt.depthTexture;B.ipM.value.copy((postRender.c||camera).projectionMatrixInverse);B.px.value.set(1/POST.ao1.width,1/POST.ao1.height);B.us.value.set(ux,uy);pass(M.aob,POST.ao2);M.final.uniforms.aoT.value=POST.ao2.texture;M.final.uniforms.aoOn.value=1;}
   else M.final.uniforms.aoOn.value=0;
   const noGlow=saverOn();if(!noGlow){M.bright.uniforms.tex.value=POST.rt.texture;M.bright.uniforms.thr.value=G.thr;M.bright.uniforms.px.value.set(1/sz.x,1/sz.y);pass(M.bright,POST.b1);
   const bl=(a,b,w,h)=>{M.blur.uniforms.tex.value=a.texture;M.blur.uniforms.dir.value.set(1/w,0);pass(M.blur,b);M.blur.uniforms.tex.value=b.texture;M.blur.uniforms.dir.value.set(0,1/h);pass(M.blur,a);};
   bl(POST.b1,POST.b2,POST.b1.width,POST.b1.height);M.blur.uniforms.tex.value=POST.b1.texture;M.blur.uniforms.dir.value.set(.5/POST.b1.width,0);pass(M.blur,POST.b3);bl(POST.b3,POST.b4,POST.b3.width,POST.b3.height);bl(POST.b3,POST.b4,POST.b3.width,POST.b3.height);}
   const F=M.final.uniforms;F.tex.value=POST.rt.texture;F.b1.value=POST.b1.texture;F.b2.value=POST.b3.texture;F.exposure.value=renderer.toneMappingExposure;F.bloom.value=noGlow?0:G.bloom;F.sat.value=G.sat;F.con.value=G.con;F.vig.value=G.vig;F.aspect.value=sz.x/sz.y;{const t=(performance.now()-EDGE.t0)/EDGE.dur,a=t<0||t>1?0:(t<.15?t/.15:1-(t-.15)/.85);F.edgeA.value=a*EDGE.a;F.edgeC.value.copy(EDGE.c);}F.tint.value.set(...G.tint);
-  {const k=camT,nm=MAPS[mapIdx]&&MAPS[mapIdx].neon&&!MAPS[mapIdx].toy;F.rbw.value=nm?1:0;const on=(QUAL[qKey].streaks||nm)&&k&&state==='race'&&k.boost>0&&!k.spin,tg=on?Math.min(1,.45+.55*Math.min(1,(k.bPk||1)/2.5)):0;F.spd.value+=(tg-F.spd.value)*.12;F.tm.value=performance.now()/1000%100;{const on=TOYT&&POST.aoW&&POST.rt.depthTexture&&CFG.dof!==false;F.dof.value=on?1:0;F.tD.value=on?POST.rt.depthTexture:null;if(on){F.nf.value.set(camera.near,camera.far);F.foc.value=clamp(k?Math.hypot(camera.position.x-k.x,camera.position.z-k.y):60,40,80);}}const mt=CFG.mblur&&k&&state==='race'&&!k.spin?Math.min(1.5,Math.max(0,k.speed)/BASE_MAX)**2*.8:0;F.mb.value+=(mt-F.mb.value)*.1;}
+  {const k=camT,nm=MAPS[mapIdx]&&MAPS[mapIdx].neon&&!MAPS[mapIdx].toy;F.rbw.value=nm?1:0;const on=(QUAL[qKey].streaks||nm)&&k&&state==='race'&&k.boost>0&&!k.spin,tg=on?Math.min(1,.45+.55*Math.min(1,(k.bPk||1)/2.5)):0;F.spd.value+=(tg-F.spd.value)*.12;F.tm.value=performance.now()/1000%100;{const on=TOYT&&POST.aoW&&POST.rt.depthTexture&&CFG.dof!==false;F.dof.value=on?1:0;F.tD.value=on?POST.rt.depthTexture:null;if(on){F.nf.value.set((postRender.c||camera).near,(postRender.c||camera).far);F.foc.value=clamp(k?Math.hypot((postRender.c||camera).position.x-k.x,(postRender.c||camera).position.z-k.y):60,40,80);}}const mt=CFG.mblur&&k&&state==='race'&&!k.spin?Math.min(1.5,Math.max(0,k.speed)/BASE_MAX)**2*.8:0;F.mb.value+=(mt-F.mb.value)*.1;}
   pass(M.final,null);}
 /* big screens (computer monitors, tablets) would otherwise draw several times a phone's pixels: cap the total pixel count per quality level, and lower it a step with each rung of the quality ladder */
 /* GPU frame time, measured with a timer query where the browser offers one (most desktop Chrome/Edge/Firefox on WebGL2).
@@ -10473,6 +10671,7 @@ function frame(now){
   if(fps60()){if(now<frame.due-2.5){requestAnimationFrame(frame);return;}frame.due+=1000/60;if(now-frame.due>1000/60)frame.due=now;}{const fd=now-lastFrameT;if(fd>fpsMax&&fd<1000)fpsMax=fd;if(state==='race'&&fd>0&&fd<200)capWatch(fd);}lastFrameT=now;
   fpsN++;if(now-fpsT>500){const show=CFG.showfps&&state!=='menu';fpsEl.hidden=!show;if(show)fpsEl.textContent=Math.round(fpsN*1000/(now-fpsT))+' FPS'+(CAPW.capped?' (capped by phone)':'')+' · '+((now-fpsT)/fpsN).toFixed(1)+' ms · worst '+Math.round(fpsMax)+' ms · CPU '+CPUMS.toFixed(1)+(GPUT&&GPUT.ms>0?' · GPU '+GPUT.ms.toFixed(1):'')+(ssMul()>1?' · '+ssMul()+'×':'')+netStat(now-fpsT)+((SCR.cur||SCR.hz.win)?' · screen '+(SCR.fs?SCR.hz.fs||SCR.cur:SCR.hz.win||SCR.cur)+' Hz':'')+scrWhy(fpsN*1000/(now-fpsT));fpsN=0;fpsT=now;fpsMax=0;}
   let dt=(now-last)/1000;last=now;if(dt>.1)dt=.1;if(dt<0)dt=0;const time=now/1000;const cw0=performance.now();
+  if(SB.warp){/* Sandbox: driving the tunnel while the next place is built (sandbox.js) */try{sbWarpFrame(dt,time);}catch(e){console.warn('sandbox warp',e);SB.warp=null;state='race';}}
   /* finish-line punch: a beat of slow motion (offline only: online the race runs on the host's clock) and a wide-angle kick in the camera */
   if(finPunch>0){finPunch+=dt;if(finPunch>.8)finPunch=0;}if(slowT>0){slowT-=dt;const ts=slowT>.5?.38:.38+.62*(1-slowT/.5);dt*=Math.max(.38,Math.min(1,ts));}
   if(state==='menu'||state==='race'){acc+=dt;let n=0;const gs=NET.role==='guest'&&NET.cfg&&state==='race';while(acc>=STEP&&n<12){if(gs)netGuestStep(STEP);else update(STEP);acc-=STEP;n++;}if(n>=12)acc=0;alpha=acc/STEP;netFlush();netQUpdate();NETLOG.frame();NETLOG.tick();if(gs&&NET.snaps.length){/* other karts on a guest are drawn exactly at this frame's moment of the host's race (not blended between simulation steps), so every frame on a 144 Hz screen shows their motion */if(n===0)netInterp(player.finished?null:player);for(const o of karts)if(o!==player){o.px=o.x;o.py=o.y;o.pa=o.a;o.pma=o.ma;o.pwy=o.wy;o.pth=o.loopTh||0;}}
@@ -10486,10 +10685,10 @@ function frame(now){
   const amb=COARSE&&!BENCH.on&&(garageOpen?performance.now()-gActT>800:state==='menu');let rdt=dt;
   if(amb){frame.adt=(frame.adt||0)+dt;if(now-(frame.ar||0)<31){requestAnimationFrame(frame);return;}frame.ar=now;rdt=frame.adt;frame.adt=0;}else frame.adt=0;
   if(state!=='paused'){if(garageOpen)renderGarage(rdt);else{if(fitPending){fitPending=false;fit();}if(state!=='loading'){gpuT0();render(time,rdt);gpuT1();CPUMS=CPUMS*.95+(performance.now()-cw0)*.05;adaptQuality(dt,time);drsTick(dt);if(BENCH.on)benchFrame(dt);}}}
-  hud(dt,time);
+  if(!SB.warp)hud(dt,time);
   try{musTick();}catch(e){console.warn('music',e);CFG.music=false;}
   FRMS=FRMS*.9+(performance.now()-cw0)*.1;
-  if(ac&&eng){const on=!muted&&(state==='race'||state==='countdown')&&!!player;
+  if(ac&&eng){const on=!muted&&(state==='race'||state==='countdown'||!!SB.warp)&&!!player;
     if(skidGain){const dr=on&&player.drift&&!player.air,c=player?Math.min(1,player.charge/2.6):0;driftT=dr?driftT+dt:0;const fat=1-.45*Math.min(1,Math.max(0,driftT-1.2)/2.5);/* long drifts settle down instead of droning */
       skidGain.gain.setTargetAtTime(dr?(.022+.022*c)*fat:0,ac.currentTime,dr?.09:.05);skidFilt.frequency.setTargetAtTime(760+c*520,ac.currentTime,.15);}
     const sp=player?Math.max(0,player.speed):0,bst=player&&player.boost>0,r=Math.min(1.3,sp/(BASE_MAX||170)),GT=[0,.2,.42,.64,.86,1.31];let gi=0;while(gi<4&&r>GT[gi+1])gi++;

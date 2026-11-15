@@ -4,7 +4,7 @@ Output layout (in D:/crust-rush/app):
   index.html                 page markup + small boot data
   css/style.<hash>.css       all styles
   js/game.<hash>.js          the game
-  vendor/three-0.149.0.min.js
+  vendor/three-0.149.0.<hash>.js  (r149, with the one change described where it is written)
   assets/geo/<id>.<hash>.bin one file per car and prop model
   assets/tex/<name>.<hash>.jpg   skies and prop textures
   assets/shots/<id>-<k>.<hash>.jpg track photos
@@ -89,6 +89,12 @@ css = out[st0 + 7:st1]
 sc0 = out.index('<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>')
 g0 = out.index('<script>', sc0); g1 = out.rindex('</script>')
 game = out[g0 + 8:g1]
+# the load slicer (build/slices.txt; docs/HANDOVER.md "THE NO-STOP TUNNEL ON THE WEB"): the listed builders become generators
+_sl = [l.strip() for l in open(GH + '/slices.txt', encoding='utf-8') if l.strip() and not l.startswith('#')]
+_tmp = APP + '/_slice.js'
+open(_tmp, 'w', encoding='utf-8', newline='').write(game)
+subprocess.run(['D:/crust-rush/tools/node/node.exe', 'D:/crust-rush/source/tools/jsparse/slice.js', _tmp, ','.join(_sl)], check=True, stdout=subprocess.DEVNULL)
+game = open(_tmp, encoding='utf-8', newline='').read(); os.remove(_tmp)
 markup = out[st1 + 8:sc0]
 headx = out[:st0]
 headx = re.sub(r'<meta name="claude:viewport-fit-sides"[^>]*>\n?', '', headx).replace('<title>Crust Rush</title>\n', '').replace('<title>Crust Rush</title>', '')
@@ -96,7 +102,18 @@ assert 'CAR_PACKS={formula:' not in game and 'base64,/9j' not in game
 
 css_rel = hashed('css', 'style', 'css', css.encode())
 game_rel = hashed('js', 'game', 'js', game.encode())
-three_rel = put('vendor/three-0.149.0.min.js', open(GH + '/vendor/three-0.149.0.min.js', 'rb').read())
+# three.js r149 with one change (web v199, the no-stop tunnel; docs/HANDOVER.md): with renderer.__crDefer set, renderer.compile creates a
+# new material's shader program and goes on without waiting for the graphics driver to finish it (r149 asks for the program's uniforms at
+# once, which waits: 0.1 s a program, 1.4 s for a new place). Sandbox's tunnel compiles that way, waits a frame at a time until the driver is
+# done (KHR_parallel_shader_compile), then draws. A material compiled so is set up again at its next draw (its __version is cleared), as a
+# new one would be. Nothing else changes. The file is named by its contents, so no browser keeps the unpatched copy under the new name.
+_three = open(GH + '/vendor/three-0.149.0.min.js', encoding='utf-8', newline='').read()
+for _a, _b in [('c.set(l,h),n.uniforms=o.uniforms;', 'c.set(l,h),n.uniforms=o.uniforms,n.__crNew=1;'),
+               ('const d=h.getUniforms(),m=rs.seqWithValue(d.seq,u);return n.currentProgram=h,n.uniformsList=m,h}',
+                'if(g.__crDefer&&n.__crNew)return n.__crNew=0,n.__version=void 0,h;n.__crNew=0;const d=h.getUniforms(),m=rs.seqWithValue(d.seq,u);return n.currentProgram=h,n.uniformsList=m,h}')]:
+    assert _three.count(_a) == 1, _a
+    _three = _three.replace(_a, _b)
+three_rel = hashed('vendor', 'three-0.149.0', 'js', _three.encode())
 # newer three.js (r187) for the WebGPU work: the engine check page uses it now; the game itself still loads r149
 os.makedirs(f'{APP}/vendor/three-0.187.0', exist_ok=True)
 for fn in ('three.core.js', 'three.module.js', 'three.webgpu.js', 'three.tsl.js'):

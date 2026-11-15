@@ -139,11 +139,85 @@ against the landmarks' coordinates before the real generator closed the lap; the
 4. (done: Balloon Battle and Sandbox on the PC: see their entries. The PC now has every mode the web has.)
 5. THE WEBSITE: `py.cmd tools/site_pc.py` brings `app/pc.html` level with the PC build (done for build 68030144: 24 tracks, Balloon
    Battle, Sandbox, online cups, the pointer, the size). Edit `HAS` in it when the PC's modes change, run it, commit and push `app`.
-6. SANDBOX, what the brief still asks for and is not built (docs/SANDBOX-PLAN.md has the plan for each): the shared clock (day and night),
-   activities (deliveries, drift and jump challenges), the coin shop (kart and car unlocks), online free roam and the start-line lobby with
-   ready-up. On the pizza tracks only what is drawn is there to explore: no new side roads or buildings have been modelled.
+6. SANDBOX, what the brief still asks for and is not built (docs/SANDBOX-PLAN.md has the plan for each): the coin shop (kart and car
+   unlocks), online free roam and the start-line lobby with ready-up. The clock, things to do, Easter eggs and Back to the track are in web
+   v199 and NOT YET ON THE PC (port them next: the PC has its own no-stop tunnel already). On the pizza tracks only what is drawn is there to explore: no new side roads or buildings have been modelled.
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
+
+### 2026-11-15 (web v199, the same release): the day and night clock switched on, things to do, Easter eggs, Back to the track
+- THE CLOCK (sandbox.js, `SB_CLOCK` now true; built in v197 and left off until its pictures had been looked at). Looked at, noon / sunset
+  / dusk / night / the start flag at night, in margherita (out), bay, the back garden (out), bedroom and kitchen (in: lamps on, windows
+  dark), laser (dark: its own look). Two faults fixed: the stars drew in front of the far tree cards (they were see-through things, sorted
+  among the see-through cards, on a ball nearer than those cards): now drawn among the solid things straight after the sky, adding light,
+  writing no depth, so everything drawn later covers them, and faded by colour; and the start flag blazed at night (unlit and bright, and
+  the night's bloom is stronger): the clock now keeps it at half brightness and its glow at a third (`SB.flag.mats`, `.glow`, its own copy
+  of the glow material). The kitchen's window panes (plain unlit blue, no picture) now darken with the sky: patch 34 names them
+  `sky_window`. THE PC HAS NO CLOCK YET.
+- THINGS TO DO (tools/mini/activities.js, new, carried in by inject_mini.py after sandbox.js; the brief's section 5): markers on the road
+  (a coloured ring and a turning sign); stop in one and a button offers it with the coins (tap, Enter, D-pad up). Two deliveries
+  (Margherita's pizzeria to Sauce Spiral's start line, the safe way through Basil Boulevard or the quick way through the Oven; Kitchen to
+  Bedroom), two drift challenges (Margherita, Bay: seconds drifting in all) and two jump challenges (Back Garden, Sauce Spiral: seconds in the
+  air). An objective bar at the top; at the end the coins and Retry (Enter, A) / Close (Esc, B). A delivery carries through tunnels (the
+  clock stops in a tunnel, as the game does) and ends on fast travel or a race from a start line; Retry takes you back to its marker. Full
+  coins the first time, half after; a quick delivery adds a third. Saved in crust-sb: `.a[id]` {n, best}.
+- EASTER EGGS (activities.js, `SB_EGGS`): one in each of eight places (a cat, a seashell, a snowman, a robot, the rubber duck, a runaway
+  meatball, a wrench, a garden gnome), models built in code; off the racing line (on a pizza where a kart can reach it from the road and far
+  from the pepperoni coins; in a room beside a hidden coin's spot and at least the track's width plus 30 from it; on a neon road at the far
+  edge). 25 coins once; saved `.e[id]`; not on the map. The web exports each place's activity markers and egg (`sbExport` .acts, .egg) so
+  the PC can take the same spots. THE PC HAS NEITHER YET.
+- BACK TO THE TRACK (sandbox.js `sbBackBtn`, `sbBackAsk`, `sbBackGo`). The owner, 2026-11-15: "add a button in the pause menu that can just
+  take you right to the nearest spot on the track ... a confirmation pop up should pop up so the player doesn't accidentally hit the button".
+  Under Map in Sandbox's pause menu; "Back to the track? / Move me / Cancel" first; then the kart stands still in the middle of the nearest
+  stretch of road at the same level (a difference in height counts three times; never on a loop), facing the way the track runs, and the
+  game resumes. THE PC HAS IT NOT YET.
+- TESTS: the activities by a probe (scratch/acttest.js: offer, start, the bar, done and paid, retry at half, fast travel ends a delivery,
+  Retry travels back, the delivery through the Oven to Sauce Spiral with its drop-off ring); every egg placed and found (8 of 8); Back to the
+  track in Margherita and the bedroom (dialog, Cancel, Move me, on the road at speed 0, resumed).
+- KNOWN, NOT NEW: `sbtest.py` with no place (the back garden) fails two wall checks, "shed, from the south" and "the tree, under the
+  spiral" (the kart is not stopped there). The same two fail on v198 (checked on a copy of it): older than this release, not looked into.
+
+### 2026-11-15 (web v199, online 111 unchanged: nothing here moves a kart): THE NO-STOP TUNNEL ON THE WEB
+The owner: "i dont want the streaks to freeze for a second it should be the player continusously driving and eventually the new map will
+load and the driver will drive out but the game will never freeze or stop to load it will be one fluid drive through the tunnel right out to
+the other side". The PC has done this since build 68030144 (a thread). Until v198 the web held a still picture of the last frame, the kart
+cut out on top and streaks animated by the browser, for the 1 to 5 s the load took (measured at Ultra: building the place 0.2 to 2 s,
+its first draw and shaders 0.3 to 3.5 s). A browser has no second thread for this, so the load is cut into slices instead:
+- THE SLICER (build time, so the source stays plain): `build/build_gh.py` runs `tools/jsparse/slice.js` (acorn, installed in
+  tools/jsparse) on the game script with the names in `build/slices.txt`. Each named function becomes a generator NAMEG that yields between
+  its statements (once a pass in a loop, every 64 passes in a loop inside a loop: a yield costs about as much as a small statement, and 8
+  million of them made a whole load twice as slow), and NAME stays a plain function that runs it to the end at once, so every other caller
+  is unchanged. In a sliced function a call to another becomes `(yield* OTHERG(...))`; `const name=function(){}` or an arrow with a block
+  body, written inside a sliced function and named in the list, is sliced too (`buildBarrier`, `place`, `spots`). A callback (`forEach`,
+  `traverse`) cannot pause: the two that took long were turned into loops in the source (sbColumns, toyScenery's boosters).
+  `SLICE_MAP=<file>` in the environment writes each yield's id with the code after it, to find a slow slice.
+  Measured, Ultra on the RTX 3060: the longest slice of a load 50 ms (was one 430 ms call), a whole load as fast as before (bay 2.2 s).
+- THREE.JS: build_gh.py writes three r149 with one change, as `vendor/three-0.149.0.<hash>.js`: with `renderer.__crDefer` set,
+  `renderer.compile` creates a new program and goes on (r149 asks for its uniforms at once, which waits for the driver: about 0.1 s a
+  program, 1.4 s for a new place). Such a material is set up again at its next draw (its `__version` cleared). The source page still loads
+  plain r149 from the CDN: there the flag does nothing and the tunnel only waits a little longer.
+- THE TUNNEL (tools/mini/sandbox.js: sbTravel, sbTripG, sbWarmG, sbWarpFrame, sbWarpOut, sbWarpPrime; engine side tools/mini/patch34.py):
+  the kart drives on in a scene of its own (SB.ws: the warp tube, its road, the light at the end, two lamps, a copy of the kart), drawn
+  through the game's own post pass (`drawNow` with `postRender.s/.c`), steering left and right, the streaks and road running at its speed
+  and the engine sound on. Each frame then spends 9 ms (6 on a phone) on `sbTripG`: the old sbTravel's steps in the same order (loadMap.G,
+  the pictures decoded, sbArm.G, the kart set down inside the far gate's own tunnel), then `sbWarmG`: shaders eight things at a time
+  without waiting, a frame at a time until the driver is done (KHR_parallel_shader_compile), pictures to the card one a step, each thing
+  drawn once on its own into the post target (render layer 30, no shadows), then warmScene. At least 0.75 s in the tunnel (1.1 s for fast
+  travel). While it runs the frame loop calls only sbWarpFrame (state 'loading') and the HUD waits.
+  In Sandbox every compiled program is kept (use count raised once, `__crKeep`): a place you come back to compiles nothing.
+- MEASURED (tools: scratch probes trip.js / trip2.js, the frame gaps the browser saw): coming back to a place, no slice over 0.08 s; a
+  first visit to a big place (margherita, bay) has about ten frames of 0.1 to 0.16 s, each the driver finishing one shader at its first
+  draw (ANGLE/D3D11 does that on the draw itself: it cannot be moved off the main thread); the frame after the tunnel about 0.1 s (the
+  first full-size draw of the place). Before: one frozen picture for 1.2 to 4.3 s on the same trips. `SB.lastWarp` keeps the last trip's
+  time, its slowest frame of work and any slice over 30 ms (`log`, ids from SLICE_MAP; 'draw' is the tunnel's own draw).
+- THE TRACK DATA IS UNCHANGED: the PC export run locally on the new build (`godot/tools/ciexport.py` with WEB=scratch/webcopy6) gives the
+  same json as the CI export of v197 for bay, kitchen and laser; on margherita only the walkers' pauses (the export's clock), the sun's last
+  digit and two of the Sandbox wall grid's 50,000 cells differ, and two runs of the same build differ there just as much.
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| The web's tunnel showed a still picture for 1 to 5 s | The next place was built, compiled and drawn in one go on the only thread | The load is sliced (above) and the kart keeps driving a tunnel of its own | A new step in loading a place: put the function in build/slices.txt if it takes over 30 ms; look at `SB.lastWarp.log` after a trip |
+| three.js r149 waited for every new shader inside `compile` | Its getProgram reads the program's uniforms at once | The build's three.js skips that with `renderer.__crDefer` | If three.js is ever updated, the two replacements in build_gh.py must still match (it stops with an error if not); r158+ has `compileAsync` |
+| The first trip of a session paused 0.3 s as it began | The kart's copy met the tunnel's lights for the first time | sbWarpPrime draws it once at the start of Sandbox | |
 
 ### 2026-11-14 (web v197, ONLINE VERSION 111 because of the part stats below; Balloon Battle itself is off line): lives and elimination; the table twice the size, an island and a top
 The owner: "you start with 5 then after those are popped you have 3 then after the 3 are popped you get 1 after that is popped you are
@@ -205,7 +279,7 @@ bigger". The rules, the table's plan with every coordinate, the drivers and the 
   helpers run off the tree. Measured, windowed, HD on: longest frame 22 to 38 ms on five trips, one of 52 ms (margherita -> basil); the
   very first trip to a new kind of place may stutter once while a shader compiles (seen twice, about 1 s). KEEP IT: world_build.gd
   repeats _build_world's steps: a change to one belongs in both. Nothing built on the thread may touch what the running game reads.
-  THE WEB still holds a picture of the last frame during its (shorter) load: the kart is a still image for that moment. Not changed yet.
+  THE WEB: done in v199 by slicing the load (see "THE NO-STOP TUNNEL ON THE WEB").
 - THE KART LAY FLAT ON CLIMBS (owner's picture, Garage Overdrive by the PIT LANE sign; PC only). view.gd tilted the body by the ground's
   height around the kart, but on a raised road (toy tracks, Sauce Spiral) the climb is the road's own height (`T.k_ey`), which it left
   out; and neither platform knew a jump ramp's slope for the body. Fix: the body's four sample points add `T.k_ey`; `k.ramp_s` (looks
@@ -409,7 +483,7 @@ in the pause menu and on controller make the y button open the map"; "signs abov
   lawn come with the re-export (`release_pc.py`). `tests/smoke.tscn` passes locally with them.
 
 ### Where web and PC stand (2026-11-13, end of the session)
-- Web v198 (online 111). PC build 68030144 = web v197's tracks (online 111): PC and web race together and have the same modes (Grand Prix, single, Reverse, Last Slice, Balloon Battle 5-3-1, Sandbox). Web v198's only addition, Settings > Kart stats, is in that PC build too. Before that: web v196 (online 110). PC build 68030144 has web v196's tracks, Balloon Battle, Sandbox, online Grand Prix and the controller's cursor (online 110): PC and web race together, and the PC has every mode the web has. What the web has and the PC has not is listed in OPEN WORK. v187 (phone fix), v188
+- Web v199 (online 111): Sandbox's clock, things to do, Easter eggs and Back to the track (web only for now), and the no-stop tunnel on the web too (web only: the PC has had its own since build 68030144). PC build 68030144 = web v197's tracks (online 111): PC and web race together and have the same modes (Grand Prix, single, Reverse, Last Slice, Balloon Battle 5-3-1, Sandbox). Web v198's only addition, Settings > Kart stats, is in that PC build too. Before that: web v198. Before that: web v196 (online 110). PC build 68030144 has web v196's tracks, Balloon Battle, Sandbox, online Grand Prix and the controller's cursor (online 110): PC and web race together, and the PC has every mode the web has. What the web has and the PC has not is listed in OPEN WORK. v187 (phone fix), v188
   (Sandbox, first slice) and v189 (the second site's plumbing, switched off) are web only; nothing that moves a kart in a race changed.
 - Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
   (docs/BALLOON-BATTLE-PLAN.md). Sandbox: the first slice (the back garden) is on the web (v188); docs/SANDBOX-PLAN.md.

@@ -213,12 +213,13 @@ lobby with ready-up, the host starting it, on "a screen similar to the online sc
 - Every track is a place: `sbRegOf(id)`. Kinds `toy` (the house), `open` (the fifteen pizza tracks, free driving on the pizza), `road` (Sauce
   Spiral and the Neon tracks: keep to the road). `SB_AREA` names each place's country; `SB_LINKS` says which places its passages lead to.
 - Passages are warp tunnels (the owner's picture: streaks flying out of the middle of a black screen): `sbWarpMat` draws the mouth and the
-  inside; `sbCover` holds the picture during the load with the kart on top; `sbPull` keeps the kart drawn beyond the wall. A sign above every
+  inside; during the load the kart drives on in a tunnel scene of its own while the place is built in slices (web v199: `sbTravel`, `sbWarpFrame`; until v198 `sbCover` held a still picture); `sbPull` keeps the kart drawn beyond the wall. A sign above every
   mouth. On `road` places the mouth is an arch over the left-hand lane, placed on a clear straight (never on a bend, jump, loop or glide).
 - The map (`sbMap`): the house to scale, the twenty tracks as round places in their five countries with a line for every passage; a chequered
   pin at each start line is a fast-travel point. Y / Select, M, or Map under Resume.
 - Backwards: ramps from behind and loops the other way round, in Sandbox only. Stop: both brake buttons, or Park.
-- Still to build from the brief: the clock, activities, the shop, online free roam, the start-line lobby; new land round the pizza tracks.
+- Web v199: the clock (on), things to do and Easter eggs (tools/mini/activities.js), Back to the track in the pause menu.
+- Still to build from the brief: the shop, online free roam, the start-line lobby; new land round the pizza tracks. The PC lacks v199's Sandbox additions.
 
 ## Sandbox on the PC: the plan (written 2026-11-14; BUILT the same day, PC build 68030144: what was done and how it differs is in docs/HANDOVER.md)
 The PC draws a track from an exported glTF and drives it from an exported json; it has none of the web's scenery code. So what Sandbox
