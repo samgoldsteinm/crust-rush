@@ -79,9 +79,13 @@ async def main():
         # the Balloon Battle arena (web tools/mini/battle.js): the shapes that are its floor and walls, where the karts start,
         # the ramps the computer's drivers use and the mode's numbers, so the PC reads them and never carries its own copy.
         # The exported height map is the bare table (it samples groundAt, not battleG): the arena's ground is these shapes.
+        # Since the web's v197 (three sets of balloons, then out; the bigger table): "sets" (BB_SETS), "X" and "Z" (BB_X, BB_Z:
+        # half the table's length and width, for the computer drivers' grid), each spawn place with its heading, each ramp
+        # with "lo", "hi" and its rectangle (BB.spawn and BB.ramps carry those as they are). A web build from before that
+        # has no BB_SETS or BB_X: the three are then left out and the PC reads the table's size off the shapes.
         if await pg.evaluate("__ev('!!MAPS[mapIdx].battle')"):
-            d['battle'] = json.loads(await pg.evaluate("__ev(`JSON.stringify({shapes:BB.shapes,spawn:BB.spawn,ramps:BB.ramps,T:BB.T,step:BB_STEP,r:BB_R,x0:BB_X0,floor:BB_FLOOR,start:BB_START,back:BB_BACK,items:BB_ITEMS,col:BB_COL})`)"))
-            print('battle', len(d['battle']['shapes']), 'shapes', len(d['battle']['spawn']), 'spawns', flush=True)
+            d['battle'] = json.loads(await pg.evaluate("__ev(`JSON.stringify(Object.assign({shapes:BB.shapes,spawn:BB.spawn,ramps:BB.ramps,T:BB.T,step:BB_STEP,r:BB_R,x0:BB_X0,floor:BB_FLOOR,start:BB_START,back:BB_BACK,items:BB_ITEMS,col:BB_COL},typeof BB_SETS==='undefined'?{}:{sets:BB_SETS,X:BB_X,Z:BB_Z}))`)"))
+            print('battle', len(d['battle']['shapes']), 'shapes', len(d['battle']['spawn']), 'spawns', 'sets', d['battle'].get('sets'), 'table', d['battle'].get('X'), d['battle'].get('Z'), 'x0', d['battle'].get('x0'), flush=True)
         open(os.path.join(od, nm + '_haz.glb'), 'wb').write(base64.b64decode(hz['b64']))
         # a small card for the track menu, so the game needn't read every track to list them
         info = json.loads(await pg.evaluate("__ev(`JSON.stringify({name:MAPS[mapIdx].name,theme:MAPS[mapIdx].theme,special:!!MAPS[mapIdx].special,battle:!!MAPS[mapIdx].battle,cup:MAPS[mapIdx].cup})`)"))
