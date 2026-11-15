@@ -2,7 +2,7 @@
 # and its garage (every body, wheel set, glider and driver) on one more, and attaches them to the "maps"
 # release. The PC build downloads them from there, so the big model files never go into git. Run it by hand
 # after the web game's tracks or karts change.
-# (Last run for: web v197, Sandbox (no-stop warp tunnels, map, Park, speed slider), Balloon Battle 5-3-1 on the bigger table, part stats stack (online 111), kart tilts on climbs and ramps, glide item boxes on the glide line, cup names fit their cards.)
+# (Last run for: web v201, Sandbox: day and night, things to do, Easter eggs, Back to the track, the mechanic's shop, abilities, climbable hills; choose how many computer racers (online 112, races web v201).)
 name: Export tracks
 
 on:
