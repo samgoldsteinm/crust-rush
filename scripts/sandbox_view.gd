@@ -106,6 +106,8 @@ func setup(sb_, track: TrackData, maps: Array) -> void:
 		_build_gate(g, names)
 	if sb.acts != null:
 		_build_acts()
+	if String(sb.id) == String(sb.SHOP["id"]):
+		_build_shop()
 
 
 # ---------------------------------------------------------------- small helpers
@@ -350,6 +352,71 @@ DELIVERY", "drift": "DRIFT", "air": "JUMP"}[kind]
 		_egg.rotation.y = float(e["ry"])
 		_egg_y = float(e["y"])
 		add_child(_egg)
+
+
+## the mechanic's shop: a toy garage playset (web sbShopBuild): base, red walls with a yellow band, blue roof, the sign, tyres, a
+## toolbox and a lift inside
+func _build_shop() -> void:
+	var S: Dictionary = sb.SHOP
+	var G := Node3D.new()
+	add_child(G)
+	var sx: float = S["x"]
+	var sz: float = S["z"]
+	var w: float = S["w"]
+	var d: float = S["d"]
+	var H: float = S["h"]
+	var x0 := sx - w / 2.0
+	var x1 := sx + w / 2.0
+	var z0 := sz - d / 2.0
+	var z1 := sz + d / 2.0
+	var bx := func(sz3: Vector3, mat: Material, p: Vector3) -> void:
+		var bm := BoxMesh.new()
+		bm.size = sz3
+		var mi := MeshInstance3D.new()
+		mi.mesh = bm
+		mi.material_override = mat
+		mi.position = p
+		G.add_child(mi)
+	var red := _std("#d8342a", 0.38)
+	var yel := _std("#f5c21b", 0.38)
+	var blu := _std("#2a5bd7", 0.38)
+	var gry := _std("#8d949c", 0.6)
+	var flr := _std("#5d636b", 0.55)
+	var drk := _std("#2b2f35", 0.7)
+	bx.call(Vector3(w + 8.0, 2.0, d + 8.0), gry, Vector3(sx, 1.0, sz))
+	bx.call(Vector3(w - 8.0, 0.1, d - 4.0), flr, Vector3(sx, 2.05, sz - 2.0))
+	bx.call(Vector3(w, H, 4.0), red, Vector3(sx, H / 2.0 + 2.0, z0 + 2.0))
+	for xx in [x0 + 2.0, x1 - 2.0]:
+		bx.call(Vector3(4.0, H, d), red, Vector3(xx, H / 2.0 + 2.0, sz))
+		bx.call(Vector3(4.6, 5.0, d + 0.6), yel, Vector3(xx, H * 0.62 + 2.0, sz))
+	bx.call(Vector3(w + 0.6, 5.0, 4.6), yel, Vector3(sx, H * 0.62 + 2.0, z0 + 2.0))
+	bx.call(Vector3(w + 10.0, 4.0, d + 16.0), blu, Vector3(sx, H + 4.0, sz + 4.0))
+	bx.call(Vector3(w * 0.88, w * 0.88 / 4.0 + 2.0, 1.2), drk, Vector3(sx, H + 14.0, z1 + 11.4))
+	var sgn := Label3D.new()
+	sgn.text = "MECHANIC"
+	sgn.font_size = 140
+	sgn.outline_size = 0
+	sgn.modulate = Color("#1b1f26")
+	sgn.pixel_size = 0.045
+	sgn.position = Vector3(sx, H + 14.0, z1 + 12.2)
+	var back := _std("#fbf3df", 0.6)
+	bx.call(Vector3(w * 0.84, w * 0.84 / 4.0, 0.4), back, Vector3(sx, H + 14.0, z1 + 12.05))
+	G.add_child(sgn)
+	var tm := TorusMesh.new()
+	tm.inner_radius = 2.6
+	tm.outer_radius = 7.4
+	for i in 3:
+		var t := MeshInstance3D.new()
+		t.mesh = tm
+		t.material_override = drk
+		t.position = Vector3(x0 + 14.0, 4.5 + i * 4.6, z0 + 14.0)
+		t.scale = Vector3(1, 0.65, 1)
+		G.add_child(t)
+	bx.call(Vector3(16, 12, 9), red, Vector3(x1 - 16.0, 8.0, z0 + 10.0))
+	bx.call(Vector3(16.4, 2, 9.4), gry, Vector3(x1 - 16.0, 14.6, z0 + 10.0))
+	for xx in [sx - 24.0, sx + 24.0]:
+		bx.call(Vector3(3, 30, 3), yel, Vector3(xx, 17.0, sz - 14.0))
+	bx.call(Vector3(52, 2.4, 3), yel, Vector3(sx, 30.0, sz - 14.0))
 
 
 ## the eggs, as the web builds them (sbEggModel): spheres, cones, boxes and rings in plain materials

@@ -525,8 +525,8 @@ func _draw() -> void:
 	_draw_items(btn, top)
 	if sbx and sb_spd > 0.0:
 		_draw_sb_spd()
-	if not bb and not sbx:
-		_draw_special(btn, top)
+	if not bb:
+		_draw_special(btn, top)   # (in Sandbox too since web v200: abilities work there)
 	_draw_gauge(btn)
 	if show_touch:
 		_draw_pedals(btn)

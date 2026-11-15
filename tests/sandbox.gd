@@ -45,6 +45,8 @@ func _ready() -> void:
 	_mode()
 	_to_track()
 	_acts()
+	if sb.id == "garage":
+		await _shop()
 	if OS.get_environment("CR_SB_TRAVEL") != "0":
 		await _travel()
 	var ok := fails.is_empty()
@@ -106,6 +108,57 @@ func _place(j: int, backwards := false) -> void:
 	k.bpx = k.x
 	k.bpy = k.y
 	k._save_prev()
+
+
+## the mechanic's shop (web v200): its walls stop a kart, driving in opens the driver screen, going back sets the kart at its door
+func _shop() -> void:
+	var S: Dictionary = sb.SHOP
+	var o := {}
+	out["shop"] = o
+	# a wall: straight at the back wall from inside the open front, it must not get through
+	_place(0)
+	k.x = float(S["x"])
+	k.y = float(S["z"]) + float(S["d"]) / 2.0 + 30.0
+	k.wy = 0.0
+	k.a = -PI / 2.0
+	k.ma = k.a
+	k.idx = sb.idx_of(k, k.idx)
+	sb.shop_in = true   # (driving in would open the screen: here only the walls are looked at)
+	for i in 600:
+		_step()
+	o["stopAt"] = snappedf(k.y - (float(S["z"]) - float(S["d"]) / 2.0), 0.1)
+	_check("the shop's back wall stops the kart", k.y > float(S["z"]) - float(S["d"]) / 2.0)
+	# in through the front: the screen opens
+	sb.shop_in = false
+	k.x = float(S["x"])
+	k.y = float(S["z"]) + float(S["d"]) / 2.0 + 30.0
+	k.speed = 40.0
+	var opened := false
+	for i in 240:
+		_step()
+		if sb.shop_want:
+			opened = true
+			break
+	o["opened"] = opened
+	_check("driving into the shop asks for the driver screen", opened)
+	if not opened:
+		return
+	sb.shop_want = false
+	main._sb_shop_open()
+	await get_tree().process_frame
+	o["menu"] = [main.menu.shop, main.menu.cur]
+	_check("the driver screen is open, in shop mode", main.menu.shop and main.menu.cur == "driver")
+	main.menu.open("home")   # the back button: "‹ Sandbox"
+	for i in 30:
+		await get_tree().process_frame
+	_bind()
+	var ok: bool = sb != null and main.map_id == "garage"
+	var dz := 0.0
+	if ok:
+		dz = k.y - (float(S["z"]) + float(S["d"]) / 2.0)
+		ok = absf(k.x - float(S["x"])) < 2.0 and absf(dz - 34.0) < 2.0
+	o["back"] = [main.map_id, snappedf(dz, 0.1)]
+	_check("back in Sandbox, at the shop's door", ok)
 
 
 ## things to do and the egg (scripts/sandbox_acts.gd; only on a place exported with them, web v199 or later)
@@ -556,8 +609,10 @@ func _travel() -> void:
 		var ui = main.sb_map_ui
 		_check("the map opens and stops the game", ui != null and main.paused and main.panel_pause.visible)
 		if ui != null:
-			tr["pins"] = [ui.pins.size(), (S.places as Dictionary).size()]
-			_check("a pin at every place this copy has", ui.pins.size() == (S.places as Dictionary).size() and ui.pins.size() > 0)
+			var np: int = ui.pins.filter(func(q): return String(q["id"]) != "shop").size()   # (and the mechanic's shop's own pin, web v200)
+			tr["pins"] = [np, (S.places as Dictionary).size(), ui.pins.size() - np]
+			_check("a pin at every place this copy has", np == (S.places as Dictionary).size() and np > 0)
+			_check("...and one for the mechanic's shop", ui.pins.size() - np == (1 if (S.places as Dictionary).has("garage") else 0))
 			ui._pick(home)
 			await get_tree().process_frame
 			tr["tunnels"] = (ui.tunnels(home) as Array).size()

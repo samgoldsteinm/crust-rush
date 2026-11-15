@@ -40,6 +40,10 @@ var kind := "toy"
 var toy := true
 const SandboxClock := preload("res://scripts/sandbox_clock.gd")
 const SandboxActs := preload("res://scripts/sandbox_acts.gd")
+## the mechanic's shop in the garage (web v200 SB_SHOP): drive in to change driver and kart
+const SHOP := {"id": "garage", "x": 205.0, "z": -443.0, "w": 100.0, "d": 90.0, "h": 46.0}
+var shop_in := false          # the kart is in the shop (it has to leave before it opens again)
+var shop_want := false        # main.gd: open the driver screen now
 var acts = null               # things to do and the Easter egg here (scripts/sandbox_acts.gd)
 var clock_keep := 0.0          # seconds since the clock's hour was last written to the save
 var free := true             # web SBF: the driving is free (toy, open); false where you keep to the road
@@ -391,6 +395,16 @@ func setup(race_, track: TrackData, defer_save := false) -> void:
 
 	acts = SandboxActs.new()
 	acts.setup(self, T.sb)
+	if id == String(SHOP["id"]):
+		# the shop's walls are solid (its roof is overhead)
+		var x0: float = SHOP["x"] - SHOP["w"] / 2.0
+		var x1: float = SHOP["x"] + SHOP["w"] / 2.0
+		var z0: float = SHOP["z"] - SHOP["d"] / 2.0
+		var z1: float = SHOP["z"] + SHOP["d"] / 2.0
+		var hh: float = SHOP["h"] + 2.0
+		shapes = shapes.duplicate()
+		for b in [[x0, x1, z0, z0 + 4.0], [x0, x0 + 4.0, z0, z1], [x1 - 4.0, x1, z0, z1]]:
+			shapes.append({"t": "box", "x0": b[0], "x1": b[1], "z0": b[2], "z1": b[3], "b": 0.0, "h": hh})
 
 ## the map remembers this place's tunnels (web sbArm: sv.g[regId])
 func _remember_gates() -> void:
@@ -641,7 +655,9 @@ func blocked(x: float, z: float, wy: float) -> bool:
 		# a pizza's own ground: a face that rises more than a step from where the kart stands is a cliff, not a hill, and
 		# water deeper than the wheels is a shore
 		var g0 := T.ground(x, z)
-		if g0 > wy + STEP or (not is_nan(water) and g0 < water - 3.0 and wy < water + HEAD):
+		# (web v200 sbClimb: how steep a kart can climb comes from its off-road: about 40 degrees for a middle kart, 50 the best, 26 the worst)
+		var off: float = race.player.sm_off if race != null and race.player != null else 0.0
+		if g0 > wy + R * clampf(0.84 + 0.1 * off, 0.45, 1.2) or (not is_nan(water) and g0 < water - 3.0 and wy < water + HEAD):
 			return true
 	for i in n:
 		if s_top[i] > wy + STEP and s_bot[i] < wy + HEAD:
@@ -1028,6 +1044,20 @@ func back_to_track(k: Kart) -> void:
 	cool = 1.0
 
 
+## out of the shop's door, standing, facing away from it (web sbShopPut)
+func shop_put(k: Kart) -> void:
+	k.x = SHOP["x"]
+	k.y = SHOP["z"] + SHOP["d"] / 2.0 + 34.0
+	k.a = PI / 2.0
+	k.ma = k.a
+	k.speed = 0.0
+	k.wy = ground(k.x, k.y, 2.0)
+	k.last_g = k.wy
+	k.idx = idx_of(k, k.idx)
+	k._save_prev()
+	shop_in = false
+
+
 ## heading into a mouth a little off its middle, the kart is eased sideways into it instead of meeting the jamb: only in
 ## the last 110 units before the wall, only when it is pointing in and already within reach of the mouth, and never
 ## faster than a kart could steer there (web sbGuide, v197; road gates are left alone)
@@ -1114,6 +1144,15 @@ func tick(dt: float) -> void:
 	race_near = has_flag and travel == null and (k.x - float(flag[0])) ** 2 + (k.y - float(flag[2])) ** 2 < 46.0 * 46.0 and absf(k.wy - float(flag[1])) < 10.0
 	if acts != null:
 		acts.tick(k, dt)
+	if id == String(SHOP["id"]):
+		var sx: float = SHOP["x"]
+		var sz: float = SHOP["z"]
+		var inside: bool = k.x > sx - SHOP["w"] / 2.0 + 10.0 and k.x < sx + SHOP["w"] / 2.0 - 10.0 and k.y > sz - SHOP["d"] / 2.0 + 6.0 and k.y < sz + SHOP["d"] / 2.0 - 22.0 and absf(k.wy) < 8.0
+		if inside and not shop_in and travel == null:
+			shop_in = true
+			shop_want = true
+		elif not inside and k.y > sz + SHOP["d"] / 2.0 + 10.0:
+			shop_in = false
 	if cool > 0.0:
 		cool -= dt
 	elif travel == null:

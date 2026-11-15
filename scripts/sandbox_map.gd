@@ -1,6 +1,6 @@
 extends Control
 ## Sandbox's world map and fast travel (web tools/mini/sandbox.js: sbMap, sbMapDraw, sbMapPins, sbMapPick, SB_WORLD,
-## SB_SPOT, SB_LAND). Opened while driving with M, Y or Select, or with Map under Resume in the pause menu.
+## SB_SPOT, SB_LAND). Opened while driving with M or Select, or with Map under Resume in the pause menu.
 ## The picture: the house from above as it really is (where each of its four places sits, in metres, the garden wall
 ## along y = 0), and below and beside it the twenty tracks of the wider world, each a round place with its own lap
 ## drawn in it, grouped in their five countries, with a line for every passage. Names are plain labels; the chequered
@@ -83,7 +83,7 @@ func setup(main_: Node, menu_, sb_, maps_: Array, here_: String, kart_: Kart) ->
 	var wh: Label = menu.label(String(sb.title), menu.f_bold, 14.0, Color("#c2a58c"))
 	wh.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(wh)
-	head.add_child(menu.label("M, Y or Select: close", menu.f_semi, 12.0, Color("#c2a58c")))
+	head.add_child(menu.label("M or Select: close", menu.f_semi, 12.0, Color("#c2a58c")))
 	v.add_child(head)
 	# the picture, in the map's own shape, as large as the window allows
 	var vs := get_viewport_rect().size if is_inside_tree() else Vector2(1280, 720)
@@ -261,11 +261,42 @@ func _make_pins() -> void:
 		b.mouse_exited.connect(b.queue_redraw)
 		canvas.add_child(b)
 		pins.append({"id": id, "b": b, "at": a, "name": String(c["track"])})
+	# the mechanic's shop (web v200): a pin of its own in the garage
+	if _cards.has("garage"):
+		var sa = at("garage", 205.0, -443.0)
+		if sa != null:
+			var sbn := Button.new()
+			sbn.flat = true
+			sbn.focus_mode = Control.FOCUS_ALL
+			sbn.custom_minimum_size = Vector2(30, 30)
+			sbn.size = Vector2(30, 30)
+			sbn.tooltip_text = "Travel to the mechanic's shop"
+			for sn in ["normal", "hover", "pressed", "focus", "disabled"]:
+				sbn.add_theme_stylebox_override(sn, StyleBoxEmpty.new())
+			sbn.draw.connect(func(): _draw_pin(sbn, "shop", "Mechanic"))
+			sbn.pressed.connect(func(): _pick("shop"))
+			sbn.focus_entered.connect(sbn.queue_redraw)
+			sbn.focus_exited.connect(sbn.queue_redraw)
+			canvas.add_child(sbn)
+			pins.append({"id": "shop", "b": sbn, "at": sa, "name": "Mechanic"})
 
 
 func _draw_pin(b: Button, id: String, nm: String) -> void:
 	var c := b.size / 2.0
 	var r := 12.0
+	if id == "shop":
+		# the mechanic's shop: a blue disc with a cream rim (a place to go, not a track)
+		b.draw_circle(c, r, Color("#2a5bd7"))
+		b.draw_arc(c, r + 1.5, 0.0, TAU, 40, Color("#fff4dc"), 3.0, true)
+		b.draw_line(c + Vector2(-5, 5), c + Vector2(5, -5), Color.WHITE, 3.0, true)
+		b.draw_circle(c + Vector2(5, -5), 3.0, Color.WHITE)
+		if id == pick or b.has_focus() or b.is_hovered():
+			b.draw_arc(c, r + 6.0, 0.0, TAU, 40, Color("#39d0ff"), 3.0, true)
+		var f0: Font = menu.f_bold
+		var tw0 := f0.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+		b.draw_string_outline(f0, Vector2(c.x - tw0 / 2.0, b.size.y + 13.0), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, 4, Color(0, 0, 0, 0.85))
+		b.draw_string(f0, Vector2(c.x - tw0 / 2.0, b.size.y + 13.0), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color.WHITE)
+		return
 	# a chequered disc with a gold rim; a blue ring when it is the one picked, pointed at or focused
 	b.draw_circle(c, r, Color("#fbf6ea"))
 	for i in range(-2, 2):
@@ -286,6 +317,17 @@ func _draw_pin(b: Button, id: String, nm: String) -> void:
 func _pick(id: String) -> void:
 	pick = id
 	zoom = id
+	if id == "shop":
+		zoom = "garage"
+		say.text = "Mechanic's shop, in the garage: drive in to change your driver and kart"
+		b_go.visible = true
+		b_no.visible = true
+		b_me.visible = true
+		b_go.text = "Travel here"
+		b_go.grab_focus.call_deferred()
+		_place_pins()
+		canvas.queue_redraw()
+		return
 	if id != "":
 		var c: Dictionary = _cards.get(id, {})
 		var is_here := id == here
@@ -312,7 +354,7 @@ func _place_pins() -> void:
 	for q in pins:
 		var b: Button = q["b"]
 		b.position = Vector2((float(q["at"][0]) - float(V[0])) * s, (float(V[3]) - float(q["at"][1])) * s) - b.size / 2.0
-		b.visible = zoom == "" or String(q["id"]) == zoom
+		b.visible = zoom == "" or String(q["id"]) == zoom or (String(q["id"]) == "shop" and zoom == "garage")
 		b.queue_redraw()
 
 

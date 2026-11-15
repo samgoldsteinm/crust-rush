@@ -7,7 +7,7 @@ extends Node
 ## takes that and replays the controls the host hasn't seen yet, so steering is instant. Everything else is drawn as the
 ## host sends it. PC-to-PC races (ENet) are separate and unchanged.
 
-const PROTO := 111
+const PROTO := 112   # (112: web v200, a grid may have fewer than eight)
 const TOP := "crustrush/v2/"
 const BROKERS := ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884/mqtt", "wss://test.mosquitto.org:8081/mqtt"]
 const STEP := 1.0 / 120.0
@@ -1030,11 +1030,14 @@ func _build_cfg(mi: int) -> Dictionary:
 		if not (b is Dictionary) or (b as Dictionary).is_empty():
 			b = builds.get(int(h["ri"]), {})
 		ks.append({"slot": slot, "ri": int(h["ri"]), "build": b, "who": int(h["id"]), "name": String(h.get("name", ""))})
-	for s in 8:
-		if taken.has(s):
+	var nc: int = main._cpu_count()   # the host's count of computer racers fills the seats the friends leave (web v200 netBuildCfg)
+	for s in [3, 5, 2, 6, 1, 7, 0, 4]:
+		if taken.has(s) or nc <= 0:
 			continue
 		var ri2: int = others.pop_front() if not others.is_empty() else s
 		ks.append({"slot": s, "ri": ri2, "build": builds.get(ri2, {}), "who": -1})
+		taken[s] = true
+		nc -= 1
 	ks.sort_custom(func(a, b): return int(a["slot"]) < int(b["slot"]))
 	var cls := String(main.sel["cls"])
 	if cls == "reverse":

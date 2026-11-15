@@ -31,7 +31,7 @@ const CLASSES := [["small", "50cc"], ["medium", "100cc"], ["large", "200cc"], ["
 const CLS_NOTE := {"small": "50cc: a relaxed speed for learning the tracks.", "medium": "100cc: the standard race speed.", "large": "200cc: much faster karts and sharper rivals.", "reverse": "Every track runs backwards at 200cc speed."}
 const MODE_NOTE := {"lss": "Last Slice Standing: each time the leader completes a lap, the racer in last place is out. Seven laps, one slice left.",
 	"bb": "Balloon Battle: everybody starts with five balloons. Pop a rival's balloon with a pepperoni for a point. Lose all five and you come back with three, then with one; lose that one and you are out. The last driver left wins.",
-	"sb": "Sandbox: drive anywhere, no race and no clock. One world: the house, and beyond the garage door every track of the game. Drive anywhere in the rooms and on the pizzas; warp tunnels lead from place to place. Gold coins lead the way; pepperoni coins are hidden everywhere. The map travels fast: Y on a controller, M on a keyboard, or Map in the pause menu. Park stops the car."}
+	"sb": "Sandbox: drive anywhere, no race and no clock. One world: the house, and beyond the garage door every track of the game. Drive anywhere in the rooms and on the pizzas; warp tunnels lead from place to place. Gold coins lead the way; pepperoni coins are hidden everywhere. The map travels fast: Select on a controller, M on a keyboard, or Map in the pause menu. Park stops the car."}
 const CUPS := [["Margherita Cup", "#f7c948"], ["Supreme Cup", "#3f9a35"], ["Deep Dish Cup", "#e0452c"], ["Meat Lover's Cup", "#b06a3c"], ["Neon Cup", "#3ff0ff"], ["Miniature Mayhem Cup", "#ff6a12"]]
 
 var f_disp: Font
@@ -41,6 +41,9 @@ var f_med: Font
 
 var mode := "gp"
 var cls := "medium"
+var cpus := 7          # how many computer racers (web v200 crust-cpus): 0 to 7
+var shop := false      # opened from Sandbox's mechanic's shop: the driver screen's back and the garage's next go back to Sandbox
+signal shop_done
 var ri := 1
 var build := {"b": 0, "w": 0, "g": 0, "p": 0, "t": ""}   # the kart build (web playerBuild)
 var g_tab := "kart"
@@ -606,6 +609,10 @@ class _ShadowLabel extends Control:
 # ---------------------------------------------------------------- screens
 
 func open(name_: String) -> void:
+	if shop and (name_ == "home" or name_ == "track"):
+		shop = false
+		shop_done.emit()
+		return
 	close_modal()
 	for k in screens:
 		(screens[k] as Control).queue_free()
@@ -863,6 +870,34 @@ func _home() -> Control:
 		setting_changed.emit("cls", k), 14.0, 10.0))
 	s2.add_child(cls_note)
 	col.add_child(s2)
+	# how many computer racers (web v200 #cpuSeg): none for practice, one for a one-on-one, up to seven
+	var s3 := vbox(8)
+	s3.add_child(section_label("Computer racers"))
+	var row3 := hbox(8)
+	var minus := button("−", "ghost", 20.0, Vector4(14, 8, 14, 8))
+	var val := label(str(cpus), f_disp, 22.0, CREAM)
+	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	val.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var plus := button("+", "ghost", 20.0, Vector4(14, 8, 14, 8))
+	var cpu_note := para("", 13.0, MUTED, 300.0)
+	var upd := func():
+		val.text = str(cpus)
+		cpu_note.text = "None: drive the track on your own" if cpus == 0 else ("One rival: a one-on-one" if cpus == 1 else "%d rivals%s" % [cpus, ": a full grid" if cpus == 7 else ""])
+	minus.pressed.connect(func():
+		cpus = maxi(0, cpus - 1)
+		upd.call()
+		setting_changed.emit("cpus", cpus))
+	plus.pressed.connect(func():
+		cpus = mini(7, cpus + 1)
+		upd.call()
+		setting_changed.emit("cpus", cpus))
+	upd.call()
+	row3.add_child(minus)
+	row3.add_child(val)
+	row3.add_child(plus)
+	s3.add_child(row3)
+	s3.add_child(cpu_note)
+	col.add_child(s3)
 	var tools := hbox(8)
 	for t in [["how", "How to play"], ["rec", "Records"], ["ach", "Awards"], ["set", "Settings"]]:
 		var b := button(String(t[1]), "icon", 14.0, Vector4(10, 10, 10, 10))
@@ -980,7 +1015,7 @@ func _driver() -> Control:
 			net_ready.emit()
 		else:
 			open("track")
-	v.add_child(_step_head("‹ Room" if net != "" else "‹ Back", "home", "Step 1 of 3" if three else "Step 1 of 2", "Choose your driver", nx_t, nx_f))
+	v.add_child(_step_head("‹ Sandbox" if shop else ("‹ Room" if net != "" else "‹ Back"), "home", "Step 1 of 3" if three else "Step 1 of 2", "Choose your driver", nx_t, nx_f))
 	if net != "":
 		var hb0: Control = v.get_child(v.get_child_count() - 1)
 		var back0 := hb0.get_child(0) as Button
@@ -1583,7 +1618,7 @@ func _garage() -> Control:
 	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(sp2)
 	# in a friends' room the guest is done here (web: the garage's Ready); the host goes on to pick the track
-	var nxt := button("READY  ›" if net == "guest" else "CHOOSE TRACK  ›", "cta", 19.0, Vector4(20, 10, 20, 10))
+	var nxt := button("BACK TO SANDBOX  ›" if shop else ("READY  ›" if net == "guest" else "CHOOSE TRACK  ›"), "cta", 19.0, Vector4(20, 10, 20, 10))
 	nxt.pressed.connect(func():
 		if net == "guest":
 			net_ready.emit()

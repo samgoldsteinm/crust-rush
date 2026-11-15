@@ -106,7 +106,7 @@ var hud_race: Control
 var panel_menu: PanelContainer
 var menu: Menu
 var loading: Control
-var sel := {"mode": "gp", "cls": "medium", "ri": 1, "cup": 0}   # the menu's choices
+var sel := {"mode": "gp", "cls": "medium", "ri": 1, "cup": 0, "cpus": 7}   # the menu's choices
 var gp := {}                 # Grand Prix in progress: {cup, race, pts: [8], tracks: [ids]}
 const CLASS_MUL := {"small": 0.86, "medium": 1.0, "large": 1.14, "reverse": 1.14}
 const CLASS_AI := {"small": "easy", "medium": "normal", "large": "hard", "reverse": "hard"}
@@ -448,6 +448,9 @@ func _sb_started() -> void:
 		#  is travelled to would otherwise have the main thread make them in the middle of a tunnel)
 		if hd_on and quality >= 1 and OS.get_environment("CR_HD") != "0":
 			HdWater.prewarm()
+	if sb_shop_put:
+		sb_shop_put = false
+		sb.shop_put(kart)
 	hud.pb_text = ""
 	hud.sb_race = ""
 	hud.sb_hold = []
@@ -476,6 +479,9 @@ func _sb_tick() -> void:
 	hud.sb_bar = SandboxActs.bar() if state == "race" and not sb_trav else []
 	if not SandboxActs.ended.is_empty() and sb_act_ui == null:
 		_sb_act_end(SandboxActs.ended)
+	if sb.shop_want:
+		sb.shop_want = false
+		_sb_shop_open.call_deferred()
 
 
 # ---------------------------------------------------------------- Sandbox: travelling without a stop
@@ -909,6 +915,9 @@ func _sb_arrived_map() -> void:
 	if SandboxActs.retry != "":
 		_sb_act_put_start.call_deferred(SandboxActs.retry)
 		SandboxActs.retry = ""
+	if sb_shop_put and race.sb != null:
+		sb_shop_put = false
+		race.sb.shop_put(kart)
 	sb_trav = false
 	sb_arrived += 1
 	hud.sb_hold = []
@@ -1043,7 +1052,7 @@ func _sb_park(on: Variant = null) -> void:
 	race.sb.park = (not race.sb.park) if on == null else bool(on)
 
 
-## the map: opened while driving (M, Y or Select) or from the pause menu (Map, under Resume); the game stops under it
+## the map: opened while driving (M or Select) or from the pause menu (Map, under Resume); the game stops under it
 ## exactly as under the pause menu (web sbMap)
 func _sb_map(open: bool, from := "drive") -> void:
 	if open == (sb_map_ui != null):
@@ -1072,6 +1081,10 @@ func _sb_map(open: bool, from := "drive") -> void:
 
 ## fast travel from the map: to a place's start line (web sbMapTravel)
 func _sb_map_travel(id: String) -> void:
+	if id == "shop":
+		# the mechanic's shop: to the garage, set down at its door (web v200)
+		id = String(Sandbox.SHOP["id"])
+		sb_shop_put = true
 	if not _sb_has(id):
 		return
 	sb_map_from = "drive"
@@ -1637,6 +1650,7 @@ func _build_hud() -> void:
 			_bb_mode_map()   # Balloon Battle's arena comes in behind the menu, and goes again with the mode
 		pass)
 	menu.modal_builders["mp"] = _mp_panel
+	menu.shop_done.connect(_sb_shop_done)
 	# a friends' room (web rooms): the steps lead back to it, as the web's room screen does
 	menu.net_ready.connect(func():
 		web.set_ready(true)
@@ -2002,6 +2016,33 @@ func _sb_act_put_start(aid: String) -> void:
 	race.sb.acts.start(aid)
 
 
+## how many computer racers the next race has (web v200 cpuCount): the menu's choice; Last Slice and Balloon Battle at least one
+func _cpu_count() -> int:
+	var n := clampi(int(sel.get("cpus", 7)), 0, 7)
+	var md := String(sel.get("mode", ""))
+	return maxi(1, n) if (md == "lss" or md == "bb") else n
+
+
+## ---- the mechanic's shop (web v200 sbShopOpen / sbShopDone) ----
+var sb_shop_put := false
+func _sb_shop_open() -> void:
+	if race == null or race.sb == null or sb_trav:
+		return
+	SandboxActs.finish("cancel")
+	_to_menu("")
+	menu.shop = true
+	menu.visible = true
+	menu.open("driver")
+
+
+func _sb_shop_done() -> void:
+	sb_shop_put = true
+	sb_back = String(Sandbox.SHOP["id"])
+	if not _sb_return():
+		sb_shop_put = false
+		menu.open("home")
+
+
 func _pause_settings() -> void:
 	menu.visible = true
 	menu.show_modal("set")
@@ -2025,6 +2066,7 @@ func _restart() -> void:
 
 ## builds the grid: a one-player race, or (online) the configuration the host sent
 func _start_race(cfg: Dictionary) -> void:
+	var cpu_n := 7 if state == "menu" else _cpu_count()   # (the menu's background race always has a full grid)
 	if not sb_go.is_empty() or sb_tun != null:
 		_sb_go_finish()   # (a Sandbox journey in hand is ended first; in a race there never is one)
 	if menu != null:
@@ -2047,7 +2089,7 @@ func _start_race(cfg: Dictionary) -> void:
 	_sb_view_clear()
 	var pri := int(sel["ri"])
 	if cfg.is_empty():
-		race.setup(T, roster, pri, 0, String(sel["cls"]), _my_build())
+		race.setup(T, roster, pri, 0, String(sel["cls"]), _my_build(), cpu_n)
 	else:
 		race.setup_cfg(T, roster, cfg, (web.me + 1) if (web.role != "" and not web.cfg.is_empty()) else multiplayer.get_unique_id())
 		if web.hosting():
@@ -3322,9 +3364,9 @@ func _input(ev: InputEvent) -> void:
 		if jb.pressed:
 			pad_used_at = Time.get_ticks_msec()
 			if race != null and race.sb != null and state == "race" and not (menu != null and menu.visible):
-				# Sandbox on a controller: Y or Select opens and closes the map, D-pad down is Park, D-pad up takes the
-				# race on offer at the start line (web patch27; there is no special ability to fire here)
-				if jb.button_index == JOY_BUTTON_Y or jb.button_index == JOY_BUTTON_BACK:
+				# Sandbox on a controller: Select opens and closes the map (Y is the special ability, as in a race: web v201),
+				# D-pad down is Park, D-pad up takes the race or the activity on offer
+				if jb.button_index == JOY_BUTTON_BACK:
 					_sb_map(sb_map_ui == null)
 					return
 				if jb.button_index == JOY_BUTTON_DPAD_DOWN and not paused:
@@ -3336,7 +3378,7 @@ func _input(ev: InputEvent) -> void:
 				if jb.button_index == JOY_BUTTON_DPAD_UP and not paused and sb_act_ui == null and race.sb.acts != null and not race.sb.acts.near.is_empty():
 					_sb_act_take()
 					return
-			if jb.button_index == JOY_BUTTON_Y and state == "race":
+			if jb.button_index == JOY_BUTTON_Y and state == "race" and not paused:
 				item_queued = "ability"
 			if jb.button_index == JOY_BUTTON_START:
 				if state == "results":
@@ -3806,6 +3848,7 @@ func _menu_sync() -> void:
 	menu.racers_info = ra if ra is Array else T.racers
 	menu.mode = String(sel["mode"])
 	menu.cls = String(sel["cls"])
+	menu.cpus = clampi(int(sel.get("cpus", 7)), 0, 7)
 	menu.ri = int(sel["ri"])
 	menu.cup = int(sel["cup"])
 	menu.map_id = map_id
@@ -5005,6 +5048,7 @@ func _net_start() -> void:
 	peers.append_array(net_peers)
 	var pri := int(sel["ri"])
 	var cfg := Race.new().make_cfg(roster, pri, peers, int(randi() & 0x7fffffff) + 1, String(sel["cls"]), _my_build(), net_prefs)
+	Race.trim_cpus(cfg, _cpu_count())
 	cfg["map"] = map_id
 	if String(sel.get("mode", "")) == "lss" and gp.is_empty():
 		cfg["mode"] = "lss"

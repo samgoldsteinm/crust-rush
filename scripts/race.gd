@@ -93,13 +93,14 @@ var net_on := false
 
 
 ## One-player race: the player in the middle of the grid, seven computer drivers.
-func setup(track: TrackData, roster: Dictionary, player_ri: int, seed_: int = 0, cls := "medium", build := {}) -> void:
+func setup(track: TrackData, roster: Dictionary, player_ri: int, seed_: int = 0, cls := "medium", build := {}, cpus := 7) -> void:
 	T = track
 	var sd := seed_
 	if sd == 0:
 		rng.randomize()
 		sd = int(rng.randi() & 0x7fffffff) + 1
 	var cfg := make_cfg(roster, player_ri, [1], sd, cls, build)
+	trim_cpus(cfg, cpus)
 	if sb_want and not T.battle and not T.sb.is_empty():
 		# Sandbox is one kart, in the player's own place on the grid (web resetRace: if(SBX&&!demo)karts.push(makeKart(selected,4,...)))
 		for sl in cfg["slots"]:
@@ -159,6 +160,21 @@ func make_cfg(roster: Dictionary, host_ri: int, peers: Array, seed_: int, cls :=
 			if rq.has("build"):
 				slots[s4]["build"] = rq["build"]
 	return {"seed": seed_, "slots": slots, "cls": cls}
+
+
+## fewer computer racers (web v200): the ones nearest the middle of the grid stay, the rest of their seats are left empty
+static func trim_cpus(cfg: Dictionary, n: int) -> void:
+	if n >= 7:
+		return
+	var keep := 0
+	for s in [3, 5, 2, 6, 1, 7, 0, 4]:
+		var sl: Dictionary = cfg["slots"][s]
+		if int(sl["ri"]) < 0 or int(sl["peer"]) != 0:
+			continue
+		if keep < n:
+			keep += 1
+		else:
+			sl["ri"] = -1
 
 
 ## Builds the grid from a configuration (the same on every machine in an online race).
@@ -1698,8 +1714,6 @@ static func abil_key(k: Kart) -> String:
 func use_ability(k: Kart, back: bool) -> void:
 	if bb != null:
 		return   # no drivers' specials in a Balloon Battle (web: if(BATTLE)return)
-	if sb != null:
-		return   # nor in Sandbox (the web hides the button there, and Y opens the map)
 	var id := abil_key(k)
 	if not ABIL.has(id) or k.ab_c < 1.0 or not k.loop.is_empty() or k.finished:
 		return

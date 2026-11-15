@@ -472,7 +472,8 @@ func _drive(inp: Dictionary, dt: float, brake_in: bool, d_press: bool, trick_now
 		var ca := cos(ma)
 		var sa := sin(ma)
 		var sl := (T.ground(x + ca * 5.0, y + sa * 5.0) - T.ground(x - ca * 5.0, y - sa * 5.0)) / 10.0
-		speed -= sl * 165.0 * dt
+		# (Sandbox, going uphill: only part of the pull, by the kart's off-road: web v200 sbGrav; races are as before)
+		speed -= sl * 165.0 * (clampf(0.45 - 0.085 * sm_off, 0.12, 0.9) if (sb != null and sl > 0.0) else 1.0) * dt
 
 	var sp := absf(speed)
 	var dir := (-1.0 if speed < 0.0 else 1.0) * (0.35 if (air and big) else 1.0)
