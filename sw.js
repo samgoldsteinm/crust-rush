@@ -1,6 +1,6 @@
 // Crust Rush service worker: installs the game as an app and keeps every file for offline play.
 // Game files have their content hash in the name, so a saved copy never goes stale; only the page itself is re-checked.
-const VERSION = 'crust-rush-v196';
+const VERSION = 'crust-rush-v197';
 const SHELL = [
   "./",
   "./index.html",
@@ -112,11 +112,12 @@ const SHELL = [
   "./assets/geo/toy_shose_hq.6783a4c15f.bin",
   "./assets/geo/toy_ytreec_hq.0bdd9f8a54.bin",
   "./assets/geo/toy_gdooro_hq.3e7f41de1b.bin",
-  "./assets/geo/toy_bbtable_hq.d0fb65bf20.bin",
-  "./assets/geo/toy_bbbins_hq.570b3423aa.bin",
-  "./assets/geo/toy_bbboxes_hq.b3e7c50725.bin",
-  "./assets/geo/toy_bbblock_hq.130722ac0b.bin",
-  "./assets/geo/toy_bbprops_hq.9f7ed5fc55.bin",
+  "./assets/geo/toy_bbtable_hq.bc4a586bac.bin",
+  "./assets/geo/toy_bbbins_hq.6d145c651e.bin",
+  "./assets/geo/toy_bbboxes_hq.9b799a1dad.bin",
+  "./assets/geo/toy_bbblock_hq.9cf248ba87.bin",
+  "./assets/geo/toy_bbprops_hq.12a90c6526.bin",
+  "./assets/geo/toy_bbisle_hq.8b2e20bc5b.bin",
   "./assets/tex/tex_ar_arena.f7dc7fc88b.jpg",
   "./assets/tex/tex_ar_track.579b73460a.jpg",
   "./assets/tex/tex_ar_glow.67ce84a9df.jpg",
@@ -262,7 +263,7 @@ const SHELL = [
   "./assets/shots/preptable-m.02ee47e84f.jpg",
   "./assets/shots/preptable-a.d7b3293702.jpg",
   "./css/style.73b71ed3b3.css",
-  "./js/game.7eace46410.js",
+  "./js/game.1c1e0a1a14.js",
   "./vendor/three-0.149.0.min.js"
 ];
 
