@@ -270,6 +270,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .set-group .label+.set-row{border-top:0}
 .set-t{display:flex;flex-direction:column;gap:2px;min-width:0}.set-t b{font-size:15px}.set-t small{font-size:12.5px;color:var(--muted);line-height:1.35}.set-t small:empty{display:none}
 .set-row .seg button{padding:8px 4px;font-size:14px}
+.cpu-step{display:grid;grid-template-columns:52px 1fr 52px;align-items:center}.cpu-step b{text-align:center;font-size:20px;font-weight:900}.cpu-step button{font-size:22px;font-weight:900}
 .stats-help .set-row{grid-template-columns:1fr}.stats-help .g-note{margin:0 0 6px;font-size:12.5px;line-height:1.45;color:rgba(255,244,220,.72)}
 @media (max-width:560px){.set-row{grid-template-columns:1fr}}
 .vol{display:flex;align-items:center;gap:12px}.vol input{flex:1;accent-color:#ff8a1f;min-width:0}.vol output{min-width:3ch;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
