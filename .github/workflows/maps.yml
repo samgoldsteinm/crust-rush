@@ -2,7 +2,7 @@
 # and its garage (every body, wheel set, glider and driver) on one more, and attaches them to the "maps"
 # release. The PC build downloads them from there, so the big model files never go into git. Run it by hand
 # after the web game's tracks or karts change.
-# (Last run for: web v196, Balloon Battle on the PC; real trees and new previews.)
+# (Last run for: web v196, Sandbox on the PC: the whole game as one world to drive freely, warp tunnels, the map with fast travel, Park.)
 name: Export tracks
 
 on:

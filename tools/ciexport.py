@@ -3,6 +3,9 @@
 Serves the published web game (a checkout of `main`), opens it in headless Chromium with a software GPU,
 loads the track at the Ultra preset and runs tools/glbexport.js inside the page. Writes to OUT/<id>/:
   <id>.json      track data (centre line, walls, ramps, height maps, lights) + "race" (boxes, loops...) + "haz"
+                 + "sandbox" (what the web's Sandbox worked out for the place: its walls as a grid of columns, its
+                 gates, coins and flag; taken last, see below; not for the battle arena)
+  <id>.info.json the menu's card; "sb" in it says the map is a Sandbox place and carries its lap for the world map
   <id>.gltf/.bin the track's geometry by cell and material, textures in <id>_tex/
   <id>_haz.glb   the moving hazards (traffic, walkers, rolling meatballs, train wagons)
 Usage: WEB=web OUT=maps MI=<map index> [Q=ultra] python3 tools/ciexport.py
@@ -94,7 +97,50 @@ async def main():
         for f in t['files']:
             open(os.path.join(td, f['name']), 'wb').write(base64.b64decode(f['b64']))
         print('track', nm, t['stats'], round(time.time() - t0), 's', flush=True)
+        # Sandbox (web tools/mini/sandbox.js): the PC cannot read walls from what is drawn, so everything Sandbox works out for
+        # this place is taken from the page itself (sbExport, web v196) and stored as d['sandbox']. It is taken LAST, after the
+        # race data and the model are written: going into Sandbox adds its coins and arches to the scene and must not reach
+        # either. The json is written a second time with the block in it; if anything here fails the first one stands.
+        # The page's Sandbox save is emptied first, so the arches stand where a first visit puts them.
+        sb_fail = False
+        if not info.get('battle'):
+            try:
+                if not await pg.evaluate("__ev(`typeof sbExport==='function'&&!!sbRegOf(MAPS[mapIdx].id)`)"):
+                    raise RuntimeError('this web build has no sbExport, or the map is not a Sandbox place')
+                # On a pizza the rocks and bushes are in the way in the web's Sandbox, but this page was built without them
+                # (glbexport.js keeps them out of the baked track: the PC draws its own). For this last step the world is
+                # built once more with them in, so the walls read from what is drawn are the walls a player of the web meets.
+                kind = await pg.evaluate("__ev(`sbRegOf(MAPS[mapIdx].id).kind||'toy'`)")
+                if kind == 'open' and any(len(v) for v in d['props']['items'].values()):
+                    await pg.evaluate("__ev(`window.__hdPropsOff=true;loadMap(%d,false);resetRace(true);1`)" % MI)
+                    await pg.wait_for_timeout(1500)
+                    print('sandbox: the world built again with its rocks and bushes', round(time.time() - t0), 's', flush=True)
+                await pg.evaluate("__ev(`try{store.set('crust-sb','');}catch(e){};SB.save=null;SB.back=null;mode='sb';introSkip=true;goRace(%d);1`)" % MI)
+                await pg.wait_for_function("__ev(`SBX&&!raceLoading&&SB.regId===MAPS[mapIdx].id`)", timeout=1800000)
+                await pg.evaluate("__ev(`try{endIntro();}catch(e){};state='paused';1`)")
+                # (two things sbExport does not carry and the PC needs: the water level of a pizza, null where there is none,
+                #  and the number of lap points the page had, to be sure the block belongs to this lap)
+                sb = json.loads(await pg.evaluate("__ev(`JSON.stringify(Object.assign({},sbExport(),{water:WATER_Y==null?null:WATER_Y,N:N,multi:!!MULTI}))`)"))
+                if sb.get('id') != nm or sb.get('N') != d['N']:
+                    raise RuntimeError('the Sandbox block is for another place: %s N %s' % (sb.get('id'), sb.get('N')))
+                d['sandbox'] = sb
+                json.dump(d, open(os.path.join(od, nm + '.json'), 'w'), separators=(',', ':'))
+                # the menu's card: the kind of place, and the lap as a short line for the world map (so the map screen
+                # can draw every installed place without reading every track)
+                st = max(1, len(d['track']) // 260)
+                info['sb'] = {'kind': sb['kind'], 'name': sb['name'], 'R': d['R'], 'start': [d['track'][0][0], d['track'][0][1]],
+                              'lap': [[round(p[0], 1), round(p[1], 1)] for p in d['track'][::st]]}
+                json.dump(info, open(os.path.join(od, nm + '.info.json'), 'w'))
+                col = sb.get('col') or {}
+                print('sandbox', nm, sb['kind'], 'gates', len(sb['gates']), 'coins', len(sb['coins']), 'cells', col.get('filled', 0), 'spans', col.get('spans', 0),
+                      'bytes', len(json.dumps(sb, separators=(',', ':'))), round(time.time() - t0), 's', flush=True)
+            except Exception as e:
+                print('sandbox: NOT exported for', nm, str(e)[:300], flush=True)
+                sb_fail = True
         print('errors', errs[:5], flush=True)
         await b.close()
+        # a place without its Sandbox block would be missing from the PC's world, and nobody would see why: the run fails (the
+        # track's files are written and stand, but the workflow stops before attaching them, and tools/release_pc.py builds nothing)
+        if sb_fail: sys.exit(3)
 
 asyncio.run(main())

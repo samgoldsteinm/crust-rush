@@ -11,7 +11,9 @@ const HDK=new Set(['palm','treeA','treeB','shrub','pineA','pineB','pine','bush',
 const PROPS={kinds:{},items:{}};let hdN=0,fcall=0;
 const q3=a=>Array.from(a||[],v=>Math.round(v*1000)/1000);
 try{const _dl=detailLibQ;detailLibQ=function(th){const L=_dl(th);for(const k in L){const t=L[k];if(HDK.has(k)&&t&&t.P&&!t.__hd){t.__hd=k+'#'+(++hdN);PROPS.kinds[t.__hd]={base:k,theme:th,P:q3(t.P),N:q3(t.N),C:q3(t.C),GP:q3(t.GP),GC:q3(t.GC),rad:t.rad||0,h:t.h||0};PROPS.items[t.__hd]=[];}}return L;};}catch(e){console.warn('hd detailLibQ',e);}
-try{const _da=dbAdd;dbAdd=function(t,x,z,ry,s,tint,yOff,blob){if(t&&t.__hd){if(DB_THIN){const kp=dbKeep();if(kp<1&&dbHash(x,z)>kp)return;}
+/* (window.__hdPropsOff: build them into the world after all. Set by tools/ciexport.py for its LAST step only, when the track
+   is already written: Sandbox reads its walls from what is drawn, and on the web a rock or a bush is in the way) */
+try{const _da=dbAdd;dbAdd=function(t,x,z,ry,s,tint,yOff,blob){if(t&&t.__hd&&!window.__hdPropsOff){if(DB_THIN){const kp=dbKeep();if(kp<1&&dbHash(x,z)>kp)return;}
     const tn=tint==null?null:(tint.isColor?'#'+tint.getHexString():(typeof tint==='number'?'#'+tint.toString(16).padStart(6,'0'):String(tint)));
     PROPS.items[t.__hd].push([+x.toFixed(2),+(groundAt(x,z)+(yOff||0)).toFixed(2),+z.toFixed(2),+(ry||0).toFixed(4),+(s||1).toFixed(4),tn]);return;}
   return _da(t,x,z,ry,s,tint,yOff,blob);};}catch(e){console.warn('hd dbAdd',e);}
