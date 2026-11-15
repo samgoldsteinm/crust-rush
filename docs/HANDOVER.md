@@ -145,6 +145,31 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-15 (web v202 and the next PC build; ONLINE VERSION 113 on both): the drivers' specials evened out
+The owner asked which specials were too strong or too weak, then: "Let's commit those changes". Web: tools/mini/patch37.py; PC: race.gd,
+view.gd, webnet.gd (scratch/pc_patch37.py made the PC edits). The descriptions in ABIL say the same on both.
+- PINEAPPLE (Spiky Shockwave) was the one hit nothing stopped, 260 across, karts in the air too. Now 150; still through ability boosts
+  and Delivery Rush, but `spinOut(force)` returns false for a kart in the air or gliding or still blinking (inv), and a shield (Mozz's
+  cheese, garlic: shield / mzH / shL) is popped with no spin.
+- ANCHOVY (School of Fish): three sure hits; now a held item stops one (`absorbHeld` in the sure branch of itemsProj; PC _absorb_held).
+- SHROOM: MEGA_T 5.5 -> 4.5, FLAT_T (squashed) 3 -> 2.   MOZZ: the boost .7 -> 2 s (and the Shockwave only pops the shield).
+- OLIVE: slicks catch within r 17.9 (320 squared, was 200) on the host and in a friend's claim (netGuestClaims), drawn 1.5x with the
+  ring 1.27x; a 1.2 s boost as the trail starts. Computer racers on a race track never steered round slicks (aiInput has no hazard
+  dodge), so nothing was needed there.
+- PEP (Pepperoni Storm): slices 15% faster; the first wall bounce turns a slice up to .5 rad toward the nearest racer ahead within 420
+  (pepAim / _pep_aim; it reads kart positions, so it runs where the projectiles run: the host).
+- BASIL, CHILI: unchanged.
+- TESTS: web tools/neon/abiltest.py (ABILITY TEST passed), PC tests/abil.tscn (ABIL PASS, the same numbers: the slice turns 18.4 degrees).
+  abiltest.py `trial <map>` also times every vehicle alone on a track (no items, fixed random numbers, standard wheels and parachute;
+  run ONE map at a time: three in one browser ran the machine out of memory). Found (margherita, peaks, kitchen; scratch/trial_sum.py):
+  the vehicle's own top-speed point decides nearly everything: speed +2 bodies 1-4% behind the best, +1 3-7%, 0 7-9%, -1 9-12% (about
+  20 s over a race between Formula and Monster Truck); acceleration, handling, weight and off-road barely move it. Vehicle points sum
+  to 0 except Interceptor +1, Pronto +2, Tomatino +2, Slicer -2. Nothing changed yet: the owner decides.
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| A test kart placed 700 units off the track was never reached by a sure anchovy | Off the track a projectile is folded back inside RIM (1662 on Margherita) | Test karts stay on the grid or on track points | Place test karts with `track[j]` (web) or on their grid spots (PC) |
+| A time trial never finished | The countdown is ended by a timer, not by update(); a script that only calls update() stays in 'countdown' and finAt is never asked | The trial sets state='race' and raceTime=0 after resetRace | Any script that drives races by calling update() must do the same |
+
 ### 2026-11-15 (web v201 and PC build 521732c1, online 112 on both): in Sandbox Y is the special ability, the map is Select
 The owner: "if y is to use an item on controller in sandbox then the map should be the select button". Select (View / Back / Minus)
 already opened the map in Sandbox and nothing else uses it there (in a race it looks behind; Sandbox gave that up in v193). Y now fires
