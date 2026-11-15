@@ -117,3 +117,76 @@ Their words are in docs/NEXT-MODES-BRIEF.md. What changed, all in `tools/mini/ba
   height, the drawn ground and the car body's footing read the lap's ground (the bare table) instead of the arena's. They read
   `battleG` now (`tools/mini/patch25.py`), and `bbCam` keeps the camera out of the boxes, the block and the pans. Pictures of the
   kart on every raised part: the session's `bbtop.py` (keep the idea: place the kart on each surface and look).
+
+## 2026-11-14 (web v197, not yet published when written): lives and elimination; the table twice the size; a second raised part and a top
+The owner's words are in docs/NEXT-MODES-BRIEF.md ("you start with 5 then after those are popped you have 3 then after the 3 are popped you
+get 1 after that is popped you are eliminated. also lets add more item blocks and make the map bigger"; "add another higher up section or
+make the higher up section bigger"). This replaces the timed score battle described above.
+
+### The rules now (`tools/mini/battle.js`)
+- Three sets of balloons, `BB_SETS=[5,3,1]`. A kart has `k.bbL` (which set, 0 to 2) and `k.bal` (balloons left of it). Losing the last of a
+  set: out for a moment (2.2 s after a hit, 1.3 s after going off the table), back at the spawn furthest from the others with the next set
+  and 3 s of protection (`bbSetLost`, then `battleTick`). Losing the single balloon: ELIMINATED (`bbElim`): a bigger pop, the kart hidden
+  and parked far off (as Last Slice Standing does), `k.bbDead`, its place `k.bbPlace` = the drivers that were still in.
+- Off the table: one balloon, nobody's point, the same consequences.
+- A point for every balloon of a rival's you pop. Points are NOT halved any more.
+- The round ends when one driver is left (`bbFinish(false)`) or the clock runs out (`bbFinish(true)`). `BB.T` is 300 s: a backstop.
+  Measured, eight computer drivers: rounds end by elimination with 69 to 158 s left (six rounds), about 70 balloons popped.
+- The order (`bbRank`; the engine's `standings()` is this in a battle): drivers still in first, by points, then sets left, then balloons;
+  then the eliminated, the last one out highest.
+- When the PLAYER is out: the banner "Out! (place)", the camera stays where it happened for 1.6 s (`BB.ghost`), then the engine's
+  spectating (`bbWatch` -> `specEnter`: pick the driver, chase or blimp camera; no track cameras in a battle). Its Results button reads
+  "Skip to results": `bbSkip` -> `bbFast` plays the rest of the round out at once (up to 11 ms of game steps each frame, sound off, no
+  pops drawn), so the final order is a real one; then the results come by themselves.
+- The read-out (still one small line): three pips for your own sets (a filled one is a set you still have), the clock, "N left", your
+  points. Banners: "All popped! Back with 3", "All popped! Back with 1", "Last balloon!", "Out!", "<name> is out", "Last one standing!".
+- The results sheet: the order, points, and "out" before the points of the eliminated (`bbResRow`).
+- The engine's side is `tools/mini/patch31.py` (standings, who can be watched, the Skip button, the results row, the menu's note).
+
+### The table (`bbArena`; `tools/blender/battle.py` draws the same shapes: change both together)
+1100 x 760 (x -550..550 east, z -380..380 south; it was 760 x 520). Walls north, east and south; the open west edge has the 7-high rim;
+beyond x -558 the kitchen floor at -312.
+| What | Kind | x | z | Height |
+|---|---|---|---|---|
+| Five pans (none in the north-west corner: the lane behind them is open at both ends) | box `bin` | -364+144i .. +100, i 0..4 | -332 .. -270 | 36 |
+| Torn-off lid, the ramp up from the table | ramp `lid`, along x | -500 .. -360 | 240 .. 380 | 0 -> 42 |
+| Five stacks of pizza boxes | box `boxes` | -360 .. 250 | 240 .. 380 | 42 |
+| Baking sheet on stepped stacks, the ramp to the top | ramp `sheet`, along x | 250 .. 380 | 240 .. 380 | 42 -> 84 |
+| Three dough trays, THE TOP | box `trays` | 380 .. 550 | 240 .. 380 | 84 |
+| Wedge of hard cheese, the ramp from the block to the top | ramp `wedge`, along z | 380 .. 550 | 110 .. 240 | 42 -> 84 |
+| Butcher's block | box `board` | 380 .. 550 | -100 .. 110 | 42 |
+| Bread board, the ramp down to the table | ramp `bread`, along z | 380 .. 550 | -230 .. -100 | 0 -> 42 |
+| THE ISLAND: a cutting board on two crates of tomatoes | box `isle` | -420 .. -200 | -170 .. -10 | 42 |
+| Baking sheet down its east side | ramp `isleE`, along x | -200 .. -70 | -170 .. -10 | 42 -> 0 |
+| Bread board down its south side | ramp `isleS`, along z | -420 .. -200 | -10 .. 120 | 42 -> 0 |
+| Pepper mill | cyl `mill` | 200 | 10 | r 12, 90 |
+| Rolling pin and its two handles | box `pin` | 40 .. 160 (7 .. 40, 160 .. 193) | 110 .. 128 (114.5 .. 123.5) | 17 (12.5) |
+| Plates | cyl `plates` | 20 | -160 | r 36, 22 |
+| Two big cans of tomatoes | cyl `can` | -30 and 290 | 50 and 150 | r 27, 61 |
+| Bag of flour | box `sack` | 230 .. 300 | -190 .. -140 | 40 |
+- A ramp's `h0` is its height at the LOW x or z, `h1` at the high one: the island's ramps run down (h0 42, h1 0).
+- Rules kept from the 2026-11-13 play-test: every ramp exactly as wide as the ledge it serves; nothing at a ramp's foot; nothing solid
+  closer than 40 to anything else unless they touch; every leaning ramp is closed in down its sides (a kart beside it sees a board, not
+  the space under the sheet).
+- 31 item boxes (two on the top), 8 spawns `[x, z, heading]` (`battleSetup`). `BB.ramps` lists the six ramps (ends, a point off each end,
+  the rectangle): only the tests read it now.
+- Models: packs toy_bbtable_hq, toy_bbbins_hq, toy_bbboxes_hq, toy_bbblock_hq, toy_bbisle_hq (new), toy_bbprops_hq; materials in `bMats`
+  (models.js; new: btray, bcan, bcanl, bsack, btom, bgreen, balu, brind). About 1.2 MB in all (it was 0.55 MB). Build them with
+  `CR_CPU=1` when the game's tests are using the graphics card (the bake ran out of GPU memory otherwise).
+
+### The CPU drivers (`battleAI`)
+They no longer know a list of ramps. `bbGrid` cuts the table into 20-unit squares once: a square can be stood on if a kart at its middle
+touches nothing; a step to the next square exists if the ground between never rises faster than a ramp (a drop of any height is a step,
+never off the table). `bbPath` walks that grid (breadth first) from the kart to its target and returns the furthest square on the way
+that can be driven at in a straight line (`bbClear`). `bbSee` is a clear shot (one surface, no wall or drop between). A driver with
+something to throw and a clear shot steers straight at where its rival will be; otherwise it hunts the nearest rival anywhere, or
+fetches an item box (near ones first, by a per-driver taste that changes every 20 s; the boxes on the top count as nearer than they
+are). On its last balloon, while more than two are left, a driver keeps off the west edge, runs from an armed rival when it has nothing
+to throw, and saves its chili. Backing out of a corner swings the tail so the nose comes round to the way on.
+Measured over six rounds: nobody set down again for standing still, longest still 2 to 6 s.
+
+### Tests
+- `py.cmd tools/neon/bbtest.py [rounds] [shots]` (WHERE=1 lists where karts stood still): whole rounds, fast.
+- `py.cmd tools/neon/bbprobe.py tools/neon/bbcheck.js [quality]`: the layout (boxes on open ground, spawns free, a way from every spawn
+  to every box), every box driven to and taken, a kart driven at every wall and thing from each side and a ray to what is drawn there.
+- `py.cmd tools/neon/bbprobe.py tools/neon/bbshots.js|bbshots2.js [quality] [phone]`: the pictures in scratch/bb2.

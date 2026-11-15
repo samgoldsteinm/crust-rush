@@ -362,16 +362,17 @@ function toyBattle(def){const U=TM.U,M=TM;battleSetup(def);
   const add=(g,m,x,y,z,cast)=>{const o=new THREE.Mesh(g,m);o.position.set(x,y,z);o.castShadow=cast!==false;o.receiveShadow=true;o.userData.noLift=true;world.add(o);return o;},
     steel=M.mat('bbsteel',()=>{const m=new THREE.MeshStandardMaterial({color:'#a4a9af',roughness:.38,metalness:.25,envMapIntensity:.9});m.userData.noHQ=true;return m;}),
     K={rim:steel,bin:M.mat('bbbin',()=>new THREE.MeshStandardMaterial({color:'#aeb3b8',roughness:.3,metalness:.3,envMapIntensity:.9})),lid:M.paint('bbcard','#c79a5e',.85),boxes:M.paint('bbcard','#c79a5e',.85),board:M.paint('bbwood','#b98a58',.6),bread:M.paint('bbwood','#b98a58',.6),
-      mill:M.paint('bbmill','#5a3a22',.45),pin:M.paint('bbpin','#d9b98a',.5),plates:M.paint('bbplate','#f4f1ea',.3)};
+      mill:M.paint('bbmill','#5a3a22',.45),pin:M.paint('bbpin','#d9b98a',.5),plates:M.paint('bbplate','#f4f1ea',.3),
+      sheet:steel,trays:M.paint('bbtray','#8f969c',.6),wedge:M.paint('bbrind','#d8a548',.55),isle:M.paint('bbwood','#b98a58',.6),isleE:steel,isleS:M.paint('bbwood','#b98a58',.6),can:M.paint('bbcan','#b3261c',.4),sack:M.paint('bbsack','#e9dcc2',.9)};
   /* the table top, and the kitchen floor far below it */
   /* the Blender-built models (tools/blender/battle.py) stand in for each kind of shape once their packs have arrived; plain blocks of the same shapes until then */
-  const PK={bbtable:['rim'],bbbins:['bin'],bbboxes:['boxes','lid'],bbblock:['board','bread'],bbprops:['mill','pin','plates']},done={};
+  const PK={bbtable:['rim'],bbbins:['bin'],bbboxes:['boxes','lid','sheet'],bbblock:['board','bread','wedge','trays'],bbisle:['isle','isleE','isleS'],bbprops:['mill','pin','plates','can','sack']},done={},BX=BB_X,BZ=BB_Z;/* (the table's half size: tools/mini/battle.js) */
   for(const n in PK){const o=M.bPk(n);if(o){toyPut(o,0,0,0);for(const k of PK[n])done[k]=1;}}
   {const f=new THREE.PlaneGeometry(6000,6000);f.rotateX(-Math.PI/2);add(f,toyTiles('kfloor','#ebe5d6','#93a09c','#6f6a62',2,.3),0,-312,0,false);
-    if(!done.rim){const g=new THREE.PlaneGeometry(768,520);g.rotateX(-Math.PI/2);add(g,steel,-4,-.05,0,false);add(new THREE.BoxGeometry(768,14,520),steel,-4,-7.2,0,false);for(const sx of [-1,1])for(const sz of [-1,1])add(new THREE.BoxGeometry(16,298,16),steel,sx*364,-163,sz*240);}}
+    if(!done.rim){const g=new THREE.PlaneGeometry(BX*2+8,BZ*2);g.rotateX(-Math.PI/2);add(g,steel,-4,-.05,0,false);add(new THREE.BoxGeometry(BX*2+8,14,BZ*2),steel,-4,-7.2,0,false);for(const sx of [-1,1])for(const sz of [-1,1])add(new THREE.BoxGeometry(16,298,16),steel,sx*(BX-16),-163,sz*(BZ-20));}}
   /* the alcove's three walls, tiled, from the kitchen floor up; the room's far wall and ceiling */
   {const tm=toyTiles('ksplash','#f6f5f0','#f1efe8','#c9c6bd',4,.22),wall=(w,x,z,ry)=>{const g=new THREE.PlaneGeometry(w,1200),uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*w/(40*U),uv.getY(i)*1200/(40*U));const o=add(g,tm,x,288,z,false);o.rotation.y=ry;};
-    wall(900,-10,-260,0);wall(900,-10,260,Math.PI);wall(520,380,0,-Math.PI/2);wall(3000,-1700,0,Math.PI/2);const cg=new THREE.PlaneGeometry(3000,3000);cg.rotateX(Math.PI/2);add(cg,M.paint('bbceil','#f4f1ea',.9),-400,888,0,false);}
+    wall(BX*2+140,-10,-BZ,0);wall(BX*2+140,-10,BZ,Math.PI);wall(BZ*2,BX,0,-Math.PI/2);wall(3000,-1700,0,Math.PI/2);const cg=new THREE.PlaneGeometry(3000,3000);cg.rotateX(Math.PI/2);add(cg,M.paint('bbceil','#f4f1ea',.9),-400,888,0,false);}
   for(const q of BB.shapes){if(q.k==='wall'||done[q.k])continue;const m=K[q.k]||steel;
     if(q.t==='cyl')add(new THREE.CylinderGeometry(q.r,q.r,q.h,32),m,q.x,q.h/2,q.z);
     else if(q.t==='box')add(new THREE.BoxGeometry(q.x1-q.x0,q.h,q.z1-q.z0),m,(q.x0+q.x1)/2,q.h/2,(q.z0+q.z1)/2);

@@ -146,6 +146,52 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-14 (web v197, ONLINE VERSION 111 because of the part stats below; Balloon Battle itself is off line): lives and elimination; the table twice the size, an island and a top
+The owner: "you start with 5 then after those are popped you have 3 then after the 3 are popped you get 1 after that is popped you are
+eliminated. also lets add more item blocks and make the map bigger" and "add another higher up section or make the higher up section
+bigger". The rules, the table's plan with every coordinate, the drivers and the tests are in docs/BALLOON-BATTLE-PLAN.md (last section).
+- RULES (tools/mini/battle.js): `BB_SETS=[5,3,1]`; `bbSetLost`, `bbElim`, `bbFinish`, `bbRank`; no halving of points; the round ends with
+  one driver left or at the clock (`BB.T` 300 s, a backstop: eight rounds of computer drivers all ended with one driver left, 44 to 141 s on the clock). An eliminated player watches
+  with the engine's spectating; its button is "Skip to results" (`bbSkip`, `bbFast`: the rest of the round is played out at once).
+- THE ENGINE (tools/mini/patch31.py, all behind `BATTLE&&!SBX`): `standings()` is `bbRank` in a battle; a driver still in can be watched;
+  no track cameras; the spectate bar shows balloons and points; the results row says "out"; the menu's note.
+- THE TABLE: 1100 x 760, five pans, the long raised route (lid, box stacks, baking sheet, the dough trays at 84, cheese wedge, block,
+  bread board), the island (crates of tomatoes, two ramps), 31 item boxes, 8 spawns with headings. Models: tools/blender/battle.py
+  (six packs, bbisle is new; about 1.2 MB, it was 0.55).
+- THE DRIVERS find their way on a grid made from the shapes (`bbGrid`, `bbPath`, `bbClear`, `bbSee`): no list of ramps.
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| Computer drivers wedged in the table's north-west corner and in the inner corners between two ramps, and were set down again 3 to 5 times a round | A row of pans up to the corner made the lane behind them a dead end; and the drivers steered by three feelers only, which cannot get out of a corner they face | No pan in that corner; the grid path-finder; backing out swings the tail toward the way on | A new arena layout: run `bbtest.py` with WHERE=1 and look at where karts stood still; "set down again" should be 0 |
+| The drivers hardly popped anybody after the path-finder went in | With a rival in sight they still steered at the next square of the path, so were never lined up | With a clear shot (`bbSee`) and something to throw they steer straight at the rival | |
+| The eliminated kart was still drawn | The engine's own kart drawing shows it again every frame (Last Slice Standing never noticed: its kart is parked far off at once) | `battleRender` hides a `bbDead` kart every frame; the player's kart stays in place 1.6 s so the camera does not jump | |
+| Under a leaning ramp a kart was stopped by nothing visible | The game's ramp is solid down to the table; the model was a thin sheet | Every leaning ramp has a board down each side (`skirts` in battle.py) | `bbprobe.py bbcheck.js` drives at every wall and measures to what is drawn: nothing over 1.5 |
+| The Blender bake ran out of GPU memory | The game's tests were using the graphics card at the same time | `CR_CPU=1` builds on the processor | |
+- CHECKED (the final build, 2026-11-15): `bbtest.py` six rounds, then two more: all ended with one driver left (44 to 141 s left, 68 to
+  71 pops, longest still 2 to 4 s, nobody below the table, set down again 0). `bbprobe.py bbcheck.js ultra`: 31 boxes and 8 spawns ok,
+  all 31 boxes taken (slowest 9.5 s), 135 places driven at: drawn against solid least -2.05, most 1.35 (the -2.05 is the baking sheet's
+  low rolled rim two units before the south wall: the one place over 1.5). boottest, simtest margherita and garage (all 8 finish),
+  sbtest bedroom, sbworld all 24 places, phonetest, sbphone, padtest, finishtest, gpnet2 (a whole cup through the real matchmaking): pass.
+- THE STANDINGS PATCH OUTSIDE A BATTLE: patch31 changed `standings()` and spectating behind `BATTLE&&!SBX`. Checked by a run: a Last Slice
+  Standing race on the bay played to the end (`MODE=lss py.cmd tools/neon/simtest.py bay medium 600`): one driver out on each of laps 1 to
+  7 in last-place order, places 8 down to 2, the survivor first; and the online cup test passes. The phone test prints no memory figure,
+  so there is no before/after number for the bigger arena on a phone: ASK THE OWNER whether the arena loads on the iPhone.
+- FOR THE PC (not done): battle.gd needs the same rules and drivers; the export's `d['battle']` needs `sets` (BB_SETS), spawns with a
+  third number (heading), 31 boxes; `BB_START`/`BB_BACK` still exist (5 and 3) but mean nothing now.
+- ONLY A PERSON CAN JUDGE: whether five minutes and this pace feel right, the table's size by hand, the camera on the top and beside
+  the trays, how watching and "Skip to results" feel, the look of the cheese wedge and the trays.
+
+### 2026-11-14/15 (web v197, same release): part stats add up (ONLINE 111); Sandbox's speed slider and wider tunnel mouths; the body on a jump ramp
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| A wheel's +1 and a glider's +1 showed (and drove) as +1, not +2 (the owner: "currently the game overlaps them") | The cards show a part's own `st`, but the sum weighted wheels 1 and gliders .5 (bodies 1.5), squeezed it through tanh and rounded to bars | tools/mini/patch32.py: `statE` = clamp(4*tanh(1.5*body.st/4) + (wheel.st + glider.st)/1.5, -4, 4); `statMods` from it as before; bars = the vehicle's own round(6+1.5*eBody) + wheel st + glider st, held to 0..12. A vehicle alone is unchanged. NET_PROTO 111, PC PROTO 111 with the same sums in KartBuilder | `py.cmd tools/neon/statstest.py`: all 3060 builds, and it writes scratch/stats/web_stats.json; the PC's table must equal it to six places. A new part needs no code: its card numbers are bars |
+| Tunnels were missed at full speed in Sandbox | A mouth was 34 wide: the kart's middle had 21 units (three karts) to hit at 150 a second | `SB_GW` 17 -> 26 (52 wide, 39 for the kart's middle; arch, tunnel and trigger all follow `g.hw`); `sbGuide` eases a kart that is heading in and a little off sideways into the mouth over the last 110 units; and the speed slider (`sbSpd`, save field `v`, .25 to 1; the engine multiplies the throttle by it in playerInput; `[` `]`, D-pad left and right, which no longer steer in Sandbox) | Measured (tools: scratch/spd/p3.js with sbprobe): a room's mouth is entered from 22 off centre unaided and 36 guided; a pizza's from 14 to 22 unaided, 18 to 28 guided, uneven from side to side because the crust beside a mouth is a cliff to the kart before it reaches the mouth. The PC takes `hw` from the export; it needs `sbGuide` and the slider ported |
+| The body stayed level on a jump ramp | syncKart's pitch comes from `surfH`, which knows the ground and the raised road but not a ramp | `k.rampS` (looks only), set with onRamp, added to the pitch | Nothing but syncKart may read rampS; a friend's kart on line has none (not sent) and stays level |
+- The PC had two more faults of its own, fixed in godot (see the PC entry): the body's pitch ignored the raised road altogether (`k_ey`),
+  and boxes over a glide did not follow the player's line as the rings do (`_air_box_y`, the web's `airBoxY`).
+- ONLY A PERSON CAN JUDGE: whether builds feel right now that gliders count for more and wheels a little less per point; the slider's place
+  under a thumb on a real phone (it sits on the right edge between the item buttons and the drift button); whether the guide into a mouth is
+  felt as help or as being pushed.
+
 ### 2026-11-14 (PC build after 254f835, with web v196): Balloon Battle on the PC
 - What: the mode as the web has it, off line only. The arena (map 24, `preptable`) is exported with its shapes: `d['battle']` in
   godot/tools/ciexport.py (shapes, spawns, ramps, the clock, step, radius, the item table, the balloon colours), so nothing of the arena
@@ -284,7 +330,7 @@ in the pause menu and on controller make the y button open the map"; "signs abov
   lawn come with the re-export (`release_pc.py`). `tests/smoke.tscn` passes locally with them.
 
 ### Where web and PC stand (2026-11-13, end of the session)
-- Web v196 (online 110). PC build 82fc3a5a has web v196's tracks, Balloon Battle, online Grand Prix and the controller's cursor (online 110): PC and web race together. The PC has no Sandbox yet. What the web has and the PC has not is listed in OPEN WORK. v187 (phone fix), v188
+- Web v197 (ONLINE 111: part stats stack; Balloon Battle 5-3-1 and the bigger table; Sandbox speed slider; wider tunnel mouths). Until the PC build with the same changes is out, PC (110) and web (111) do not race together. Before that: web v196 (online 110). PC build 82fc3a5a has web v196's tracks, Balloon Battle, online Grand Prix and the controller's cursor (online 110): PC and web race together. The PC has no Sandbox yet. What the web has and the PC has not is listed in OPEN WORK. v187 (phone fix), v188
   (Sandbox, first slice) and v189 (the second site's plumbing, switched off) are web only; nothing that moves a kart in a race changed.
 - Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
   (docs/BALLOON-BATTLE-PLAN.md). Sandbox: the first slice (the back garden) is on the web (v188); docs/SANDBOX-PLAN.md.

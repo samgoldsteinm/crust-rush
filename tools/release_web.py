@@ -12,7 +12,7 @@ previous one are removed from it.
 """
 import json, os, re, subprocess, sys, time, urllib.request
 R = 'D:/crust-rush'
-TAIL = '\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01M2eKvptTQwPcovHKAgrKmo\n'
+TAIL = '\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01M2eKvptTQwPcovHKAgrKmo\n'
 
 
 def git(repo, *a, check=True):

@@ -128,3 +128,17 @@ Also on the balloon map part of one of the wooden ramps runs straight into the l
 - (online Grand Prix) "also grand prix wasnt working online after one race it was saying race again or change driver but no to the next race option please look into that. it was between 2 computers on the web app but make sure its working online on all platforms"
 - (trees) "also update all the maps with the new trees we made a while ago im noticing some of the older maps still have the old blocky trees and shrubs. take new photos for their preview when you finish as well"
 - (the same day, later) "Also when you are finished explain clearly what is on the pc version compared to the web version and begin making sure they are both fully updated"
+
+## Added by the owner, 2026-11-14 (Balloon Battle: lives, a bigger table)
+- "lets also change how balloon battle works. you start with 5 then after those are popped you have 3 then after the 3 are popped you get 1 after that is popped you are eliminated. also lets add more item blocks and make the map bigger"
+- (a few minutes later) "add another higher up section or make the higher up section bigger"
+
+## Added by the owner, 2026-11-14 (Sandbox: the tunnels, said when told that on the PC the streaks stand still while the next place loads)
+- "i dont want the streaks to freeze for a second it should be the player continusously driving and eventually the new map will load and the driver will drive out but the game will never freeze or stop to load it will be one fluid drive through the tunnel right out to the other side"
+
+## Added by the owner, 2026-11-14 (later: part stats, the body on ramps, the cup's name, the speed slider, the glide's item boxes)
+- (part stats) "also on pc it doesnt look like the stats from the glider dont stack with the stat changes from the wheel. for example if the wheel increases speed by 1 and the glider increases speed by 1 that would be a total of 2 speed increase instead of overlapping them and giving them it just 1. currently the game overlaps them im on the pc version but test it on all of them"
+- (with a picture of the garage track's yellow climb by the PIT LANE sign, the car lying level on it) "on pc the car goes up this ramp kind of weird verify that the car goes up all ramps correctly. it sits flat instead of adjusting to the angle of the ramp. this is on the exe file"
+- (with a picture of the PC's cup page) "the words miniature mayhem cup go over into other words on the pc version"
+- (Sandbox) "Also for sandbox mode make it so that there is a slider on the side of the screen where you can adjust vehicle speed. I've noticed that at the default speed it's hard to go into the tunnels and I miss them a lot of times"
+- (PC) "im also noticing on the pc exe version on the tron maps but it could be on more that the item boxes dont line up to the correct height when gliding, they are way under the glide circles"

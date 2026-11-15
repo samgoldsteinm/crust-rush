@@ -14,7 +14,7 @@ async def main():
         pg.on('console', lambda m: errs.append('console:'+m.text[:300]) if m.type in ('error','warning') and 'GPU' not in m.text and 'WebGL' not in m.text else None)
         await pg.goto('http://localhost:8771/webcopy6/index.html')
         await pg.wait_for_function("document.getElementById('menu')&&!document.getElementById('menu').hidden", timeout=600000)
-        await pg.evaluate("(a)=>__ev(`qKey='fast';applyQuality();clsKey='${a[1]}';mode='single';introSkip=true;" + BODYJS + "goRace(MAPS.findIndex(m=>m.id==='${a[0]}'))`)", [MAP, CLS])
+        await pg.evaluate("(a)=>__ev(`qKey='fast';applyQuality();clsKey='${a[1]}';mode='" + os.environ.get('MODE', 'single') + "';introSkip=true;" + BODYJS + "goRace(MAPS.findIndex(m=>m.id==='${a[0]}'))`)", [MAP, CLS])
         await pg.wait_for_function("document.getElementById('raceLd').hidden", timeout=900000)
         for i in range(400):
             st = await pg.evaluate("__ev(`state`)")
@@ -29,6 +29,8 @@ async def main():
             if len(sys.argv) > 4: print(r, flush=True)
             if r['state'] not in ('race','results','finish') or r['fin'] >= 8: break
         print('end', r, await pg.evaluate("__ev(`JSON.stringify({st:__st,k:karts.map(k=>[k.lap|0,k.idx,k.finished?1:0])})`)"), flush=True)
+        if os.environ.get('MODE') == 'lss':   # the knock-out order: who went out on which lap, and the final places
+            print('lss', await pg.evaluate("__ev(`JSON.stringify({laps:LAPS,out:karts.filter(k=>k.elim).sort((a,b)=>a.elimLap-b.elimLap).map(k=>[k.r.name,k.elimLap,k.place]),left:karts.filter(k=>!k.elim).map(k=>[k.r.name,k.place,k.finished?1:0]),order:standings().map(k=>k.r.name)})`)"), flush=True)
         print('errors', errs[:8])
         await b.close()
 asyncio.run(main())

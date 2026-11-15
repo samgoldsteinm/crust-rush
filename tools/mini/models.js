@@ -608,7 +608,10 @@ const bMats=()=>({bsteel:[mat('bbsteel',()=>{const m=std({color:'#a4a9af',roughn
   bcard:[paint('bbcard','#c79a5e',.85),40],bcardin:[paint('bbcardin','#e3d3b4',.9),40],bwood:[woodTex('ash',.5,()=>wood('oak','#b98a58','#5a3a1c',{rough:.5})),80],bwoodd:[woodTex('walnut',.4,()=>wood('walnut','#6b4428','#2c1608',{rough:.42})),60],
   bplate:[mat('bbplate',()=>phy({color:'#f4f1ea',roughness:.2,clearcoat:.6,clearcoatRoughness:.2,envMapIntensity:.7})),40],bcheese:[paint('bbcheese','#f1e8c8',.6),40],
   bsauce:[mat('bbsauce',()=>phy({color:'#b3261c',roughness:.22,clearcoat:.5,envMapIntensity:.7})),40],bpep:[paint('bbpep','#a8321e',.5),40],bolive:[mat('bbolive',()=>phy({color:'#1c1a17',roughness:.25,clearcoat:.6,envMapIntensity:.8})),40],
-  boliveg:[paint('bboliveg','#6f7a2a',.35),40],bmush:[paint('bbmush','#d9c8a8',.7),40],gblack:[plastic('gblack','#0e0f11',.5),40]});
+  boliveg:[paint('bboliveg','#6f7a2a',.35),40],bmush:[paint('bbmush','#d9c8a8',.7),40],gblack:[plastic('gblack','#0e0f11',.5),40],
+  /* (2026-11-14, the bigger table) dough trays, big cans and their labels, a flour bag, tomatoes and their stalks, basil, a baking sheet */
+  btray:[plastic('bbtray','#8f969c',.55),40],bcan:[mat('bbcan',()=>phy({color:'#b3261c',roughness:.35,clearcoat:.4,envMapIntensity:.6})),40],bcanl:[paint('bbcanl','#f3ead2',.6),40],bsack:[paint('bbsack','#e6d8bb',.92),40],
+  brind:[paint('bbrind','#d8a548',.55),40],btom:[mat('bbtom',()=>phy({color:'#c9281c',roughness:.28,clearcoat:.5,envMapIntensity:.7})),40],bgreen:[paint('bbgreen','#4e7a2c',.6),40],balu:[mat('bbalu',()=>{const m=std({color:'#b9bdc1',roughness:.42,metalness:.55,envMapIntensity:.9});m.userData.noHQ=true;return m;}),60]});
 function bPk(name){return pkReady(name)?pk(name,bMats()):null;}
 M.bPk=bPk;
 M.yPk=yPk;

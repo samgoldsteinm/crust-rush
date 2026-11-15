@@ -159,7 +159,7 @@ function sbIdx(k,was,near){const n=sbSurf(k.x,k.y),S=SB.S,wy=k.wy||0;let j=was,b
        (building a room is one long step: seconds on a phone; cutting it into slices is the next piece of work on this);
      - the engine's sound keeps running; the kart keeps the speed it went in with and comes out of the matching gate at that speed;
      - nothing is said about loading and nothing is to be pressed. */
-const SB_GW=17,SB_GLEN=190;
+const SB_GW=26,SB_GLEN=190;/* a mouth's half width. It was 17: the kart's middle (it is 13 wide as the walls see it) had 21 units to hit, three karts' width, at 150 a second. The owner, 2026-11-14: "it's hard to go into the tunnels and I miss them a lot of times" */
 const sbSeed=id=>{let h=7;for(let i=0;i<id.length;i++)h=(h*31+id.charCodeAt(i))%9973;return h/9973;};
 function sbGates(){const R=SB.reg,id=SB.regId;SB.gates=[];
   if(SB.kind==='toy'){const b=SB.col.b,cx=R.room?SB_RX:(g=>(g+.75)*SB_M),cz=R.room?SB_RZ:(g=>-(g-3.5)*SB_M);
@@ -328,10 +328,10 @@ function sbFound(){let n=0,t=0;for(const c of SB.coins)if(c.rare){t++;if(c.t<0)n
 function sbArm(){const def=MAPS[mapIdx],R=def&&sbRegOf(def.id),on=mode==='sb'&&!NET.cfg&&!!R;if(!on){if(SBX)sbOff();return;}
   SBX=true;SB.regId=def.id;SB.reg=R;SB.kind=R.kind||'toy';SBF=SB.kind!=='road';BATTLE=SBF;SB.shapes=R.shapes?R.shapes():[];SB.rim=0;SB.col=null;SB.hash=null;SB.gates=[];SB.loops=LOOPS.filter(L=>L.full).map(L=>({p:L.p,g0:L.g0,r:LOOPR+34,a:-L.S-L.W-10,b:L.shift-L.S+L.W+10}));
   if(SBF){let b=TOYROOM;if(SB.kind==='open'){const r=RIM+70;b=[-r,r,-r,r];SB.rim=RIM;}else if(!b){b=[1e9,-1e9,1e9,-1e9];for(const p of track){b[0]=Math.min(b[0],p.x-400);b[1]=Math.max(b[1],p.x+400);b[2]=Math.min(b[2],p.y-400);b[3]=Math.max(b[3],p.y+400);}}sbColumns(b);sbHashTrack();}
-  sbCoins();sbGates();{/* the map remembers this place's tunnels */const sv=sbSave();if(!sv.g)sv.g={};sv.g[SB.regId]=SB.gates.map(g=>[Math.round(g.x),Math.round(g.z),g.label]);sbKeep();}sbFlag();SB.hudT=0;SB.msgT=0;SB.camF=1;if(!SB.trav)sbPark(false);sbMapBtn();document.body.classList.add('battle');}
-function sbOff(){if(!SBX)return;SBX=false;SBF=false;const def=MAPS[mapIdx];BATTLE=!!(def&&def.battle);if(SB.grp){/* the passages' own shapes, signs and shaders go with the place (everything else in the group is shared) */for(const G of SB.grp.children)if(G.userData.sbGate)G.traverse(o=>{if(!o.isMesh)return;o.geometry.dispose();const m=o.material;if(m.map)m.map.dispose();m.dispose();});scene.remove(SB.grp);SB.grp=null;SB.im=null;}SB.coins=[];SB.shapes=[];SB.gates=[];SB.hash=null;SB.col=null;if(SB.el)SB.el.hidden=true;SB.flag=null;sbRaceBtn(false);sbPull(false);SB.park=false;if(SB.parkEl)SB.parkEl.hidden=true;sbMapBtn();if(SB.duct&&!SB.trav){SB.duct.style.opacity=0;SB.ductO=0;SB.duct.style.display='none';}document.body.classList.toggle('battle',BATTLE);}
+  sbCoins();sbGates();{/* the map remembers this place's tunnels */const sv=sbSave();if(!sv.g)sv.g={};sv.g[SB.regId]=SB.gates.map(g=>[Math.round(g.x),Math.round(g.z),g.label]);sbKeep();}sbFlag();SB.hudT=0;SB.msgT=0;SB.camF=1;if(!SB.trav)sbPark(false);sbMapBtn();document.body.classList.add('battle');sbClockArm();}
+function sbOff(){if(!SBX)return;sbClockOff();/* the place's own light back, before anything else reads it */SBX=false;SBF=false;const def=MAPS[mapIdx];BATTLE=!!(def&&def.battle);if(SB.grp){/* the passages' own shapes, signs and shaders go with the place (everything else in the group is shared) */for(const G of SB.grp.children)if(G.userData.sbGate)G.traverse(o=>{if(!o.isMesh)return;o.geometry.dispose();const m=o.material;if(m.map)m.map.dispose();m.dispose();});scene.remove(SB.grp);SB.grp=null;SB.im=null;}SB.coins=[];SB.shapes=[];SB.gates=[];SB.hash=null;SB.col=null;if(SB.el)SB.el.hidden=true;SB.flag=null;sbRaceBtn(false);sbPull(false);SB.park=false;if(SB.parkEl)SB.parkEl.hidden=true;if(SB.spdEl)SB.spdEl.hidden=true;sbMapBtn();if(SB.duct&&!SB.trav){SB.duct.style.opacity=0;SB.ductO=0;SB.duct.style.display='none';}document.body.classList.toggle('battle',BATTLE);}
 function sbStart(){for(const k of karts){k.bal=0;k.bbS=0;k.bbOut=0;if(SBF){k.wy=k.pwy=k.lastG=sbG(k.x,k.y,(SB.kind==='toy'?0:groundAt(k.x,k.y))+(track[k.idx].ey||0)+2);k.wvy=0;k.gRate=0;k.air=false;k.bpx=k.x;k.bpy=k.y;}}
-  if(BB.grp){scene.remove(BB.grp);BB.grp=null;}sbHud();const f=sbFound();showBanner(SB.reg.name,2.2,'md');}
+  if(BB.grp){scene.remove(BB.grp);BB.grp=null;}sbHud();const f=sbFound();showBanner(SB.reg.name,2.2,'md');sbClockMats();sbClockApply();/* (the karts have just been built again: their paint and lights join the clock) */}
 /* ---- stopping (web v193) ----
    The owner: "if you hold down both brake buttons in sandbox it should completely stop the car and there should be a park button on screen
    that will stop the car in place that way you can stop at races easier". SB.park is the Park button's state (K on a keyboard and D-pad down
@@ -345,9 +345,9 @@ function sbParkBtn(){let b=SB.parkEl;const show=SBX&&(state==='race'||state==='c
     b.innerHTML='<b>P</b><span>PARK</span>';b.onclick=e=>{e.preventDefault();sbPark();b.blur();};for(const ev of ['pointerdown','touchstart'])b.addEventListener(ev,e=>e.stopPropagation());stage.appendChild(b);
     addEventListener('keydown',e=>{if(SBX&&state==='race'&&e.code==='KeyK'&&!e.repeat&&!(typeof KEYC!=='undefined'&&KEYC.KeyK)){e.preventDefault();sbPark();}});}
   if(b.hidden===show)b.hidden=!show;}
-function sbTick(dt){sbParkBtn();if(state!=='race'){sbRaceBtn(false);return;}const k=player;if(!k)return;
+function sbTick(dt){sbParkBtn();sbSpdUi();if(state!=='race'){sbRaceBtn(false);return;}const k=player;if(!k)return;sbClockTick(dt);
   if(sbStop()&&!k.loop&&!k.air){const sp=k.speed,d=Math.min(Math.abs(sp),(140+Math.abs(sp)*5)*dt);k.speed=sp-Math.sign(sp)*d;if(Math.abs(k.speed)<1.5)k.speed=0;k.boost=0;k.drift=0;k.charge=0;}
-{const f=SB.flag,near=!!f&&!SB.trav&&(k.x-f.x)**2+(k.y-f.z)**2<46*46&&Math.abs((k.wy||0)-f.y)<10;sbRaceBtn(near);if(near){try{const gp=navigator.getGamepads&&navigator.getGamepads()[PAD.idx];const up=!!gp&&gp.buttons[12]&&gp.buttons[12].pressed;if(up&&!SB.padUp)sbRaceHere();SB.padUp=up;}catch(e){}}}if(SB.cool>0)SB.cool-=dt;else for(const g of SB.gates){const d=(k.x-g.x)*g.nx+(k.y-g.z)*g.nz;if(d>(g.road?0:g.plain?64:SB_GLEN-70)&&(!g.road||(d<26&&Math.abs((k.wy||0)-g.y)<14))&&Math.abs((k.x-g.x)*g.tx+(k.y-g.z)*g.tz)<g.hw+2&&Math.cos(k.ma)*g.nx+Math.sin(k.ma)*g.nz>.2){sbTravel(g);return;}}
+{const f=SB.flag,near=!!f&&!SB.trav&&(k.x-f.x)**2+(k.y-f.z)**2<46*46&&Math.abs((k.wy||0)-f.y)<10;sbRaceBtn(near);if(near){try{const gp=navigator.getGamepads&&navigator.getGamepads()[PAD.idx];const up=!!gp&&gp.buttons[12]&&gp.buttons[12].pressed;if(up&&!SB.padUp)sbRaceHere();SB.padUp=up;}catch(e){}}}sbGuide(k,dt);if(SB.cool>0)SB.cool-=dt;else for(const g of SB.gates){const d=(k.x-g.x)*g.nx+(k.y-g.z)*g.nz;if(d>(g.road?0:g.plain?64:SB_GLEN-70)&&(!g.road||(d<26&&Math.abs((k.wy||0)-g.y)<14))&&Math.abs((k.x-g.x)*g.tx+(k.y-g.z)*g.tz)<g.hw+2&&Math.cos(k.ma)*g.nx+Math.sin(k.ma)*g.nz>.2){sbTravel(g);return;}}
   const sv=sbSave(),y=(k.wy||0)+3.5;let ch=false;
   for(const c of SB.coins){if(c.t<0)continue;if(c.t>0){c.t-=dt;if(c.t<=0){c.t=0;}continue;}const dx=c.x-k.x,dz=c.z-k.y,r=c.rare?12:10.5;if(dx*dx+dz*dz>r*r||Math.abs(c.y-y)>(c.rare?14:10))continue;
     if(c.rare){c.t=-1;sv.r[c.id]=1;sv.c+=10;if(c.m)c.m.visible=false;burst(c.x,c.y,c.z,26,['#ffd65a','#d8402a','#ffffff'],70,2.4);spawnRing(c.x,c.y,c.z,'#ffd65a',26,.5,false);const f=sbFound();showBanner('Pepperoni coin! '+f[0]+' of '+f[1],1.6,'sm');try{SFX.ready();}catch(e){}}
@@ -361,12 +361,12 @@ function sbCam(){const k=camT;if(!k||state==='menu'||!SBF)return;if(k.loop||k.rt
   for(let i=1;i<=16;i++){const f=i/16,g=Math.min(1.06,f+.06);if(sbSolid(tx+(cx-tx)*g,tz+(cz-tz)*g,ty+(cy-ty)*g)){ok=(i-1)/16;break;}}
   const was=SB.camF==null?1:SB.camF;SB.camF=ok<was?ok:Math.min(ok,was+.02);const f=Math.max(.16,SB.camF);if(f>=.999)return;
   camera.position.set(tx+(cx-tx)*f,ty+(cy-ty)*f+(1-f)*9,tz+(cz-tz)*f);{/* pulled in close, it looks more and more at the kart itself, so the kart stays in the picture */const w=Math.min(1,(1-f)*1.6);camera.lookAt(cam.look.x+(tx-cam.look.x)*w,cam.look.y+cam.oy*.45+(ty-2-cam.look.y-cam.oy*.45)*w,cam.look.z+(tz-cam.look.z)*w);}}
-function sbRender(time){{const dt=Math.min(.1,Math.max(0,time-(SB.wT==null?time:SB.wT)));SB.wT=time;sbWarpTick(dt);}if(!SB.grp)return;sbCam();if(SB.flag){SB.flag.F.rotation.y=time*1.6;SB.flag.F.position.y=12+Math.sin(time*2.2)*1.2;}const im=SB.im;for(const c of SB.coins){const a=time*2.6+c.ph;if(c.rare){if(c.m&&c.m.visible){c.m.rotation.y=a;c.m.position.y=c.y+Math.sin(time*2+c.ph)*.8;}continue;}
+function sbRender(time){{const dt=Math.min(.1,Math.max(0,time-(SB.wT==null?time:SB.wT)));SB.wT=time;sbWarpTick(dt);}if(SBC.stars)SBC.stars.position.copy(camera.position);if(!SB.grp)return;sbCam();if(SB.flag){SB.flag.F.rotation.y=time*1.6;SB.flag.F.position.y=12+Math.sin(time*2.2)*1.2;}const im=SB.im;for(const c of SB.coins){const a=time*2.6+c.ph;if(c.rare){if(c.m&&c.m.visible){c.m.rotation.y=a;c.m.position.y=c.y+Math.sin(time*2+c.ph)*.8;}continue;}
     _sbE.set(0,a,0);_sbQ.setFromEuler(_sbE);_sbP.set(c.x,c.y,c.z);const s=c.t>0?0:1;_sbS.set(s,s,s);_sbM.compose(_sbP,_sbQ,_sbS);im.setMatrixAt(c.i,_sbM);}
   if(im)im.instanceMatrix.needsUpdate=true;}
 function sbHud(){let e=SB.el;if(!e){e=SB.el=document.createElement('div');e.id='sbHud';e.style.cssText='position:absolute;left:max(10px,env(safe-area-inset-left));top:64px;z-index:6;font:700 13px/1.3 system-ui,sans-serif;color:#fff4dc;background:rgba(18,9,6,.62);border-radius:12px;padding:8px 12px;pointer-events:none;text-shadow:0 1px 2px #000';stage.appendChild(e);}
   e.hidden=!SBX||state==='menu';if(BB.el)BB.el.hidden=true;if(e.hidden)return;const sv=sbSave(),f=sbFound(),dot=(c,r)=>'<span style="display:inline-block;width:'+r+'px;height:'+r+'px;border-radius:50%;background:'+c+';box-shadow:inset 0 0 0 2px rgba(0,0,0,.25);vertical-align:-2px;margin-right:6px"></span>';
-  e.innerHTML='<div style="font-size:11px;letter-spacing:.6px;opacity:.85;text-transform:uppercase">'+SB.reg.name+'</div><div style="font-size:20px;margin-top:2px">'+dot('#ffc93a',15)+sv.c+'</div><div style="margin-top:2px">'+dot('#d8402a',13)+f[0]+' / '+f[1]+'</div>';}
+  e.innerHTML='<div style="font-size:11px;letter-spacing:.6px;opacity:.85;text-transform:uppercase">'+SB.reg.name+'</div><div style="font-size:20px;margin-top:2px">'+dot('#ffc93a',15)+sv.c+'</div><div style="margin-top:2px">'+dot('#d8402a',13)+f[0]+' / '+f[1]+'</div>'+(SB_CLOCK?'<div style="margin-top:3px;font-size:12px;opacity:.9">'+sbClockIcon()+sbClockStr()+'</div>':'');}
 /* what an item box gives here: only the boost (nobody to throw anything at) */
 function sbRoll(){return 'chili';}
 /* ---- for the PC (docs/SANDBOX-PLAN.md, "Sandbox on the PC") ----
@@ -423,6 +423,27 @@ function sbMapEl(){let e=SBM.el;if(e)return e;e=SBM.el=document.createElement('d
   stage.appendChild(e);SBM.cv=e.querySelector('#sbMapCv');
   e.querySelector('#sbMapBack').onclick=()=>sbMap(false);e.querySelector('#sbMapMe').onclick=()=>{const q=SBM.pins.find(q=>q.id===SB.regId);if(q)sbMapPick({id:q.id,track:q.name});};e.querySelector('#sbMapNo').onclick=()=>{sbMapPick(null);};e.querySelector('#sbMapGo').onclick=()=>{const p=SBM.pick;if(p)sbMapTravel(p.id);};
   return e;}
+/* ---- the speed slider, and the guide into a tunnel's mouth (web v197) ----
+   The owner, 2026-11-14: "for sandbox mode make it so that there is a slider on the side of the screen where you can adjust vehicle speed.
+   I've noticed that at the default speed it's hard to go into the tunnels and I miss them a lot of times".
+   SB.spd, .25 to 1 in steps of .05, is the share of its normal top speed the car may reach in Sandbox (the engine multiplies the throttle by
+   it: tools/mini/patch32.py, in playerInput; boosts are scaled the same, reversing is its own slower speed and is not touched). It is kept
+   in the save as `v`, so it carries through passages, fast travel and a reload; a race from the start line is not Sandbox and is not slowed.
+   On the screen: a vertical track on the right edge, between the item buttons and the drift button (the left edge has the mirror button), dragged by finger or mouse; [ and ] on a keyboard; D-pad left and
+   right on a controller (patch32). */
+function sbSpd(v){const sv=sbSave();if(SB.spd==null)SB.spd=clamp(Math.round((+sv.v||1)*20)/20,.25,1);if(v==null)return SB.spd;v=clamp(Math.round(v*20)/20,.25,1);if(v===SB.spd)return v;SB.spd=v;sv.v=v;sbKeep();SB.spdDraw=null;sbSpdUi();return v;}
+function sbSpdStep(d){return sbSpd(sbSpd()+d*.05);}
+function sbSpdUi(){let e=SB.spdEl;const show=SBX&&(state==='race'||state==='countdown')&&!SB.trav&&!SBM.open;if(!e){if(!show)return;e=SB.spdEl=document.createElement('div');e.id='sbSpd';e.setAttribute('role','slider');e.setAttribute('aria-label','Speed in Sandbox');e.setAttribute('aria-valuemin','25');e.setAttribute('aria-valuemax','100');
+    const st=document.createElement('style');st.textContent='#sbSpd{position:absolute;right:max(10px,env(safe-area-inset-right));top:max(162px,calc(50% - 64px));z-index:6;width:46px;padding:6px 0 8px;border-radius:12px;background:rgba(18,9,6,.62);color:#fff4dc;font:800 10px/1.15 system-ui,sans-serif;letter-spacing:.04em;text-align:center;text-shadow:0 1px 2px #000;touch-action:none;user-select:none;-webkit-user-select:none;cursor:ns-resize}#sbSpd[hidden]{display:none}#sbSpd b{display:block;font-size:13px;margin-top:1px}#sbSpd i{display:block;position:relative;width:8px;height:min(150px,calc(100vh - 330px));min-height:70px;margin:7px auto 0;border-radius:4px;background:rgba(255,244,220,.25)}#sbSpd i u{position:absolute;left:0;right:0;bottom:0;border-radius:4px;background:#ffc93a}#sbSpd i s{position:absolute;left:-8px;width:24px;height:12px;margin-bottom:-6px;border-radius:6px;background:#fff4dc;box-shadow:0 1px 3px rgba(0,0,0,.6)}';document.head.appendChild(st);
+    e.innerHTML='SPEED<b></b><i><u></u><s></s></i>';const tr=e.querySelector('i'),at=ev=>{const r=tr.getBoundingClientRect();sbSpd(.25+.75*clamp((r.bottom-ev.clientY)/Math.max(1,r.height),0,1));};
+    e.addEventListener('pointerdown',ev=>{ev.preventDefault();ev.stopPropagation();SB.spdDrag=ev.pointerId;try{e.setPointerCapture(ev.pointerId);}catch(x){}at(ev);});e.addEventListener('pointermove',ev=>{if(SB.spdDrag===ev.pointerId){ev.preventDefault();at(ev);}});for(const n of ['pointerup','pointercancel'])e.addEventListener(n,ev=>{if(SB.spdDrag===ev.pointerId)SB.spdDrag=null;});
+    for(const n of ['touchstart','touchmove','touchend','mousedown'])e.addEventListener(n,ev=>ev.stopPropagation());stage.appendChild(e);
+    addEventListener('keydown',ev=>{if(!SBX||state!=='race'||SBM.open||SB.trav)return;if(ev.code==='BracketLeft'&&!KEYC.BracketLeft){ev.preventDefault();sbSpdStep(-1);}else if(ev.code==='BracketRight'&&!KEYC.BracketRight){ev.preventDefault();sbSpdStep(1);}});}
+  if(e.hidden===show)e.hidden=!show;if(!show)return;const v=sbSpd();if(SB.spdDraw===v)return;SB.spdDraw=v;const f=(v-.25)/.75*100;e.querySelector('b').textContent=Math.round(v*100)+'%';e.querySelector('u').style.height=f+'%';e.querySelector('s').style.bottom=f+'%';e.setAttribute('aria-valuenow',String(Math.round(v*100)));}
+/* heading into a mouth a little off its middle, the kart is eased sideways into it instead of meeting the jamb: only in the last 110 units
+   before the wall, only when it is pointing in and already within reach of the mouth, and never faster than a kart could steer there */
+function sbGuide(k,dt){if(!SBF||k.air||k.loop||!(k.speed>20))return;for(const g of SB.gates){if(g.road)continue;const d=(k.x-g.x)*g.nx+(k.y-g.z)*g.nz;if(d<-110||d>30)continue;const l=(k.x-g.x)*g.tx+(k.y-g.z)*g.tz,lim=Math.max(4,g.hw-10);if(Math.abs(l)<=lim||Math.abs(l)>g.hw+26)continue;if(Math.cos(k.ma)*g.nx+Math.sin(k.ma)*g.nz<.55)continue;if(Math.abs((k.wy||0)-g.y)>12)continue;
+    const want=Math.sign(l)*lim,mv=clamp(want-l,-70*dt,70*dt),nx2=k.x+g.tx*mv,ny2=k.y+g.tz*mv;if(d<-22&&sbBlocked(nx2,ny2,k.wy||0))continue;/* (out in the room something may stand beside the kart) */k.x=nx2;k.y=ny2;return;}}
 addEventListener('keydown',ev=>{if(SBM.open&&(ev.code==='Escape'||ev.code==='KeyM')){ev.preventDefault();ev.stopImmediatePropagation();if(SBM.pick&&ev.code==='Escape')sbMapPick(null);else sbMap(false);}else if(!SBM.open&&SBX&&state==='race'&&ev.code==='KeyM'&&!ev.repeat&&!KEYC.KeyM){ev.preventDefault();sbMap(true,'drive');}},true);
 function sbMapPick(p){SBM.pick=p;SBM.zoom=p?p.id:null;const e=sbMapEl(),say=e.querySelector('#sbMapSay'),go=e.querySelector('#sbMapGo'),no=e.querySelector('#sbMapNo');
   const me=e.querySelector('#sbMapMe');
@@ -466,7 +487,7 @@ function sbMapPins(){const box=sbMapEl().querySelector('#sbMapIn');for(const q o
 /* open or close. from: 'drive' (straight from driving: closing goes back to driving) or 'pause' (from the pause menu: closing goes back to it) */
 function sbMap(open,from){const e=sbMapEl();if(open===SBM.open)return;if(open){if(!SBX||SB.trav||(state!=='race'&&state!=='paused'))return;SBM.from=from||'drive';
     if(state==='race')togglePause();/* the game stops under the map, exactly as under the pause menu */pauseOv.hidden=true;SBM.open=true;e.hidden=false;sbMapPins();sbMapPick(null);
-    e.querySelector('#sbMapWhere').textContent=SB.reg?SB.reg.name:'';e.querySelector('#sbMapKey').textContent=(SBM.big?'Drag the map to see more \u00b7 ':'')+(PAD.act?'Y or Select: close':(typeof COARSE!=='undefined'&&COARSE)?'':'M: close');
+    e.querySelector('#sbMapWhere').textContent=SB.reg?SB.reg.name:'';if(SB_CLOCK)e.querySelector('#sbMapWhere').insertAdjacentHTML('beforeend','<span style="margin-left:14px;font-size:13px;opacity:.9;white-space:nowrap">'+sbClockIcon()+sbClockStr()+'</span>');e.querySelector('#sbMapKey').textContent=(SBM.big?'Drag the map to see more \u00b7 ':'')+(PAD.act?'Y or Select: close':(typeof COARSE!=='undefined'&&COARSE)?'':'M: close');
     /* the window opens on where you are */{const box=e.querySelector('#sbMapBox');if(SBM.me){box.scrollLeft=Math.max(0,SBM.me[0]-box.clientWidth/2);box.scrollTop=Math.max(0,SBM.me[1]-box.clientHeight/2);}}
     const first=SBM.pins.find(q=>q.id===SB.regId)||SBM.pins[0];if(first)try{first.b.focus({preventScroll:true});}catch(err){first.b.focus();}}
   else{SBM.open=false;e.hidden=true;SBM.pick=null;SBM.zoom=null;if(SBM.from==='pause'){pauseOv.hidden=false;const r=document.getElementById('resumeBtn');if(r)r.focus();}else if(state==='paused')togglePause();}}
@@ -475,3 +496,85 @@ function sbMapTravel(id){if(!sbRegOf(id))return;SBM.from='drive';sbMap(false);if
 /* the pause menu's Map button, directly under Resume, in Sandbox only */
 function sbMapBtn(){let b=document.getElementById('sbMapBtn');if(!b){if(!SBX)return;const r=document.getElementById('resumeBtn');if(!r)return;b=document.createElement('button');b.id='sbMapBtn';b.className='cta';b.type='button';b.textContent='Map';b.style.cssText='background:var(--oven-2);box-shadow:0 5px 0 rgba(0,0,0,.35);border:2px solid var(--oven-3)';r.insertAdjacentElement('afterend',b);b.onclick=()=>sbMap(true,'pause');}
   b.hidden=!SBX;}
+/* ---- THE CLOCK (web v197): one day and night for the whole Sandbox world (the owner's brief, section 4) ----
+   SB.clock runs 0..1 (0 midnight, .25 sunrise, .5 noon, .75 sunset); a day is SB_DAY seconds of driving; it is saved with the coins
+   (crust-sb .t), so it carries through tunnels, fast travel, a race from the start line and a reload. It stands still while the
+   game is paused or the map is up (sbTick only runs while driving).
+   Nothing here is absolute. When a place is armed its own lights, fog, sky, exposure and materials are written down (sbClockArm,
+   sbClockMats) and every update scales and tints from that record: at noon a place is exactly the place as raced. sbClockOff puts
+   every value back before a race or the menu reads it (sbOff calls it), so nothing a race sees ever changes.
+   Three kinds of place: 'out' (open air, and the pizzeria the kitchen pizzas stand in), 'in' (a room of the house: its lamps stay
+   on at night and the windows go dark), 'dark' (a place whose own look is night: it is itself at night, and by day its sky and
+   fill lift to a deep twilight while its glow stays).
+   Cost: the materials are listed once per place; an update (ten a second) is a few hundred number writes. No new light, no new
+   shadow pass, no render target, no screen-sized layer. */
+/* THE SWITCH. false: nothing of the clock runs (no record, no light or material write, no read-out, nothing saved): every
+   entry point below returns at once and Sandbox is exactly as in web v196. UNFINISHED, 2026-11-14: leave it false until the
+   night pictures of every kind of place have been looked at (see docs or the hand-back). To work on it: set it true here. */
+let SB_CLOCK=false;
+const SB_DAY=720,SBC={rec:null,list:[],seen:new Set(),acc:0,keep:0,stars:null};
+const _ckWarm=new THREE.Color('#ff9a4a'),_ckMoon=new THREE.Color('#9db8ff'),_ckNightSky=new THREE.Color('#6f8fe0'),_ckNightGnd=new THREE.Color('#10182c'),_ckLamp=new THREE.Color('#ffd2a0'),_ckLampG=new THREE.Color('#8a5a3a'),_ckDusk=new THREE.Color('#ffc8a0'),
+  _ckTwTop=new THREE.Color('#1c2458'),_ckTwHor=new THREE.Color('#6a4f9a'),_ckTwBot=new THREE.Color('#1a1c3a'),_ckTwFog=new THREE.Color('#2c2a5e'),_ckTwHemi=new THREE.Color('#9a9ae0'),_ckSk=new THREE.Color(),_ckHz=new THREE.Color(),_ckC=new THREE.Color();
+const sbSm=(a,b,x)=>{const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t);};
+function sbClockNow(){if(SB.clock==null){const sv=sbSave();SB.clock=typeof sv.t==='number'&&sv.t>=0&&sv.t<1?sv.t:.4;/* a first visit starts in the middle of the morning */}return SB.clock;}
+/* "7:40 pm": to the ten minutes, so the read-out does not flicker */
+function sbClockStr(){const m=Math.round(sbClockNow()*144)%144*10,h=Math.floor(m/60),mm=m%60;return ((h+11)%12+1)+':'+(mm<10?'0':'')+mm+(h<12?' am':' pm');}
+/* a small sun by day, a crescent by night (drawn with CSS: no picture to load) */
+function sbClockIcon(){const e=Math.sin((sbClockNow()-.25)*Math.PI*2);return e>-.05?'<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:'+(e<.25?'#ffa94a':'#ffd65a')+';box-shadow:0 0 0 2px rgba(255,214,90,.35);vertical-align:-1px;margin:0 7px 0 2px"></span>':'<span style="display:inline-block;width:12px;height:12px;border-radius:50%;box-shadow:inset -4px -1px 0 0 #dfe8ff;vertical-align:-1px;margin:0 6px 0 2px"></span>';}
+/* the day's numbers: e the sun's height (-1 midnight .. 1 noon), D daylight 0..1, W the golden hour (1 at sunrise and sunset),
+   L the lamps (1 = on), M the moon (it rises only once the sun's light is quite gone, so the two never cross-fade through each other) */
+function sbClockF(){const t=sbClockNow(),e=Math.sin((t-.25)*Math.PI*2);return {t,e,D:sbSm(-.2,.24,e),W:Math.exp(-(e/.26)*(e/.26)),L:1-sbSm(-.12,.14,e),M:sbSm(-.2,-.45,e)};}
+/* a place has just been armed: write down how it is lit, then light it for the hour */
+function sbClockArm(){if(!SB_CLOCK)return;sbClockOff();const def=MAPS[mapIdx],c=o=>o.clone(),d=sunDir;
+  const R=SBC.rec={id:def.id,kind:def.theme==='night'?'dark':(def.toy&&def.id!=='backyard')?'in':'out',sun:[c(sun.color),sun.intensity],hemi:[c(hemi.color),c(hemi.groundColor),hemi.intensity],rim:[c(rimL.color),rimL.intensity],dir:c(d),az:Math.atan2(d.z,d.x),el:Math.asin(Math.max(-1,Math.min(1,d.y))),
+    turn:!def.toy&&!TOYSUN&&def.theme!=='night',fog:scene.fog?c(scene.fog.color):null,bg:scene.background&&scene.background.isColor?c(scene.background):null,exp:renderer.toneMappingExposure,bloom:POST.grade.bloom,thr:POST.grade.thr,sky:null};
+  if(sky&&sky.material&&sky.material.uniforms&&sky.material.uniforms.top){const u=sky.material.uniforms;R.sky={u,top:c(u.top.value),hor:c(u.hor.value),bot:c(u.bot.value),sc:c(u.sunCol.value),sd:c(u.sunDir.value)};}
+  SBC.list=[];SBC.seen=new Set();sbClockMats();
+  if(R.kind==='out'&&(R.sky||def.id==='backyard')){/* stars, where there is an open sky: one small cloud of points that follows the camera */const P=[];let sd=977;const r=()=>(sd=sd*16807%2147483647)/2147483647;for(let i=0;i<620;i++){const a=r()*Math.PI*2,y=.1+r()*.9,q=Math.sqrt(1-y*y);P.push(Math.cos(a)*q*7600,y*7600,Math.sin(a)*q*7600);}
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));const st=SBC.stars=new THREE.Points(g,new THREE.PointsMaterial({color:'#eef2ff',size:2.1,sizeAttenuation:false,transparent:true,opacity:0,depthWrite:false,fog:false,toneMapped:false}));st.frustumCulled=false;st.renderOrder=-.5;st.visible=false;scene.add(st);}
+  sbClockApply();}
+/* the materials the clock touches, listed once (again when the karts have been rebuilt): k 0 a lit surface (its share of the sky's
+   light), 1 a surface with a little glow of its own that stands in for daylight (the tree cards), 2 a lamp (anything that glows
+   strongly: windows, signs, neon, a car's lights), 3 paint that no light reaches (unlit scenery: it is dimmed by hand),
+   4 a picture of the far distance or of the sky (tinted like the sky). Sandbox's own things (coins, arches, signs, the flag) are
+   left alone: they must read at midnight. */
+function sbClockMats(){if(!SB_CLOCK||!SBC.rec)return;const S=SBC.seen,walk=o=>{if(o===SB.grp||o===SBC.stars)return;const ms=o.material?(Array.isArray(o.material)?o.material:[o.material]):null;
+    if(ms)for(const m of ms){if(!m||S.has(m))continue;S.add(m);
+      if(m.isMeshStandardMaterial){const em=m.emissiveIntensity>0&&m.emissive.r+m.emissive.g+m.emissive.b>.02;SBC.list.push({m,k:em?(m.emissiveIntensity>=.3?2:1):0,env:m.envMapIntensity,ei:m.emissiveIntensity});}
+      else if((m.isMeshBasicMaterial||m.isSpriteMaterial)&&m.blending!==THREE.AdditiveBlending&&m.color){const far=m.map&&m.toneMapped===false&&(m.fog===false||/outside|ycards|sky|mount|skyline|pano|riverbed|space/.test((m.name||'')+' '+(m.map.name||'')));
+        if(far)SBC.list.push({m,k:4,col:m.color.clone()});else if(m.toneMapped!==false)SBC.list.push({m,k:3,col:m.color.clone()});}}
+    for(const ch of o.children)walk(ch);};walk(scene);}
+function sbClockApply(){const R=SBC.rec;if(!SB_CLOCK||!R)return;const F=sbClockF(),D=F.D,N=1-D,W=F.W,L=F.L,K=R.kind,G=POST.grade;sbSave().t=+F.t.toFixed(4);
+  let sunK,hemiK,rimK,envK,paintK,lampK,fillK,expK=1;const sk=_ckSk;
+  if(K==='dark'){/* its own look is the night: by day the sky and the fill lift to a deep twilight, the glow stays */
+    sunK=1+.3*D;hemiK=1+.6*D;rimK=1;envK=1+.3*D;paintK=1;lampK=1-.1*D;fillK=1;
+    sun.color.copy(R.sun[0]);hemi.color.copy(R.hemi[0]).lerp(_ckTwHemi,.3*D);hemi.groundColor.copy(R.hemi[1]);
+    if(R.fog)scene.fog.color.copy(R.fog).lerp(_ckTwFog,.5*D);if(R.bg)scene.background.copy(R.bg).lerp(_ckTwFog,.5*D);
+    if(R.sky){const u=R.sky.u;u.top.value.copy(R.sky.top).lerp(_ckTwTop,.55*D);u.hor.value.copy(R.sky.hor).lerp(_ckTwHor,.55*D);u.bot.value.copy(R.sky.bot).lerp(_ckTwBot,.55*D);}
+    sk.setRGB(1+.5*D,1+.45*D,1+.6*D);G.bloom=R.bloom-.06*D;}
+  else{const ins=K==='in';
+    sunK=D*(1-.3*W)+N*F.M*(ins?.05:.11);sun.color.copy(R.sun[0]).lerp(_ckWarm,.7*W*D).lerp(_ckMoon,N);
+    if(ins){/* a room: its lamps are on at night (a little warmer and dimmer than the day) */hemiK=.6+.4*D;rimK=.5+.5*D;envK=.5+.5*D;paintK=.75+.25*D;lampK=1+1.4*L;fillK=.7+.3*D;hemi.color.copy(R.hemi[0]).lerp(_ckLamp,.55*N);hemi.groundColor.copy(R.hemi[1]).lerp(_ckLampG,.4*N);}
+    else{hemiK=.3+.7*D;rimK=.35+.65*D;envK=.2+.8*D;paintK=.16+.84*D;lampK=1+1.1*L;fillK=.3+.7*D;expK=1+.1*N;hemi.color.copy(R.hemi[0]).lerp(_ckNightSky,.75*N).lerp(_ckDusk,.3*W);hemi.groundColor.copy(R.hemi[1]).lerp(_ckNightGnd,.6*N);}
+    /* the sky's tint: white by day, warm at the golden hour, a dark blue at night; fog, the background, the sky and every picture of the distance take it */
+    sk.setRGB(1,1,1).lerp(_ckC.setRGB(1,.7,.5),.5*W).multiplyScalar(.05+.95*D);sk.r+=.012*N;sk.g+=.02*N;sk.b+=.05*N;
+    if(R.fog)scene.fog.color.copy(R.fog).multiply(sk);if(R.bg)scene.background.copy(R.bg).multiply(sk);
+    if(R.sky){const u=R.sky.u;u.top.value.copy(R.sky.top).multiply(sk);u.hor.value.copy(R.sky.hor).lerp(_ckWarm,.45*W).multiply(sk);u.bot.value.copy(R.sky.bot).multiply(sk);u.sunCol.value.copy(R.sky.sc).lerp(_ckWarm,.6*W*D).lerp(_ckMoon,N).multiplyScalar(D+N*F.M*.55);}
+    G.bloom=R.bloom+(ins?.1:.12)*L;G.thr=R.thr-.03*L;}
+  sun.intensity=R.sun[1]*sunK;hemi.intensity=R.hemi[2]*hemiK;rimL.intensity=R.rim[1]*rimK;renderer.toneMappingExposure=R.exp*expK;
+  if(R.turn){/* the sun crosses the sky and sets; the moon comes up on the other side once the sun's light is gone (the light is at nothing when they swap) */
+    let az,el;if(F.e>-.2){el=Math.max(.3,R.el*(.32+.68*sbSm(0,1,F.e)));az=R.az+(F.t-.5)*2.2;}else{el=Math.max(.55,R.el*.9);az=R.az+2.6+((F.t+.5)%1-.5)*1.2;}
+    sunDir.set(Math.cos(el)*Math.cos(az),Math.sin(el),Math.cos(el)*Math.sin(az));if(R.sky)R.sky.u.sunDir.value.copy(sunDir);}
+  for(const r of SBC.list){const m=r.m;if(r.k<3){m.envMapIntensity=r.env*envK;if(r.k===1)m.emissiveIntensity=r.ei*fillK;else if(r.k===2)m.emissiveIntensity=r.ei*(r.ei>1?1+(lampK-1)*.4:lampK);}
+    else if(r.k===3){m.color.copy(r.col).multiplyScalar(paintK);if(K==='out'){m.color.r*=1-.3*N;m.color.g*=1-.15*N;}}else m.color.copy(r.col).multiply(sk);}
+  const st=SBC.stars;if(st){const o=N*N*.95;st.visible=o>.02;st.material.opacity=o;}}
+/* each step of driving: the clock goes on; the light follows ten times a second (a step of a ten-thousandth of a day: nothing to see) */
+function sbClockTick(dt){if(!SB_CLOCK)return;SB.clock=(sbClockNow()+dt/SB_DAY)%1;SBC.acc+=dt;if(SBC.acc>=.1){SBC.acc=0;sbClockApply();}SBC.keep+=dt;if(SBC.keep>=20){SBC.keep=0;sbKeep();}}
+/* everything back as the place itself has it (a race, the menu, or another place is next) */
+function sbClockOff(){const R=SBC.rec;if(!R)return;/* (nothing was written down: nothing to put back. With the switch off this is always so) */SBC.rec=null;sun.color.copy(R.sun[0]);sun.intensity=R.sun[1];hemi.color.copy(R.hemi[0]);hemi.groundColor.copy(R.hemi[1]);hemi.intensity=R.hemi[2];rimL.color.copy(R.rim[0]);rimL.intensity=R.rim[1];sunDir.copy(R.dir);
+  if(R.fog&&scene.fog)scene.fog.color.copy(R.fog);if(R.bg&&scene.background&&scene.background.isColor)scene.background.copy(R.bg);renderer.toneMappingExposure=R.exp;POST.grade.bloom=R.bloom;POST.grade.thr=R.thr;
+  if(R.sky){const u=R.sky.u;u.top.value.copy(R.sky.top);u.hor.value.copy(R.sky.hor);u.bot.value.copy(R.sky.bot);u.sunCol.value.copy(R.sky.sc);u.sunDir.value.copy(R.sky.sd);}
+  for(const r of SBC.list){const m=r.m;if(r.k<3){m.envMapIntensity=r.env;m.emissiveIntensity=r.ei;}else m.color.copy(r.col);}SBC.list=[];SBC.seen=new Set();
+  if(SBC.stars){scene.remove(SBC.stars);SBC.stars.geometry.dispose();SBC.stars.material.dispose();SBC.stars=null;}if(SB.save&&SB.clock!=null){SB.save.t=+SB.clock.toFixed(4);sbKeep();}}
+/* for the tests and for looking: set the hour and light the place for it at once */
+function sbClockSet(t){if(!SB_CLOCK)return null;SB.clock=((+t||0)%1+1)%1;sbClockApply();SB.hudT=0;return SB.clock;}
