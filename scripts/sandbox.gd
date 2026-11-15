@@ -38,6 +38,10 @@ var T: TrackData
 var id := ""
 var kind := "toy"
 var toy := true
+const SandboxClock := preload("res://scripts/sandbox_clock.gd")
+const SandboxActs := preload("res://scripts/sandbox_acts.gd")
+var acts = null               # things to do and the Easter egg here (scripts/sandbox_acts.gd)
+var clock_keep := 0.0          # seconds since the clock's hour was last written to the save
 var free := true             # web SBF: the driving is free (toy, open); false where you keep to the road
 var title := ""              # "Home · Bedroom"
 var STEP := 5.5              # web SB_STEP: the highest step a kart climbs
@@ -245,6 +249,13 @@ static func load_save() -> Dictionary:
 				save["g"] = j["g"]
 			if j.get("v") != null:
 				save["v"] = float(j["v"])
+			# (web v199: the clock's hour, the activities done and the Easter eggs found)
+			if j.get("t") != null and float(j["t"]) >= 0.0 and float(j["t"]) < 1.0:
+				save["t"] = float(j["t"])
+			if j.get("a") is Dictionary:
+				save["a"] = j["a"]
+			if j.get("e") is Dictionary:
+				save["e"] = j["e"]
 	return save
 
 
@@ -378,6 +389,8 @@ func setup(race_, track: TrackData, defer_save := false) -> void:
 	if not deferred:
 		_remember_gates()
 
+	acts = SandboxActs.new()
+	acts.setup(self, T.sb)
 
 ## the map remembers this place's tunnels (web sbArm: sv.g[regId])
 func _remember_gates() -> void:
@@ -958,6 +971,63 @@ func arrive(k: Kart, at: String, sp: float) -> void:
 	travel = null
 
 
+## Back to the track (web v199 sbBackJ / sbBackGo; the owner: "a button in the pause menu that can just take you right to the
+## nearest spot on the track", asked first): the nearest track point, a difference in level counting three times over, never within
+## 420 of a loop; the kart is set down standing still in the middle of the road, facing the way the track runs
+func back_to_track(k: Kart) -> void:
+	var N := T.N
+	var sl := T.L / N
+	var bj := 0
+	var bd := 1e18
+	for j in N:
+		var near_loop := false
+		for L in T.loops:
+			var d := j - int(L["j"])
+			if d > N / 2:
+				d -= N
+			if d < -N / 2:
+				d += N
+			if absf(d * sl) < 420.0:
+				near_loop = true
+				break
+		if near_loop:
+			continue
+		var y := _base(T.px[j], T.py[j]) + T.ey[j]
+		var dd := (T.px[j] - k.x) ** 2 + (T.py[j] - k.y) ** 2 + 9.0 * (k.wy - y) ** 2
+		if dd < bd:
+			bd = dd
+			bj = j
+	k.x = T.px[bj]
+	k.y = T.py[bj]
+	k.a = atan2(T.ty[bj], T.tx[bj])
+	k.ma = k.a
+	k.idx = bj
+	k.loop = {}
+	k.loop_th = 0.0
+	k.speed = 0.0
+	k.boost = 0.0
+	k.wvy = 0.0
+	k.g_rate = 0.0
+	k.air = false
+	k.big = false
+	k.drift = 0
+	k.charge = 0.0
+	k.spin = 0.0
+	k.z = 0.0
+	k.on_ramp = false
+	k.on_glide = false
+	k.bpx = k.x
+	k.bpy = k.y
+	if free:
+		k.wy = ground(k.x, k.y, _base(k.x, k.y) + T.ey[bj] + 2.0)
+		k.idx = idx_of(k, bj)
+	else:
+		k.wy = T.ground(k.x, k.y) + T.k_ey(bj, k.x, k.y)
+	k.last_g = k.wy
+	k._save_prev()
+	cool = 1.0
+
+
 ## heading into a mouth a little off its middle, the kart is eased sideways into it instead of meeting the jamb: only in
 ## the last 110 units before the wall, only when it is pointing in and already within reach of the mouth, and never
 ## faster than a kart could steer there (web sbGuide, v197; road gates are left alone)
@@ -1019,6 +1089,12 @@ func tick(dt: float) -> void:
 	var k: Kart = race.player
 	if k == null:
 		return
+	# the clock goes on while driving (web sbClockTick); the light follows in sandbox_view.gd
+	save["t"] = fmod(float(save.get("t", 0.4)) + dt / SandboxClock.DAY, 1.0)
+	clock_keep += dt
+	if clock_keep >= 20.0:
+		clock_keep = 0.0
+		keep()
 	if stopped() and k.loop.is_empty() and not k.air:
 		var sp := k.speed
 		var d := minf(absf(sp), (140.0 + absf(sp) * 5.0) * dt)
@@ -1036,6 +1112,8 @@ func tick(dt: float) -> void:
 		return
 	guide(k, dt)
 	race_near = has_flag and travel == null and (k.x - float(flag[0])) ** 2 + (k.y - float(flag[2])) ** 2 < 46.0 * 46.0 and absf(k.wy - float(flag[1])) < 10.0
+	if acts != null:
+		acts.tick(k, dt)
 	if cool > 0.0:
 		cool -= dt
 	elif travel == null:

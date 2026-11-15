@@ -43,6 +43,8 @@ func _ready() -> void:
 	_lap()
 	_back()
 	_mode()
+	_to_track()
+	_acts()
 	if OS.get_environment("CR_SB_TRAVEL") != "0":
 		await _travel()
 	var ok := fails.is_empty()
@@ -104,6 +106,67 @@ func _place(j: int, backwards := false) -> void:
 	k.bpx = k.x
 	k.bpy = k.y
 	k._save_prev()
+
+
+## things to do and the egg (scripts/sandbox_acts.gd; only on a place exported with them, web v199 or later)
+func _acts() -> void:
+	var A = sb.acts
+	var o := {"marks": A.marks.size(), "egg": String(A.egg.get("id", ""))}
+	out["acts"] = o
+	var Acts = load("res://scripts/sandbox_acts.gd")
+	for m in A.marks:
+		var kind := String(m["a"]["kind"])
+		var j: int = m["j"]
+		_place(j)
+		k.x = float(m["x"])
+		k.y = float(m["z"])
+		k.wy = float(m["y"])
+		for i in 3:
+			sb.park = true
+			_step()
+		var offered: bool = not A.near.is_empty() and String(A.near["id"]) == String(m["id"])
+		var c0 := int(sb.save.get("c", 0))
+		A.start(String(m["id"]))
+		var started: bool = not Acts.act.is_empty()
+		if kind != "deliver" and started:
+			Acts.act["v"] = float(m["a"]["need"]) + 0.1
+			_step()
+		elif started:
+			Acts.finish("cancel")
+		var fin: Dictionary = Acts.ended
+		o[String(m["id"])] = [offered, started, String(fin.get("why", "")), int(sb.save.get("c", 0)) - c0]
+		_check("the activity %s is offered at its marker and starts" % m["id"], offered and started)
+		_check("...and ends as it should", String(fin.get("why", "")) == ("done" if kind != "deliver" else "cancel"))
+		Acts.ended = {}
+		sb.park = false
+	if not A.egg.is_empty():
+		var e: Dictionary = A.egg
+		var was: bool = e["found"]
+		k.x = float(e["x"])
+		k.y = float(e["z"])
+		k.wy = float(e["y"])
+		k.idx = sb.idx_of(k, k.idx)
+		sb.park = true
+		_step()
+		sb.park = false
+		o["eggFound"] = bool(e["found"])
+		_check("the Easter egg is found by driving to it", bool(e["found"]))
+
+
+## Back to the track (pause menu, web v199): from a spot well off the road, the kart is set down on the track, standing still, and
+## drives off from there
+func _to_track() -> void:
+	var j := T.N / 3
+	_place(j)
+	var off := (60.0 if sb.free else 0.0)
+	k.x += T.nx[j] * off + 7.0
+	k.y += T.ny[j] * off + 5.0
+	sb.back_to_track(k)
+	var jj: int = k.idx
+	var d := Vector2(k.x - T.px[jj], k.y - T.py[jj]).length()
+	out["toTrack"] = [jj, snappedf(d, 0.1)]
+	_check("Back to the track sets the kart on the road, still", d < 1.0 and k.speed == 0.0 and (not sb.free or sb.touch(k.x, k.y, k.wy) == 0))
+	_check("...and it drives on from there", _free_after(240))
 
 
 ## every square of floor that can be driven to from the track where it lies on the ground (web CHECK: the flood)

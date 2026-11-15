@@ -354,6 +354,7 @@ func _bb_no_net() -> void:
 ## Off line only. Everything below is reached only with sel["mode"] == "sb" or race.sb != null.
 const Sandbox := preload("res://scripts/sandbox.gd")           # (by their files, not class names: a fresh checkout has no class list yet)
 const SandboxView := preload("res://scripts/sandbox_view.gd")
+const SandboxActs := preload("res://scripts/sandbox_acts.gd")
 const SandboxMap := preload("res://scripts/sandbox_map.gd")
 const SandboxWarp := preload("res://scripts/sandbox_warp.gd")
 const WorldBuild := preload("res://scripts/world_build.gd")
@@ -470,6 +471,11 @@ func _sb_tick() -> void:
 		sb.arrived = false
 		_sb_out()
 	hud.sb_race = ("Race here: " + T.title) if (sb.race_near and state == "race" and not sb_trav) else ""
+	# things to do (scripts/sandbox_acts.gd): the offer at a marker, the bar while one runs, the panel when one ends
+	hud.sb_act = sb.acts.offer() if (sb.acts != null and state == "race" and not sb_trav and hud.sb_race == "") else []
+	hud.sb_bar = SandboxActs.bar() if state == "race" and not sb_trav else []
+	if not SandboxActs.ended.is_empty() and sb_act_ui == null:
+		_sb_act_end(SandboxActs.ended)
 
 
 # ---------------------------------------------------------------- Sandbox: travelling without a stop
@@ -541,6 +547,8 @@ func _sb_travel(to: String, at: String) -> void:
 		return
 	if not _sb_has(to):
 		return
+	if SandboxActs.retry == "" and not SandboxActs.act.is_empty() and String(SandboxActs.act["a"]["kind"]) == "deliver":
+		SandboxActs.finish("cancel")   # (fast travel cannot finish a delivery)
 	sb_trav = true
 	_sb_cover_on()
 	sb_go = {"mode": "map", "to": to, "at": at, "stage": "build", "n": 0, "t0": Time.get_ticks_msec(), "wb": null, "sp": maxf(70.0, absf(kart.speed))}
@@ -898,6 +906,9 @@ func _sb_arrived_map() -> void:
 	state = "race"
 	race.state = "race"
 	cd = 0.0
+	if SandboxActs.retry != "":
+		_sb_act_put_start.call_deferred(SandboxActs.retry)
+		SandboxActs.retry = ""
 	sb_trav = false
 	sb_arrived += 1
 	hud.sb_hold = []
@@ -1002,6 +1013,7 @@ func _sb_cover_off() -> void:
 func _sb_race_here() -> void:
 	if race == null or race.sb == null or sb_trav or state != "race" or paused or not race.sb.race_near:
 		return
+	SandboxActs.finish("cancel")
 	sb_back = map_id
 	gp = {}
 	_new_cpu_builds()
@@ -1804,6 +1816,9 @@ func _toggle_pause() -> void:
 	if sb_map_ui != null:
 		_sb_map(false)   # Sandbox's map is up: pause and Start close it (web togglePause)
 		return
+	if sb_back_ui != null:
+		_sb_back_close()   # "Back to the track?" is up: Esc / Start answer Cancel
+		return
 	if sb_trav and not sb_go.is_empty() and String(sb_go["mode"]) == "map":
 		return   # (under the map's cover: there is nothing to pause)
 	if net_role != "":
@@ -1853,6 +1868,10 @@ func _build_pause() -> void:
 		var mapb := menu.button("Map", "ghost", 20.0, Vector4(14, 12, 14, 12))
 		mapb.pressed.connect(func(): _sb_map(true, "pause"))
 		v.add_child(mapb)
+		# Back to the track, under Map, asked first (web v199 sbBackBtn)
+		var backb := menu.button("Back to the track", "ghost", 20.0, Vector4(14, 12, 14, 12))
+		backb.pressed.connect(_sb_back_ask)
+		v.add_child(backb)
 	var row := menu.hbox(10)
 	for spec in [["Back to the start line" if in_sb else "Restart race", _restart], ["Settings", _pause_settings], ["Back to Sandbox" if sb_back != "" else "Quit to menu", _to_menu.bind("")]]:
 		var b := menu.button(String(spec[0]), "ghost", 15.0, Vector4(12, 12, 12, 12))
@@ -1861,6 +1880,126 @@ func _build_pause() -> void:
 		row.add_child(b)
 	v.add_child(row)
 	res.grab_focus.call_deferred()
+
+
+## "Back to the track?": a small sheet over the pause menu; Move me sets the kart on the road and resumes, Cancel (or Esc / B, which
+## the pause menu's own back handling sends here first) goes back to the pause menu
+var sb_back_ui: Control = null
+func _sb_back_ask() -> void:
+	if sb_back_ui != null or race == null or race.sb == null:
+		return
+	var dim := Control.new()
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	panel_pause.add_child(dim)
+	var v := _sheet(dim, 440.0)
+	v.add_child(menu.label("Back to the track?", menu.f_disp, 30.0, Color("#fff4dc")))
+	var t := menu.label("Your kart will be moved to the nearest part of the track, standing still.", menu.f_med, 17.0, Color("#fff4dc"))
+	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	t.custom_minimum_size = Vector2(380, 0)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(t)
+	var row := menu.hbox(10)
+	var yes := menu.button("Move me", "cta", 19.0, Vector4(14, 12, 14, 12))
+	var no := menu.button("Cancel", "ghost", 19.0, Vector4(14, 12, 14, 12))
+	yes.pressed.connect(func():
+		_sb_back_close()
+		if race != null and race.sb != null and race.player != null:
+			race.sb.back_to_track(race.player)
+			if paused:
+				_toggle_pause()
+			_toast("Back on the track"))
+	no.pressed.connect(_sb_back_close)
+	row.add_child(yes)
+	row.add_child(no)
+	v.add_child(row)
+	sb_back_ui = dim
+	no.grab_focus.call_deferred()
+
+
+func _sb_back_close() -> void:
+	if sb_back_ui != null:
+		sb_back_ui.queue_free()
+		sb_back_ui = null
+
+
+## ---- things to do (scripts/sandbox_acts.gd; web activities.js) ----
+var sb_act_ui: Control = null
+func _sb_act_take() -> void:
+	if race == null or race.sb == null or race.sb.acts == null or race.sb.acts.near.is_empty() or state != "race" or paused or sb_trav:
+		return
+	race.sb.acts.start(String(race.sb.acts.near["id"]))
+
+
+## the end of one: what happened, the coins, Retry and Close (Enter / A retries, Esc / B closes: the buttons have the focus)
+func _sb_act_end(o: Dictionary) -> void:
+	SandboxActs.ended = {}
+	var w: Array = SandboxActs.end_words(o)
+	var host := Control.new()
+	host.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	host.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud_race.add_child(host)
+	var v := _sheet(host, 380.0)
+	v.add_child(menu.label(String(w[0]), menu.f_disp, 30.0, Color("#fff4dc")))
+	var t := menu.label(String(w[1]), menu.f_med, 17.0, Color("#fff4dc"))
+	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	t.custom_minimum_size = Vector2(340, 0)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(t)
+	var row := menu.hbox(10)
+	var again := menu.button("Retry", "cta", 19.0, Vector4(14, 12, 14, 12))
+	var close := menu.button("Close", "ghost", 19.0, Vector4(14, 12, 14, 12))
+	again.pressed.connect(func():
+		_sb_act_close()
+		_sb_act_retry(o))
+	close.pressed.connect(_sb_act_close)
+	row.add_child(again)
+	row.add_child(close)
+	v.add_child(row)
+	sb_act_ui = host
+	again.grab_focus.call_deferred()
+
+
+func _sb_act_close() -> void:
+	if sb_act_ui != null:
+		sb_act_ui.queue_free()
+		sb_act_ui = null
+
+
+## Retry: a challenge starts again where you are (in its place); a delivery goes back to its marker by fast travel
+func _sb_act_retry(o: Dictionary) -> void:
+	if race == null or race.sb == null or state != "race":
+		return
+	var aid := String(o["id"])
+	var a: Dictionary = o["a"]
+	if String(race.sb.id) == String(a["at"]):
+		if String(a["kind"]) == "deliver":
+			_sb_act_put_start(aid)
+		else:
+			race.sb.acts.start(aid)
+		return
+	SandboxActs.retry = aid
+	_sb_travel(String(a["at"]), "")
+
+
+## set the kart down on an activity's marker, standing, and start it
+func _sb_act_put_start(aid: String) -> void:
+	if race == null or race.sb == null or race.sb.acts == null:
+		return
+	for m in race.sb.acts.marks:
+		if String(m["id"]) == aid:
+			var j: int = m["j"]
+			kart.x = float(m["x"])
+			kart.y = float(m["z"])
+			kart.a = atan2(T.ty[j], T.tx[j])
+			kart.ma = kart.a
+			kart.idx = j
+			kart.speed = 0.0
+			kart.wy = float(m["y"])
+			kart.last_g = kart.wy
+			kart._save_prev()
+			break
+	race.sb.acts.start(aid)
 
 
 func _pause_settings() -> void:
@@ -2458,6 +2597,13 @@ func _drain_events() -> void:
 		elif t == "sb_coin":
 			fx.burst(float(ed["x"]), float(ed["h"]), float(ed["y"]), 5, [Color("#ffd65a"), Color("#fff4dc")], 34.0, 1.4)
 			sfx.play("ring", 0.3, 1.7)
+		elif t == "sb_act":
+			_show_center(String(ed["text"]), 3.0, "sm")
+			sfx.play("ready")
+		elif t == "sb_egg":
+			fx.burst(float(ed["x"]), float(ed["h"]) + 8.0, float(ed["y"]), 26, [Color("#ffd65a"), Color("#ffffff"), Color("#7bd14a")], 70.0, 2.4)
+			_show_center(String(ed["text"]), 3.2, "sm")
+			sfx.play("ready")
 		elif t == "sb_rare":
 			fx.burst(float(ed["x"]), float(ed["h"]), float(ed["y"]), 26, [Color("#ffd65a"), Color("#d8402a"), Color("#ffffff")], 70.0, 2.4)
 			fx.ring(float(ed["x"]), float(ed["h"]), float(ed["y"]), Color("#ffd65a"), 26.0, 0.5, false)
@@ -3092,6 +3238,8 @@ func _input(ev: InputEvent) -> void:
 				race.td_pick(false)
 			elif race != null and race.sb != null and not paused and state == "race" and hud.sb_park_rect().has_point(mb.position):
 				_sb_park()     # Sandbox: the Park button on the screen
+			elif race != null and race.sb != null and not paused and not hud.sb_act.is_empty() and hud.sb_act_rect().has_point(mb.position):
+				_sb_act_take()
 			elif race != null and race.sb != null and not paused and hud.sb_race != "" and hud.sb_race_rect().has_point(mb.position):
 				_sb_race_here()
 			elif hud.pause_rect().has_point(mb.position):
@@ -3137,6 +3285,9 @@ func _input(ev: InputEvent) -> void:
 				if (code == KEY_ENTER or code == KEY_KP_ENTER) and racing and state == "race" and race.sb.race_near:
 					_sb_race_here()
 					return
+				if (code == KEY_ENTER or code == KEY_KP_ENTER) and racing and state == "race" and sb_act_ui == null and race.sb.acts != null and not race.sb.acts.near.is_empty():
+					_sb_act_take()
+					return
 				# [ and ] step the speed slider, unless the player has bound them to something (web sbSpdUi's keydown)
 				if act == "" and (code == KEY_BRACKETLEFT or code == KEY_BRACKETRIGHT) and state == "race" and _sb_spd_shown():
 					Sandbox.spd_step(-1 if code == KEY_BRACKETLEFT else 1)
@@ -3181,6 +3332,9 @@ func _input(ev: InputEvent) -> void:
 					return
 				if jb.button_index == JOY_BUTTON_DPAD_UP and not paused and race.sb.race_near:
 					_sb_race_here()
+					return
+				if jb.button_index == JOY_BUTTON_DPAD_UP and not paused and sb_act_ui == null and race.sb.acts != null and not race.sb.acts.near.is_empty():
+					_sb_act_take()
 					return
 			if jb.button_index == JOY_BUTTON_Y and state == "race":
 				item_queued = "ability"
@@ -3616,6 +3770,9 @@ func _to_menu(note: String) -> void:
 	sb_back = ""
 	sb_map_ui = null
 	_sb_go_finish()   # (a Sandbox journey in hand is ended first: no thread is left building a place)
+	SandboxActs.finish("left", true)   # (leaving Sandbox ends anything under way, quietly)
+	SandboxActs.retry = ""
+	_sb_act_close()
 	if sb_cover != null:
 		sb_cover.visible = false
 	NetLog.stop(_net_names())

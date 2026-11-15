@@ -71,6 +71,16 @@ var _mm: MultiMesh
 var _plain: PackedInt32Array = PackedInt32Array()     # the plain coins' numbers in sb's columns
 var _rare: Array = []               # [[coin number, its node]]
 var _flag: Node3D
+const SandboxClock := preload("res://scripts/sandbox_clock.gd")
+var clock: SandboxClock = null      # the day and night of this place (scripts/sandbox_clock.gd)
+var _clk_acc := 1.0
+var _flag_mats: Array = []          # the start flag's unlit materials: at night they keep half their brightness (web v199)
+
+
+func _exit_tree() -> void:
+	if clock != null:
+		clock.off()
+		clock = null
 
 
 ## the warp picture's shader (the arches' faces here, and the tunnel's bright end in scripts/sandbox_warp.gd)
@@ -94,6 +104,8 @@ func setup(sb_, track: TrackData, maps: Array) -> void:
 		names[String(m["id"])] = String(m.get("name", m["id"]))
 	for g in sb.gates:
 		_build_gate(g, names)
+	if sb.acts != null:
+		_build_acts()
 
 
 # ---------------------------------------------------------------- small helpers
@@ -274,7 +286,9 @@ func _build_flag() -> void:
 			var r0 := 11.5 + b * 2.0
 			var r1 := r0 + 2.0
 			quads.append([Vector3(cos(a0) * r0, 0, sin(a0) * r0), Vector3(cos(a0) * r1, 0, sin(a0) * r1), Vector3(cos(a1) * r1, 0, sin(a1) * r1), Vector3(cos(a1) * r0, 0, sin(a1) * r0), (i + b) % 2 == 0])
-	_mesh(g, _cheq(quads), _vcol_mat(), Vector3(0, 0.55, 0))
+	var rm := _vcol_mat()
+	_flag_mats.append(rm)
+	_mesh(g, _cheq(quads), rm, Vector3(0, 0.55, 0))
 	# the flag on its pole, turning
 	_flag = Node3D.new()
 	_flag.position.y = 12.0
@@ -291,7 +305,152 @@ func _build_flag() -> void:
 			var x0 := float(i) * 10.0 / 6.0
 			var y0 := 13.6 - 3.3 + float(j) * 6.6 / 4.0
 			cloth.append([Vector3(x0, y0, 0), Vector3(x0 + 10.0 / 6.0, y0, 0), Vector3(x0 + 10.0 / 6.0, y0 + 6.6 / 4.0, 0), Vector3(x0, y0 + 6.6 / 4.0, 0), (i + j) % 2 == 0])
-	_mesh(_flag, _cheq(cloth), _vcol_mat())
+	var cm := _vcol_mat()
+	_flag_mats.append(cm)
+	_mesh(_flag, _cheq(cloth), cm)
+
+
+# ---------------------------------------------------------------- things to do and the Easter egg (web activities.js)
+
+var _egg: Node3D = null
+var _egg_y := 0.0
+var _signs: Array = []
+
+
+func _build_acts() -> void:
+	for m in sb.acts.marks:
+		var kind := String(m["a"]["kind"])
+		var col := Color("#e8542f") if kind == "deliver" else (Color("#2fa6e8") if kind == "drift" else Color("#7bd14a"))
+		var g := Node3D.new()
+		g.position = Vector3(float(m["x"]), float(m["y"]), float(m["z"]))
+		add_child(g)
+		var tm := TorusMesh.new()
+		tm.inner_radius = 13.0
+		tm.outer_radius = 16.5
+		tm.rings = 40
+		var ring := _mesh(g, tm, _flat(col), Vector3(0, 0.6, 0))
+		ring.scale = Vector3(1, 0.08, 1)
+		var l := Label3D.new()
+		l.text = {"deliver": "PIZZA
+DELIVERY", "drift": "DRIFT", "air": "JUMP"}[kind]
+		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		l.font_size = 96
+		l.outline_size = 24
+		l.modulate = Color("#fff4dc")
+		l.outline_modulate = col.darkened(0.35)
+		l.pixel_size = 0.05
+		l.position = Vector3(0, 17, 0)
+		l.no_depth_test = false
+		g.add_child(l)
+		_signs.append(l)
+	if not sb.acts.egg.is_empty():
+		var e: Dictionary = sb.acts.egg
+		_egg = _egg_model(String(e["id"]))
+		_egg.position = Vector3(float(e["x"]), float(e["y"]), float(e["z"]))
+		_egg.rotation.y = float(e["ry"])
+		_egg_y = float(e["y"])
+		add_child(_egg)
+
+
+## the eggs, as the web builds them (sbEggModel): spheres, cones, boxes and rings in plain materials
+func _egg_model(eid: String) -> Node3D:
+	var G := Node3D.new()
+	var sph := SphereMesh.new()
+	sph.radius = 1.0
+	sph.height = 2.0
+	var add := func(mesh: Mesh, mat: Material, p: Vector3, sc := Vector3.ONE) -> MeshInstance3D:
+		var mi := MeshInstance3D.new()
+		mi.mesh = mesh
+		mi.material_override = mat
+		mi.position = p
+		mi.scale = sc
+		G.add_child(mi)
+		return mi
+	var cone := func(r: float, h: float) -> CylinderMesh:
+		var c := CylinderMesh.new()
+		c.top_radius = 0.0
+		c.bottom_radius = r
+		c.height = h
+		return c
+	var cyl := func(r0: float, r1: float, h: float) -> CylinderMesh:
+		var c := CylinderMesh.new()
+		c.top_radius = r0
+		c.bottom_radius = r1
+		c.height = h
+		return c
+	var box := func(x: float, y: float, z: float) -> BoxMesh:
+		var b := BoxMesh.new()
+		b.size = Vector3(x, y, z)
+		return b
+	match eid:
+		"duck":
+			var y := _std("#ffcf1f", 0.22)
+			add.call(sph, y, Vector3(0, 4, 0), Vector3(6, 4.4, 5))
+			add.call(sph, y, Vector3(3.6, 8.6, 0), Vector3(3.3, 3.3, 3.3))
+			add.call(sph, _std("#ff7a1a", 0.3), Vector3(6.6, 8.3, 0), Vector3(1.8, 0.8, 1.5))
+			add.call(sph, y, Vector3(-5, 6, 0), Vector3(2, 2.6, 2.4))
+			for sd in [-1.0, 1.0]:
+				add.call(sph, _std("#111111", 0.2), Vector3(5.4, 9.6, sd * 1.8), Vector3(0.45, 0.45, 0.45))
+		"cat":
+			var f := _std("#d98a3c", 0.85)
+			add.call(sph, f, Vector3(0, 3.2, 0), Vector3(7, 3.4, 4.6))
+			add.call(sph, f, Vector3(6.2, 4.2, 1), Vector3(3.3, 3, 3.2))
+			for sd in [-1.0, 1.0]:
+				add.call(cone.call(1.2, 2.4), f, Vector3(6.6, 7, 1 + sd * 1.8))
+			add.call(sph, _std("#f4e4cc", 0.85), Vector3(8.7, 3.6, 1), Vector3(1.4, 1.1, 1.5))
+			var tor := TorusMesh.new()
+			tor.inner_radius = 4.0
+			tor.outer_radius = 6.0
+			var t := add.call(tor, f, Vector3(-2, 1.4, -2.6), Vector3(1, 0.5, 1)) as MeshInstance3D
+		"shell":
+			var m := _std("#f2c4a8", 0.45)
+			for i in 11:
+				var r := add.call(cyl.call(0.9, 0.2, 9.0), m, Vector3(sin((i - 5) * 0.27) * 4.5, 1.2, cos((i - 5) * 0.27) * 4.5 - 3)) as MeshInstance3D
+				r.rotation = Vector3(PI / 2.0 - 0.25, (i - 5) * 0.27, 0)
+			add.call(sph, m, Vector3(0, 1.2, -3.2), Vector3(2.2, 1.2, 1.6))
+		"snowman":
+			var w := _std("#f7f9ff", 0.9)
+			add.call(sph, w, Vector3(0, 4, 0), Vector3(4, 4, 4))
+			add.call(sph, w, Vector3(0, 10, 0), Vector3(3, 3, 3))
+			add.call(sph, w, Vector3(0, 14.6, 0), Vector3(2.1, 2.1, 2.1))
+			var n := add.call(cone.call(0.5, 3.0), _std("#ff7a1a"), Vector3(0, 14.6, 2.6)) as MeshInstance3D
+			n.rotation.x = PI / 2.0
+			for x in [-0.8, 0.8]:
+				add.call(sph, _std("#111111"), Vector3(x, 15.3, 1.8), Vector3(0.32, 0.32, 0.32))
+			add.call(cyl.call(2.3, 2.3, 0.5), _std("#222222"), Vector3(0, 16.4, 0))
+			add.call(cyl.call(1.5, 1.5, 2.4), _std("#222222"), Vector3(0, 17.8, 0))
+		"robot":
+			var b := _std("#9aa3ad", 0.35, 0.7)
+			add.call(box.call(6, 6, 4.4), b, Vector3(0, 6, 0))
+			add.call(box.call(4.6, 3.6, 3.6), b, Vector3(0, 11, 0))
+			for x in [-1.1, 1.1]:
+				add.call(sph, _std("#111111", 0.5, 0.0, "#39d0ff", 2.2), Vector3(x, 11.3, 1.85), Vector3(0.6, 0.6, 0.3))
+			add.call(cyl.call(0.18, 0.18, 2.4), b, Vector3(0, 14, 0))
+			add.call(sph, _std("#ff4b6e", 0.5, 0.0, "#ff4b6e", 2.0), Vector3(0, 15.3, 0), Vector3(0.55, 0.55, 0.55))
+			for x in [-1.6, 1.6]:
+				add.call(box.call(1.4, 3, 2), b, Vector3(x, 1.5, 0))
+		"meatball":
+			add.call(sph, _std("#6e3420", 0.95), Vector3(0, 5, 0), Vector3(5, 5, 5))
+			for i in 6:
+				add.call(sph, _std("#3f8a2e"), Vector3(cos(i) * 3.6, 7.4 + sin(i * 3) * 1.2, sin(i) * 3.6), Vector3(0.9, 0.25, 0.6))
+		"wrench":
+			var st := _std("#c9ced4", 0.25, 0.9)
+			add.call(box.call(16, 0.9, 2.2), st, Vector3(0, 0.6, 0))
+			for x in [-8.6, 8.6]:
+				var tor2 := TorusMesh.new()
+				tor2.inner_radius = 1.2
+				tor2.outer_radius = 3.0
+				add.call(tor2, st, Vector3(x, 0.6, 0), Vector3(1, 0.4, 1))
+		"gnome":
+			add.call(sph, _std("#2f5fb0"), Vector3(0, 4, 0), Vector3(3.4, 4, 3.4))
+			add.call(sph, _std("#f1c7a0"), Vector3(0, 9, 0), Vector3(2.4, 2.4, 2.4))
+			add.call(cone.call(2.6, 7.0), _std("#d6302a"), Vector3(0, 13.6, 0))
+			var bd := add.call(cone.call(2.3, 4.0), _std("#f4f4f0", 0.9), Vector3(0, 6.6, 1.7)) as MeshInstance3D
+			bd.rotation.x = PI
+			add.call(sph, _std("#e88c7a"), Vector3(0, 8.6, 2.3), Vector3(0.8, 0.8, 0.8))
+			for x in [-1.6, 1.6]:
+				add.call(box.call(1.8, 1.2, 3), _std("#4a2c18"), Vector3(x, 0.6, 0.6))
+	return G
 
 
 # ---------------------------------------------------------------- the passages (web sbGates, the drawing half)
@@ -413,6 +572,27 @@ func _process(dt: float) -> void:
 		if vis:
 			n.rotation.y = time * 2.6 + float(i2) * 0.37
 			n.position.y = sb.coin_y[i2] + sin(time * 2.0 + float(i2) * 0.37) * 0.8
+	# the clock's light, ten times a second, once the place is the one being driven and the kart is out of any tunnel
+	_clk_acc += dt
+	if _clk_acc >= 0.1 and mn != null and is_inside_tree():
+		_clk_acc = 0.0
+		var kk = mn.get("kart")
+		if kk != null and kk.tun == null and mn.get("env") != null:
+			if clock == null:
+				clock = SandboxClock.new()
+				clock.arm(mn, T, String(sb.id))
+			clock.apply(float(sb.save.get("t", 0.4)))
+			if _flag_mats.size() > 0:
+				var Fd: Dictionary = SandboxClock.f(float(sb.save.get("t", 0.4)))
+				var kf := 0.5 + 0.5 * float(Fd["D"])
+				for m in _flag_mats:
+					(m as BaseMaterial3D).albedo_color = Color(kf, kf, kf)
+	# the egg hops when found
+	if _egg != null and sb.acts != null and not sb.acts.egg.is_empty():
+		var hop := float(sb.acts.egg["hop"])
+		_egg.position.y = _egg_y + sin((1.0 - hop / 0.8) * PI) * 7.0 if hop > 0.0 else _egg_y
+		if hop > 0.0:
+			_egg.rotation.y += dt * 9.0
 	if _flag != null:
 		_flag.rotation.y = time * 1.6
 		_flag.position.y = 12.0 + sin(time * 2.2) * 1.2

@@ -68,6 +68,8 @@ var sauce_a := 0.0        # the sauce smears on the screen (web .saucefx): on at
 var sauce_blobs: Array = []
 var show_touch := true
 var sb_race := ""         # Sandbox: the start line's offer, "Race here: <track>" ("" = not at the line); set by main.gd
+var sb_act: Array = []    # Sandbox: an activity on offer at its marker, [title, line] (scripts/sandbox_acts.gd)
+var sb_bar: Array = []    # Sandbox: the one under way, [title, line, fraction, hurry]
 var sb_cls := ""          # ...and the speed class it would be run at
 var sb_hold: Array = []   # Sandbox, in the tunnel between two places: the read-out as it was going in, kept until the kart is out
 var sb_spd := -1.0        # Sandbox's speed slider: its value (.25 to 1), or below 0 when it is not on the screen; set by main.gd
@@ -631,6 +633,7 @@ func _draw_sb() -> void:
 	if not show_touch:
 		var hint := "D-pad down" if pad_mode else "K"
 		_text(f_semi, hint, px, py + ph + 3.0, 11.0, Color(CREAM.r, CREAM.g, CREAM.b, 0.7), HORIZONTAL_ALIGNMENT_CENTER, pw, sh, Vector2(0, 1))
+	_draw_sb_act()
 	# the race on offer at the start line
 	if sb_race != "":
 		var rr := sb_race_rect()
@@ -646,6 +649,43 @@ func _draw_sb() -> void:
 		_text(f_bold, sb_race, rx + 44.0, ry + 9.0, 15.0, Color("#1b0f0b"))
 		var sub := sb_cls + " · single race · " + ("tap" if show_touch else ("D-pad up" if pad_mode else "Enter"))
 		_text(f_semi, sub, rx + 44.0, ry + 28.0, 11.0, Color(27.0 / 255, 15.0 / 255, 11.0 / 255, 0.75))
+
+
+## Sandbox's things to do: the offer (where the race offer goes; the two never show together) and the bar at the top while one
+## runs (web #sbActB, #sbActBar)
+func _draw_sb_act() -> void:
+	var sh := Color(0, 0, 0, 0.9)
+	if not sb_act.is_empty():
+		var rr := sb_act_rect()
+		var rx := rr.position.x / s
+		var ry := rr.position.y / s
+		var rw := rr.size.x / s
+		_rbox(rx, ry + 4.0, rw, rr.size.y / s, Color("#9b6a10"), Color(0, 0, 0, 0), 0.0, 14.0)
+		_vgrad(rx, ry, rw, rr.size.y / s, 14.0, 14.0, [[0.0, Color("#ffd97a")], [1.0, Color("#f5b62e")]])
+		_text(f_bold, String(sb_act[0]), rx + 18.0, ry + 8.0, 15.0, Color("#1b0f0b"))
+		_text(f_semi, String(sb_act[1]), rx + 18.0, ry + 27.0, 12.0, Color(27.0 / 255, 15.0 / 255, 11.0 / 255, 0.8))
+		_text(f_semi, "tap to start" if show_touch else ("D-pad up to start" if pad_mode else "Enter to start"), rx + 18.0, ry + 44.0, 11.0, Color(27.0 / 255, 15.0 / 255, 11.0 / 255, 0.65))
+	if not sb_bar.is_empty():
+		var t1 := String(sb_bar[0]).to_upper()
+		var t2 := String(sb_bar[1])
+		var w := maxf(_str_w(f_bold, t2, 14.0), _str_w(f_bold, t1, 11.0)) + 28.0
+		var x := W / 2.0 - w / 2.0
+		var y := 12.0
+		_rbox(x, y, w, 58.0, Color(18.0 / 255, 9.0 / 255, 6.0 / 255, 0.7), Color(1, 0.957, 0.863, 0.35), 2.0, 14.0)
+		_text(f_bold, t1, x, y + 7.0, 11.0, Color(CREAM.r, CREAM.g, CREAM.b, 0.8), HORIZONTAL_ALIGNMENT_CENTER, w, sh, Vector2(0, 1), 0.6)
+		_text(f_bold, t2, x, y + 22.0, 14.0, CREAM, HORIZONTAL_ALIGNMENT_CENTER, w, sh, Vector2(0, 1))
+		_rbox(x + 14.0, y + 44.0, w - 28.0, 5.0, Color(1, 0.957, 0.863, 0.2), Color(0, 0, 0, 0), 0.0, 3.0)
+		var fr := clampf(float(sb_bar[2]), 0.0, 1.0)
+		if fr > 0.0:
+			_rbox(x + 14.0, y + 44.0, (w - 28.0) * fr, 5.0, Color("#e8542f") if bool(sb_bar[3]) else Color("#ffd65a"), Color(0, 0, 0, 0), 0.0, 3.0)
+
+
+func sb_act_rect() -> Rect2:
+	if sb_act.is_empty():
+		return Rect2()
+	var w := maxf(_str_w(f_bold, String(sb_act[0]), 15.0), _str_w(f_semi, String(sb_act[1]), 12.0)) + 36.0
+	var h := 62.0
+	return Rect2(Vector2(W / 2.0 - w / 2.0, H - 96.0 - h) * s, Vector2(w, h) * s)
 
 
 ## where the Park button is, in screen pixels (bottom centre; the web: bottom 14)
