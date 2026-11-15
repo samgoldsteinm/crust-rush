@@ -145,6 +145,12 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-15 (web v201, online 112 unchanged): in Sandbox Y is the special ability, the map is Select
+The owner: "if y is to use an item on controller in sandbox then the map should be the select button". Select (View / Back / Minus)
+already opened the map in Sandbox and nothing else uses it there (in a race it looks behind; Sandbox gave that up in v193). Y now fires
+the ability as in a race, Select alone opens and closes the map; v200's R3 for the ability is gone. Web: tools/mini/patch36.py and the
+texts in sandbox.js; PC: main.gd (Select only; Y is the ability, not while paused), hud.gd's badge, sandbox_map.gd and menu.gd texts.
+
 ### 2026-11-15 (web v200 and the next PC build; ONLINE VERSION 112 on both: a grid may now have fewer than eight)
 The owner, after v199: the controller pointer and scrolling slower on a phone; the speed slider over the item slots; abilities in
 Sandbox; a mechanic's shop in the garage to change driver and kart without leaving; choose how many computer racers (none to practise,
@@ -537,7 +543,7 @@ in the pause menu and on controller make the y button open the map"; "signs abov
   lawn come with the re-export (`release_pc.py`). `tests/smoke.tscn` passes locally with them.
 
 ### Where web and PC stand (2026-11-13, end of the session)
-- Web v200 (ONLINE 112): computer racers 0 to 7, abilities and climbable hills in Sandbox, the mechanic's shop, slower phone pointer. Until the PC build with the same is out, PC (111) and web (112) do not race together. Before that: web v199 (online 111): Sandbox's clock, things to do, Easter eggs and Back to the track, and the no-stop tunnel on the web too (web only: the PC has had its own since build 68030144). PC build 68030144 = web v197's tracks (online 111): PC and web race together and have the same modes (Grand Prix, single, Reverse, Last Slice, Balloon Battle 5-3-1, Sandbox). Web v198's only addition, Settings > Kart stats, is in that PC build too. Before that: web v198. Before that: web v196 (online 110). PC build 68030144 has web v196's tracks, Balloon Battle, Sandbox, online Grand Prix and the controller's cursor (online 110): PC and web race together, and the PC has every mode the web has. What the web has and the PC has not is listed in OPEN WORK. v187 (phone fix), v188
+- Web v201 (ONLINE 112): Y is the ability in Sandbox, the map Select. Before that web v200: computer racers 0 to 7, abilities and climbable hills in Sandbox, the mechanic's shop, slower phone pointer. Until the PC build with the same is out, PC (111) and web (112) do not race together. Before that: web v199 (online 111): Sandbox's clock, things to do, Easter eggs and Back to the track, and the no-stop tunnel on the web too (web only: the PC has had its own since build 68030144). PC build 68030144 = web v197's tracks (online 111): PC and web race together and have the same modes (Grand Prix, single, Reverse, Last Slice, Balloon Battle 5-3-1, Sandbox). Web v198's only addition, Settings > Kart stats, is in that PC build too. Before that: web v198. Before that: web v196 (online 110). PC build 68030144 has web v196's tracks, Balloon Battle, Sandbox, online Grand Prix and the controller's cursor (online 110): PC and web race together, and the PC has every mode the web has. What the web has and the PC has not is listed in OPEN WORK. v187 (phone fix), v188
   (Sandbox, first slice) and v189 (the second site's plumbing, switched off) are web only; nothing that moves a kart in a race changed.
 - Web only so far: Balloon Battle (v182 to v185). Its PC port is the next PC job, after the owner has played it on the web
   (docs/BALLOON-BATTLE-PLAN.md). Sandbox: the first slice (the back garden) is on the web (v188); docs/SANDBOX-PLAN.md.
