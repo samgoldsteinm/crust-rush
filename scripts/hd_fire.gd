@@ -6,6 +6,8 @@ class_name HdFire
 ## round it, and a flickering light on the logs, the floor and the oven wall.
 ## Works from what is in the track: wherever the web's flame cones stand, a fire is built.
 
+const Xf := preload("res://scripts/xf.gd")   # a node's place in the world, in the scene tree or out of it (a place built on another thread)
+
 
 static func upgrade(root: Node3D) -> int:
 	var hide := StandardMaterial3D.new()
@@ -27,10 +29,10 @@ static func upgrade(root: Node3D) -> int:
 			if m.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED and m.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED \
 					and c.r > 0.9 and c.g > 0.45 and c.g < 0.85 and c.b < 0.45 and c.a > 0.7 and c.a < 0.95 and m.albedo_texture == null:
 				# the web's flame cones: out, and remembered for where the fires stand
-				var V: PackedVector3Array = mi.mesh.surface_get_arrays(si)[Mesh.ARRAY_VERTEX]
+				var V: PackedVector3Array = Xf.arrays(mi.mesh, si)[Mesh.ARRAY_VERTEX]
 				if V.is_empty():
 					continue
-				var gt := mi.global_transform
+				var gt := Xf.g(mi)
 				for v0 in V:
 					var v := gt * v0
 					var hit := false

@@ -74,6 +74,12 @@ var mode := ""               # "lss": Last Slice Standing; "bb": Balloon Battle 
 ## Every battle hook in this file asks `bb != null` first, so a normal race reads none of it.
 const Battle := preload("res://scripts/battle.gd")   # (by its file, not a class name: a fresh checkout has no class list yet)
 var bb = null
+## Sandbox (scripts/sandbox.gd, the web's tools/mini/sandbox.js): made in setup_cfg when main.gd asked for it (sb_want)
+## and the map was exported with its Sandbox block; else null. Every Sandbox hook in this file asks `sb != null` first.
+const Sandbox := preload("res://scripts/sandbox.gd")
+var sb = null
+var sb_want := false         # set by main.gd before setup(): this is a drive in Sandbox, not a race (web mode 'sb')
+var sb_defer := false        # ...set up on another thread (scripts/world_build.gd): the Sandbox save is left to the main thread
 var lss_lap := 0
 var lss_done := false
 var items_off := {}         # items switched off (settings) or not yet won (award items): {name: true}
@@ -93,7 +99,13 @@ func setup(track: TrackData, roster: Dictionary, player_ri: int, seed_: int = 0,
 	if sd == 0:
 		rng.randomize()
 		sd = int(rng.randi() & 0x7fffffff) + 1
-	setup_cfg(track, roster, make_cfg(roster, player_ri, [1], sd, cls, build), 1)
+	var cfg := make_cfg(roster, player_ri, [1], sd, cls, build)
+	if sb_want and not T.battle and not T.sb.is_empty():
+		# Sandbox is one kart, in the player's own place on the grid (web resetRace: if(SBX&&!demo)karts.push(makeKart(selected,4,...)))
+		for sl in cfg["slots"]:
+			if not bool(sl["own"]):
+				sl["ri"] = -1
+	setup_cfg(track, roster, cfg, 1)
 
 
 ## the web's speed classes: top speed and how sharp the computer drivers are
@@ -210,6 +222,14 @@ func setup_cfg(track: TrackData, roster: Dictionary, cfg: Dictionary, my_peer: i
 		bb.setup(self, T)
 		mode = "bb"
 		bb.start()
+	# Sandbox: asked for by main.gd, on a place that was exported with its Sandbox block, with the one kart
+	# (web sbArm in startRace, then battleStart -> sbStart)
+	sb = null
+	if sb_want and bb == null and not T.sb.is_empty() and karts.size() == 1:
+		sb = Sandbox.new()
+		sb.setup(self, T, sb_defer)
+		mode = "sb"
+		sb.start()
 	stand = standings()
 
 
@@ -554,6 +574,8 @@ func _make_kart(ri: int, slot: int, is_player: bool, info: Dictionary) -> Kart:
 
 
 func standings() -> Array[Kart]:
+	if bb != null:
+		return bb.rank()   # a battle has no lap to be ahead on (web standings(): if(BATTLE&&!SBX)return bbRank())
 	var st: Array[Kart] = []
 	st.assign(karts)
 	st.sort_custom(_ahead)
@@ -741,6 +763,11 @@ func update(dt: float, player_inp: Dictionary) -> void:
 		# web battleTick: the clock, karts over the table's edge, coming back in, time up. No laps in a battle: circling
 		# the ring of track points in the middle is not finishing
 		bb.tick(dt)
+		return
+	if sb != null:
+		# web sbTick (battleTick hands over): the full stop, the start line's offer, the passages, the coins. No finish
+		# in Sandbox: driving the lap round does not end anything (web: !BATTLE&&!SBX&&finAt(k))
+		sb.tick(dt)
 		return
 	if mode == "lss":
 		if state == "race":
@@ -1216,6 +1243,8 @@ func item_intent(k: Kart, it: String, o: Dictionary) -> void:
 func roll_item(pos: int) -> String:
 	if bb != null:
 		return bb.roll()   # web: if(BATTLE)return bbRoll(): only pepperoni, trio, meatball, flour and chili
+	if sb != null:
+		return sb.roll()   # web sbRoll: only the boost, there is nobody to throw anything at
 	var n := karts.size()
 	var f := float(pos) / float(n - 1) if n > 1 else 0.0
 	var target := 1.0 + f * 4.0
@@ -1669,6 +1698,8 @@ static func abil_key(k: Kart) -> String:
 func use_ability(k: Kart, back: bool) -> void:
 	if bb != null:
 		return   # no drivers' specials in a Balloon Battle (web: if(BATTLE)return)
+	if sb != null:
+		return   # nor in Sandbox (the web hides the button there, and Y opens the map)
 	var id := abil_key(k)
 	if not ABIL.has(id) or k.ab_c < 1.0 or not k.loop.is_empty() or k.finished:
 		return

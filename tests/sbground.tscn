@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tests/sbground.gd" id="1_sbground"]
+
+[node name="SbGround" type="Node"]
+script = ExtResource("1_sbground")

@@ -67,6 +67,10 @@ var fps_on := false
 var sauce_a := 0.0        # the sauce smears on the screen (web .saucefx): on at once, fading over 1.6 s
 var sauce_blobs: Array = []
 var show_touch := true
+var sb_race := ""         # Sandbox: the start line's offer, "Race here: <track>" ("" = not at the line); set by main.gd
+var sb_cls := ""          # ...and the speed class it would be run at
+var sb_hold: Array = []   # Sandbox, in the tunnel between two places: the read-out as it was going in, kept until the kart is out
+var sb_spd := -1.0        # Sandbox's speed slider: its value (.25 to 1), or below 0 when it is not on the screen; set by main.gd
 
 var _ibtn_tex: ImageTexture
 var _abtn_tex: ImageTexture
@@ -320,8 +324,8 @@ func _place_texts() -> void:
 	m.set_shader_parameter("y0", pos_txt.size_px * 0.05)
 	m.set_shader_parameter("y1", pos_txt.size_px * 0.82)
 	pos_txt.visible = not spectating and (race != null and race.state != "countdown" or (race != null and me != null))
-	if race != null and race.mode == "bb":
-		pos_txt.visible = false   # no place in the race to show in a Balloon Battle (web body.battle hides #posNum)
+	if race != null and (race.mode == "bb" or race.mode == "sb"):
+		pos_txt.visible = false   # no place in the race to show in a Balloon Battle (web body.battle hides #posNum), nor in Sandbox
 	# banner
 	var bsize := clampf(0.2 * H, 48.0, 110.0)
 	var btop := 0.28 * H
@@ -501,17 +505,25 @@ func _draw() -> void:
 		_chevron(18.0 + az / 2.0, H / 2.0, az, false, 0.85 if steer_dir < 0 else 0.22)
 		_chevron(W - 18.0 - az / 2.0, H / 2.0, az, true, 0.85 if steer_dir > 0 else 0.22)
 	if spectating:
-		_draw_top_bar(true)
+		if race.mode == "bb":
+			_draw_bb()   # (no progress bar in a battle; the read-out stays: the clock, who is left, "Out" and your place)
+		else:
+			_draw_top_bar(true)
 		return
 	# Balloon Battle (web body.battle): no place, lap, progress bar, best time or special button; one small read-out instead
 	var bb: bool = race.mode == "bb"
+	var sbx: bool = race.mode == "sb" and race.sb != null   # Sandbox (web: body.battle is on there too): its own read-out, Park, the race offer
 	if bb:
 		_draw_bb()
+	elif sbx:
+		_draw_sb()
 	else:
 		_draw_top_bar()
 	_draw_pause()
 	_draw_items(btn, top)
-	if not bb:
+	if sbx and sb_spd > 0.0:
+		_draw_sb_spd()
+	if not bb and not sbx:
 		_draw_special(btn, top)
 	_draw_gauge(btn)
 	if show_touch:
@@ -544,29 +556,151 @@ func _draw() -> void:
 ## (in yellow) and your place. Everybody's balloons are on their karts; the full table is the results screen.
 ## The web's numbers: left 10, top 64, bold 14, padding 6 by 10, corners 10, a dark see-through pill.
 func _draw_bb() -> void:
-	var parts: Array = race.bb.readout(me)
+	# since the web's v197: three pips for your own sets of balloons (5, 3, 1: a filled pip is a set you still have),
+	# the clock, how many drivers are left (or "Out · 4th"), your points (in yellow)
+	var r: Dictionary = race.bb.readout(me)
 	var fs := 14.0
 	var px := int(round(fs * s))
 	var dot := " · "
-	var w0 := f_bold.get_string_size(String(parts[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, px).x / s
-	var w1 := f_bold.get_string_size(String(parts[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, px).x / s
-	var w2 := f_bold.get_string_size(String(parts[2]), HORIZONTAL_ALIGNMENT_LEFT, -1, px).x / s
+	var txt := [String(r["clock"]), String(r["mid"]), String(r["pts"])]
+	var w: Array = []
+	for q in txt:
+		w.append(f_bold.get_string_size(q, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x / s)
 	var wd := f_bold.get_string_size(dot, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x / s
+	var np := int(r["sets"])
+	var pip := 11.0   # a pip and the gap after it (the web's 14-px glyph with 2 px of letter spacing)
+	var wp := np * pip
 	var x := 10.0
 	var y := 64.0
-	_rbox(x, y, w0 + wd + w1 + wd + w2 + 20.0, fs + 12.0, Color(18.0 / 255, 9.0 / 255, 6.0 / 255, 0.55), Color(0, 0, 0, 0), 0.0, 10.0)
+	_rbox(x, y, wp + wd + float(w[0]) + wd + float(w[1]) + wd + float(w[2]) + 20.0, fs + 12.0, Color(18.0 / 255, 9.0 / 255, 6.0 / 255, 0.55), Color(0, 0, 0, 0), 0.0, 10.0)
 	var sh := Color(0, 0, 0, 0.9)
 	var dim := Color(CREAM.r, CREAM.g, CREAM.b, 0.55)
 	var cx := x + 10.0
-	_text(f_bold, String(parts[0]), cx, y + 6.0, fs, CREAM, HORIZONTAL_ALIGNMENT_LEFT, -1.0, sh, Vector2(0, 1))
-	cx += w0
-	_text(f_bold, dot, cx, y + 6.0, fs, dim)
-	cx += wd
-	_text(f_bold, String(parts[1]), cx, y + 6.0, fs, Color("#ffe066"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, sh, Vector2(0, 1))
-	cx += w1
-	_text(f_bold, dot, cx, y + 6.0, fs, dim)
-	cx += wd
-	_text(f_bold, String(parts[2]), cx, y + 6.0, fs, CREAM, HORIZONTAL_ALIGNMENT_LEFT, -1.0, sh, Vector2(0, 1))
+	var pc := Color("#ff7a66")
+	for i in np:
+		var c := _p(Vector2(cx + i * pip + 4.5, y + 6.0 + fs * 0.5))
+		if i < int(r["pips"]):
+			draw_circle(c, 4.2 * s, pc, true, -1.0, true)
+		else:
+			draw_circle(c, 3.6 * s, pc, false, 1.2 * s, true)
+	cx += wp
+	var cols := [CREAM, CREAM, Color("#ffe066")]
+	for i in 3:
+		_text(f_bold, dot, cx, y + 6.0, fs, dim)
+		cx += wd
+		_text(f_bold, txt[i], cx, y + 6.0, fs, cols[i], HORIZONTAL_ALIGNMENT_LEFT, -1.0, sh, Vector2(0, 1))
+		cx += float(w[i])
+
+
+## Sandbox's read-out (web #sbHud): at the top left, the place's name, the coins (a gold dot) and the hidden pepperoni
+## coins found of how many there are here (a red dot). The web's numbers: left 10, top 64, a dark see-through box with
+## 12-px corners, the name 11 px in capitals, the coins 20 px, the hidden coins 13 px.
+## Below the middle of the screen: the Park button (web #sbPark), and above it, at the start line, the offer of a race
+## (web #sbRace: "Race here: <track>", the speed class under it).
+func _draw_sb() -> void:
+	var parts: Array = sb_hold if sb_hold.size() == 4 else race.sb.readout()
+	var name_s := String(parts[0]).to_upper()
+	var coins := str(int(parts[1]))
+	var rare := "%d / %d" % [int(parts[2]), int(parts[3])]
+	var wn := _str_w(f_bold, name_s, 11.0, 0.6)
+	var wc := _str_w(f_bold, coins, 20.0) + 21.0
+	var wr := _str_w(f_bold, rare, 13.0) + 19.0
+	var x := 10.0
+	var y := 64.0
+	var w := maxf(wn, maxf(wc, wr)) + 24.0
+	_rbox(x, y, w, 76.0, Color(18.0 / 255, 9.0 / 255, 6.0 / 255, 0.62), Color(0, 0, 0, 0), 0.0, 12.0)
+	var sh := Color(0, 0, 0, 0.9)
+	_text(f_bold, name_s, x + 12.0, y + 8.0, 11.0, Color(CREAM.r, CREAM.g, CREAM.b, 0.85), HORIZONTAL_ALIGNMENT_LEFT, -1.0, sh, Vector2(0, 1), 0.6)
+	draw_circle(_p(Vector2(x + 12.0 + 7.5, y + 38.0)), 7.5 * s, Color("#ffc93a"), true, -1.0, true)
+	_ring(Vector2(x + 12.0 + 7.5, y + 38.0), 6.5, 2.0, Color(0, 0, 0, 0.25))
+	_text(f_bold, coins, x + 12.0 + 21.0, y + 26.0, 20.0, CREAM, HORIZONTAL_ALIGNMENT_LEFT, -1.0, sh, Vector2(0, 1))
+	draw_circle(_p(Vector2(x + 12.0 + 6.5, y + 60.0)), 6.5 * s, Color("#d8402a"), true, -1.0, true)
+	_ring(Vector2(x + 12.0 + 6.5, y + 60.0), 5.5, 2.0, Color(0, 0, 0, 0.25))
+	_text(f_bold, rare, x + 12.0 + 19.0, y + 52.0, 13.0, CREAM, HORIZONTAL_ALIGNMENT_LEFT, -1.0, sh, Vector2(0, 1))
+	# Park: a blue P and the word; lit blue while parked
+	var pr := sb_park_rect()
+	var on: bool = race.sb.park
+	var px := pr.position.x / s
+	var py := pr.position.y / s
+	var pw := pr.size.x / s
+	var ph := pr.size.y / s
+	_rbox(px, py, pw, ph, Color("#2a5bd7") if on else Color(18.0 / 255, 9.0 / 255, 6.0 / 255, 0.62), Color(1, 1, 1, 1) if on else Color(1, 0.957, 0.863, 0.55), 2.0, 14.0)
+	_rbox(px + 8.0, py + 7.0, 30.0, 30.0, Color.WHITE if on else Color("#2a5bd7"), Color(0, 0, 0, 0), 0.0, 8.0)
+	_text(f_disp, "P", px + 8.0, py + 11.0, 20.0, Color("#2a5bd7") if on else Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, 30.0)
+	_text(f_bold, "PARKED" if on else "PARK", px + 46.0, py + 15.0, 13.0, Color("#fff4dc"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, Color(0, 0, 0, 0), Vector2(0, 2), 0.8)
+	if not show_touch:
+		var hint := "D-pad down" if pad_mode else "K"
+		_text(f_semi, hint, px, py + ph + 3.0, 11.0, Color(CREAM.r, CREAM.g, CREAM.b, 0.7), HORIZONTAL_ALIGNMENT_CENTER, pw, sh, Vector2(0, 1))
+	# the race on offer at the start line
+	if sb_race != "":
+		var rr := sb_race_rect()
+		var rx := rr.position.x / s
+		var ry := rr.position.y / s
+		var rw := rr.size.x / s
+		_rbox(rx, ry + 4.0, rw, rr.size.y / s, Color("#9b6a10"), Color(0, 0, 0, 0), 0.0, 14.0)
+		_vgrad(rx, ry, rw, rr.size.y / s, 14.0, 14.0, [[0.0, Color("#ffd97a")], [1.0, Color("#f5b62e")]])
+		# a small chequered square, as on the flag
+		for i in 2:
+			for j in 2:
+				draw_rect(Rect2(_p(Vector2(rx + 12.0 + i * 11.0, ry + 13.0 + j * 11.0)), Vector2(11.0, 11.0) * s), Color("#141210") if (i + j) % 2 == 0 else Color("#fbf6ea"))
+		_text(f_bold, sb_race, rx + 44.0, ry + 9.0, 15.0, Color("#1b0f0b"))
+		var sub := sb_cls + " · single race · " + ("tap" if show_touch else ("D-pad up" if pad_mode else "Enter"))
+		_text(f_semi, sub, rx + 44.0, ry + 28.0, 11.0, Color(27.0 / 255, 15.0 / 255, 11.0 / 255, 0.75))
+
+
+## where the Park button is, in screen pixels (bottom centre; the web: bottom 14)
+func sb_park_rect() -> Rect2:
+	var w := _str_w(f_bold, "PARKED", 13.0, 0.8) + 46.0 + 14.0
+	var h := 44.0
+	return Rect2(Vector2(W / 2.0 - w / 2.0, H - 14.0 - h - (16.0 if not show_touch else 0.0)) * s, Vector2(w, h) * s)
+
+
+## Sandbox's speed slider (web #sbSpd): on the right edge between the item buttons and the drift pedal, 46 wide, a dark
+## see-through box with 12-px corners, "SPEED" (10 px), the value (13 px), and a vertical track (8 wide, up to 150 tall)
+## filled in cheese yellow with a cream knob. Dragged by mouse or finger (main.gd), [ and ], the D-pad's left and right.
+func _sb_spd_box() -> Rect2:
+	var th := maxf(70.0, minf(150.0, H - 330.0))
+	var h := 6.0 + 11.5 + 1.0 + 15.0 + 7.0 + th + 8.0
+	return Rect2(W - 10.0 - 46.0, maxf(162.0, H / 2.0 - 64.0), 46.0, h)
+
+
+## the slider's box, in the screen's pixels (for the pointer)
+func sb_spd_rect() -> Rect2:
+	var b := _sb_spd_box()
+	return Rect2(b.position * s, b.size * s)
+
+
+## its track, in the screen's pixels: the bottom is 25%, the top 100%
+func sb_spd_track() -> Rect2:
+	var b := _sb_spd_box()
+	var th := maxf(70.0, minf(150.0, H - 330.0))
+	return Rect2(Vector2(b.position.x + 19.0, b.end.y - 8.0 - th) * s, Vector2(8.0, th) * s)
+
+
+func _draw_sb_spd() -> void:
+	var b := _sb_spd_box()
+	var th := maxf(70.0, minf(150.0, H - 330.0))
+	_rbox(b.position.x, b.position.y, b.size.x, b.size.y, Color(18.0 / 255, 9.0 / 255, 6.0 / 255, 0.62), Color(0, 0, 0, 0), 0.0, 12.0)
+	var sh := Color(0, 0, 0, 0.9)
+	_text(f_bold, "SPEED", b.position.x, b.position.y + 6.0, 10.0, CREAM, HORIZONTAL_ALIGNMENT_CENTER, b.size.x, sh, Vector2(0, 1), 0.4)
+	_text(f_bold, "%d%%" % roundi(sb_spd * 100.0), b.position.x, b.position.y + 6.0 + 12.5, 13.0, CREAM, HORIZONTAL_ALIGNMENT_CENTER, b.size.x, sh, Vector2(0, 1))
+	var tx := b.position.x + 19.0
+	var ty := b.end.y - 8.0 - th
+	_rbox(tx, ty, 8.0, th, Color(1, 0.957, 0.863, 0.25), Color(0, 0, 0, 0), 0.0, 4.0)
+	var f := (sb_spd - 0.25) / 0.75
+	if f > 0.0:
+		_rbox(tx, ty + th * (1.0 - f), 8.0, th * f, Color("#ffc93a"), Color(0, 0, 0, 0), 0.0, 4.0)
+	var ky := ty + th * (1.0 - f)
+	_rbox(tx - 8.0, ky - 6.0 + 1.0, 24.0, 12.0, Color(0, 0, 0, 0.45), Color(0, 0, 0, 0), 0.0, 6.0)
+	_rbox(tx - 8.0, ky - 6.0, 24.0, 12.0, CREAM, Color(0, 0, 0, 0), 0.0, 6.0)
+
+
+## where the race offer is (above the Park button; the web: bottom 96)
+func sb_race_rect() -> Rect2:
+	var sub := sb_cls + " · single race · D-pad up"
+	var w := maxf(_str_w(f_bold, sb_race, 15.0), _str_w(f_semi, sub, 11.0)) + 44.0 + 18.0
+	var h := 50.0
+	return Rect2(Vector2(W / 2.0 - w / 2.0, H - 96.0 - h) * s, Vector2(w, h) * s)
 
 
 ## web .hittoast (the pointer-fine size): a dark pill, the item, a cheese arrow, round portraits ringed in each

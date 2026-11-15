@@ -7,6 +7,8 @@ class_name HdKitchen
 ## cutting boards, a bread box and paper towels. Every piece is made of smooth rounded shapes with proper materials
 ## (enamel, brushed and polished steel, wood, glass), never bare boxes.
 
+const Xf := preload("res://scripts/xf.gd")   # a node's place in the world, in the scene tree or out of it (a place built on another thread)
+
 const TABLE_Y := -60.0
 const WINDOWS := [0.15, 1.75, 3.3, 4.9]     # web kitchenDressing's windows
 const OVENS := [0.4, 1.97, 3.54, 5.11]      # the brick ovens near the wall
@@ -64,14 +66,14 @@ static func _find_wall(root: Node) -> Dictionary:
 		if mi.mesh == null:
 			continue
 		for si in mi.mesh.get_surface_count():
-			var arr := mi.mesh.surface_get_arrays(si)
+			var arr := Xf.arrays(mi.mesh, si)
 			var V: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 			if V.size() < 60 or V.size() > 4000:
 				continue
 			var lo := Vector3(1e9, 1e9, 1e9)
 			var hi := -lo
 			for p in V:
-				var q := mi.global_transform * p
+				var q := Xf.g(mi) * p
 				lo = lo.min(q)
 				hi = hi.max(q)
 			var sz := hi - lo
@@ -84,7 +86,7 @@ static func _find_wall(root: Node) -> Dictionary:
 			var r := sz.x * 0.5
 			var ok := true
 			for k in range(0, V.size(), maxi(1, V.size() / 40)):
-				var q2 := mi.global_transform * V[k]
+				var q2 := Xf.g(mi) * V[k]
 				if absf(Vector2(q2.x, q2.z).length() - r) > r * 0.03:
 					ok = false
 					break

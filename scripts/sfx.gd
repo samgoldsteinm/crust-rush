@@ -32,6 +32,7 @@ var skid: AudioStreamPlayer
 var wind: AudioStreamPlayer
 var rng := RandomNumberGenerator.new()
 var volume := 0.8
+var silent := false               # nothing is played (a Balloon Battle being played out fast: main._bb_fast)
 
 
 func _ready() -> void:
@@ -231,7 +232,7 @@ func _build() -> void:
 
 
 func play(name_: String, vol := 1.0, pitch := 1.0) -> void:
-	if not bank.has(name_) or vol <= 0.01:
+	if silent or not bank.has(name_) or vol <= 0.01:
 		return
 	for p in pool:
 		if not p.playing:

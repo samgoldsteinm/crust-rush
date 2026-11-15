@@ -9,6 +9,8 @@ class_name HdWater
 ## see-through (lakes and ponds). The faint white ripple sheets the web lays over its pools are dropped, since the
 ## water now ripples itself.
 
+const Xf := preload("res://scripts/xf.gd")   # a node's place in the world, in the scene tree or out of it (a place built on another thread)
+
 static var _n1: NoiseTexture2D
 static var _n2: NoiseTexture2D
 static var _foam: NoiseTexture2D
@@ -31,7 +33,7 @@ static func upgrade(root: Node, theme: String, T: TrackData = null) -> int:
 				continue
 			var kind := _kind(m, theme)
 			if OS.has_environment("CR_WATER_DBG"):
-				print("WATERDBG ", mi.name, " at ", (mi.global_transform * bb).get_center().snapped(Vector3.ONE), " ", bb.size.snapped(Vector3.ONE), " ", _avg(m), " tr=", m.transparency, " em=", m.emission_enabled, " ", m.emission_energy_multiplier, " sh=", m.shading_mode, " r=", m.roughness, " -> ", kind)
+				print("WATERDBG ", mi.name, " at ", (Xf.g(mi) * bb).get_center().snapped(Vector3.ONE), " ", bb.size.snapped(Vector3.ONE), " ", _avg(m), " tr=", m.transparency, " em=", m.emission_enabled, " ", m.emission_energy_multiplier, " sh=", m.shading_mode, " r=", m.roughness, " -> ", kind)
 			if kind == "":
 				continue
 			if kind == "sheet":
@@ -41,7 +43,7 @@ static func upgrade(root: Node, theme: String, T: TrackData = null) -> int:
 			# body of water of its own, so it doesn't read as a sheet of foam over sand
 			var shallow := 0.0
 			if T != null and bb.size.x * bb.size.z < 2.0e5:
-				var c := (mi.global_transform * bb).get_center()
+				var c := (Xf.g(mi) * bb).get_center()
 				if c.y - T.ground(c.x, c.z) < 4.0:
 					shallow = 24.0
 			var key := [m, shallow]
@@ -82,7 +84,7 @@ static func _kind(m: StandardMaterial3D, theme: String) -> String:
 static func _avg(m: StandardMaterial3D) -> Color:
 	var c := m.albedo_color
 	if m.albedo_texture != null:
-		var img := m.albedo_texture.get_image()
+		var img := Xf.image(m.albedo_texture)
 		if img != null:
 			img = img.duplicate()
 			if img.is_compressed():
@@ -128,6 +130,13 @@ static func _water(col: Color, theme: String, sea: bool, shallow := 0.0) -> Shad
 	m.set_shader_parameter("foam_amount", 0.6 if theme == "freezer" else 1.0)
 	m.set_shader_parameter("wave_strength", 0.6 if sea else 0.4)
 	return m
+
+
+## the shader and the wave pictures every water surface shares, made ahead of need (main.gd, as Sandbox starts)
+static func prewarm() -> void:
+	_make()
+	load("res://shaders/water.gdshader")
+	_hidden()
 
 
 ## draws nothing (the dropped ripple sheets)

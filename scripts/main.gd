@@ -157,6 +157,8 @@ func _ready() -> void:
 	is_phone = OS.has_feature("mobile") or DisplayServer.is_touchscreen_available() and OS.get_name() in ["iOS", "Android"]
 	quality = 0 if is_phone else 2
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	if auto_drive or skip_menu:
+		Sandbox.no_save = true   # (the tests: nothing is read from or written to the player's Sandbox save)
 	web = WebNet.new()
 	web.name = "WebNet"
 	web.main = self
@@ -171,6 +173,7 @@ func _ready() -> void:
 	if OS.get_environment("CR_MODE") != "":
 		sel["mode"] = OS.get_environment("CR_MODE")
 	_bb_boot()
+	_sb_boot()
 	if map_id == "" or _map_info(map_id).is_empty():
 		map_id = "bay"
 	var f := FileAccess.open(ROSTER_JSON, FileAccess.READ)
@@ -203,6 +206,7 @@ func _ready() -> void:
 	multiplayer.connection_failed.connect(_on_failed)
 	multiplayer.server_disconnected.connect(_on_server_gone)
 	if skip_menu or auto_drive:
+		sb_next = String(sel.get("mode", "")) == "sb"
 		_start_race({})
 	else:
 		_to_menu("")
@@ -243,7 +247,7 @@ func scan_maps() -> void:
 			if FileAccess.file_exists(ip):
 				var j = JSON.parse_string(FileAccess.get_file_as_string(ip))
 				if typeof(j) == TYPE_DICTIONARY:
-					for key in ["name", "mi", "theme", "cup", "battle"]:   # ("battle": a Balloon Battle arena, never a race track)
+					for key in ["name", "mi", "theme", "cup", "battle", "sb"]:   # ("battle": a Balloon Battle arena, never a race track; "sb": the place's Sandbox card)
 						if (j as Dictionary).has(key):
 							info[key] = j[key]
 			seen[sub] = true
@@ -317,6 +321,7 @@ func _bb_mode_map() -> void:
 ## web bbNoNet: Balloon Battle is played off line for now. Hosting or joining a friends' race leaves the mode and its arena
 ## (called from _web_host_room, _web_join, _menu_host and _menu_join; nothing in webnet.gd knows about the mode).
 func _bb_no_net() -> void:
+	_sb_no_net()   # (Sandbox is off line too: web bbNoNet covers both modes)
 	if String(sel.get("mode", "")) == "bb":
 		sel["mode"] = "single"
 		if menu != null:
@@ -340,6 +345,760 @@ func _bb_no_net() -> void:
 		menu.visible = true
 		if sheet != "":
 			menu.show_modal(sheet)
+
+
+# ---------------------------------------------------------------- Sandbox (scripts/sandbox.gd; web tools/mini/sandbox.js)
+## Free roam: one kart, no clock, no laps, every track a place, places joined by passages. The mode's own logic is in
+## scripts/sandbox.gd (ground, walls, coins, gates), its drawing in scripts/sandbox_view.gd, its map in
+## scripts/sandbox_map.gd. Here: starting it, travelling, the race from the start line and the way back, Park, the keys.
+## Off line only. Everything below is reached only with sel["mode"] == "sb" or race.sb != null.
+const Sandbox := preload("res://scripts/sandbox.gd")           # (by their files, not class names: a fresh checkout has no class list yet)
+const SandboxView := preload("res://scripts/sandbox_view.gd")
+const SandboxMap := preload("res://scripts/sandbox_map.gd")
+const SandboxWarp := preload("res://scripts/sandbox_warp.gd")
+const WorldBuild := preload("res://scripts/world_build.gd")
+var sb_next := false       # the race about to be set up is a drive in Sandbox (never the menu's background race)
+var sb_back := ""          # the place a race from the start line goes back to (web SB.back)
+var sb_trav := false       # travelling: from the moment a journey starts until the kart is in the next place (web SB.trav)
+var sb_warp: Node3D = null # the one tunnel behind every passage (scripts/sandbox_warp.gd)
+var sb_tun = null          # the corridor of the journey in hand (Sandbox.Tun), until the camera has followed the kart out
+var sb_go := {}            # the journey in hand: {mode "gate" | "map", to, at, wb (the place being built), stage, n ...}
+var sb_trash: Array = []   # the place left behind, freed a little every frame
+var sb_view: Node3D = null # the coins, the flag, the gates of the place
+var sb_cover: Control = null
+var sb_map_ui = null       # the map sheet while it is open
+var sb_map_from := ""      # "drive" or "pause": where closing the map goes back to (web SBM.from)
+var sb_pgas := false       # the controller's throttle last frame (pressing it again lets Park off)
+var sb_pdl := false        # the D-pad's left and right last frame (in Sandbox they step the speed slider)
+var sb_pdr := false
+var sb_spd_drag := -2      # the slider being dragged: -1 by the mouse, a touch's index, -2 nobody
+
+
+## the speed slider is on the screen: Sandbox, driving or counting down, not under the map or the pause menu, not
+## travelling (web sbSpdUi: show)
+func _sb_spd_shown() -> bool:
+	return race != null and race.sb != null and (state == "race" or state == "countdown") and not paused and not sb_trav 		and sb_map_ui == null and not (menu != null and menu.visible) and hud != null and hud_race.visible
+
+
+## the slider set from where the pointer is on its track (web sbSpdUi: at)
+func _sb_spd_at(p: Vector2) -> void:
+	var r: Rect2 = hud.sb_spd_track()
+	Sandbox.spd_set(0.25 + 0.75 * clampf((r.end.y - p.y) / maxf(1.0, r.size.y), 0.0, 1.0))
+var sb_arrived := 0        # counts arrivals (the tests wait on it)
+
+
+## the places this copy has: the maps exported with a Sandbox block (their info card says so)
+func _sb_places() -> void:
+	var pl := {}
+	for m in maps:
+		if m.get("sb") is Dictionary and not bool(m.get("battle", false)):
+			pl[String(m["id"])] = m["sb"]
+	Sandbox.places = pl
+
+
+func _sb_has(id: String) -> bool:
+	return _map_info(id).get("sb") is Dictionary
+
+
+## where Sandbox starts when the chosen track is not a place: the back garden, else the first place there is
+## (web: sbRegOf(MAPS[mapIdx].id) ? mapIdx : backyard)
+func _sb_first() -> String:
+	if _sb_has("backyard"):
+		return "backyard"
+	for m in maps:
+		if _sb_has(String(m["id"])):
+			return String(m["id"])
+	return ""
+
+
+## at start-up: the mode needs a place. With none in the maps folder the mode falls back to a single race.
+func _sb_boot() -> void:
+	_sb_places()
+	if String(sel.get("mode", "")) != "sb":
+		return
+	if _sb_first() == "":
+		sel["mode"] = "single"
+	elif map_id == "" or not _sb_has(map_id):
+		map_id = _sb_first()
+
+
+## hosting or joining a friends' race leaves the mode (web bbNoNet: if(mode!=='bb'&&mode!=='sb')return)
+func _sb_no_net() -> void:
+	sb_back = ""
+	if String(sel.get("mode", "")) == "sb":
+		sel["mode"] = "single"
+		if menu != null:
+			menu.mode = "single"
+
+
+## Sandbox has just been set up on this place (called from _start_race): its drawing, its HUD, a short countdown
+func _sb_started() -> void:
+	var sb = race.sb
+	_sb_view_clear()
+	sb_view = SandboxView.new()
+	sb_view.name = "SandboxView"
+	add_child(sb_view)
+	sb_view.setup(sb, T, maps)
+	if sb_warp == null:
+		sb_warp = SandboxWarp.new()
+		sb_warp.name = "SandboxWarp"
+		add_child(sb_warp)
+		# (the water's shader and its wave pictures, made now, under the loading screen: the first place with water that
+		#  is travelled to would otherwise have the main thread make them in the middle of a tunnel)
+		if hd_on and quality >= 1 and OS.get_environment("CR_HD") != "0":
+			HdWater.prewarm()
+	hud.pb_text = ""
+	hud.sb_race = ""
+	hud.sb_hold = []
+	hud.sb_cls = String({"small": "50cc", "medium": "100cc", "large": "200cc", "reverse": "Reverse"}.get(String(sel["cls"]), "100cc"))
+	sb_pgas = false
+	sb_cam_f = 1.0
+
+
+func _sb_view_clear() -> void:
+	if sb_view != null and is_instance_valid(sb_view):
+		sb_view.queue_free()
+	sb_view = null
+
+
+## each physics step in Sandbox, after the race's own: what the mode asks of the game
+func _sb_tick() -> void:
+	var sb = race.sb
+	if sb.travel != null and sb_go.is_empty() and kart.tun != null and not kart.tun.swapped:
+		_sb_go_gate(sb.travel)
+	if sb.arrived:
+		sb.arrived = false
+		_sb_out()
+	hud.sb_race = ("Race here: " + T.title) if (sb.race_near and state == "race" and not sb_trav) else ""
+
+
+# ---------------------------------------------------------------- Sandbox: travelling without a stop
+## The owner: "i dont want the streaks to freeze for a second it should be the player continusously driving and eventually
+## the new map will load and the driver will drive out but the game will never freeze or stop to load it will be one fluid
+## drive through the tunnel right out to the other side".
+##
+## THROUGH A GATE. The kart commits to a gate (scripts/sandbox.gd tick -> _commit): from then on it drives the tunnel's
+## own corridor (Sandbox.Tun), drawn by the one tunnel that belongs to no place (scripts/sandbox_warp.gd), for as long as
+## the next place takes. That place is built on another thread (scripts/world_build.gd). What is left for this thread is
+## spread over many frames, each stage hidden by the tunnel, which by then is all the camera can see:
+##   build   the thread is at work; the kart drives on
+##   ready   wait until the camera is deep inside (the tunnel's own light fully on, sandbox_warp.gd `f` = 1)
+##           then: the old place leaves the tree (to be freed a little a frame) and the new one's sky and lights come in
+##   in      the new place's pieces walk into the tree, a few milliseconds' worth a frame
+##   warm    a few frames for the renderer to have drawn all of it once, behind the tunnel
+##   swap    the corridor is laid onto the gate the kart comes out of, and the kart, the camera and the sparks are moved
+##           by the same step: the same picture before and after. The kart itself is kept (its model, its speed, its
+##           wheels, its sound) and handed to the new place's Race
+##   after   the new place's item boxes, pads and hazards, one a frame
+## The kart then drives the rest of the tunnel and out of the mouth (sandbox.gd _leave_tun -> _sb_out); the tunnel is put
+## away once the camera has followed it (_sb_tun_over).
+## BY THE MAP. The same build and the same stages under a cover whose streaks keep moving (nothing blocks any more);
+## the kart is set down at the start line and the cover lifts.
+## IF IT FAILS the kart comes back out of the gate it went in by, with a word; nothing of the old place has been touched.
+## An ordinary race's loading (load_map, blocking) is not changed by any of this.
+
+## a place to be built on another thread, started
+func _sb_build_start(to: String, at: String) -> Variant:
+	var wb = WorldBuild.new()
+	wb.id = to
+	wb.at = at
+	wb.info = _map_info(to)
+	wb.opt = {"look": look, "is_phone": is_phone, "hd": hd_on, "quality": quality, "plus": pc_plus and quality >= 2 and not is_phone}
+	wb.maps = maps
+	wb.roster = roster
+	wb.pri = int(sel["ri"])
+	wb.cls = String(sel["cls"])
+	wb.build = _my_build().duplicate(true)
+	if music != null and music.ready() and not auto_drive:
+		# (the place's song, read on the thread too: the music then finds it already loaded)
+		var mk := String(music.info.get("maps", {}).get(to, ""))
+		var ms: Dictionary = music.info.get("songs", {}).get(mk, {})
+		if not ms.is_empty():
+			wb.song = Music.DIR + String(ms["file"])
+	wb.start()
+	return wb
+
+
+## the kart has committed to a gate (it is in the corridor already): the next place is started
+func _sb_go_gate(g: Dictionary) -> void:
+	sb_tun = kart.tun
+	sb_warp.tun = sb_tun
+	sb_trav = true
+	hud.sb_hold = race.sb.readout()
+	var to := String(g["to"])
+	sb_go = {"mode": "gate", "to": to, "at": String(g.get("at", "")), "stage": "build", "n": 0, "t0": Time.get_ticks_msec(), "wb": null}
+	if _sb_has(to):
+		sb_go["wb"] = _sb_build_start(to, String(g.get("at", "")))
+	else:
+		sb_go["stage"] = "fail"
+		sb_go["err"] = "that place is not here"
+
+
+## by the map (and from the tests): the next place under the cover, the kart set down at gate `at`, or behind the start
+## line when `at` is "" (web sbTravel)
+func _sb_travel(to: String, at: String) -> void:
+	if sb_trav or race == null or race.sb == null or not sb_go.is_empty():
+		return
+	if not _sb_has(to):
+		return
+	sb_trav = true
+	_sb_cover_on()
+	sb_go = {"mode": "map", "to": to, "at": at, "stage": "build", "n": 0, "t0": Time.get_ticks_msec(), "wb": null, "sp": maxf(70.0, absf(kart.speed))}
+	if to == map_id:
+		sb_go["stage"] = "same"   # (this place's own start line: nothing to build)
+	else:
+		sb_go["wb"] = _sb_build_start(to, at)
+
+
+## every frame: the journey in hand, one stage at a time (see above), and the old place's pieces freed a few at a time
+func _sb_go_tick(dt: float) -> void:
+	_sb_trash_tick()
+	if sb_go.is_empty():
+		return
+	var wb = sb_go.get("wb")
+	var gate: bool = String(sb_go["mode"]) == "gate"
+	sb_go["n"] = int(sb_go["n"]) + 1
+	match String(sb_go["stage"]):
+		"build":
+			if wb.done():
+				wb.join()
+				sb_go["ms_build"] = Time.get_ticks_msec() - int(sb_go["t0"])
+				if not wb.ok:
+					sb_go["err"] = String(wb.err)
+					wb.discard()
+					sb_go["wb"] = null
+					sb_go["stage"] = "fail"
+				else:
+					sb_go["stage"] = "ready"
+		"ready":
+			if gate:
+				# the tunnel takes the size of the gate ahead while it waits
+				if not sb_go.has("fout"):
+					sb_go["fout"] = _sb_frame_out(wb.race.sb, String(sb_go["at"]))
+					sb_tun.hw_to = float(sb_go["fout"]["hw"])
+					sb_tun.rx_to = float(sb_go["fout"]["rx"])
+					sb_tun.ry_to = float(sb_go["fout"]["ry"])
+				if sb_warp.on and sb_warp.cam_s > 60.0:
+					sb_tun.sealed = true
+				if not (sb_tun.sealed and sb_warp.on and sb_warp.f >= 0.999):
+					return
+			var u0 := Time.get_ticks_usec()
+			_sb_world_out()
+			var u1 := Time.get_ticks_usec()
+			_sb_world_shell(wb)
+			sb_go["us"] = {"old place out": u1 - u0, "sky and lights in": Time.get_ticks_usec() - u1}
+			if gate:
+				# The new place is on its own layer (scripts/world_build.gd). The game's camera stops looking at that
+				# layer until the kart is nearly out (_sb_reveal): a place may stand just where this tunnel runs. A small
+				# second camera, set where the kart will come out, looks at it meanwhile, so the renderer has drawn all of
+				# it once before the player sees any of it (without that, the first sight of it was one 60 ms frame).
+				cam.cull_mask = 0xFFFFF & ~2
+				_sb_warm(sb_go["fout"])
+			sb_go["stage"] = "in"
+		"in":
+			var t0 := Time.get_ticks_usec()
+			var pend: Array = wb.pending
+			var i := int(sb_go.get("pi", 0))
+			# (a few a frame, and never all in one: the renderer meets each piece's meshes and pictures for the first time
+			#  in the frame after it comes in)
+			var most := maxi(1, int(ceil(pend.size() / 30.0)))
+			var got := 0
+			while i < pend.size() and got < most and Time.get_ticks_usec() - t0 < 2500:
+				(pend[i][0] as Node).add_child(pend[i][1])
+				i += 1
+				got += 1
+			sb_go["pi"] = i
+			sb_go["in_n"] = int(sb_go.get("in_n", 0)) + 1
+			if i >= pend.size():
+				sb_go["stage"] = "warm"
+				sb_go["n"] = 0
+		"warm":
+			# (a toy room's mirror picture is taken a side a frame once the room is in: it is given the time)
+			var need := 14 if wb.toy_room_on else 6
+			if int(sb_go["n"]) >= need and (dt < 0.022 or int(sb_go["n"]) > 60):
+				sb_go["stage"] = "swap"
+		"swap":
+			if gate:
+				if kart.tun == null or sb_tun == null:
+					_sb_abort()
+					return
+				if sb_tun.s < 120.0 or absf(sb_tun.hw - sb_tun.hw_to) > 0.01 or absf(sb_tun.rx - sb_tun.rx_to) > 0.01 or absf(sb_tun.ry - sb_tun.ry_to) > 0.01 or sb_warp.f < 0.999:
+					return
+				var fout: Dictionary = sb_go["fout"]
+				var u2 := Time.get_ticks_usec()
+				var mv: Array = sb_tun.swap(fout, float(sb_warp.end_s) - float(sb_tun.s) + float(fout["e_off"]))
+				sb_tun.at = String(fout.get("gid", sb_go["at"]))
+				_sb_rigid(mv)
+				_sb_adopt(wb, true)
+				sb_go["us"]["swap"] = Time.get_ticks_usec() - u2
+			else:
+				var u3 := Time.get_ticks_usec()
+				_sb_adopt(wb, true)
+				sb_go["us"]["swap"] = Time.get_ticks_usec() - u3
+				race.sb.arrive(kart, String(sb_go["at"]), float(sb_go["sp"]))
+				cam_a = kart.ma
+				cam_snap = true
+			sb_go["stage"] = "after"
+			sb_go["n"] = 0
+		"after":
+			match int(sb_go["n"]):
+				1:
+					var u4 := Time.get_ticks_usec()
+					view.build_pads()
+					sb_go["us"]["pads"] = Time.get_ticks_usec() - u4
+				2:
+					var u5 := Time.get_ticks_usec()
+					view.build_world_haz(haz_lib)
+					sb_go["us"]["hazards"] = Time.get_ticks_usec() - u5
+				3:
+					_sb_adopt_rest(0)
+				4:
+					_sb_adopt_rest(1)
+				5:
+					_sb_warm_off()
+					sb_go["ms"] = Time.get_ticks_msec() - int(sb_go["t0"])
+					print("sandbox: %s built in %d ms on its thread %s; in the game after %d ms%s; this thread's own steps (microseconds) %s, and %d frames bringing %d pieces in" % [map_id, int(sb_go.get("ms_build", 0)), str(wb.ms), int(sb_go["ms"]),
+						"" if gate else " (by the map)", str(sb_go["us"]), int(sb_go.get("in_n", 0)), (wb.pending as Array).size()])
+					sb_go = {}
+					if not gate:
+						_sb_arrived_map()
+		"same":
+			if int(sb_go["n"]) >= 2:
+				race.sb.arrive(kart, String(sb_go["at"]), float(sb_go["sp"]))
+				cam_a = kart.ma
+				cam_snap = true
+				sb_go = {}
+				_sb_arrived_map()
+		"fail":
+			if gate:
+				# back out of the gate the kart went in by, once it is deep enough for the turn not to show
+				if kart.tun == null or sb_tun == null:
+					_sb_abort()
+					return
+				if sb_tun.s < 120.0 or not sb_warp.on or sb_warp.f < 0.999:
+					return
+				var fo: Dictionary = race.sb.frame_out(sb_tun.from_gate)
+				var mv2: Array = sb_tun.swap(fo, float(sb_warp.end_s) - float(sb_tun.s) + float(fo["e_off"]))
+				sb_tun.at = String(sb_tun.from_gate.get("id", ""))
+				_sb_rigid(mv2)
+				_toast("That way is closed just now", 2.4)
+				print("sandbox: could not travel to %s: %s" % [String(sb_go["to"]), String(sb_go.get("err", ""))])
+				sb_go = {}
+			else:
+				print("sandbox: could not travel to %s: %s" % [String(sb_go["to"]), String(sb_go.get("err", ""))])
+				sb_go = {}
+				sb_trav = false
+				_sb_cover_off()
+				_toast("Couldn't load that place", 2.4)
+
+
+## the gate a kart comes out of in a place, as a tunnel's frame; a place with no such gate: its first; with none at
+## all: a tunnel that ends a little behind the start line
+func _sb_frame_out(sbn, at: String) -> Dictionary:
+	var g = sbn.gate_by_id(at)
+	if g == null and not (sbn.gates as Array).is_empty():
+		g = sbn.gates[0]
+	if g != null:
+		var f: Dictionary = sbn.frame_out(g)
+		f["gid"] = String(g["id"])
+		return f
+	var nt: TrackData = sbn.T
+	var j := (nt.N - int(round(40.0 / (nt.L / nt.N)))) % nt.N
+	return {"dx": nt.tx[j], "dz": nt.ty[j], "ox": nt.px[j], "oz": nt.py[j], "y": (0.0 if sbn.toy else nt.ground(nt.px[j], nt.py[j])) + nt.ey[j], "hw": 17.0, "rx": 21.0, "ry": 34.0,
+		"e_off": 1.0, "room": false, "road": true, "j": j, "gid": ""}
+
+
+## the place left behind goes out of the tree, to be freed a little a frame (nothing of it can be seen any more: by the
+## map it is under the cover, through a gate the camera is deep in the tunnel)
+func _sb_world_out() -> void:
+	_sb_view_clear()
+	if world != null:
+		remove_child(world)
+		sb_trash.append(world)
+		world = null
+	if haz_lib != null:
+		sb_trash.append(haz_lib)
+		haz_lib = null
+	water_mats = []
+	cull_list = []
+
+
+## the new place's sky and lights come in, and it becomes "the world" (its scenery follows, stage "in")
+func _sb_world_shell(wb) -> void:
+	world = wb.world
+	env = wb.env
+	sun = wb.sun
+	rim = wb.rim
+	toy_room = wb.toy_room
+	toy_room_on = wb.toy_room_on
+	water_mats = wb.water_mats
+	cull_list = wb.cull_list
+	haz_lib = wb.haz_lib
+	add_child(world)
+	# (the sun's shadows as the settings have them: cheap, and it must be before the scenery is first drawn)
+	_apply_quality()
+	if sb_warp != null:
+		sb_warp.rebase(env, sun, rim, wb.grade)
+	if not sb_warp.on:
+		# (by the map: no tunnel to ease the look through; the place's own grade at once, under the cover)
+		for key in ["sat", "con", "tint", "vig"]:
+			post_mat.set_shader_parameter(key, wb.grade[key])
+
+
+## moves the kart, the camera and the sparks by the step the corridor has just been moved by (Tun.swap): a turn about
+## the upright and a shift. Everything on the screen keeps its place against everything else.
+func _sb_rigid(mv: Array) -> void:
+	var dth: float = mv[0]
+	var bas := Basis(Vector3.UP, -dth)
+	var m := Transform3D(bas, (mv[2] as Vector3) - bas * (mv[1] as Vector3))
+	var k := kart
+	var p := m * Vector3(k.x, k.wy, k.y)
+	var q := m * Vector3(k.ox, k.owy, k.oy)
+	k.x = p.x
+	k.wy = p.y
+	k.y = p.z
+	k.ox = q.x
+	k.owy = q.y
+	k.oy = q.z
+	k.a += dth
+	k.ma += dth
+	k.oa += dth
+	k.oma += dth
+	k.last_g = sb_tun.y
+	k.bpx = k.x
+	k.bpy = k.y
+	cam_base = m * cam_base
+	cam_look = m * cam_look
+	cam_up = bas * cam_up
+	cam_a += dth
+	cam_pvz += (mv[2] as Vector3).y - (mv[1] as Vector3).y
+	fx.xform(m)
+	if view.views.has(k):
+		var v: Dictionary = view.views[k]
+		var r := m * Vector3(float(v["rx"]), float(v["rz"]), float(v["ry"]))
+		v["rx"] = r.x
+		v["rz"] = r.y
+		v["ry"] = r.z
+		v["rma"] = float(v["rma"]) + dth
+
+
+## the place built on the thread becomes the game's: its track data, its Race (with the kart that is already driving
+## handed to it in place of the one it was made with), the HUD's and the view's references. No model is rebuilt.
+func _sb_adopt(wb, spread := false) -> void:
+	var nr: Race = wb.race
+	var old_sb = race.sb
+	var k := kart
+	var nk: Kart = nr.player
+	nr.karts[nr.karts.find(nk)] = k
+	nr.player = k
+	k.T = wb.T
+	k.race = nr
+	k.sb = nr.sb
+	k.sbf = nr.sb.free
+	k.base_max = nk.base_max
+	k.idx = 0
+	k.prog = 0
+	k.sc = -1
+	k.loop = {}
+	k.loop_th = 0.0
+	k.r_bk = 0
+	k.sb_off = k.tun != null
+	nr.sb.park = old_sb.park if old_sb != null else false
+	if not spread:
+		nr.sb.sync_save()
+	nr.items_off = items_off()
+	nr.mode = "sb"
+	nr.net_on = false
+	nr.state = "race"
+	nr.race_time = race.race_time
+	nr.stand = nr.standings()
+	race = nr
+	T = wb.T
+	map_id = wb.id
+	T.LAPS = T.laps0
+	state = "race"
+	cd = 0.0
+	view.rebind(T, race)
+	hud.race = race
+	hud.T = T
+	hud.me = k
+	cam.far = wb.cam_far
+	_toy_dof()
+	sb_view = wb.sb_view
+	sb_cam_f = 1.0
+	if not spread:
+		_sb_adopt_rest()
+	print("track %s: %s, hazards %s" % [map_id, String(_map_info(map_id).get("name", map_id)), "yes" if haz_lib != null else "none"])
+
+
+## the parts of taking a place over that can wait a frame or two (in a journey they are done one a frame, after the
+## swap: the tunnel still hides the place): what Sandbox draws there, the save, the settings file
+func _sb_adopt_rest(part := -1) -> void:
+	if part < 0 or part == 0:
+		if sb_view != null and not sb_view.is_inside_tree():
+			add_child(sb_view)
+	if part < 0 or part == 1:
+		race.sb.sync_save()
+		if not auto_drive and not skip_menu:
+			_save_settings()
+
+
+## the small second camera that looks at a place before the player does (see stage "ready"): set a little way inside
+## the tunnel the kart will come out of, looking out into the place
+var sb_warm_vp: SubViewport = null
+var sb_warm_cam: Camera3D = null
+
+
+func _sb_warm(fo: Dictionary) -> void:
+	if sb_warm_vp == null:
+		sb_warm_vp = SubViewport.new()
+		sb_warm_vp.size = Vector2i(128, 72)
+		sb_warm_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		add_child(sb_warm_vp)
+		sb_warm_cam = Camera3D.new()
+		sb_warm_cam.fov = 92.0
+		sb_warm_vp.add_child(sb_warm_cam)
+	var at := Vector3(float(fo["ox"]) - float(fo["dx"]) * 30.0, float(fo["y"]) + 13.0, float(fo["oz"]) - float(fo["dz"]) * 30.0)
+	sb_warm_cam.far = cam.far
+	sb_warm_cam.look_at_from_position(at, at + Vector3(float(fo["dx"]), -0.1, float(fo["dz"])) * 50.0, Vector3.UP)
+	sb_warm_cam.current = true
+	sb_warm_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+
+
+func _sb_warm_off() -> void:
+	if sb_warm_vp != null:
+		sb_warm_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+
+
+## the camera has reached the bright picture at the tunnel's way out: from here it looks at the place itself
+## (called by scripts/sandbox_warp.gd)
+func _sb_reveal() -> void:
+	cam.cull_mask = 0xFFFFF
+
+
+## the kart is out of the mouth, in the next place (sandbox.gd _leave_tun)
+func _sb_out() -> void:
+	sb_trav = false
+	sb_arrived += 1
+	hud.sb_hold = []
+	_show_center(race.sb.title, 2.0, "sm")
+
+
+## the camera has followed the kart out: the tunnel is put away (called by scripts/sandbox_warp.gd)
+func _sb_tun_over() -> void:
+	if cam != null:
+		cam.cull_mask = 0xFFFFF
+	sb_tun = null
+	if sb_warp != null:
+		sb_warp.tun = null
+
+
+## set down by the map: the cover lifts
+func _sb_arrived_map() -> void:
+	state = "race"
+	race.state = "race"
+	cd = 0.0
+	sb_trav = false
+	sb_arrived += 1
+	hud.sb_hold = []
+	_show_center(race.sb.title, 2.0, "sm")
+	_sb_cover_off()
+
+
+## a journey that cannot go on (the kart is no longer in the corridor): whatever was built is dropped
+func _sb_abort() -> void:
+	var wb = sb_go.get("wb")
+	if wb != null:
+		wb.cancel()
+		wb.join()
+		wb.discard()
+	sb_go = {}
+	sb_trav = false
+	_sb_warm_off()
+	if kart != null:
+		kart.tun = null
+	_sb_tun_over()
+	_sb_cover_off()
+
+
+## Before anything that rebuilds the race or the world the ordinary way (the menu, a restart, a race from the start
+## line, leaving the game): a journey in hand is brought to its end at once. If the next place is already standing in
+## for the old one it is taken over whole; otherwise the build is dropped and the old place stays. Either way no thread
+## is left running and the kart is in no tunnel.
+func _sb_go_finish() -> void:
+	if sb_go.is_empty() and sb_tun == null and (kart == null or kart.tun == null):
+		return
+	var wb = sb_go.get("wb")
+	var stage := String(sb_go.get("stage", ""))
+	if wb != null and stage in ["in", "warm", "swap"]:
+		# (the old place is gone from the tree already: the new one comes in whole)
+		var pend: Array = wb.pending
+		for i in range(int(sb_go.get("pi", 0)), pend.size()):
+			(pend[i][0] as Node).add_child(pend[i][1])
+		_sb_adopt(wb)
+		view.build_pads()
+		view.build_world_haz(haz_lib)
+	elif wb != null and stage == "after":
+		_sb_adopt_rest()
+	elif wb != null and stage in ["build", "ready"]:
+		wb.cancel()
+		wb.join()
+		wb.discard()
+	sb_go = {}
+	sb_trav = false
+	_sb_warm_off()
+	if kart != null and kart.tun != null:
+		kart.tun = null
+		if race != null and race.sb != null:
+			race.sb.travel = null
+			race.sb.arrive(kart, "", 0.0)
+	_sb_tun_over()
+	if sb_warp != null:
+		sb_warp.reset()
+	if hud != null:
+		hud.sb_hold = []
+	_sb_cover_off()
+
+
+## the place left behind, freed a little every frame: one long frame for all of it would be a stutter in the tunnel
+func _sb_trash_tick(all := false) -> void:
+	if sb_trash.is_empty():
+		return
+	var t0 := Time.get_ticks_usec()
+	while not sb_trash.is_empty() and (all or Time.get_ticks_usec() - t0 < 1200):
+		var n: Node = sb_trash[sb_trash.size() - 1]
+		if not is_instance_valid(n):
+			sb_trash.pop_back()
+			continue
+		var c := n.get_child_count()
+		if c > 0:
+			# (its children first, one at a time, each taken out and put on the pile)
+			var ch := n.get_child(c - 1)
+			n.remove_child(ch)
+			sb_trash.append(ch)
+		else:
+			sb_trash.pop_back()
+			n.free()
+
+
+## the cover over fast travel from the map (web sbCover / #sbDuct): dark, with light streaks flying out of its middle;
+## they keep moving for the whole of the load
+func _sb_cover_on() -> void:
+	if sb_cover == null:
+		sb_cover = SandboxView.Cover.new()
+		sb_cover.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		sb_cover.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ui_root.add_child(sb_cover)
+	sb_cover.show_at(Vector2(0.5, 0.46))
+
+
+func _sb_cover_off() -> void:
+	if sb_cover != null and sb_cover.visible:
+		sb_cover.fade()
+
+
+## the start line's offer, taken: an ordinary single race on this track at the chosen speed class; leaving it or its
+## results comes back to Sandbox here (web sbRaceHere)
+func _sb_race_here() -> void:
+	if race == null or race.sb == null or sb_trav or state != "race" or paused or not race.sb.race_near:
+		return
+	sb_back = map_id
+	gp = {}
+	_new_cpu_builds()
+	_start_race({})
+
+
+## leaving a race that began at a start line in Sandbox: back to Sandbox there (web sbBack; _to_menu asks this first)
+func _sb_return() -> bool:
+	if sb_back == "":
+		return false
+	var id := sb_back
+	sb_back = ""
+	if net_role != "" or web.role != "" or not _sb_has(id):
+		return false
+	if id != map_id and not load_map(id):
+		return false
+	sb_next = true
+	_start_race({})
+	return race != null and race.sb != null
+
+
+## the Park button (K, D-pad down, or the button on the screen): the car stops where it is until it is pressed again
+## (web sbPark)
+func _sb_park(on: Variant = null) -> void:
+	if race == null or race.sb == null:
+		return
+	race.sb.park = (not race.sb.park) if on == null else bool(on)
+
+
+## the map: opened while driving (M, Y or Select) or from the pause menu (Map, under Resume); the game stops under it
+## exactly as under the pause menu (web sbMap)
+func _sb_map(open: bool, from := "drive") -> void:
+	if open == (sb_map_ui != null):
+		return
+	if open:
+		if race == null or race.sb == null or sb_trav or state != "race" or net_role != "":
+			return
+		sb_map_from = from
+		paused = true
+		panel_pause.visible = true
+		for c in panel_pause.get_children():
+			c.queue_free()
+		sb_map_ui = SandboxMap.new()
+		sb_map_ui.setup(self, menu, race.sb, maps, map_id, kart)
+		panel_pause.add_child(sb_map_ui)
+	else:
+		sb_map_ui = null
+		if sb_map_from == "pause" and paused:
+			_build_pause()
+		else:
+			for c in panel_pause.get_children():
+				c.queue_free()
+			paused = false
+			panel_pause.visible = false
+
+
+## fast travel from the map: to a place's start line (web sbMapTravel)
+func _sb_map_travel(id: String) -> void:
+	if not _sb_has(id):
+		return
+	sb_map_from = "drive"
+	_sb_map(false)
+	if state != "race" or race == null or race.sb == null:
+		return
+	_sb_park(false)
+	_sb_travel(id, "")
+
+
+## Sandbox's camera must not look from inside a fence, a wall or the shed: walk from the kart out to where the camera
+## wants to be and stop short of the first solid thing at that height. It closes in at once and eases back out (web sbCam)
+var sb_cam_f := 1.0
+
+
+func _sb_cam(k: Kart, rx: float, ry: float, rz: float) -> void:
+	var sb = race.sb
+	if not k.loop.is_empty():
+		sb_cam_f = 1.0   # (inside a loop its own hoop would be "in the way": the loop's camera is left alone)
+		return
+	var ty := rz + 7.0
+	var c := cam.position
+	var ok := 1.0
+	for i in range(1, 17):
+		var f := i / 16.0
+		var g := minf(1.06, f + 0.06)
+		if sb.solid(rx + (c.x - rx) * g, ry + (c.z - ry) * g, ty + (c.y - ty) * g):
+			ok = (i - 1) / 16.0
+			break
+	sb_cam_f = ok if ok < sb_cam_f else minf(ok, sb_cam_f + 0.02)
+	var f2 := maxf(0.16, sb_cam_f)
+	if f2 >= 0.999:
+		return
+	cam.position = Vector3(rx + (c.x - rx) * f2, ty + (c.y - ty) * f2 + (1.0 - f2) * 9.0, ry + (c.z - ry) * f2)
+	# pulled in close, it looks more and more at the kart itself, so the kart stays in the picture
+	var w := minf(1.0, (1.0 - f2) * 1.6)
+	var lk := Vector3(cam_look.x + (rx - cam_look.x) * w, cam_look.y + cam_oy * 0.45 + (ty - 2.0 - cam_look.y - cam_oy * 0.45) * w, cam_look.z + (ry - cam_look.z) * w)
+	if cam.position.distance_to(lk) > 0.1:
+		cam.look_at(lk, cam_up)
 
 
 ## a glTF file from disk (the tracks exported from the web game), or the built-in copy
@@ -395,6 +1154,11 @@ func load_map(id: String) -> bool:
 	var info := _map_info(id)
 	if info.is_empty():
 		return false
+	if not sb_go.is_empty() or sb_tun != null:
+		_sb_go_finish()   # (a Sandbox journey in hand is ended first; in a race there never is one)
+	if sb_warp != null:
+		sb_warp.reset()
+	_sb_trash_tick(true)
 	var dir: String = info["dir"]
 	var nt := TrackData.load_from(dir.path_join(id + ".json"))
 	if nt == null:
@@ -1037,6 +1801,11 @@ func _win_info() -> String:
 func _toggle_pause() -> void:
 	if state == "results" or state == "menu":
 		return
+	if sb_map_ui != null:
+		_sb_map(false)   # Sandbox's map is up: pause and Start close it (web togglePause)
+		return
+	if sb_trav and not sb_go.is_empty() and String(sb_go["mode"]) == "map":
+		return   # (under the map's cover: there is nothing to pause)
 	if net_role != "":
 		# an online race carries on for everyone: this only opens the menu
 		panel_pause.visible = not panel_pause.visible
@@ -1078,8 +1847,14 @@ func _build_pause() -> void:
 	var res := menu.button("Resume", "cta", 22.0, Vector4(16, 14, 16, 14))
 	res.pressed.connect(_toggle_pause)
 	v.add_child(res)
+	var in_sb := race != null and race.sb != null
+	if in_sb:
+		# Sandbox: Map, directly under Resume (web sbMapBtn)
+		var mapb := menu.button("Map", "ghost", 20.0, Vector4(14, 12, 14, 12))
+		mapb.pressed.connect(func(): _sb_map(true, "pause"))
+		v.add_child(mapb)
 	var row := menu.hbox(10)
-	for spec in [["Restart race", _restart], ["Settings", _pause_settings], ["Quit to menu", _to_menu.bind("")]]:
+	for spec in [["Back to the start line" if in_sb else "Restart race", _restart], ["Settings", _pause_settings], ["Back to Sandbox" if sb_back != "" else "Quit to menu", _to_menu.bind("")]]:
 		var b := menu.button(String(spec[0]), "ghost", 15.0, Vector4(12, 12, 12, 12))
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.pressed.connect(spec[1])
@@ -1105,11 +1880,14 @@ func _restart() -> void:
 	elif net_role == "client":
 		_toast("Only the host can restart the race")
 	else:
+		sb_next = race != null and race.sb != null   # (in Sandbox: set down at the start line again, still in Sandbox)
 		_start_race({})
 
 
 ## builds the grid: a one-player race, or (online) the configuration the host sent
 func _start_race(cfg: Dictionary) -> void:
+	if not sb_go.is_empty() or sb_tun != null:
+		_sb_go_finish()   # (a Sandbox journey in hand is ended first; in a race there never is one)
 	if menu != null:
 		menu.visible = false
 		menu.close_modal()
@@ -1124,6 +1902,10 @@ func _start_race(cfg: Dictionary) -> void:
 			_to_menu("This race is on %s, which isn't in your maps folder." % String(cfg["map"]))
 			return
 	race = Race.new()
+	# Sandbox: only when it was asked for by a real start (never for the menu's background race), off line
+	race.sb_want = sb_next and cfg.is_empty() and net_role == "" and web.role == ""
+	sb_next = false
+	_sb_view_clear()
 	var pri := int(sel["ri"])
 	if cfg.is_empty():
 		race.setup(T, roster, pri, 0, String(sel["cls"]), _my_build())
@@ -1143,6 +1925,7 @@ func _start_race(cfg: Dictionary) -> void:
 		# (items_off cannot tell "locked" from "switched off")
 		race.bb.meat_off = item_set.get("meatball", true) == false
 		bb_cam_f = 1.0
+		bb_fin = 2.4
 	# the network log: a row a second of every online race (Settings > More > Network log)
 	NetLog.stop(_net_names())
 	if (net_role != "" or web.racing()) and not cfg.is_empty():
@@ -1150,6 +1933,8 @@ func _start_race(cfg: Dictionary) -> void:
 	var lss := String(cfg.get("mode", "")) == "lss" if not cfg.is_empty() else (String(sel.get("mode", "")) == "lss" and gp.is_empty())
 	# an arena map is a Balloon Battle (the race set that up itself, scripts/race.gd setup_cfg); otherwise as before
 	race.mode = "bb" if race.bb != null else ("lss" if lss else "")
+	if race.sb != null:
+		race.mode = "sb"   # (the race set Sandbox up itself, scripts/race.gd setup_cfg)
 	T.LAPS = maxi(2, race.karts.size() - 1) if race.mode == "lss" else T.laps0
 	spec_k = null
 	_spec_reset()
@@ -1171,8 +1956,8 @@ func _start_race(cfg: Dictionary) -> void:
 		add_child(ghost)
 	var best := Ach.best(map_id, String(cfg.get("cls", sel["cls"])) if not cfg.is_empty() else String(sel["cls"]))
 	hud.pb_text = ("Best " + Hud._fmt(float(best["t"]))) if not best.is_empty() else ""
-	if race.mode == "bb":
-		# a battle has no lap time: no best under the clock, no ghost, nothing recorded
+	if race.mode == "bb" or race.mode == "sb":
+		# a battle has no lap time: no best under the clock, no ghost, nothing recorded (nor has Sandbox: web if(mode!=='lss'&&!SBX)ghostStart())
 		hud.pb_text = ""
 		ghost.start({}, false, kart.ri, {})
 		ghost.recording = false
@@ -1201,6 +1986,12 @@ func _start_race(cfg: Dictionary) -> void:
 	shake_imp = 0.0
 	fin_punch = 0.0
 	stats = {"used": {}, "spins": 0, "boxes": 0, "player_spins": 0, "abilities": {}}
+	if race.sb != null:
+		# Sandbox: the place's name and a short wait, no "3, 2, 1" (web: cd=SBX?.9:3.4; showBanner(SB.reg.name,2.2,'md'))
+		_sb_started()
+		cd = 0.9
+		_show_center(race.sb.title, 2.2, "md" if String(race.sb.title).length() <= 18 else "sm")   # (a long name at the larger size is wider than the screen)
+		return
 	_show_center("3", 0.9)
 
 
@@ -1244,6 +2035,7 @@ func _physics_process(dt: float) -> void:
 		return
 	if state == "menu":
 		return
+	bb_dt = dt
 	if web.racing():
 		_web_physics(dt)
 		return
@@ -1282,13 +2074,21 @@ func _sim_tick(dt: float) -> void:
 		if cd <= 0.0:
 			state = "race"
 			race.state = "race"
-			_show_center("Go!", 1.0)
-			sfx.play("go")
+			if race.sb == null:   # (Sandbox: the place's name stays up, nothing is started)
+				_show_center("Go!", 1.0)
+				sfx.play("go")
+		for k in race.karts:
+			k._save_prev()
+		return
+	if sb_trav and not sb_go.is_empty() and String(sb_go["mode"]) == "map":
+		# Sandbox, fast travel from the map: the game stands still under the cover until the kart is set down
 		for k in race.karts:
 			k._save_prev()
 		return
 	race.update(dt, _input_state())
 	_drain_events()
+	if race.sb != null:
+		_sb_tick()
 	if state == "race":
 		if not auto_drive and kart != null and not kart.finished:
 			if kart.glide:
@@ -1305,9 +2105,11 @@ func _sim_tick(dt: float) -> void:
 				k.ai["auto"] = true
 		if race.mode == "lss":
 			all_done = race.lss_done
+		elif race.mode == "bb":
+			all_done = race.bb.over   # (the player going out does not end the round: the others play on)
 		if all_done:
 			state = "finished"
-			fin_t = 2.4 if race.mode == "bb" else 3.5   # (the web shows a battle's results 2.4 s after "Time!")
+			fin_t = bb_fin if race.mode == "bb" else 3.5   # (the web shows a battle's results 2.4 s after its last banner; .7 s when the round was played out fast)
 	elif state == "finished":
 		fin_t -= dt
 		if fin_t <= 0.0:
@@ -1360,8 +2162,8 @@ func _ach_toasts() -> void:
 
 
 func _lap_check() -> void:
-	if race.mode == "bb":
-		return   # no laps in a battle: circling the middle of the table must not call "Lap 2" or the final-lap music
+	if race.mode == "bb" or race.mode == "sb":
+		return   # no laps in a battle: circling the middle of the table must not call "Lap 2" or the final-lap music (nor in Sandbox: web !BATTLE&&!SBX)
 	var lp := kart.lap()
 	if lp != last_lap and not kart.finished:
 		last_lap = lp
@@ -1626,17 +2428,41 @@ func _drain_events() -> void:
 				sfx.play("ring")
 				_show_center("+1", 0.5, "sm")
 		elif t == "bb_out":
+			# the last balloon of a set (web bbSetLost)
 			if ed["k"] == kart:
-				if bool(ed["edge"]):
-					_show_center("Off the table!" if int(ed["left"]) > 0 else "All popped! Back with %d" % race.bb.BACK, 1.4, "sm")
-				else:
-					_show_center("All popped! Back with %d" % race.bb.BACK, 1.6, "sm")
+				_show_center("All popped! Back with %d" % int(ed["next"]), 1.6, "sm")
+		elif t == "bb_edge":
+			if ed["k"] == kart:
+				_show_center("Off the table!", 1.4, "sm")
 		elif t == "bb_back":
+			if ed["k"] == kart and bool(ed.get("last", false)):
+				_show_center("Last balloon!", 1.5, "sm")
 			if ed["k"] == _cam_kart():
 				cam_snap = true
-		elif t == "bb_time":
-			_show_center("Time!", 2.4, "md")
+		elif t == "bb_elim":
+			# out for good (web bbElim)
+			var kx: Kart = ed["k"]
+			if kx == kart or clampf(1.0 - Vector3(float(ed["x"]), float(ed["h"]), float(ed["y"])).distance_to(cam.global_position) / 420.0, 0.0, 1.0) > 0.0:
+				sfx.play("hit", 0.8, 0.7)
+			_show_center(("Out! \u00b7 " + _ordinal(int(ed["place"]))) if kx == kart else kx.racer_name + " is out", 2.2 if kx == kart else 1.3, "sm")
+		elif t == "bb_watch":
+			_bb_watch()
+		elif t == "bb_skip":
+			_show_center("Finishing the round...", 1.4, "sm")
+		elif t == "bb_end":
+			# the round is over (web bbFinish)
+			_show_center("Time!" if bool(ed["time"]) else ("Last one standing!" if ed["first"] == kart else (ed["first"] as Kart).racer_name + " wins!"), 2.4, "md")
 			sfx.play("finish")
+			bb_fin = 0.7 if bool(ed["fast"]) else 2.4
+		# ---- Sandbox (scripts/sandbox.gd): a coin taken (web sbTick)
+		elif t == "sb_coin":
+			fx.burst(float(ed["x"]), float(ed["h"]), float(ed["y"]), 5, [Color("#ffd65a"), Color("#fff4dc")], 34.0, 1.4)
+			sfx.play("ring", 0.3, 1.7)
+		elif t == "sb_rare":
+			fx.burst(float(ed["x"]), float(ed["h"]), float(ed["y"]), 26, [Color("#ffd65a"), Color("#d8402a"), Color("#ffffff")], 70.0, 2.4)
+			fx.ring(float(ed["x"]), float(ed["h"]), float(ed["y"]), Color("#ffd65a"), 26.0, 0.5, false)
+			_show_center("Pepperoni coin! %d of %d" % [int(ed["n"]), int(ed["of"])], 1.6, "sm")
+			sfx.play("ready")
 	race.fx.clear()
 
 
@@ -1933,7 +2759,7 @@ func _show_results() -> void:
 		if race.mode == "lss":
 			rtxt = ("out on lap %d" % k.elim_lap) if k.elim else ("last slice" if k.place == 1 else _fmt(k.finish_time))
 		elif race.mode == "bb":
-			rtxt = "%d %s" % [k.bb_s, "point" if k.bb_s == 1 else "points"]   # a battle is won on points (web results)
+			rtxt = race.bb.res_row(k)   # the points, and "out" before them for the eliminated (web bbResRow)
 		c1.add_child(_result_row(i + 1, k, rtxt, "+%d" % (Race.PTS[i] if i < Race.PTS.size() else 0) if not gp.is_empty() else ""))
 	if not gp.is_empty():
 		var c2 := menu.vbox(5)
@@ -1959,13 +2785,15 @@ func _show_results() -> void:
 		menu.open("track"))
 	row.add_child(tb)
 	var mb := menu.button("Change mode or driver" if race.mode == "bb" else "Change track or driver", "ghost", 15.0, Vector4(12, 12, 12, 12))
+	if sb_back != "":
+		mb.text = "Back to Sandbox"   # this race began at a start line in Sandbox (web: toMenuBtn = SB.back ? 'Back to Sandbox')
 	mb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mb.pressed.connect(_to_menu.bind(""))
 	row.add_child(mb)
 	v.add_child(row)
 	# down from the big button goes to the first of the two under it
 	again.focus_neighbor_bottom = again.get_path_to(tb)
-	if race.mode == "bb":
+	if race.mode == "bb" or sb_back != "":
 		# a battle has one arena: nothing else to choose (web: trackBtn hidden)
 		tb.visible = false
 		again.focus_neighbor_bottom = again.get_path_to(mb)
@@ -2083,16 +2911,32 @@ func _input_state() -> Dictionary:
 		var sx := 0.0 if absf(ax) < dz else signf(ax) * (absf(ax) - dz) / (1.0 - dz)
 		var dl := Input.is_joy_button_pressed(j, JOY_BUTTON_DPAD_LEFT)
 		var dr := Input.is_joy_button_pressed(j, JOY_BUTTON_DPAD_RIGHT)
-		steer += clampf(sx + (1.0 if dr else 0.0) - (1.0 if dl else 0.0), -1.0, 1.0)
+		if race != null and race.sb != null:
+			# Sandbox: the D-pad's left and right are the speed slider; the stick steers (web patch32: PAD.steer=SBX?sx:...)
+			steer += clampf(sx, -1.0, 1.0)
+			if state == "race" and _sb_spd_shown():
+				if dl and not sb_pdl:
+					Sandbox.spd_step(-1)
+				if dr and not sb_pdr:
+					Sandbox.spd_step(1)
+			sb_pdl = dl
+			sb_pdr = dr
+		else:
+			steer += clampf(sx + (1.0 if dr else 0.0) - (1.0 if dl else 0.0), -1.0, 1.0)
 		var gas := rt > 0.5
 		var drift := lt > 0.5
+		if race != null and race.sb != null:
+			# Sandbox: pressing the throttle again lets Park off (web sbStop)
+			if race.sb.park and act and gas and not sb_pgas and state == "race":
+				race.sb.park = false
+			sb_pgas = act and gas
 		if drift:
 			brake = true
 		if not kb_brake and gas and drift:
 			nb = true      # drift trigger with the throttle held: drift only, never brake
 		if act and not gas:
 			mul = 0.0
-		if Input.is_joy_button_pressed(j, JOY_BUTTON_X) or Input.is_joy_button_pressed(j, JOY_BUTTON_BACK):
+		if Input.is_joy_button_pressed(j, JOY_BUTTON_X) or (Input.is_joy_button_pressed(j, JOY_BUTTON_BACK) and not (race != null and race.sb != null)):   # (in Sandbox Select opens the map)
 			look = true
 		if ay > 0.55 and act:
 			stick_back = true   # stick pulled back: the next item goes behind (it never turns the camera round)
@@ -2142,6 +2986,20 @@ func _input_state() -> Dictionary:
 	look_back = look or test_look
 	aim_back = look_back or stick_back
 	var o := {"steer": clampf(steer, -1.0, 1.0), "brake": brake, "nb": nb, "mul": mul, "use": false, "back": false, "hold": false, "hold_sl": 1, "release": null}
+	if race != null and race.sb != null:
+		# Sandbox: parked, or both brake pedals held on a touch screen: no throttle, and no brake either (held, it would
+		# reverse); sandbox.gd's tick takes the speed down to nothing (web playerInput: if(SBX&&sbStop()))
+		var pedals := 0
+		for k2 in touches:
+			if touches[k2] == "pedal":
+				pedals += 1
+		race.sb.brake_both = pedals >= 2
+		if race.sb.stopped():
+			o["brake"] = false
+			o["nb"] = false
+			o["mul"] = 0.0
+		elif float(o["mul"]) > 0.0:
+			o["mul"] = float(o["mul"]) * Sandbox.spd()   # the speed slider: the share of its top speed the car may reach (web patch32)
 	var it2 := item_queued
 	item_queued = ""
 	if auto_drive and (net_role == "client" or web.racing()) and kart != null:
@@ -2161,7 +3019,7 @@ func _input_state() -> Dictionary:
 	if bool(o["use"]) and kart.item != "" and aim_back and not kart.item in Race.NOBACK:
 		o["back"] = true
 	# the TESTING cheat: the kart drives itself; your items are still yours
-	if test_drive and kart != null and race != null and state == "race" and not kart.finished and race.mode != "bb":   # (it follows the road: there is none in a battle)
+	if test_drive and kart != null and race != null and state == "race" and not kart.finished and race.mode != "bb" and race.mode != "sb":   # (it follows the road: there is none in a battle; Sandbox is driven by hand)
 		race.td_drive(kart, o)
 	return o
 
@@ -2193,23 +3051,49 @@ func _input(ev: InputEvent) -> void:
 			hud.show_touch = true
 		if hud != null and not hud.show_touch:
 			return     # a mouse click on a PC: no touch steering
+		if t.pressed and _sb_spd_shown() and hud.sb_spd_rect().has_point(t.position):
+			sb_spd_drag = t.index   # the speed slider: it is not steering
+			_sb_spd_at(t.position)
+			return
+		if not t.pressed and sb_spd_drag == t.index:
+			sb_spd_drag = -2
+			return
 		if t.pressed:
 			touches[t.index] = _zone(t.position)
 		else:
 			touches.erase(t.index)
 	elif ev is InputEventScreenDrag:
 		var d := ev as InputEventScreenDrag
+		if sb_spd_drag == d.index:
+			if _sb_spd_shown():
+				_sb_spd_at(d.position)
+			return
 		if hud != null and not hud.show_touch:
 			return
 		if touches.has(d.index) and touches[d.index] != "pedal":
 			touches[d.index] = _zone(d.position)
+	elif ev is InputEventMouseMotion and sb_spd_drag == -1:
+		if _sb_spd_shown() and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+			_sb_spd_at((ev as InputEventMouseMotion).position)
+		else:
+			sb_spd_drag = -2
 	elif ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
-		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and hud != null and hud_race.visible and state != "menu":
+		if not mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and sb_spd_drag == -1:
+			sb_spd_drag = -2
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and _sb_spd_shown() and hud.sb_spd_rect().has_point(mb.position):
+			sb_spd_drag = -1   # Sandbox's speed slider, dragged by the mouse
+			_sb_spd_at(mb.position)
+			get_viewport().set_input_as_handled()
+		elif mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and hud != null and hud_race.visible and state != "menu":
 			if hud.td_take_r.has_area() and hud.td_take_r.has_point(mb.position):
 				race.td_pick(true)
 			elif hud.td_skip_r.has_area() and hud.td_skip_r.has_point(mb.position):
 				race.td_pick(false)
+			elif race != null and race.sb != null and not paused and state == "race" and hud.sb_park_rect().has_point(mb.position):
+				_sb_park()     # Sandbox: the Park button on the screen
+			elif race != null and race.sb != null and not paused and hud.sb_race != "" and hud.sb_race_rect().has_point(mb.position):
+				_sb_race_here()
 			elif hud.pause_rect().has_point(mb.position):
 				_toggle_pause()
 			elif hud.special_rect().has_point(mb.position):
@@ -2246,6 +3130,23 @@ func _input(ev: InputEvent) -> void:
 				return
 			var act := Keys.action_of(code)
 			var racing := not (state == "menu" or state == "results" or paused)
+			if race != null and race.sb != null and not (menu != null and menu.visible):
+				# Sandbox's own keys. Enter takes the race on offer at the start line (whatever else Enter does: the web's
+				# rule); K parks and M opens and closes the map, unless the player has given the key to something else in
+				# Settings > Controls
+				if (code == KEY_ENTER or code == KEY_KP_ENTER) and racing and state == "race" and race.sb.race_near:
+					_sb_race_here()
+					return
+				# [ and ] step the speed slider, unless the player has bound them to something (web sbSpdUi's keydown)
+				if act == "" and (code == KEY_BRACKETLEFT or code == KEY_BRACKETRIGHT) and state == "race" and _sb_spd_shown():
+					Sandbox.spd_step(-1 if code == KEY_BRACKETLEFT else 1)
+					return
+				if act == "" and code == KEY_K and racing and state == "race":
+					_sb_park()
+					return
+				if act == "" and code == KEY_M and (sb_map_ui != null or (racing and state == "race")):
+					_sb_map(sb_map_ui == null)
+					return
 			match act:
 				"item1":
 					if racing:
@@ -2269,6 +3170,18 @@ func _input(ev: InputEvent) -> void:
 		var jb := ev as InputEventJoypadButton
 		if jb.pressed:
 			pad_used_at = Time.get_ticks_msec()
+			if race != null and race.sb != null and state == "race" and not (menu != null and menu.visible):
+				# Sandbox on a controller: Y or Select opens and closes the map, D-pad down is Park, D-pad up takes the
+				# race on offer at the start line (web patch27; there is no special ability to fire here)
+				if jb.button_index == JOY_BUTTON_Y or jb.button_index == JOY_BUTTON_BACK:
+					_sb_map(sb_map_ui == null)
+					return
+				if jb.button_index == JOY_BUTTON_DPAD_DOWN and not paused:
+					_sb_park()
+					return
+				if jb.button_index == JOY_BUTTON_DPAD_UP and not paused and race.sb.race_near:
+					_sb_race_here()
+					return
 			if jb.button_index == JOY_BUTTON_Y and state == "race":
 				item_queued = "ability"
 			if jb.button_index == JOY_BUTTON_START:
@@ -2298,6 +3211,11 @@ func _process(dt: float) -> void:
 			Menu.stick_scroll(panel_pause, dt)
 	if T == null or race == null:
 		return
+	_bb_fast()
+	if hud != null:
+		hud.sb_spd = Sandbox.spd() if _sb_spd_shown() else -1.0   # Sandbox's speed slider on the screen, or not
+	if not sb_go.is_empty() or not sb_trash.is_empty():
+		_sb_go_tick(dt)   # Sandbox: a journey in hand, a stage a frame
 	if not paused:
 		time += dt
 	if NetLog.on:
@@ -2329,7 +3247,7 @@ func _process(dt: float) -> void:
 	# shadows follow your kart (the web re-centres its shadow camera 80 ahead of it)
 	# far clutter cells, five times a second
 	cull_t -= dt
-	if cull_t <= 0.0:
+	if cull_t <= 0.0 and sb_go.is_empty():   # (not during a Sandbox journey: the place coming in is not yet where its list says)
 		cull_t = 0.2
 		var cp := Vector2(cam.global_position.x, cam.global_position.z)
 		for c in cull_list:
@@ -2392,24 +3310,38 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 	var rg := T.ground(rx, ry) + (T.k_ey(k.idx, rx, ry) if T.multi else 0.0)
 	if T.battle:
 		rg = race.bb.ground(rx, ry)   # the arena's own ground: the boxes, a ramp, the kitchen floor past the edge (web rg = battleG)
+	var sbf: bool = k.sbf and race.sb != null   # Sandbox, free driving (web SBF; BATTLE is on with it)
+	if sbf:
+		rg = race.sb.ground(rx, ry, rz)   # Sandbox's own ground under the kart, at the kart's level (web rg = battleG(x,y,z) -> sbG)
+	var in_tun: bool = sb_tun != null and sb_warp != null and sb_warp.on   # Sandbox: the camera is in the tunnel between two places
+	if k.tun != null:
+		rg = k.tun.y   # (the tunnel's level floor)
 	if not T.glide.is_empty():
 		var gyy := T.glide_y(rx, ry)
 		if rg < gyy - 20.0:
 			rg = minf(rz, gyy)
 	var cy := rz - 4.0 if k.glide else rg + (rz - rg) * 0.45
-	if T.battle and not k.glide:
+	if (T.battle or sbf or k.tun != null) and not k.glide:
 		# free driving: a kart can drop a long way, off the boxes or off the table. The race's rule aims between the kart
 		# and the ground under it, which then is far below: the kart left the picture. Here the camera keeps to the kart's
 		# own height, a little under it, all the way down (web: cy = rz - min(8, (rz - rg) * .55))
 		cy = rz - minf(8.0, (rz - rg) * 0.55)
 	# a toy track: the camera rises over the road behind on a descent and looks down the slope ahead (web cSA)
 	var c_sa := 0.0
-	if T.toy and T.multi and k.loop.is_empty() and not k.glide and not (k.z > 3.0):
+	# (Sandbox: this look up or down the track's slope is for a kart driving ALONG the track; one that is off it, or
+	#  crossing it, reads the height of a lap point that has nothing to do with where it is: web !(SBX&&(camT.sbOff||...)))
+	var sb_along := cos(k.ma) * T.tx[k.idx] + sin(k.ma) * T.ty[k.idx] if race.sb != null else 1.0
+	if T.toy and T.multi and k.loop.is_empty() and not k.glide and not (k.z > 3.0) and not (race.sb != null and (k.sb_off or absf(sb_along) < 0.5)):
 		var sp := T.L / float(T.N)
 		var e0 := T.ey[k.idx]
 		var eb := T.ey[((k.idx - int(round(dist / sp))) % T.N + T.N) % T.N]
 		var ea2 := T.ey[(k.idx + int(round(40.0 / sp))) % T.N]
 		var f5 := minf(1.0, dt * 5.0)
+		if race.sb != null and sb_along < 0.0:
+			# (Sandbox: driving the track the other way round, "ahead" is behind)
+			var sw := eb
+			eb = ea2
+			ea2 = sw
 		cam_sb += (maxf(0.0, (ea2 if lb else eb) - e0) - cam_sb) * f5
 		cam_sa += (((eb if lb else ea2) - e0) - cam_sa) * f5
 		h += cam_sb * 1.15 + maxf(0.0, -cam_sa) * 0.6
@@ -2423,13 +3355,16 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 		var th := k.loop_th
 		var F := Vector3(float(P["tx"]) * cos(th), sin(th), float(P["ty"]) * cos(th)).normalized()
 		var U := Vector3(-float(P["tx"]) * sin(th), cos(th), -float(P["ty"]) * sin(th))
+		var lrv := k.loop.has("rev")   # Sandbox: the loop ridden the other way round: the camera faces the way the kart goes
+		if lrv:
+			F = -F
 		var kp := Vector3(rx, rz, ry)
 		tv2 = kp - F * 30.0 + U * 13.0
 		tv = kp + F * 16.0 + U * 3.0
 		cam_base = cam_base.lerp(tv2, 1.0 - exp(-16.0 * dt))
 		cam_look = cam_look.lerp(tv, 1.0 - exp(-18.0 * dt))
 		cam_up = cam_up.lerp(U, 1.0 - exp(-12.0 * dt)).normalized()
-		cam_a = float(P["ang"])
+		cam_a = float(P["ang"]) + (PI if lrv else 0.0)
 	else:
 		cam_up = cam_up.lerp(Vector3.UP, 1.0 - exp(-8.0 * dt)).normalized()
 		if cam_snap:
@@ -2440,8 +3375,10 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 			cam_base = cam_base.lerp(tv2, 1.0 - exp(-12.0 * dt))
 			cam_look = cam_look.lerp(tv, 1.0 - exp(-16.0 * dt))
 		# hills and banks beside the road: pull the camera in along its line of sight instead of sinking into the ground
+		# (not in the tunnel between two Sandbox places: the ground "there" is the last place's or the next one's, and has
+		#  nothing to do with the tunnel)
 		var t := 1.0
-		while t > 0.3:
+		while t > 0.3 and not in_tun:
 			var x := cam_look.x + (cam_base.x - cam_look.x) * t
 			var z := cam_look.z + (cam_base.z - cam_look.z) * t
 			var y := cam_look.y + (cam_base.y - cam_look.y) * t
@@ -2452,11 +3389,13 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 		if cam_occ < 0.999:
 			cam_base = cam_look + (cam_base - cam_look) * cam_occ
 		var fl := T.ground(cam_base.x, cam_base.z) + 2.5
-		if cam_base.y < fl:
+		if cam_base.y < fl and not in_tun:
 			cam_base.y = fl
 	var spn := minf(1.4, absf(k.speed) / k.base_max)
 	var lat := absf(T.lateral(k.idx, k.x, k.y))
 	var sf := 2 if lat < T.RW else (1 if lat < T.CURB else 0)
+	if sbf or k.tun != null:
+		sf = 2   # (free driving: there is no road to be off, so no off-road rumble)
 	var amp := 0.03 + 0.09 * spn + (0.32 if sf == 0 and spn > 0.25 else (0.12 if sf == 1 and spn > 0.25 else 0.0)) + (0.24 if k.boost > 0.0 else 0.0) + shake_imp
 	shake_imp *= exp(-6.0 * dt)
 	if not shake_on:
@@ -2492,6 +3431,8 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 	cam.rotate_object_local(Vector3(0, 0, 1), cam_gr + n3 * amp * 0.006)
 	if T.battle:
 		_bb_cam(rx, ry, rz)
+	if sbf and not in_tun:
+		_sb_cam(k, rx, ry, rz)
 	var vs := get_viewport().get_visible_rect().size
 	var aspect := vs.x / maxf(1.0, vs.y)
 	var hf := deg_to_rad((96.0 if cam_far else 100.0) if k.boost > 0.0 else (90.0 if cam_far else 92.0))
@@ -2519,6 +3460,29 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 ## closes in at once and eases back out. (The race's own pull-in above reads the bare table, as on the web.)
 ## The kart here is where it is drawn (between physics steps); the web uses the step's own position: the same to the eye.
 var bb_cam_f := 1.0
+var bb_fin := 2.4          # how long after the round's last banner the results come
+var bb_dt := 1.0 / 120.0   # one physics step (for playing a round out fast)
+
+
+## the player is out and the 1.6 s on the spot are over: watch the others (web bbWatch: the engine's spectating, with
+## its Results button reading "Skip to results")
+func _bb_watch() -> void:
+	if state == "race" and race.bb != null and not race.bb.over and not spec_on:
+		_spec_enter()
+
+
+## "Skip to results" was pressed: the rest of the round is PLAYED OUT at once, up to 11 ms of game steps each frame with
+## no sound, so the final order is a real one; then the results come by themselves (web bbFast, called every frame)
+func _bb_fast() -> void:
+	if race == null or race.bb == null or not race.bb.skip or race.bb.over or state != "race" or paused:
+		return
+	var t0 := Time.get_ticks_usec()
+	var n := 0
+	sfx.silent = true
+	while not race.bb.over and state == "race" and n < 6000 and Time.get_ticks_usec() - t0 < 11000:
+		_sim_tick(bb_dt)
+		n += 1
+	sfx.silent = false
 
 
 func _bb_cam(rx: float, ry: float, rz: float) -> void:
@@ -2615,8 +3579,8 @@ func _hud(dt: float) -> void:
 			sfx.play("roll", 0.5)
 	# wrong way: moving against the track for most of a second
 	var back := state == "race" and not k.finished and k.spin <= 0.0 and k.speed > 15.0 and (cos(k.ma) * T.tx[k.idx] + sin(k.ma) * T.ty[k.idx]) < -0.4
-	if T.battle:
-		back = false   # an arena has no right way round
+	if T.battle or race.sb != null:
+		back = false   # an arena has no right way round, and Sandbox is driven both ways (web: back&&!BATTLE&&!SBX)
 	hud.wrong_t = hud.wrong_t + dt if back else 0.0
 	var st := 0
 	for z in touches.values():
@@ -2632,7 +3596,7 @@ func _hud(dt: float) -> void:
 	hud.pad_mode = Time.get_ticks_msec() - pad_used_at < 20000
 	hud.tick(dt)
 	hud.td = {}
-	if test_drive and kart != null and race != null and state == "race" and not kart.finished and spec_k == null and race.mode != "bb":
+	if test_drive and kart != null and race != null and state == "race" and not kart.finished and spec_k == null and race.mode != "bb" and race.mode != "sb":
 		hud.td = race.td_tick(kart)
 		hud.td["on"] = true
 
@@ -2646,6 +3610,14 @@ func _fmt(t: float) -> String:
 # ---------------------------------------------------------------- menu and online
 
 func _to_menu(note: String) -> void:
+	# leaving a race that began at a start line in Sandbox goes back to Sandbox, not to the menu (web toMenu: if(sbBack())return)
+	if note == "" and sb_back != "" and _sb_return():
+		return
+	sb_back = ""
+	sb_map_ui = null
+	_sb_go_finish()   # (a Sandbox journey in hand is ended first: no thread is left building a place)
+	if sb_cover != null:
+		sb_cover.visible = false
 	NetLog.stop(_net_names())
 	_net_close()
 	if web.racing():
@@ -2774,6 +3746,13 @@ func _menu_go(o: Dictionary) -> void:
 			id = arena
 		elif bool(_map_info(id).get("battle", false)):
 			id = _first_track()
+		# Sandbox starts in the chosen track when it is a place, else in the back garden. Off line only; with no place
+		# in the maps folder the mode falls back to a single race (web sbArm: mode==='sb'&&!NET.cfg&&!!R)
+		if String(sel["mode"]) == "sb":
+			if _sb_first() == "" or net_role != "" or web.role != "":
+				sel["mode"] = "single"
+			elif not _sb_has(id):
+				id = _sb_first()
 	menu.visible = false
 	while _preview_busy:
 		await get_tree().process_frame
@@ -2791,6 +3770,8 @@ func _race_on(id: String) -> void:
 	if net_role == "host":
 		_net_start()
 	else:
+		sb_back = ""
+		sb_next = String(sel.get("mode", "")) == "sb" and gp.is_empty() and web.role == ""
 		_start_race({})
 
 
@@ -3079,7 +4060,7 @@ var net_addr_last := ""
 ## web #settings: Graphics, Sound, Gameplay, Controls, Items & specials, More
 func _settings_panel() -> Control:
 	var v := menu.vbox(12)
-	var tabs := [["graphics", "Graphics"], ["sound", "Sound"], ["gameplay", "Gameplay"], ["controls", "Controls"], ["items", "Items & specials"], ["more", "More"]]
+	var tabs := [["graphics", "Graphics"], ["sound", "Sound"], ["gameplay", "Gameplay"], ["controls", "Controls"], ["items", "Items & specials"], ["stats", "Kart stats"], ["more", "More"]]
 	var th := menu.hbox(0)
 	th.add_child(menu.seg("settab", tabs, set_tab, func(k):
 		set_tab = String(k)
@@ -3163,6 +4144,20 @@ func _settings_panel() -> Control:
 				pv.add_child(menu.para(String(A[1]), 12.0, Color("#c2a58c"), 340.0))
 				g.add_child(pc)
 			c.add_child(g)
+		"stats":
+			# what each stat does to the driving, in the engine's own numbers (web v198, tools/mini/patch33.py: keep the two the same;
+			# the numbers come from KartBuilder.stat_mods, the off-road share in kart.gd's step, the bump push and spin time in race.gd)
+			c.add_child(menu.section_label("Kart stats"))
+			c.add_child(menu.para("Every stat has 12 bars; 6 is the middle, a normal kart. The vehicle sets the starting bars, and each +1 or −1 on the wheels and the glider is exactly one bar more or less: they add up, and the bars stop at 0 and 12. What the garage shows is exactly how the kart drives. Kart stats can be switched off under Gameplay, so every kart drives the same.", 13.0, Color("#c2a58c"), 720.0))
+			for st in [["Speed", "Top speed. Each bar is about 1.5%: full is 9% faster than the middle, empty 9% slower."],
+					["Acceleration", "How fast you get up to top speed, from the start and after a hit or a wall. Each bar is about 6%: full is 36% quicker, empty 36% slower."],
+					["Handling", "How sharply the kart turns, in normal steering and in a drift. Each bar is about 3%: full turns 20% sharper, empty 20% wider."],
+					["Weight", "Only matters against other karts. In a bump the heavier kart is pushed aside less (full against empty: about a third as far), and a kart over 15% lighter also loses a little speed while they touch. A heavier kart also recovers sooner from an item hit: a spin lasts 0.97 s at full, 1.1 s in the middle, 1.23 s at empty. It does not change speed, turning or jumps."],
+					["Off-road", "Only matters with your wheels off the road. Off it every kart is held to a share of its top speed: on grass, sand, dirt or the floor beside a toy track 80% at full, 58% in the middle, 40% at empty; on the kerb 93%, 86%, 79%. On the road, gliding, on a shortcut lane or with a boost it does nothing (a boost always keeps at least 93%)."]]:
+				var sv := menu.vbox(2)
+				sv.add_child(menu.label(String(st[0]), menu.f_bold, 15.0, Color("#fff4dc")))
+				sv.add_child(menu.para(String(st[1]), 12.5, Color("#c2a58c"), 720.0))
+				c.add_child(sv)
 		"more":
 			c.add_child(menu.section_label("Online"))
 			var nr := menu.hbox(20)
@@ -3877,6 +4872,7 @@ var spec_bp := Vector3.ZERO
 var spec_snap := true
 var spec_fov := 58.0
 var spec_bar: PanelContainer = null
+var spec_res_btn: Button = null   # its Results button ("Skip to results" in a Balloon Battle)
 var spec_lab: Array = []          # the camera's name, the racer's name, place and lap
 var spec_lab_t := 0.0
 var live_open := false            # the standings so far are up (while the others still race)
@@ -3904,7 +4900,7 @@ func _spec_reset() -> void:
 
 
 func _spec_online() -> bool:
-	return net_role != "" or web.racing() or (race != null and race.mode == "lss")
+	return net_role != "" or web.racing() or (race != null and (race.mode == "lss" or race.mode == "bb"))
 
 
 func _spec_can_watch() -> bool:
@@ -3930,7 +4926,7 @@ func _spec_targets() -> Array:
 
 
 func _spec_live(k: Kart) -> bool:
-	return not k.finished and not k.elim and (k.peer != 0 or k.remote or k.web or race.mode == "lss")
+	return not k.finished and not k.elim and (k.peer != 0 or k.remote or k.web or race.mode == "lss" or race.mode == "bb")   # (a driver still in a battle can be watched)
 
 
 func _spec_tick(dt: float) -> void:
@@ -3944,6 +4940,8 @@ func _spec_tick(dt: float) -> void:
 			if spec_lab_t <= 0.0:
 				_spec_label()
 		return
+	if race != null and race.mode == "bb":
+		return   # a battle has no standings-so-far sheet: out, 1.6 s on the spot, then straight to watching (_bb_watch)
 	var can := _spec_can_watch()
 	if can and not live_open and not panel_results.visible and not panel_pause.visible:
 		_live_show()
@@ -4011,6 +5009,11 @@ func _spec_enter() -> void:
 	hud.spectating = true
 	_spec_bar_build()
 	spec_bar.visible = true
+	var in_bb: bool = race.mode == "bb"
+	if in_bb and spec_mode == 1:
+		spec_mode = 0   # no "Track cameras" in a battle: they stand round a lap, the arena has none (web specEnter)
+	if spec_res_btn != null and is_instance_valid(spec_res_btn):
+		spec_res_btn.text = "Skip to results" if in_bb else "Results"   # (web bbSpecBtn)
 	_spec_set(0)
 
 
@@ -4035,6 +5038,8 @@ func _spec_next(d: int) -> void:
 
 func _spec_cam() -> void:
 	spec_mode = (spec_mode + 1) % SPEC_MODES.size()
+	if race != null and race.mode == "bb" and spec_mode == 1:
+		spec_mode = 2   # chase and blimp only in a battle (web specCam)
 	spec_snap = true
 	cam_snap = true
 	spec_tv_i = -1
@@ -4044,6 +5049,14 @@ func _spec_cam() -> void:
 func _spec_exit(to_results := true) -> void:
 	if not spec_on:
 		return
+	if race != null and race.mode == "bb":
+		# a battle still on: the rest of it is played out at once, then the results come by themselves (web specExit -> bbSkip)
+		if to_results and state == "race" and race.bb.skip_on():
+			return
+		# the round is over: the camera stays on whoever was being watched until the results come (your own kart is
+		# parked far off the table)
+		if kart != null and kart.elim:
+			spec_k = spec_kart if (spec_kart != null and not spec_kart.elim) else race.standings()[0]
 	spec_on = false
 	spec_kart = null
 	cam_snap = true
@@ -4065,7 +5078,9 @@ func _spec_label() -> void:
 	(spec_lab[0] as Label).text = String(SPEC_MODES[spec_mode]).to_upper()
 	(spec_lab[1] as Label).text = k.racer_name + ("" if (k.peer != 0 or k.remote or k.web) else " (CPU)")
 	var info := "%s place · " % _ordinal(pl)
-	if k.finished:
+	if race.mode == "bb":
+		info = race.bb.spec_info(k)   # balloons and points, not a lap (web bbSpecInfo)
+	elif k.finished:
 		info += "finished" if k.est else "finished %s" % _fmt(k.finish_time)
 	else:
 		info += "lap %d of %d" % [mini(T.LAPS, int(floor(maxf(0.0, float(k.prog)) / T.N)) + 1), T.LAPS]
@@ -4110,7 +5125,7 @@ func _spec_bar_build() -> void:
 	row.add_child(who)
 	mk.call("›", _spec_next.bind(1))
 	mk.call("Camera", _spec_cam, true)
-	mk.call("Results", _spec_exit.bind(true), true)
+	spec_res_btn = mk.call("Results", _spec_exit.bind(true), true)
 	panel_results.get_parent().add_child(spec_bar)
 	spec_bar.visible = false
 
@@ -4516,6 +5531,15 @@ func _net_client_tick() -> void:
 
 
 func _exit_tree() -> void:
+	# a place being built for a Sandbox journey: its thread is asked to stop and waited for, and what it made is freed
+	var wb = sb_go.get("wb")
+	if wb != null:
+		wb.cancel()
+		wb.join()
+		RenderingServer.force_sync()   # (what the thread handed to the renderer last is taken in before it is freed)
+		wb.discard()
+	sb_go = {}
+	_sb_trash_tick(true)
 	if haz_lib != null:
 		haz_lib.free()
 		haz_lib = null

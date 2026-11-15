@@ -11,6 +11,8 @@ class_name HdToy
 ## garden behind the window) comes
 ## with the exported track: after the web game's room changes, re-run the track export and rebuild.
 
+const Xf := preload("res://scripts/xf.gd")   # a node's place in the world, in the scene tree or out of it (a place built on another thread)
+
 
 static func upgrade(root: Node3D) -> int:
 	var n := 0
@@ -29,7 +31,7 @@ static func upgrade(root: Node3D) -> int:
 				continue
 			if nm.begins_with("toy_pt_wall") or nm.begins_with("toy_pt_ceiling"):
 				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
-				var wb: AABB = mi.global_transform * mi.get_aabb()
+				var wb: AABB = Xf.g(mi) * mi.get_aabb()
 				box = wb if not have else box.merge(wb)
 				have = true
 				n += 1

@@ -34,6 +34,8 @@ var pond_lim := 0.0
 var multi := false        # roads stacked on several levels (decks): height comes from the road, not the ground
 var battle := false       # a Balloon Battle arena (web def.battle): no laps; its ground and walls are the shapes in `bb` (scripts/battle.gd)
 var bb := {}              # ...the arena as exported: {shapes, spawn, ramps, T, step, r, x0, floor, start, back, items, col}
+var sb := {}              # Sandbox: what the web worked out for this place (tools/ciexport.py: d['sandbox']); read only by scripts/sandbox.gd
+var bend := PackedFloat32Array()   # the lap's bend at every point (web p.bend), when the export has it; Sandbox's ground uses it
 
 # centre line, one entry per track point
 var px := PackedFloat32Array()
@@ -150,6 +152,9 @@ func _read(d: Dictionary) -> void:
 	if d.get("battle") is Dictionary:
 		battle = true
 		bb = d["battle"]
+	# what Sandbox needs of this place (kept as it came; a race never reads it)
+	if d.get("sandbox") is Dictionary and int((d["sandbox"] as Dictionary).get("N", N)) == N:
+		sb = d["sandbox"]
 	pond_lim = d["pondLim"] if d.get("pondLim") != null else WALLD - 3.5
 	for p in d["track"]:
 		px.append(p[0]); py.append(p[1]); nx.append(p[2]); ny.append(p[3])
@@ -180,6 +185,9 @@ func _read(d: Dictionary) -> void:
 		LOOP_TAP = float(lk["TAP"])
 		racers = r["racers"]
 		diffs = r["diffs"]
+		if r.get("bend") is Array and (r["bend"] as Array).size() == N:
+			for bv in r["bend"]:
+				bend.append(0.0 if bv == null else float(bv))
 		for o in r["obstacles"]:
 			var od: Dictionary = o
 			if od.get("j") != null and od.get("lat") != null:

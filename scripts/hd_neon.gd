@@ -6,6 +6,8 @@ class_name HdNeon
 ## dimmed by fog, the hologram turns, and the arrows on a shortcut and the lights in the glide's shaft run.
 ## A dome of stars goes round the whole track.
 
+const Xf := preload("res://scripts/xf.gd")   # a node's place in the world, in the scene tree or out of it (a place built on another thread)
+
 
 static func upgrade(root: Node3D) -> int:
 	var n := 0
@@ -50,11 +52,11 @@ static func upgrade(root: Node3D) -> int:
 	root.add_child(live)
 	# the hologram: its discs turn about the middle of the tower
 	for mi in holo:
-		var box: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
+		var box: AABB = Xf.g(mi as MeshInstance3D) * (mi as MeshInstance3D).get_aabb()
 		var piv := Node3D.new()
 		root.add_child(piv)
-		piv.global_position = Vector3(box.get_center().x, 0.0, box.get_center().z)
-		(mi as MeshInstance3D).reparent(piv, true)
+		Xf.set_pos(piv, Vector3(box.get_center().x, 0.0, box.get_center().z))
+		Xf.reparent_keep(mi as MeshInstance3D, piv)
 		live.spin.append(piv)
 	# stars
 	var dome := MeshInstance3D.new()

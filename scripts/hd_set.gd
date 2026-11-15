@@ -6,6 +6,8 @@ class_name HdSet
 ##   Pineapple Lagoon  the five beach huts on stilts (lap boarding, shingled hip roofs, porches and railings,
 ##                     framed windows with shutters, panelled doors) and the long timber pier.
 
+const Xf := preload("res://scripts/xf.gd")   # a node's place in the world, in the scene tree or out of it (a place built on another thread)
+
 static var _noise: NoiseTexture2D
 static var _wood_sh: Shader
 static var _mats := {}
@@ -81,7 +83,7 @@ static func _waterfall_base(w: Node3D) -> MeshInstance3D:
 			rel = (n as Node3D).transform * rel
 			n = n.get_parent()
 		for si in mi.mesh.get_surface_count():
-			var V: PackedVector3Array = mi.mesh.surface_get_arrays(si)[Mesh.ARRAY_VERTEX]
+			var V: PackedVector3Array = Xf.arrays(mi.mesh, si)[Mesh.ARRAY_VERTEX]
 			for v0 in V:
 				var v := rel * v0
 				var ix := int((v.x + HX) / cx)
@@ -848,7 +850,7 @@ static func cut_boxes(root: Node, boxes: Array) -> int:
 		var am := mi.mesh as ArrayMesh
 		if am == null:
 			continue
-		var gx := mi.global_transform
+		var gx := Xf.g(mi)
 		var gb := gx * am.get_aabb()
 		var hit: Array = []
 		for i in boxes.size():
@@ -861,7 +863,7 @@ static func cut_boxes(root: Node, boxes: Array) -> int:
 		var overrides: Array = []
 		for si in am.get_surface_count():
 			overrides.append(mi.get_surface_override_material(si))
-			var arr := am.surface_get_arrays(si)
+			var arr := Xf.arrays(am, si)
 			var sm := am.surface_get_material(si)
 			# which of the boxes may cut this surface (never the ground; a box with colours only those colours)
 			var here: Array = []

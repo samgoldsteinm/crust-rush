@@ -149,27 +149,35 @@ static func wheel_of(spec: Dictionary) -> Dictionary:
 	return info["wheels"][clampi(int(spec.get("w", 0)), 0, (info["wheels"] as Array).size() - 1)]
 
 
-## the web's statMods: body counts most, wheels less, the glider a little, soft-capped
+## The stats of a build (web statBody / statE / statMods / statBarsOf, tools/mini/patch32.py there; the same sums).
+## The wheels' and the glider's cards read like "+2 speed", and the garage's bars must move by exactly that many, so
+## the parts STACK: the vehicle alone is soft-capped as it always was, and every point on a wheel's or a glider's card is
+## one more bar. The driving follows the same numbers: e is in the engine's own units, 1.5 bars to one.
+##   e_body[i] = 4 * tanh(1.5 * body.st[i] / 4)
+##   e[i]      = clamp(e_body[i] + (wheel.st[i] + glider.st[i]) / 1.5, -4, 4)      (wheel = wheel_of: a bike's built-in set)
+## The garage export's "statW" is no longer used.
 static var stats_on := true   # Settings > Kart stats: off makes every part cosmetic
 
 
-static func stat_mods(spec: Dictionary) -> Dictionary:
-	if not stats_on:
-		return {"spd": 1.0, "acc": 1.0, "hnd": 1.0, "wgt": 1.0, "off": 0.0}
-	var W: Array = info.get("statW", [1.5, 1.0, 0.5])
-	var o := [0.0, 0.0, 0.0, 0.0, 0.0]
-	var parts_ := [info["bodies"][int(spec["b"])], wheel_of(spec), info["gliders"][int(spec.get("g", 0))]]
-	for k in 3:
-		var st: Array = parts_[k]["st"]
-		for i in 5:
-			o[i] += float(st[i]) * float(W[k])
+static func _e_body(spec: Dictionary, i: int) -> float:
+	return 4.0 * tanh(1.5 * float(info["bodies"][int(spec["b"])]["st"][i]) / 4.0)
+
+
+static func stat_e(spec: Dictionary) -> Array:
+	var w: Dictionary = wheel_of(spec)
+	var g: Dictionary = info["gliders"][int(spec.get("g", 0))]
 	var e: Array = []
 	for i in 5:
-		e.append(4.0 * tanh(o[i] / 4.0))
+		e.append(clampf(_e_body(spec, i) + (float(w["st"][i]) + float(g["st"][i])) / 1.5, -4.0, 4.0))
+	return e
+
+
+static func stat_mods(spec: Dictionary) -> Dictionary:
+	var e: Array = stat_e(spec) if stats_on else [0.0, 0.0, 0.0, 0.0, 0.0]
 	return {"spd": 1.0 + 0.022 * e[0], "acc": maxf(0.62, 1.0 + 0.09 * e[1]), "hnd": 1.0 + 0.05 * e[2], "wgt": 1.0 + 0.12 * e[3], "off": e[4] * 0.9}
 
 
-## the 0..12 bars the garage shows (web STAT_MID 6, body/wheel/glider weighted)
+## the 0..12 bars the garage shows (web STAT_MID 6): the vehicle's own, plus one for every point on the wheels' and the glider's cards
 static func stat_bars(spec: Dictionary) -> Array:
 	return _bars(spec, true)
 
@@ -180,20 +188,19 @@ static func base_bars(spec: Dictionary) -> Array:
 
 
 static func _bars(spec: Dictionary, parts: bool) -> Array:
-	var W: Array = info.get("statW", [1.5, 1.0, 0.5])
-	var o := [0.0, 0.0, 0.0, 0.0, 0.0]
 	var bd: Dictionary = info["bodies"][int(spec["b"])]
 	var bike := bool(bd.get("bike", false)) and bd.get("bw") != null
-	var parts_ := [bd, wheel_of(spec), info["gliders"][int(spec.get("g", 0))]]
-	for k in 3:
-		if not parts and (k == 2 or (k == 1 and not bike)):
-			continue
-		var st: Array = parts_[k]["st"]
-		for i in 5:
-			o[i] += float(st[i]) * float(W[k])
+	var w: Dictionary = wheel_of(spec)
+	var g: Dictionary = info["gliders"][int(spec.get("g", 0))]
 	var out: Array = []
 	for i in 5:
-		out.append(clampi(int(round(6.0 + 4.0 * tanh(o[i] / 4.0) * 1.5)), 0, 12))
+		# (floor(x + .5) is the web's Math.round)
+		var v := int(floor(6.0 + _e_body(spec, i) * 1.5 + 0.5))
+		if parts or bike:
+			v += int(w["st"][i])
+		if parts:
+			v += int(g["st"][i])
+		out.append(clampi(v, 0, 12))
 	return out
 
 

@@ -392,6 +392,41 @@ func add_kart(k: Kart, sc_file_loader: Callable) -> void:
 		"held": null, "held_it": "", "rx": k.x, "ry": k.y, "rz": k.wy, "rma": k.ma, "glider": glider, "ga": 0.0}
 
 
+## Sandbox, at the swap between two places (main.gd _sb_adopt): the same karts and their models go on, in another
+## place's race. What belonged to the place left behind (its item boxes, anything thrown, its rings) goes; the new
+## place's boxes are made at once (they are drawn by number), its pads and hazards a frame or two later.
+func rebind(track: TrackData, r: Race) -> void:
+	T = track
+	race = r
+	KS = T.KS
+	me = race.player
+	for n in box_nodes:
+		(n["n"] as Node).queue_free()
+		if n["glow"] != null:
+			(n["glow"] as Node).queue_free()
+	box_nodes.clear()
+	for id in proj_nodes:
+		(proj_nodes[id]["n"] as Node).queue_free()
+	proj_nodes.clear()
+	for p in pops:
+		(p["n"] as Node).queue_free()
+	pops.clear()
+	for id in haz_nodes:
+		(haz_nodes[id]["n"] as Node).queue_free()
+	haz_nodes.clear()
+	for n in ring_nodes:
+		(n as Node).queue_free()
+	ring_nodes.clear()
+	for key in whaz:
+		for h in whaz[key]:
+			(h["n"] as Node).queue_free()
+		whaz[key] = []
+	for n in pad_nodes:
+		(n as Node).queue_free()
+	pad_nodes.clear()
+	build_boxes()
+
+
 func clear() -> void:
 	for k in views:
 		var v: Dictionary = views[k]
@@ -483,10 +518,12 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 			var fF := maxf(6.0, float(v["axF"]))
 			var fR := minf(-6.0, float(v["axR"]))
 			var fW := maxf(5.0, float(v["axW"]))
-			var hF := T.ground(x + ca * fF, y + sa * fF)
-			var hB := T.ground(x + ca * fR, y + sa * fR)
-			var hL := T.ground(x - sa * fW, y + ca * fW)
-			var hR := T.ground(x + sa * fW, y - ca * fW)
+			# the road's own height counts (web surfH: ground + the raised road, eyAt): on a track whose road climbs over
+			# itself the ground under it is the flat floor, and without this the body lay level on every climb and descent
+			var hF := T.ground(x + ca * fF, y + sa * fF) + T.k_ey(k.idx, x + ca * fF, y + sa * fF)
+			var hB := T.ground(x + ca * fR, y + sa * fR) + T.k_ey(k.idx, x + ca * fR, y + sa * fR)
+			var hL := T.ground(x - sa * fW, y + ca * fW) + T.k_ey(k.idx, x - sa * fW, y + ca * fW)
+			var hR := T.ground(x + sa * fW, y - ca * fW) + T.k_ey(k.idx, x + sa * fW, y - ca * fW)
 			if T.battle:
 				# Balloon Battle: the body stands on the arena's own ground (a ramp, the boxes), not the bare table of the
 				# height map (web syncKart: hF = BATTLE ? battleG(...) : surfH(...); "the car sort of floats on the object")
@@ -495,7 +532,22 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 				hB = arena.ground(x + ca * fR, y + sa * fR)
 				hL = arena.ground(x - sa * fW, y + ca * fW)
 				hR = arena.ground(x + sa * fW, y - ca * fW)
-			var sF := (hF - hB) / (fF - fR)
+			if k.tun != null:
+				# Sandbox, in the tunnel between two places: its floor is level
+				hF = k.tun.y
+				hB = hF
+				hL = hF
+				hR = hF
+			elif k.sbf:
+				# Sandbox, free driving: the body is laid on Sandbox's own ground at the kart's level, not on the slope of
+				# a lap point it may be nowhere near (web syncKart: BATTLE ? battleG(.., z+1) : surfH(..))
+				var sbx = k.sb
+				hF = sbx.ground(x + ca * fF, y + sa * fF, z + 1.0)
+				hB = sbx.ground(x + ca * fR, y + sa * fR, z + 1.0)
+				hL = sbx.ground(x - sa * fW, y + ca * fW, z + 1.0)
+				hR = sbx.ground(x + sa * fW, y - ca * fW, z + 1.0)
+			# on a jump ramp the body lies along the ramp (the ramp is not in the ground's or the road's height)
+			var sF := (hF - hB) / (fF - fR) + (k.ramp_s if k.on_ramp else 0.0)
 			var sR := (hL - hR) / (2.0 * fW)
 			var ff := minf(1.0, 16.0 * dt)
 			tp += (atan(sF) - tp) * ff
@@ -507,7 +559,8 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 		v["tr"] = tr
 		g.transform = Transform3D(Basis(Vector3.UP, -a) * Basis(Vector3(0, 0, 1), tp) * Basis(Vector3(1, 0, 0), tr) * Basis.from_scale(scv), pos)
 	else:
-		g.transform = Transform3D(Basis(Vector3.UP, -a) * Basis(Vector3(0, 0, 1), lth) * Basis.from_scale(scv), pos)
+		# (Sandbox: a loop ridden the other way round, k.loop.rev, pitches the other way: web m.g.rotation.set(0,-a,-lth))
+		g.transform = Transform3D(Basis(Vector3.UP, -a) * Basis(Vector3(0, 0, 1), -lth if k.loop.has("rev") else lth) * Basis.from_scale(scv), pos)
 	g.visible = not (k != me and _near_cam(x, y, 14.0)) and not k.elim
 	# blink for three seconds after a hit
 	tilt.visible = not (k.inv > 0.0 and k.spin <= 0.0 and racing and int(floor(time * 12.0)) % 2 == 1)
@@ -946,6 +999,35 @@ func build_boxes() -> void:
 		box_nodes.append({"n": root, "body": body, "ring": ring, "glow": glow, "sv": float(sv)})
 
 
+## web airBoxY: while the kart the camera follows is gliding, a box in the air still well ahead of it drifts to where that
+## kart's glide will pass (6.5 under its line, so the box's middle is on it); otherwise it eases back to its own height.
+## (Before, the PC left these boxes at their exported height while the rings moved to the player's line: far under the rings.)
+var _air_rr := 0
+
+
+func _air_box_y(b: Dictionary, bn: Dictionary) -> float:
+	var vy := float(bn.get("vy", float(b["gy"])))
+	var k := me
+	if k == null or not k.glide or not T.glide.has("p"):   # (web: !G.p, a short glide has no line to follow)
+		vy += (float(b["gy"]) - vy) * 0.1
+		bn["snap"] = true
+	else:
+		_air_rr += 1
+		if (_air_rr - 1) % 6 == 0 or bool(bn.get("snap", true)):
+			var G: Dictionary = T.glide
+			var p: Array = G["p"]
+			var ux := float(G["ux"])
+			var uy := float(G["uy"])
+			var bu := (float(b["x"]) - float(p[0])) * ux + (float(b["y"]) - float(p[1])) * uy
+			var u0 := (k.x - float(p[0])) * ux + (k.y - float(p[1])) * uy
+			if bu - u0 > 70.0:
+				var want: float = race.predict_glide_y(k, bu) - 6.5
+				vy += (want - vy) * (1.0 if bool(bn.get("snap", true)) else 0.35)
+			bn["snap"] = false
+	bn["vy"] = vy
+	return vy
+
+
 func _draw_boxes() -> void:
 	box_glow_mat.albedo_color.a = 0.35 + sin(time * 4.0) * 0.15
 	for i in race.boxes.size():
@@ -960,7 +1042,9 @@ func _draw_boxes() -> void:
 			continue
 		var sv: float = bn["sv"]
 		var sc := maxf(0.001, s) * (1.25 if bool(b["dbl"]) else 1.0)
-		root.position = Vector3(float(b["x"]), float(b["gy"]) + 6.5 + sin(time * 3.0 + sv) * 0.8, float(b["y"]))
+		# a box over the glide flies at the height the player will pass it, as the rings do (web airBoxY); the others sit on the ground
+		var by := _air_box_y(b, bn) if bool(b["air"]) else float(b["gy"])
+		root.position = Vector3(float(b["x"]), by + 6.5 + sin(time * 3.0 + sv) * 0.8, float(b["y"]))
 		root.scale = Vector3.ONE * sc
 		(bn["body"] as Node3D).basis = Basis.from_euler(Vector3(0.3, time * 1.6 + sv, 0.18), EULER_ORDER_XYZ)
 		# three's torus lies in its XY plane; Godot's in XZ
@@ -1757,6 +1841,15 @@ func race_event(ed: Dictionary) -> void:
 		var py := kp.wy + 16.0
 		fx.burst(kp.x, py, kp.y, 22, [pcol, Color("#ffffff"), Color("#ffe066")], 80.0, 2.6)
 		fx.ring(kp.x, py, kp.y, pcol, 18.0, 0.3, false)
+	elif t == "bb_elim":
+		# the single balloon: a bigger pop where it happened, and a white ring on the ground (web bbElim)
+		var ecol: Color = race.bb.colour(ed["k"])
+		var ex := float(ed["x"])
+		var ez := float(ed["y"])
+		var eh := float(ed["h"])
+		fx.burst(ex, eh + 12.0, ez, 46, [ecol, Color("#ffffff"), Color("#ffe066"), Color("#ff5a2a")], 130.0, 3.4)
+		fx.ring(ex, eh + 12.0, ez, ecol, 46.0, 0.55, false)
+		fx.ring(ex, eh + 0.6, ez, Color("#ffffff"), 70.0, 0.7)
 	elif t == "bb_back":
 		# set down on the table again (web battleTick)
 		var kb2: Kart = ed["k"]

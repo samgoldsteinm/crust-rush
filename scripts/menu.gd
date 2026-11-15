@@ -26,11 +26,12 @@ const MUTED := Color("#c2a58c")
 const OVEN := Color("#160c09")
 const OVEN2 := Color("#25150f")
 
-const MODES := [["gp", "Grand Prix"], ["single", "Single race"], ["lss", "Last Slice"], ["bb", "Balloon Battle"]]
+const MODES := [["gp", "Grand Prix"], ["single", "Single race"], ["lss", "Last Slice"], ["bb", "Balloon Battle"], ["sb", "Sandbox"]]
 const CLASSES := [["small", "50cc"], ["medium", "100cc"], ["large", "200cc"], ["reverse", "Reverse"]]
 const CLS_NOTE := {"small": "50cc: a relaxed speed for learning the tracks.", "medium": "100cc: the standard race speed.", "large": "200cc: much faster karts and sharper rivals.", "reverse": "Every track runs backwards at 200cc speed."}
 const MODE_NOTE := {"lss": "Last Slice Standing: each time the leader completes a lap, the racer in last place is out. Seven laps, one slice left.",
-	"bb": "Balloon Battle: three minutes on the prep table. Everybody starts with three balloons. Pop a rival's balloon with a pepperoni for a point; lose all of yours and you come back with three and half your points. Most points wins."}
+	"bb": "Balloon Battle: everybody starts with five balloons. Pop a rival's balloon with a pepperoni for a point. Lose all five and you come back with three, then with one; lose that one and you are out. The last driver left wins.",
+	"sb": "Sandbox: drive anywhere, no race and no clock. One world: the house, and beyond the garage door every track of the game. Drive anywhere in the rooms and on the pizzas; warp tunnels lead from place to place. Gold coins lead the way; pepperoni coins are hidden everywhere. The map travels fast: Y on a controller, M on a keyboard, or Map in the pause menu. Park stops the car."}
 const CUPS := [["Margherita Cup", "#f7c948"], ["Supreme Cup", "#3f9a35"], ["Deep Dish Cup", "#e0452c"], ["Meat Lover's Cup", "#b06a3c"], ["Neon Cup", "#3ff0ff"], ["Miniature Mayhem Cup", "#ff6a12"]]
 
 var f_disp: Font
@@ -836,7 +837,8 @@ func _home() -> Control:
 	var mode_note := para(MODE_NOTE.get(mode, ""), 13.0, MUTED, 300.0)
 	mode_note.visible = MODE_NOTE.has(mode)
 	# Balloon Battle is offered when its arena is in the maps folder, and not in a friends' room (it is off line only)
-	var modes: Array = MODES.filter(func(m): return m[0] != "bb" or (_arena() != "" and net == ""))
+	# ...and so is Sandbox, when at least one map in the folder was exported as a place
+	var modes: Array = MODES.filter(func(m): return (m[0] != "bb" or (_arena() != "" and net == "")) and (m[0] != "sb" or (_sb_first() != "" and net == "")))
 	s1.add_child(seg("mode", modes, mode, func(k):
 		mode = k
 		# the arena belongs to Balloon Battle alone: the mode brings it, any other mode leaves it (web modeSeg)
@@ -844,9 +846,12 @@ func _home() -> Control:
 			map_id = _arena()
 		elif bool(_map(map_id).get("battle", false)):
 			map_id = _first_track()
+		# Sandbox starts in the chosen track when it is a place, else in the back garden (web: sbRegOf(...)?mapIdx:backyard)
+		if k == "sb" and not (_map(map_id).get("sb") is Dictionary) and _sb_first() != "":
+			map_id = _sb_first()
 		mode_note.text = MODE_NOTE.get(k, "")
 		mode_note.visible = MODE_NOTE.has(k)
-		setting_changed.emit("mode", k), 15.0 if modes.size() < 4 else 14.0, 10.0))
+		setting_changed.emit("mode", k), (15.0 if modes.size() < 4 else 14.0) if modes.size() < 5 else 12.0, 10.0))
 	s1.add_child(mode_note)
 	col.add_child(s1)
 	var s2 := vbox(8)
@@ -1206,13 +1211,19 @@ func _track() -> Control:
 		map_id = _arena()
 	elif bool(_map(map_id).get("battle", false)):
 		map_id = _first_track()
+	# Sandbox: every track that was exported as a place is somewhere to start (web: "World. Start in")
+	var sbm := mode == "sb" and _sb_first() != "" and net == ""
+	if sbm and not (_map(map_id).get("sb") is Dictionary):
+		map_id = _sb_first()
 	var three := KartBuilder.ready()
 	var small := ("Step 3 of 3 · " + build_summary()) if three else ("Step 2 of 2 · " + cls_label)
 	if mode == "lss":
 		small += " · Last Slice"
 	elif bb:
 		small += " · Balloon Battle"
-	v.add_child(_step_head("‹ Kart" if three else "‹ Driver", "garage" if three else "driver", small, "Cup" if gp else ("Arena" if bb else "Track"), ("SET CUP  ›" if gp else "SET TRACK  ›") if net == "host" else ("START GRAND PRIX" if gp else ("START BATTLE" if bb else "START RACE")), func():
+	elif sbm:
+		small += " · Sandbox"
+	v.add_child(_step_head("‹ Kart" if three else "‹ Driver", "garage" if three else "driver", small, "Cup" if gp else ("Arena" if bb else ("World. Start in" if sbm else "Track")), ("SET CUP  ›" if gp else "SET TRACK  ›") if net == "host" else ("START GRAND PRIX" if gp else ("START BATTLE" if bb else ("START EXPLORING" if sbm else "START RACE"))), func():
 		if net == "host" and gp:
 			net_cup.emit(cup)   # a Grand Prix for the room: its first race is the cup's first track
 		elif net == "host":
@@ -1310,6 +1321,8 @@ func _track() -> Control:
 		for m in maps:
 			if bool(m.get("battle", false)):
 				continue   # the Balloon Battle arena is not a track to race on
+			if sbm and not (m.get("sb") is Dictionary):
+				continue   # Sandbox: only the maps that were exported as places
 			var id: String = m["id"]
 			var card2 := _map_card(m)
 			card2.pressed.connect(func():
@@ -1367,9 +1380,24 @@ func _cup_card(ci: int) -> Button:
 	var l := label(String(CUPS[ci][0]).to_upper(), f_disp, 19.0, CREAM, Color(0, 0, 0, 0.75), Vector2(0, 2))
 	l.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	l.offset_left = z(12)
+	l.offset_right = -z(10)
 	l.offset_top = -z(34)
 	l.offset_bottom = -z(8)
+	l.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	l.clip_text = true
 	b.add_child(l)
+	# a long name ("Miniature Mayhem Cup") is set smaller until it fits its card: at full size it ran out of the card and
+	# over the panel beside it
+	var fit := func():
+		var avail := b.size.x - z(22)
+		if avail <= 0.0:
+			return
+		var fs := zi(19.0)
+		while fs > zi(10.0) and f_disp.get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > avail:
+			fs -= 1
+		l.label_settings.font_size = fs
+	b.resized.connect(fit)
+	fit.call_deferred()
 	return b
 
 
@@ -1386,6 +1414,19 @@ func _arena() -> String:
 		if bool(m.get("battle", false)):
 			return String(m["id"])
 	return ""
+
+
+## Sandbox: where it starts when the picked track is not a place: the back garden, else the first place there is
+## ("" when no map in the folder was exported with its Sandbox block)
+func _sb_first() -> String:
+	var first := ""
+	for m in maps:
+		if m.get("sb") is Dictionary and not bool(m.get("battle", false)):
+			if String(m["id"]) == "backyard":
+				return "backyard"
+			if first == "":
+				first = String(m["id"])
+	return first
 
 
 ## the first real track: where the pick goes when it leaves the arena

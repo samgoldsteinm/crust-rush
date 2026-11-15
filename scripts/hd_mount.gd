@@ -8,6 +8,8 @@ class_name HdMount
 ##   rebuilt from the full model's height field with ~20 times the triangles, lit from a detailed map of the model's
 ##   surface, so every ridge and gully of the original shows.
 
+const Xf := preload("res://scripts/xf.gd")   # a mesh's points without reading them back from the graphics card (a place built on another thread)
+
 const H_MAP := "res://assets/hd/mount_h.png"
 const N_MAP := "res://assets/hd/mount_nrm.jpg"
 const C_MAP := "res://assets/hd/mount_col.jpg"
@@ -31,7 +33,7 @@ static func upgrade(root: Node, level: int, theme: String) -> Dictionary:
 		var out: Array = []
 		var changed := false
 		for si in mi.mesh.get_surface_count():
-			var arr := mi.mesh.surface_get_arrays(si)
+			var arr := Xf.arrays(mi.mesh, si)
 			var mat := mi.mesh.surface_get_material(si)
 			var nm: ArrayMesh = null
 			var V: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]

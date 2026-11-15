@@ -58,6 +58,7 @@ var g_rate := 0.0
 var last_g := NAN
 var z := 0.0
 var on_ramp := false
+var ramp_s := 0.0          # looks only: the slope of the jump ramp under the kart along its heading (view.gd pitches the body by it)
 var on_glide := false
 var idx := 0
 var prog := 0
@@ -124,13 +125,22 @@ var ghost_t := 0.0        # Ghost Pepper: untouchable, see-through
 var sauce_t := 0.0        # Sauce Splat: slower, smeared view
 var shrink_t := 0.0       # Heat Wave: shrunk and slower
 # Balloon Battle (scripts/battle.gd; only ever touched on an arena map)
-var bal := 0              # balloons left (web k.bal)
+var bal := 0              # balloons left of the set it is on (web k.bal)
+var bb_l := 0             # which set of balloons it is on: 0, 1, 2 for 5, 3, 1 (web k.bbL)
+var bb_dead := false      # eliminated: the single balloon is gone (web k.bbDead; `elim` is set with it, so it is hidden and not stepped)
+var bb_place := 0         # ...and where that left it: the number of drivers that were still in (web k.bbPlace)
 var bb_s := 0             # points (web k.bbS)
 var bb_out := 0.0         # out for a moment: all popped, or over the table's edge (web k.bbOut)
 var bb_i := 0             # its number in the battle: the balloons' colour, the computer drivers' timing (web k.bbI)
 var bb_a := {}            # the computer driver's notes (web k.bbA)
 var bpx := NAN            # where it last stood free of the arena's walls (web k.bpx, k.bpy)
 var bpy := NAN
+# Sandbox (scripts/sandbox.gd). `sb` is null in every race, Grand Prix, Last Slice and Balloon Battle: each hook below asks it first
+var sb = null             # the Sandbox this kart is driving in (web SBX)
+var sbf := false          # ...and the driving is free: the house, the pizzas (web SBF); false where you keep to the road
+var sb_off := false       # off the track's own surface (web k.sbOff): its lap point is only the last one it was on
+var r_bk := 0             # on a jump ramp climbed from behind: no launch off its low end (web k.rBk)
+var tun = null            # in the tunnel between two Sandbox places (Sandbox.Tun): it drives that corridor, not the track
 var elim := false         # Last Slice Standing: knocked out (and on which lap)
 var elim_lap := 0
 var sc := -1              # on a shortcut (index into T.shorts), and where along it
@@ -269,8 +279,8 @@ func step(inp: Dictionary, dt: float) -> void:
 		tp = 1.0 if bool(T.shorts[sc]["route"]) else 0.96
 	if boost > 0.0:
 		tp = maxf(tp, 0.93)
-	if T.battle:
-		tp = 1.0   # an arena has no road to be off (web: if(BATTLE)tp=1)
+	if T.battle or sbf or tun != null:
+		tp = 1.0   # an arena has no road to be off, nor has free driving in Sandbox (web: if(BATTLE)tp=1)
 	pen += (tp - pen) * minf(1.0, dt * (3.5 if tp < pen else 6.0))
 
 	var mul: float = inp["mul"]
@@ -346,15 +356,24 @@ func step(inp: Dictionary, dt: float) -> void:
 	acc += ((speed - v0) / dt - acc) * minf(1.0, dt * 6.0)
 	x += cos(ma) * speed * dt
 	y += sin(ma) * speed * dt
+	if tun != null:
+		# Sandbox, between two places: the tunnel's level corridor is all there is under the kart. Nothing of a track
+		# (walls, ground, ramps, loops, pads, the lap point) reaches it: the place behind may already be gone and the
+		# place ahead may not be there yet (scripts/sandbox.gd, Tun)
+		tun.step(self, dt)
+		return
 	_sc_step()
 
 	if T.battle:
 		race.bb.walls(self)   # web battleWalls: the arena's shapes are the walls, not the track's sides
+	elif sbf:
+		sb.walls(self)        # Sandbox, free driving: what stands in the place is the walls (web battleWalls -> sbWalls)
 	else:
 		_walls()
 	if wall_t > 0.0:
 		wall_t -= dt
-	_rim()
+	if not sbf:
+		_rim()   # (Sandbox has its own walls, and its passages lie outside this circle: web if(d>RIM&&!SBF))
 	if _vertical(dt):
 		return
 	_obstacles()
@@ -387,6 +406,8 @@ func step(inp: Dictionary, dt: float) -> void:
 	# progress round the lap (on a shortcut, its own path keeps the count)
 	var o_idx := idx
 	var best := T.nearest(idx, x, y) if sc < 0 else idx
+	if sbf:
+		best = sb.idx_of(self, idx, best)   # free driving: the lap point under the kart if it is on the track, else the one it had (web sbIdx)
 	var di := best - idx
 	if di > T.N / 2:
 		di -= T.N
@@ -396,8 +417,8 @@ func step(inp: Dictionary, dt: float) -> void:
 	idx = best
 	# crossing the line sets the count of lap points right: loops, shortcuts and glides each leave it a few points out (web v192)
 	# (not in a Balloon Battle: its ring of track points is bookkeeping, there is no line to cross)
-	if T.battle:
-		pass
+	if T.battle or sbf:
+		pass   # (nor in Sandbox's free driving: web BATTLE is on with SBF)
 	elif o_idx > T.N * 0.75 and best < T.N * 0.25:
 		prog = int(floor(float(prog) / T.N + 0.5)) * T.N + best
 	elif o_idx < T.N * 0.25 and best > T.N * 0.75:
@@ -406,6 +427,12 @@ func step(inp: Dictionary, dt: float) -> void:
 	_loop_walls_and_entry(o_idx)
 
 	for p in T.pads:
+		if sbf:
+			# free driving: a kart off the track keeps the last lap point it was on, so a boost pad acts only on a kart
+			# that is at it (web patch27: within 110)
+			var pj := int(p["j"])
+			if (T.px[pj] - x) ** 2 + (T.py[pj] - y) ** 2 > 110.0 * 110.0:
+				continue
 		var dj: int = idx - int(p["j"])
 		if dj > T.N / 2:
 			dj -= T.N
@@ -441,7 +468,7 @@ func _drive(inp: Dictionary, dt: float, brake_in: bool, d_press: bool, trick_now
 		speed = minf(mx, speed + (T.ACCEL * sm_acc * (2.8 if boost > 0.0 else 1.0) * f + (220.0 if speed < 0.0 else 0.0)) * dt)
 	else:
 		speed += (mx - speed) * minf(1.0, dt * 1.5)
-	if not air:
+	if not air and tun == null:   # (a hill slows a kart or speeds it up; the tunnel between two Sandbox places is level)
 		var ca := cos(ma)
 		var sa := sin(ma)
 		var sl := (T.ground(x + ca * 5.0, y + sa * 5.0) - T.ground(x - ca * 5.0, y - sa * 5.0)) / 10.0
@@ -543,8 +570,15 @@ const LOOPR := 56.0
 func _loop_step(dt: float) -> void:
 	var L := loop
 	speed = maxf(speed, base_max * 1.18)
-	L["th"] = float(L["th"]) + speed * dt / LOOPR
+	# (Sandbox only: a loop entered from its far end is ridden the other way round, L.rev; a race never sets it)
+	var rev := L.has("rev")
+	if rev:
+		L["th"] = float(L["th"]) - speed * dt / LOOPR
+	else:
+		L["th"] = float(L["th"]) + speed * dt / LOOPR
 	var th := minf(float(L["th"]), TAU)
+	if rev:
+		th = maxf(0.0, th)
 	var p: Dictionary = L["p"]
 	var sx := LOOPR * sin(th)
 	var hg := LOOPR * (1.0 - cos(th))
@@ -555,10 +589,34 @@ func _loop_step(dt: float) -> void:
 	z = hg
 	loop_th = th
 	a = float(p["ang"])
+	if rev:
+		a += PI
 	ma = a
 	drift = 0
 	steer *= 0.9
 	air = false
+	if rev:
+		# out at the loop's near end, a little before it on the lap (web loopStep, L.rev)
+		if float(L["th"]) <= 0.0:
+			var jr := (int(L["j"]) - 3 + T.N) % T.N
+			var dr := jr - idx
+			if dr > T.N / 2:
+				dr -= T.N
+			if dr < -T.N / 2:
+				dr += T.N
+			prog += dr
+			idx = jr
+			loop = {}
+			loop_th = 0.0
+			o_th = 0.0
+			boost = maxf(boost, 1.5)
+			wvy = 0.0
+			g_rate = 0.0
+			wy = float(L["g0"])
+			last_g = wy
+			z = 0.0
+			events.append("loopout")
+		return
 	if float(L["th"]) >= TAU:
 		if bool(L["full"]):
 			var di := int(L["j"]) - idx
@@ -624,7 +682,44 @@ func _loop_walls_and_entry(o_idx: int) -> void:
 			if al2 >= -1.0:
 				var S := float(L["S"])
 				var W := float(L["W"])
+				if sb != null:
+					# Sandbox: a kart off the track keeps the last lap point it was on, so in free driving a loop takes only a
+					# kart that is AT it (how far along, which lane, what height); and never one heading back along the track
+					if sbf and (al2 > 40.0 or absf(lt2 + S) > W + 8.0 or absf(wy - float(L["g0"])) > 12.0):
+						continue
+					if (cos(ma) * float(P2["tx"]) + sin(ma) * float(P2["ty"])) * (-1.0 if speed < 0.0 else 1.0) < 0.0:
+						continue
 				loop = {"th": 0.0, "p": P2, "lat0": clampf(lt2, -S - W + 5.0, -S + W - 5.0), "shift": float(L["shift"]), "g0": float(L["g0"]), "j": int(L["j"]), "full": true}
+				drift = 0
+				spin = 0.0
+				air = false
+				big = false
+				glide = false
+				events.append("loopin")
+	if sb != null:
+		# Sandbox: into a loop from its far end, heading back along the track: round it the other way (web patch27)
+		for L in T.loops:
+			if not loop.is_empty() or not bool(L["full"]):
+				continue
+			var dj3 := idx - int(L["j"])
+			if dj3 > T.N / 2:
+				dj3 -= T.N
+			if dj3 < -T.N / 2:
+				dj3 += T.N
+			if dj3 < -2 or dj3 > 8:
+				continue
+			var P3: Dictionary = L["p"]
+			var al3 := (x - float(P3["x"])) * float(P3["tx"]) + (y - float(P3["y"])) * float(P3["ty"])
+			var lt4 := (x - float(P3["x"])) * float(P3["nx"]) + (y - float(P3["y"])) * float(P3["ny"])
+			var S3 := float(L["S"])
+			var W3 := float(L["W"])
+			var sh3 := float(L["shift"])
+			if al3 <= 1.0 and al3 > -16.0 and absf(wy - float(L["g0"])) <= 12.0 and absf(speed) > 5.0 \
+					and (cos(ma) * float(P3["tx"]) + sin(ma) * float(P3["ty"])) * (-1.0 if speed < 0.0 else 1.0) < -0.3 and lt4 > 2.0 and lt4 < sh3 - S3 + W3 + 3.0:
+				loop = {"th": TAU, "rev": true, "p": P3, "lat0": clampf(lt4 - sh3, -S3 - W3 + 5.0, -S3 + W3 - 5.0), "shift": sh3, "g0": float(L["g0"]), "j": int(L["j"]), "full": true}
+				speed = absf(speed)
+				loop_th = TAU
+				o_th = TAU
 				drift = 0
 				spin = 0.0
 				air = false
@@ -634,6 +729,8 @@ func _loop_walls_and_entry(o_idx: int) -> void:
 	for L in T.loops:
 		if bool(L["full"]) or air or speed <= 50.0 or spin > 0.0 or not loop.is_empty():
 			continue
+		if sbf and (x - float(L["p"]["x"])) ** 2 + (y - float(L["p"]["y"])) ** 2 > 90.0 * 90.0:
+			continue   # (free driving: only a kart that is at the half loop)
 		var d0 := o_idx - int(L["j"])
 		var d1 := idx - int(L["j"])
 		if d0 > T.N / 2:
@@ -754,6 +851,8 @@ func _sc_over(pad: float) -> Array:
 func _sc_step() -> void:
 	if T.shorts.is_empty():
 		return
+	if sbf:
+		return   # a shortcut lane's own race rule is off in free driving: there it is just floor (web scStep: if(SBF||...)return)
 	if sc >= 0:
 		var c: Dictionary = T.shorts[sc]
 		var n := int(c["n"])
@@ -854,12 +953,17 @@ func _rim() -> void:
 func _vertical(dt: float) -> bool:
 	# in a Balloon Battle the ground is the arena's shapes, and there are no kerbs (web: G=BATTLE?battleG(...):kGround(k))
 	var g: float = race.bb.ground(x, y) if T.battle else T.ground(x, y) + T.k_ey(idx, x, y)
+	if sbf:
+		# Sandbox, free driving: the place's own ground; the track crosses over itself, so which level goes by the
+		# kart's own height (web battleG(k.x,k.y,k.wy) -> sbG)
+		g = sb.ground(x, y, wy)
 	var on_r := false
 	var g_r := false
-	if not T.battle and not T.in_glide(idx):
+	if not T.battle and not sbf and not T.in_glide(idx):
 		var la := absf(T.lateral(idx, x, y))
 		if la > T.RW and la < T.CURB:
 			g += T.kerb_h(la)
+	var rs_ := 0.0
 	for r in T.ramps:
 		var al := -1.0
 		var rl := 0.0
@@ -897,11 +1001,27 @@ func _vertical(dt: float) -> bool:
 			continue
 		var hh := rh * clampf(al, 0.0, rlen) / rlen
 		var fwd := cos(ma) * fx + sin(ma) * fy
+		if sb != null and not bool(r["glide"]) and fwd * (-1.0 if speed < 0.0 else 1.0) < -0.2 and absf(rl) <= rw + 2.0:
+			# Sandbox, driving the track the wrong way round: a jump ramp is climbed from behind, up a short slope on
+			# its back and down its face, with no launch off its low end (web patch27, k.rBk)
+			if al > rlen - 1.0:
+				var hb := rh * clampf((rlen + 6.0 - al) / 6.0, 0.0, 1.0)
+				if wy <= g + hb + 2.5:
+					g += hb
+					on_r = true
+					r_bk = 2
+				continue
+			if al >= 0.0 and wy >= g + hh - 2.5 and wy <= g + hh + 2.5:
+				g += hh
+				on_r = true
+				r_bk = 2
+				continue
 		if al >= 0.0 and al <= rlen and (wy >= g + hh - 0.8 or (wy >= g + hh - 2.5 and fwd > 0.5 and absf(rl) <= rw + 2.0)):
 			if wy <= g + hh + 1.5:
 				g += hh
 				on_r = true
 				g_r = bool(r["glide"])
+				rs_ = rh / rlen * fwd
 			continue
 		# the ramp is a solid wedge: from the sides or the back it's a wall
 		if al < 0.0 or wy >= g + hh - 0.8 or glide:
@@ -956,7 +1076,7 @@ func _vertical(dt: float) -> bool:
 			glide = false
 			wvy = rate
 			g_rate = rate
-	elif on_ramp and not on_r and speed > 20.0:
+	elif on_ramp and not on_r and speed > 20.0 and not (sb != null and r_bk > 0):
 		air = true
 		big = true
 		air_t = 0.0
@@ -967,6 +1087,24 @@ func _vertical(dt: float) -> bool:
 		if on_glide:
 			_start_glide()
 		wy += wvy * dt
+	elif sbf and wy - g > sb.STEP:
+		# Sandbox, free driving: off an edge it falls (web: else if(SBF&&k.wy-G>SB_STEP))
+		air = true
+		big = false
+		air_t = 0.0
+		wvy = 0.0
+	elif sbf and rate < g_rate - 260.0 * dt * 1.1 and speed > 60.0:
+		# Sandbox, free driving: the web's own form of the rule below. Where the track is raised there is no hop at all
+		# (web: !(MULTI&&ey>1)), and in the house crossing the track's raised edge is a small hop, not a jump
+		if not (T.multi and T.ey[idx] > 1.0):
+			air = true
+			big = (g_rate - rate) > 55.0 and not sb.toy
+			air_t = 0.0
+			wvy = minf(g_rate, 22.0 if sb.toy else 42.0)
+			wy += wvy * dt
+		else:
+			wy = g
+			g_rate = rate
 	elif rate < g_rate - 260.0 * dt * 1.1 and speed > 60.0:
 		air = true
 		big = (g_rate - rate) > 55.0
@@ -977,7 +1115,10 @@ func _vertical(dt: float) -> bool:
 		wy = g
 		g_rate = rate
 	on_ramp = on_r
+	ramp_s = rs_ if on_r else 0.0
 	on_glide = g_r
+	if r_bk > 0 and not on_r:
+		r_bk -= 1
 	z = maxf(0.0, wy - g)
 	if not T.glide.is_empty() and wy < T.glide_y(x, y) - 32.0 and T.pit(x, y) > 25.0:
 		respawn()
@@ -1044,6 +1185,9 @@ func _obstacles() -> void:
 ## back to the start of the glide after falling into the gap
 func respawn() -> void:
 	sc = -1
+	# Sandbox: a canyon cannot be jumped from its far side. A kart driving the track the wrong way round that drops in
+	# is set down at the usual place still facing the way it was going: it has then crossed (web respawn, bk)
+	var bk: bool = sb != null and cos(ma) * T.tx[idx] + sin(ma) * T.ty[idx] < 0.0
 	var j := (int(T.glide["rj"]) - 24 + T.N) % T.N
 	var di := j - idx
 	if di > T.N / 2:
@@ -1055,6 +1199,8 @@ func respawn() -> void:
 	x = T.px[j]
 	y = T.py[j]
 	a = T.ang[j]
+	if bk:
+		a += PI
 	ma = a
 	speed = base_max * 0.5
 	wy = T.ground(x, y) + T.ey[j]

@@ -230,6 +230,21 @@ func step(dt: float) -> void:
 		m.scale = Vector3(s, s, s)
 
 
+## every live spark and ring moved by one step (Sandbox, at the swap between two places: main.gd _sb_rigid moves the
+## kart and the camera by the same step, so the sparks stay where they are on the screen)
+func xform(m: Transform3D) -> void:
+	for pool in [fxa, fxn]:
+		var pl: Pool = pool
+		for i in pl.max_n:
+			if pl.l[i] > 0.0:
+				pl.p[i] = m * pl.p[i]
+				pl.v[i] = m.basis * pl.v[i]
+	for r in rings:
+		var mi: MeshInstance3D = r["m"]
+		if mi.visible:
+			mi.position = m * mi.position
+
+
 func clear() -> void:
 	fxa.clear()
 	fxn.clear()
