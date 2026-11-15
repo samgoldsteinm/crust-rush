@@ -145,6 +145,24 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-15 (PC build, with web v199's tracks): Sandbox's clock, things to do, Easter eggs and Back to the track on the PC
+- THE CLOCK: `scripts/sandbox_clock.gd` (a port of the web's sbClock*): made by the place's SandboxView when the place is the one being
+  driven and the kart is out of any tunnel (the tunnel, sandbox_warp.gd, has the lights then); ten updates a second; `off()` when the view
+  leaves the tree puts every light, sky colour, fog, exposure, bloom and material back. The hour is the save's "t" (the web's crust-sb
+  shape), moved on in sandbox.gd tick. Stars are a term in `shaders/sky.gdshader` (`stars`), so they are behind everything. The PC's night
+  fill for open-air places is stronger than the web's (amb .75+.25D, exposure +25% at night): a share of the PC's fill comes from the sky,
+  which goes dark, and the first try was near black. Pictures: `tests/sbclock.tscn` (windowed) writes build/sbclock/<map>_<hour>.png.
+- THINGS TO DO AND EGGS: `scripts/sandbox_acts.gd` keeps the same table as web activities.js; the markers' and the egg's spots come from
+  the export (T.sb "acts", "egg", web sbExport v199): a place exported before v199 simply has none. The activity under way is static (it
+  goes through tunnels with a delivery). The offer and the objective bar are drawn by hud.gd (`sb_act`, `sb_bar`); the end panel is a sheet
+  in main.gd (`_sb_act_end`, Retry / Close); `_sb_travel` ends a delivery (fast travel), `_sb_race_here` ends one, `_to_menu` drops it
+  quietly. Markers: a ring and a word on a board (PIZZA DELIVERY, DRIFT, JUMP); eggs built of spheres, cones and boxes as on the web.
+- BACK TO THE TRACK: main.gd `_sb_back_ask` (a sheet over the pause menu: Move me / Cancel; Esc or Start closes it) and sandbox.gd
+  `back_to_track` (the nearest track point, a difference in level counting three times over, never by a loop).
+- TESTS: tests/sandbox.tscn now also checks Back to the track (`_to_track`) and, on a place exported with them, every activity marker
+  (offered, started, done or cancelled) and the egg (`_acts`).
+  NOT RELEASED YET: in the godot branch, waiting for the next PC build (with the v200 work).
+
 ### 2026-11-15 (web v199, the same release): the day and night clock switched on, things to do, Easter eggs, Back to the track
 - THE CLOCK (sandbox.js, `SB_CLOCK` now true; built in v197 and left off until its pictures had been looked at). Looked at, noon / sunset
   / dusk / night / the start flag at night, in margherita (out), bay, the back garden (out), bedroom and kitchen (in: lamps on, windows
