@@ -137,15 +137,15 @@ against the landmarks' coordinates before the real generator closed the lap; the
 ### OPEN WORK, in the order to do it (rewritten 2026-11-14 after web v193; the owner's words for each are in docs/NEXT-MODES-BRIEF.md)
 1. (done: a Grand Prix on line on the PC, the controller's cursor on the PC, the trees and previews: see the v195 entry.)
 4. (done: Balloon Battle and Sandbox on the PC: see their entries. The PC now has every mode the web has.)
-5. THE WEBSITE: `py.cmd tools/site_pc.py` brings `app/pc.html` level with the PC build (done for build 68030144: 24 tracks, Balloon
-   Battle, Sandbox, online cups, the pointer, the size). Edit `HAS` in it when the PC's modes change, run it, commit and push `app`.
+5. THE WEBSITE: `py.cmd tools/site_pc.py` brings `app/pc.html` level with the PC build (done for build 68030144 and checked again for 521732c1: 24 tracks,
+   Balloon Battle, Sandbox, online cups, the pointer, the size). Edit `HAS` in it when the PC's modes change, run it, commit and push `app`.
 6. SANDBOX, what the brief still asks for and is not built (docs/SANDBOX-PLAN.md has the plan for each): the coin shop (kart and car
-   unlocks), online free roam and the start-line lobby with ready-up. The clock, things to do, Easter eggs and Back to the track are in web
-   v199 and NOT YET ON THE PC (port them next: the PC has its own no-stop tunnel already). On the pizza tracks only what is drawn is there to explore: no new side roads or buildings have been modelled.
+   unlocks), online free roam and the start-line lobby with ready-up. The clock, things to do, Easter eggs, Back to the track, the mechanic's
+   shop, abilities and hills are on both (web v201, PC build 521732c1). On the pizza tracks only what is drawn is there to explore: no new side roads or buildings have been modelled.
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
-### 2026-11-15 (web v201, online 112 unchanged): in Sandbox Y is the special ability, the map is Select
+### 2026-11-15 (web v201 and PC build 521732c1, online 112 on both): in Sandbox Y is the special ability, the map is Select
 The owner: "if y is to use an item on controller in sandbox then the map should be the select button". Select (View / Back / Minus)
 already opened the map in Sandbox and nothing else uses it there (in a race it looks behind; Sandbox gave that up in v193). Y now fires
 the ability as in a race, Select alone opens and closes the map; v200's R3 for the ability is gone. Web: tools/mini/patch36.py and the
@@ -203,7 +203,7 @@ one for a one-on-one); hills in Sandbox you can drive up, harder the steeper, of
   `back_to_track` (the nearest track point, a difference in level counting three times over, never by a loop).
 - TESTS: tests/sandbox.tscn now also checks Back to the track (`_to_track`) and, on a place exported with them, every activity marker
   (offered, started, done or cancelled) and the egg (`_acts`).
-  NOT RELEASED YET: in the godot branch, waiting for the next PC build (with the v200 work).
+  RELEASED in PC build 521732c1 (2026-11-15, godot 521732c, tracks exported from web v201, online 112): PC and web race each other again.
 
 ### 2026-11-15 (web v199, the same release): the day and night clock switched on, things to do, Easter eggs, Back to the track
 - THE CLOCK (sandbox.js, `SB_CLOCK` now true; built in v197 and left off until its pictures had been looked at). Looked at, noon / sunset
