@@ -30,8 +30,8 @@ const ABIL := {
 	"mozz": ["Melt Shield", "Wraps the kart in stretchy cheese that blocks three hits for a while, with two seconds of extra speed. A Spiky Shockwave only pops it, with no spin.", "#fff4c0"],
 	"chili": ["Fire Trail", "A fiery boost that leaves burning flames on the road: anyone who drives into them spins out and catches fire. Nothing can hit you while it burns.", "#ff3a12"],
 	"shroom": ["Mega Shroom", "Grows huge and unstoppable and flattens anyone it touches for 2 seconds.", "#c8a06a"],
-	"pineapple": ["Spiky Shockwave", "A spiky blast that spins out every racer close to you. It goes through ability boosts and pops a shield without a spin. Karts in the air, and anyone still blinking after a hit, are safe.", "#ffd23a"],
-	"anchovy": ["School of Fish", "Launches three anchovies that hunt down the next three racers ahead, or the three behind if you look back. A well-timed hop dodges one, and an item held behind you stops one.", "#8fc8e8"],
+	"pineapple": ["Spiky Shockwave", "A spiky blast that spins out every racer close to you. It goes through garlic, ability boosts and Delivery Rush; a Mozz Melt Shield pops without a spin. Karts in the air, and anyone still blinking after a hit, are safe.", "#ffd23a"],
+	"anchovy": ["School of Fish", "Launches two anchovies that hunt down the next two racers ahead, or the two behind you if you launch them looking back. Nothing blocks them, not even a shield; only a well-timed hop dodges one.", "#8fc8e8"],
 }
 const ABIL_TIME := 30.0
 const MEGA_T := 4.5
@@ -1657,13 +1657,13 @@ var cur_p: Dictionary = {}
 
 func spin_out(k: Kart, kind: String, world := false, force := false) -> bool:
 	if force:
-		# the Spiky Shockwave (web patch 37): misses karts in the air and anyone blinking after a hit, and only pops a shield
+		# the Spiky Shockwave (web patch 37): misses karts in the air and anyone blinking after a hit, and only pops a Mozz shield
+		# (web patch 39: garlic no longer stops it; the kart spins and keeps its cloves)
 		if not k.loop.is_empty() or k.air or k.glide or k.inv > 0.0:
 			return false
-		if k.shield > 0.0 or k.sh_l > 0:
+		if k.shield > 0.0 and k.mz_h > 0:
 			k.shield = 0.0
 			k.mz_h = 0
-			k.sh_l = 0
 			k.abs_t = 0.6
 			fx.append({"t": "melt", "k": k})
 			return false
@@ -1791,11 +1791,11 @@ func use_ability(k: Kart, back: bool) -> void:
 			blast(k.x, k.y, 150.0, k, "pep", true)
 			k.inv = maxf(k.inv, 0.6)
 		"anchovy":
-			for j in range(1, 4):
+			for j in range(1, 3):   # (web patch 39: two, was three)
 				var ti := i + j if back else i - j
 				var tg: Kart = st[ti] if ti >= 0 and ti < st.size() else null
 				var sp := 360.0 + maxf(0.0, k.speed)
-				var an := k.a + (PI if back else 0.0) + (j - 2) * 0.25
+				var an := k.a + (PI if back else 0.0) + (j - 1.5) * 0.25
 				var p := _proj(k, "torp", k.x + cos(an) * 12.0, k.y + sin(an) * 12.0, cos(an) * sp, sin(an) * sp, 600.0 if tg != null else 8.0, 0.3)
 				p["target"] = tg
 				p["sure"] = tg != null
@@ -2202,14 +2202,16 @@ func _projectiles(dt: float) -> void:
 				p["pop"] = true
 				projectiles.remove_at(i)
 			elif tg.loop.is_empty() and (tg.x - float(p["x"])) ** 2 + (tg.y - float(p["y"])) ** 2 < 256.0 and not (tg.rush > 0.0 or ab_inv(tg) or tg.abs_t > 0.0):
-				if _absorb_held(tg):
-					pass   # a held item stops the fish (web patch 37)
-				elif tg.air and not tg.glide:
+				if tg.air and not tg.glide:
 					fx.append({"t": "dodge", "k": tg})
-				elif spin_out(tg, "pep", true):
-					tg.spin *= 0.6
-					tg.inv = tg.spin + 3.0
-					fx.append({"t": "hit", "k": tg, "type": "torp", "x": float(p["x"]), "y": float(p["y"])})
+				else:
+					# (web patch 39) nothing blocks a fish: a Mozz shield goes, then the forced spin
+					tg.shield = 0.0
+					tg.mz_h = 0
+					if spin_out(tg, "pep", true):
+						tg.spin *= 0.6
+						tg.inv = tg.spin + 3.0
+						fx.append({"t": "hit", "k": tg, "type": "torp", "x": float(p["x"]), "y": float(p["y"])})
 				projectiles.remove_at(i)
 			i -= 1
 			continue

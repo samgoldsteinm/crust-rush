@@ -38,7 +38,7 @@ func _ready() -> void:
 	#ANCHOVY
 	# the Shockwave
 	var cases := [["plain 100", 100.0, true], ["plain 200", 200.0, false], ["Mozz shield", 100.0, false], ["in the air", 100.0, false],
-		["blinking", 100.0, false], ["Pesto Rush", 100.0, true], ["garlic", 100.0, false]]
+		["blinking", 100.0, false], ["Pesto Rush", 100.0, true], ["garlic", 100.0, true]]
 	for i in cases.size():
 		var k: Kart = O[i]
 		clr.call(k)
@@ -58,27 +58,29 @@ func _ready() -> void:
 		var spun := k.spin > 0.0
 		line.append("%s %s" % [cases[i][0], "spun" if spun else "not spun"])
 		ok = ok and spun == bool(cases[i][2])
-	ok = ok and O[2].shield == 0.0 and O[6].sh_l == 0
+	ok = ok and O[2].shield == 0.0 and O[6].sh_l == 2   # (web patch 39) garlic no longer stops it, and keeps its cloves
 	print("ABIL shockwave: ", ", ".join(line), "; shield left %s, garlic left %d" % [O[2].shield, O[6].sh_l])
-	# a sure anchovy: a held item stops it, without one it hits (two karts on the grid, before the Shockwave moves them)
+	# a sure anchovy (web patch 39): nothing stops it, not a held item and not a Mozz shield (two karts on the grid, before the Shockwave moves them)
 	for held in [true, false]:
 		var tg: Kart = race.karts[3] if held else race.karts[5]
 		clr.call(tg)
 		if held:
 			tg.held = {"it": "oil", "sl": 1, "t": 0.0}
+			tg.shield = 7.0
+			tg.mz_h = 3
 		race.projectiles.clear()
 		var p: Dictionary = race._proj(P, "torp", tg.x + 2.0, tg.y, 0.0, 0.0, 600.0, 0.0)
 		p["target"] = tg
 		p["sure"] = true
 		race._projectiles(1.0 / 120.0)
 		var gone := race.projectiles.is_empty()
-		print("ABIL anchovy, %s: used up %s, kart spun %s, held item left %s" % ["holding an item" if held else "no item", gone, tg.spin > 0.0, not tg.held.is_empty()])
-		ok = ok and gone and (tg.spin <= 0.0 if held else tg.spin > 0.0) and tg.held.is_empty()
+		print("ABIL anchovy, %s: used up %s, kart spun %s, held item left %s" % ["holding an item, Mozz shield" if held else "no item", gone, tg.spin > 0.0, not tg.held.is_empty()])
+		ok = ok and gone and tg.spin > 0.0 and tg.shield == 0.0
 	race.projectiles.clear()
 	# constants and the online version
 	var proto: int = load("res://scripts/webnet.gd").PROTO
 	print("ABIL MEGA_T %.1f FLAT_T %.1f PROTO %d" % [Race.MEGA_T, Race.FLAT_T, proto])
-	ok = ok and Race.MEGA_T == 4.5 and Race.FLAT_T == 2.0 and proto == 113
+	ok = ok and Race.MEGA_T == 4.5 and Race.FLAT_T == 2.0 and proto == 114
 	# Olive's slick reaches 16.5
 	race.hazards.clear()
 	var ot: Kart = O[1]

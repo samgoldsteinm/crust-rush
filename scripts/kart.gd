@@ -270,9 +270,9 @@ func step(inp: Dictionary, dt: float) -> void:
 	if lat < T.RW:
 		tp = 1.0
 	elif lat < T.CURB:
-		tp = 0.86 + 0.02 * sm_off
+		tp = 0.86 + 0.03 * sm_off   # (web patch 38: off-road counts for more)
 	else:
-		tp = clampf(0.58 + 0.06 * sm_off, 0.4, 0.82)
+		tp = clampf(0.58 + 0.08 * sm_off, 0.36, 0.86)
 	if glide:
 		tp = 1.0
 	if sc >= 0:
@@ -554,7 +554,8 @@ func _drive(inp: Dictionary, dt: float, brake_in: bool, d_press: bool, trick_now
 		a += steer * T.TURN * tf_n * dt * dir
 	# the direction of motion follows the facing, slower while drifting
 	var da2 := d_amt * d_amt * (3.0 - 2.0 * d_amt)
-	var follow := (9.0 - 5.0 * da2) if drift != 0 else (7.0 if grip_t > 0.0 else 9.0)
+	# (web patch 38) handling is grip too: outside a drift the path follows the facing 1 + 1.2 * (hnd - 1) as fast
+	var follow := (9.0 - 5.0 * da2) if drift != 0 else (7.0 if grip_t > 0.0 else 9.0) * (1.0 + 1.2 * (sm_hnd - 1.0))
 	# slick tyres after Olive's spin: the path follows where the kart points far more slowly, and it can slide much wider
 	var slk := oil_t > 0.0 and oil_t <= Race.SLICK_T
 	ma += ang_diff(a, ma) * minf(1.0, follow * (0.2 if slk else 1.0) * dt)
@@ -761,13 +762,18 @@ func _start_drift(amt: float) -> void:
 	events.append("hop")
 
 
+## (web patch 38, wallK) weight in a wall hit: a heavy kart keeps more of its speed
+func wall_k() -> float:
+	return 1.0 - 0.4 * (sm_wgt - 1.0)
+
+
 func _slide(nx_: float, ny_: float, keep: float, turn: float) -> void:
 	var vx := cos(ma)
 	var vy := sin(ma)
 	var dot := vx * nx_ + vy * ny_
 	if dot <= 0.0:
 		return
-	speed *= 1.0 - keep * dot
+	speed *= 1.0 - keep * dot * wall_k()
 	var tx_ := vx - dot * nx_
 	var ty_ := vy - dot * ny_
 	if Vector2(tx_, ty_).length() > 0.05:
@@ -899,7 +905,7 @@ func _sc_step() -> void:
 			var vy := sin(ma)
 			var dot := vx * nx_ + vy * ny_
 			if dot > 0.0:
-				speed *= 1.0 - 0.2 * dot
+				speed *= 1.0 - 0.2 * dot * wall_k()
 				var tx_ := vx - dot * nx_
 				var ty_ := vy - dot * ny_
 				if Vector2(tx_, ty_).length() > 0.05:
