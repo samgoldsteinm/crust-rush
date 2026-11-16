@@ -145,6 +145,30 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-16 (web v212 and the PC build after it; ONLINE 116 ON BOTH): the PC catches up, a key for Back to the track
+- Web v212, tools/mini/patch51.py: keyboard action 'sbback' "Back to the track (Sandbox)", T by default, in Settings > Controls like every
+  key (owner: "make it bindable like the other keys"). Driving in Sandbox it pauses and asks the pause menu's question (sbBackAsk).
+  Checked: scratch/tkey.js with sbprobe.py (paused, asked). PC: scripts/keys.gd "sbback" [KEY_T], main.gd's Sandbox keys; tests/sbkey.tscn.
+- PC port of web v209-v211 (D:/crust-rush/godot):
+  - ONLINE 116: webnet.gd PROTO 116, "ni" in the host's settings (_build_cfg: main.all_items_off()); a guest reads web.cfg["ni"].
+  - NO ITEMS: main.all_items_off() (every unlocked item off in Settings > Items); race.noitm set in _start_race (never the background
+    race, Last Slice, Battle or Sandbox); a no-items race EMPTIES race.boxes, so nothing draws, takes or guesses a box. The menu's
+    Items On / Off (menu.gd, under Computer racers; setting_changed "items"). PC-to-PC rooms carry cfg["ni"] too. tests/noitems.tscn.
+  - WORLD LEADERBOARD: scripts/lb.gd (child "Lb" of main): the same Supabase functions and view as the web, publishable key only;
+    token and name in user://leaderboard.cfg, a queue of runs sent when there is a name (platform 'pc', ver 'pc'); run() from
+    _progress_finish (not the test drive, not lss/bb/sb). Menu sheets "lb" (class, With rivals / Alone / No items, top 20) and
+    "lbname" (username, the account code). Records cards are clickable (menu.lb_open; the card's children ignore the mouse so the click
+    reaches it; the controller's cursor clicks with a real mouse event). Settings > More > Username: Change, Copy account code. The
+    username is the room name too (_web_name). First menu: the username sheet once a run. tests/lbtest.tscn reads only.
+  - GARAGE: the Colour tab is back (taken out 2026-11-11 in a93e6d8; the owner asked for it back). PAINT glossier as web v210
+    (kart roughness .2, clear coat .03; CAR_PBR paint/stripe [0.2, 0.32, 1.0]; car clear coat .03).
+  - Controller cursor speed (Settings > Controls: "curs", 70 % by default; pad_cursor.gd); the Sandbox friends list beside the
+    item slots (hud.gd: left of item_rect(2)).
+  - Tests passed: smoke, battle (CR_MAP=preptable CR_MODE=bb), sandbox (CR_MAP=margherita CR_MODE=sb), gpnet, cpus, noitems, lbtest,
+    sbkey; cross-play with web v211: xplay (race) PASS both sides, xmodes sb PASS both sides.
+  - NOT on the PC yet: Sandbox at night (LED strips, street lamps, headlights: web v206/v210), the mechanic's shop and its pull-in
+    (web v205), the tunnel camera lock (web v210 patch 48; the PC's tunnel is its own).
+
 ### 2026-11-16 (web v211; online still 116): THE TUNNEL FREEZE FIXED
 The owner: "the whole game froze for like 5 seconds, it should be smooth". Patches tools/mini/patch50.py, 50b, 50c, 50d and build/build_gh.py.
 Measured with sbprobe.py and scratch/lights.js, glprof.js, glstack.js, fsplit.js, ftrip.js (margherita -> garage, the worst trip):

@@ -7784,8 +7784,8 @@ function rollItem(pos){if(BATTLE||SBX)return bbRoll();if(!ITEM_LIST.some(itemOn)
 const keys={left:false,right:false,drift:false,brake:false,look:false};let itemQueued=null;
 /* ---- keyboard keys: every racing action can be moved to any key (Settings, Controls). Up to three keys per action,
    saved on this device. Esc always pauses unless it has been given another job. */
-const KB_ACTS=[['left','Steer left'],['right','Steer right'],['brake','Drift / brake'],['item1','Use first item'],['item2','Use second item'],['hold','Keep item behind'],['ability','Special ability'],['look','Look back'],['pause','Pause']];
-const KB_DEF={left:['ArrowLeft','KeyA'],right:['ArrowRight','KeyD'],brake:['Space','ArrowDown','KeyS'],item1:['KeyX','KeyE','Enter'],item2:['KeyZ','KeyQ','KeyV'],hold:['ShiftLeft','ShiftRight','KeyB'],ability:['KeyC','KeyR'],look:['KeyF'],pause:['KeyP']};
+const KB_ACTS=[['left','Steer left'],['right','Steer right'],['brake','Drift / brake'],['item1','Use first item'],['item2','Use second item'],['hold','Keep item behind'],['ability','Special ability'],['look','Look back'],['pause','Pause'],['sbback','Back to the track (Sandbox)']];/* (patch 51: sbback) */
+const KB_DEF={left:['ArrowLeft','KeyA'],right:['ArrowRight','KeyD'],brake:['Space','ArrowDown','KeyS'],item1:['KeyX','KeyE','Enter'],item2:['KeyZ','KeyQ','KeyV'],hold:['ShiftLeft','ShiftRight','KeyB'],ability:['KeyC','KeyR'],look:['KeyF'],pause:['KeyP'],sbback:['KeyT']};
 let KEYB={},KEYC={};
 function kbLoad(){let v=null;try{v=JSON.parse(store.get('crust-keys')||'null');}catch(e){}KEYB={};for(const [a] of KB_ACTS){const l=v&&Array.isArray(v[a])?v[a].filter(c=>typeof c==='string'&&c).slice(0,3):null;KEYB[a]=l||KB_DEF[a].slice();}kbIndex();}
 function kbIndex(){KEYC={};for(const [a] of KB_ACTS)for(const c of KEYB[a])if(!KEYC[c])KEYC[c]=a;}
@@ -7802,7 +7802,7 @@ addEventListener('keydown',e=>{if(e.target.closest&&e.target.closest('.overlay')
   else if(a==='item1'){if(!e.repeat)itemQueued='fwd';e.preventDefault();}
   else if(a==='item2'){if(!e.repeat)itemQueued='fwd2';e.preventDefault();}
   else if(a==='hold'){if(!e.repeat)itemQueued='hold';e.preventDefault();}
-  else if(a==='ability'){if(!e.repeat)abilQueued=true;e.preventDefault();}
+  else if(a==='ability'){if(!e.repeat)abilQueued=true;e.preventDefault();}else if(a==='sbback'){if(!e.repeat&&SBX&&state==='race'&&!SB.trav){togglePause();sbBackAsk(true);}e.preventDefault();}/* (patch 51) */
   else if(a==='pause'||(!a&&e.code==='Escape')){if(!e.repeat)togglePause();}});
 addEventListener('keyup',e=>{const a=KEYC[e.code];if(a==='look'){keys.lookKey=false;if(!document.getElementById('lookBtn')||!document.getElementById('lookBtn').classList.contains('on'))keys.look=false;}else if(a&&KB_HELD[a])keys[a]=false;});
 /* the remap list in Settings: tap a key box, then press the new key (Esc cancels, Backspace or Delete clears the box) */
