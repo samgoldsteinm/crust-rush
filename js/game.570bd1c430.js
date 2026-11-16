@@ -8142,7 +8142,7 @@ function saveRun(){if(!player||!recBuf)return;const t=player.finishTime,key=recK
   if(pb){recs[key]={t,d:Date.now(),place:player.place,dr:selected,laps:recLaps.slice(),spec:{ri:selected,b:playerBuild.b,w:playerBuild.w,g:playerBuild.g,p:playerBuild.p,t:playerBuild.t||''},g:packI16(recBuf)};
     let s=JSON.stringify(recs);/* keep storage in check: drop the oldest ghosts if it ever gets large */
     if(s.length>3e6){const ks=Object.keys(recs).filter(k=>k!==key&&recs[k].g).sort((a,b)=>recs[a].d-recs[b].d);while(s.length>3e6&&ks.length){delete recs[ks.shift()].g;s=JSON.stringify(recs);}}store.set('crust-recs',s);}
-  const h=loadHist();h.unshift({m:MAPS[mapIdx].id,c:clsKey,t,p:player.place,d:Date.now(),dr:selected,pb});store.set('crust-hist',JSON.stringify(h.slice(0,60)));recBuf=null;}
+  try{lbRun(t);}catch(e){console.warn('leaderboard',e);}/* (patch 44) */const h=loadHist();h.unshift({m:MAPS[mapIdx].id,c:clsKey,t,p:player.place,d:Date.now(),dr:selected,pb});store.set('crust-hist',JSON.stringify(h.slice(0,60)));recBuf=null;}
 function pbLine(){if(!lastRun)return '';if(lastRun.pb)return lastRun.old==null?'<span class="pbn">First time logged · '+fmt(lastRun.t)+'</span>':'<span class="pbn">New personal best! '+fmt(lastRun.t)+' (−'+(lastRun.old-lastRun.t).toFixed(2)+'s)</span>';
   return '<span class="pbo">Personal best '+fmt(lastRun.old)+' · +'+(lastRun.t-lastRun.old).toFixed(2)+'s</span>';}
 const fmtDate=d=>{const x=new Date(d);return x.toLocaleDateString(undefined,{month:'short',day:'numeric'});};
@@ -8150,9 +8150,64 @@ let recCls=null;
 function renderRecords(){if(!recCls)recCls=clsKey;const recs=loadRecs(),hist=loadHist();
   $('recCls').innerHTML=Object.keys(CLASSES).map(k=>'<button data-c="'+k+'" aria-pressed="'+(k===recCls)+'">'+CLASSES[k].label+'</button>').join('');
   $('recCls').querySelectorAll('button').forEach(b=>b.onclick=()=>{recCls=b.dataset.c;renderRecords();});
-  $('recBest').innerHTML=MAPS.map((m,i)=>{const r=recs[m.id+'|'+recCls];return '<li><img alt="" src="'+shotURL(m.id,'h')+'"><span class="nm">'+m.name+'</span>'+(r?'<span class="tm">'+fmt(r.t)+'</span><span class="dt">'+RACERS[r.dr].name+' · '+fmtDate(r.d)+'</span>':'<span class="tm none">—</span><span class="dt">No time yet</span>')+'</li>';}).join('');
+  $('recBest').innerHTML=MAPS.map((m,i)=>{const r=recs[m.id+'|'+recCls];return '<li class="lb-open" data-m="'+i+'" title="World leaderboard"><img alt="" src="'+shotURL(m.id,'h')+'"><span class="nm">'+m.name+'</span>'+(r?'<span class="tm">'+fmt(r.t)+'</span><span class="dt">'+RACERS[r.dr].name+' · '+fmtDate(r.d)+'</span>':'<span class="tm none">—</span><span class="dt">No time yet</span>')+'</li>';}).join('');$('recBest').querySelectorAll('li.lb-open').forEach(li=>li.onclick=()=>lbOpen(+li.dataset.m,recCls));
   $('recHist').innerHTML=hist.length?hist.map(h=>{const m=MAPS.find(x=>x.id===h.m);return '<li><span class="pl">'+h.p+suf(h.p)+'</span><span class="nm">'+(m?m.name:h.m)+'<small>'+(CLASSES[h.c]?CLASSES[h.c].label:h.c)+' · '+RACERS[h.dr].name+' · '+fmtDate(h.d)+'</small></span><span class="tm">'+fmt(h.t)+(h.pb?'<em>PB</em>':'')+'</span></li>';}).join(''):'<li class="empty">Finish a race and it will show up here.</li>';}
 
+
+/* ================= (patch 44) USERNAMES AND THE WORLD LEADERBOARD (the owner's Supabase project) ================= */
+const LB={url:'https://ymlfwrwrewxxsazylprf.supabase.co',key:'sb_publishable_K_widd5Q0EyMhUm7JVuv_Q_FWXc0CQZ'};
+const lbEsc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+const LB_CLS={small:'easy',medium:'medium',large:'hard',reverse:'mirror'},LB_RE=/^[A-Za-z0-9_ .-]{3,16}$/;
+function lbToken(){let t='';try{t=store.get('crust-lb-token')||'';}catch(e){}if(t.length<32){const a=new Uint8Array(20);crypto.getRandomValues(a);t=Array.from(a,x=>x.toString(16).padStart(2,'0')).join('');try{store.set('crust-lb-token',t);}catch(e){}}return t;}
+function lbName(){try{return store.get('crust-lb-name')||'';}catch(e){return '';}}
+async function lbRpc(fn,body){const r=await fetch(LB.url+'/rest/v1/rpc/'+fn,{method:'POST',headers:{apikey:LB.key,'Content-Type':'application/json'},body:JSON.stringify(body)});const tx=await r.text();let j=null;try{j=tx?JSON.parse(tx):null;}catch(e){}if(!r.ok){const e=new Error((j&&j.message)||('HTTP '+r.status));e.server=true;throw e;}return j;}
+async function lbBoard(map,cls,solo){const q='best_runs?select=name,driver,kart,platform,time_ms&map=eq.'+encodeURIComponent(map)+'&cls=eq.'+cls+'&solo=eq.'+(solo?'true':'false')+'&order=time_ms.asc,created_at.asc&limit=20';
+  const r=await fetch(LB.url+'/rest/v1/'+q,{headers:{apikey:LB.key}});if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}
+let LB_VER=null;function lbVer(){if(LB_VER!=null)return Promise.resolve(LB_VER);return fetch('version.json',{cache:'no-store'}).then(r=>r.json()).then(j=>LB_VER=String(j.build||'').replace('crust-rush-','').slice(0,16)).catch(()=>LB_VER='web');}
+const lbMapKey=m=>(m.id+(m.recv?'@'+m.recv:'')).slice(0,24);
+function lbQueue(){try{return JSON.parse(store.get('crust-lb-q')||'[]')||[];}catch(e){return [];}}
+function lbSaveQ(q){try{store.set('crust-lb-q',JSON.stringify(q.slice(-40)));}catch(e){}}
+/* a finished race: on the queue, then sent */
+function lbRun(t){const m=MAPS[mapIdx];if(!player||!player.finished||player.est||player.auto||BATTLE||SBX||mode==='lss'||!(t>0)||!LB_CLS[clsKey]||m.battle)return;
+  const q=lbQueue();q.push({map:lbMapKey(m),cls:LB_CLS[clsKey],ms:Math.round(t*1000),drv:RACERS[selected].name.slice(0,16),kart:(BODIES[playerBuild.b]||BODIES[0]).name.slice(0,32),solo:karts.length===1,at:Date.now()});lbSaveQ(q);lbFlush();}
+let lbBusy=false;async function lbFlush(){if(lbBusy||!lbName())return;lbBusy=true;try{const ver=await lbVer();let q=lbQueue();while(q.length){const r=q[0];
+      try{await lbRpc('submit_run',{p_token:lbToken(),p_map:r.map,p_cls:r.cls,p_time_ms:r.ms,p_driver:r.drv,p_kart:r.kart,p_platform:'web',p_ver:ver||'web',p_solo:!!r.solo});q.shift();lbSaveQ(q);}
+      catch(e){if(e.server&&!/no player/.test(e.message)){q.shift();lbSaveQ(q);continue;}/* (a run the board refuses is dropped; a missing player or no connection waits) */break;}}}finally{lbBusy=false;}}
+addEventListener('online',()=>lbFlush());
+/* the username sheet: first time the menu is up, and from Settings */
+function lbNameSheet(after){let ov=$('lbNameOv');if(!ov){ov=document.createElement('div');ov.id='lbNameOv';ov.className='overlay';ov.innerHTML='<div class="panel sheet lb-name"><header class="g-head"><h2 class="res-title">Pick a username</h2></header>'+
+      '<p>Your name on the world leaderboards and in online rooms. 3 to 16 letters, numbers, spaces, _ . or -.</p><input id="lbNameIn" maxlength="16" autocomplete="off" spellcheck="false"><div id="lbNameMsg" class="lb-msg"></div>'+
+      '<div class="lb-row"><button id="lbNameLater" class="ghost" type="button">Not now</button><button id="lbNameOk" class="cta" type="button">Save</button></div>'+
+      '<details><summary>Already have a username on another device?</summary>Paste its account code (Settings &gt; More &gt; Username &gt; Account code there):<input id="lbCodeIn" autocomplete="off" spellcheck="false"><div class="lb-row"><button id="lbCodeOk" class="ghost" type="button">Use this code</button></div></details></div>';document.body.appendChild(ov);}
+  const inp=$('lbNameIn'),msg=$('lbNameMsg'),say=(t,c)=>{msg.textContent=t;msg.className='lb-msg'+(c?' '+c:'');};let tmo=0,seq=0;inp.value=lbName();say('');
+  inp.oninput=()=>{clearTimeout(tmo);const v=inp.value.trim();if(!v){say('');return;}if(!LB_RE.test(v)){say('3 to 16 letters, numbers, spaces, _ . or -','bad');return;}if(v.toLowerCase()===lbName().toLowerCase()){say('That is your name now','ok');return;}
+    const my=++seq;say('Checking...');tmo=setTimeout(()=>lbRpc('name_free',{p_name:v}).then(ok=>{if(my===seq)say(ok?'Available':'Taken: try another',ok?'ok':'bad');}).catch(()=>{if(my===seq)say('Cannot reach the leaderboard right now','bad');}),350);};
+  const close=()=>{ov.hidden=true;if(after)after();};
+  $('lbNameLater').onclick=close;
+  $('lbNameOk').onclick=async()=>{const v=inp.value.trim();if(!LB_RE.test(v)){say('3 to 16 letters, numbers, spaces, _ . or -','bad');return;}say('Saving...');
+    try{const nm=await lbRpc('claim_name',{p_token:lbToken(),p_name:v});try{store.set('crust-lb-name',nm||v);}catch(e){}lbSetNote();say('Saved','ok');lbFlush();setTimeout(close,500);}
+    catch(e){say(/taken/.test(e.message)?'Taken: try another':'Cannot reach the leaderboard right now. Try again later.','bad');}};
+  $('lbCodeOk').onclick=async()=>{const c=$('lbCodeIn').value.trim().toLowerCase();if(!/^[0-9a-f]{32,64}$/.test(c)){say('That is not an account code','bad');return;}
+    try{const nm=await lbRpc('whoami',{p_token:c});if(!nm){say('No username has that code','bad');return;}try{store.set('crust-lb-token',c);store.set('crust-lb-name',nm);}catch(e){}inp.value=nm;lbSetNote();say('Welcome back, '+nm,'ok');lbFlush();setTimeout(close,700);}
+    catch(e){say('Cannot reach the leaderboard right now','bad');}};
+  ov.hidden=false;setTimeout(()=>inp.focus(),50);}
+function lbSetNote(){const e=$('lbSetNote');if(e)e.textContent=lbName()?'You are '+lbName()+' on the world leaderboards and in online rooms.':'Not picked yet: pick one to put your times on the world leaderboards.';}
+/* a track's world board: the speed classes, with rivals or alone, the top 20 (each player's best) */
+let lbSt={m:0,c:'medium',solo:false};
+function lbOpen(mi,cls){lbSt={m:mi,c:cls||clsKey,solo:false};let ov=$('lbOv');if(!ov){ov=document.createElement('div');ov.id='lbOv';ov.className='overlay';ov.innerHTML='<div class="panel sheet lb-sheet"><header class="g-head"><h2 class="res-title" id="lbTitle">Leaderboard</h2><button id="lbDone" class="cta g-done" type="button">Done</button></header>'+
+      '<div class="lb-tools"><div class="seg seg4" id="lbCls"></div><div class="seg seg2" id="lbSolo"><button data-s="0">With rivals</button><button data-s="1">Alone</button></div></div><ol id="lbList" class="lb-list"></ol><div class="lb-foot" id="lbFoot"></div></div>';document.body.appendChild(ov);
+    $('lbDone').onclick=()=>{ov.hidden=true;};$('lbSolo').querySelectorAll('button').forEach(b=>b.onclick=()=>{lbSt.solo=b.dataset.s==='1';lbDraw();});}
+  ov.hidden=false;ov.scrollTop=0;lbDraw();}
+let lbSeq=0;function lbDraw(){const m=MAPS[lbSt.m];$('lbTitle').textContent=m.name;
+  $('lbCls').innerHTML=Object.keys(CLASSES).map(k=>'<button data-c="'+k+'" aria-pressed="'+(k===lbSt.c)+'">'+CLASSES[k].label+'</button>').join('');$('lbCls').querySelectorAll('button').forEach(b=>b.onclick=()=>{lbSt.c=b.dataset.c;lbDraw();});
+  $('lbSolo').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.s==='1')===lbSt.solo)));
+  const me=lbName();$('lbFoot').innerHTML=me?'You race as <b>'+lbEsc(me)+'</b>.':'<span>Pick a username to put your times here.</span><button class="ghost" type="button" id="lbPick">Pick a username</button>';if(!me)$('lbPick').onclick=()=>lbNameSheet(()=>lbDraw());
+  const L=$('lbList'),my=++lbSeq;L.innerHTML='<li class="empty">Loading...</li>';
+  lbBoard(lbMapKey(m),LB_CLS[lbSt.c],lbSt.solo).then(rows=>{if(my!==lbSeq)return;L.innerHTML=rows.length?rows.map((r,i)=>'<li'+(me&&r.name.toLowerCase()===me.toLowerCase()?' class="me"':'')+'><span class="pl">'+(i+1)+'</span><span class="nm">'+lbEsc(r.name)+'<span class="pf">'+(r.platform==='pc'?'PC':'WEB')+'</span><small>'+lbEsc(r.driver)+' \u00b7 '+lbEsc(r.kart)+'</small></span><span class="tm">'+fmt(r.time_ms/1000)+'</span></li>').join(''):'<li class="empty">No times yet. Be the first!</li>';})
+    .catch(()=>{if(my===lbSeq)L.innerHTML='<li class="empty">Cannot reach the leaderboard right now.</li>';});}
+addEventListener('cr-booted',()=>{lbSetNote();const n=$('lbSetName'),c=$('lbSetCode');if(n)n.onclick=()=>lbNameSheet();
+  if(c)c.onclick=()=>{try{window.prompt('Your account code. Keep it private: it is what makes the username yours. Paste it on another device (Settings > More > Username) to use the same name there.',lbToken());}catch(e){}};
+  setTimeout(()=>{let asked=false;try{asked=!!sessionStorage.getItem('crust-lb-asked');sessionStorage.setItem('crust-lb-asked','1');}catch(e){asked=!!window.__lbAsked;window.__lbAsked=1;}if(!lbName()&&!asked&&state==='menu')lbNameSheet();lbFlush();},2500);});
 /* ================= ACHIEVEMENTS: lifetime goals that unlock the reward liveries ================= */
 const ACH=[
   {id:'first_win',name:'First Slice',d:'Win a race.',k:'wins',n:1,lv:'r_mozz'},
@@ -9160,7 +9215,7 @@ const NET_ZB=new Set(['air','glide','onRamp','finished','big','trick','est']),NE
 let NET_Z=null;const netZ=()=>NET_Z||(NET_Z=NET_REM.map(f=>NET_ZB.has(f)?false:NET_ZN.has(f)?null:0));
 function netKEnc(v){const Z=netZ(),o=v.slice(0,8);for(let j=8;j<v.length;j++){let x=v[j];if(x===undefined)x=null;if(x!==Z[j])o.push(j,x);}return o;}
 function netKDec(a){const v=netZ().slice();for(let j=0;j<8;j++)v[j]=a[j];for(let i=8;i+1<a.length;i+=2)v[a[i]]=a[i+1];return v;}
-function netName(){try{return (store.get('crust-netname')||'').slice(0,14)||RACERS[selected].name;}catch(e){return 'Player';}}
+function netName(){try{return (lbName()||store.get('crust-netname')||'').slice(0,14)||RACERS[selected].name;}catch(e){return 'Player';}}
 function netLoadLib(){return new Promise((res,rej)=>{if(window.Peer)return res();const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';
   const to=setTimeout(()=>rej(new Error('Could not load the multiplayer library. Check your internet connection.')),15000);
   s.onload=()=>{clearTimeout(to);window.Peer?res():rej(new Error('Multiplayer library failed to start.'));};s.onerror=()=>{clearTimeout(to);rej(new Error('Could not load the multiplayer library. Check your internet connection.'));};document.head.appendChild(s);});}
