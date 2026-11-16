@@ -137,7 +137,7 @@ against the landmarks' coordinates before the real generator closed the lap; the
 ### OPEN WORK, in the order to do it (rewritten 2026-11-14 after web v193; the owner's words for each are in docs/NEXT-MODES-BRIEF.md)
 1. (done: a Grand Prix on line on the PC, the controller's cursor on the PC, the trees and previews: see the v195 entry.)
 4. (done: Balloon Battle and Sandbox on the PC: see their entries. The PC now has every mode the web has.)
-5. THE WEBSITE: `py.cmd tools/site_pc.py` brings `app/pc.html` level with the PC build (done for build 68030144 and checked again for 521732c1, 3b1ecefb and 91f7f6ea: 24 tracks,
+5. THE WEBSITE: `py.cmd tools/site_pc.py` brings `app/pc.html` level with the PC build (done for build 68030144 and checked again for 521732c1, 3b1ecefb, 91f7f6ea and 92bf344b: 24 tracks,
    Balloon Battle, Sandbox, online cups, the pointer, the size). Edit `HAS` in it when the PC's modes change, run it, commit and push `app`.
 6. SANDBOX, what the brief still asks for and is not built (docs/SANDBOX-PLAN.md has the plan for each): the coin shop (kart and car
    unlocks), online free roam and the start-line lobby with ready-up. The clock, things to do, Easter eggs, Back to the track, the mechanic's
@@ -145,7 +145,58 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
-### 2026-11-16 (web v204 and the next PC build; Sandbox only, online stays 114): drive up the hills on every pizza
+### 2026-11-16 (web v205; Sandbox only, online stays 114; the PC still has the old playset shop): the mechanic's shop, and pulling in
+The owner sent a video of a car pulling into a mechanic's garage in another game: "that is what i want for the garage in sandbox. it should
+be cool like in the video when you pull in", then "add some texture to the garage building" and "add more details inside the mechanic shop,
+stuff on the walls and stuff sitting around the shop similar to the shop in the video". Copied: the feel and the camera (the door rolling
+up, a low shot from behind a lift post, the name card); nothing of the other game's names, signs or look. Web: tools/mini/patch41.py and
+patch41b.py; the model tools/blender/mechshop.py (toy_mshop_hq 725 KB, toy_mshopdoor_hq 75 KB).
+- THE MODEL is a real-size workshop, 14.6 x 13.1 m, 6.7 m to the parapet; the game shrinks it by SHOP_K = 100/14.6 units a metre onto
+  SB_SHOP's old footprint (100 x 90 units, a kart about 1.9 m). Front (the door) is +z. Outside: brick plinth, painted block, a blue
+  band, our sign (drawn: "CRUST RUSH GARAGE · TUNING & REPAIRS" with a spanner-and-slice mark), roller door box, wall lamps, bollards,
+  a hazard-striped apron. Inside: a two-post lift with swing arms, bench with vice and pegboard, tool chests and carts, compressor,
+  tyre stacks and a rail of hung tyres, drums, shelving, engine hoist, tyre changer, axle stands, drain pan, cans, cones, a pallet of
+  crates, a bin and broom, posters (PIZZA GRAND PRIX, GRIP tyres, a kart blueprint), safety signs, a clock, a TV, an electrics panel,
+  an extinguisher, a wall fan, strip lights, steel beams, pennant strings. The texture pairs: concrete, painted brick (gbrick), brick,
+  asphalt, ash (sbShopTex: the toy module does not export woodTex).
+- THE TOY MODULE: the toy-room helpers (pk, pkReady, paint, metal, mat, std ...) live in `TM` (const TM=(function(){...})()), not in the
+  game's own scope: call them as TM.pk etc. from anywhere outside tools/mini/models.js.
+- PULLING IN (sbShopTick / sbShopInp / sbShopFrame): the door rolls up over 1.1 s while the kart is in front of it (and down over 1.4 s
+  once it is away); its curtain is solid until 80% open (SB.shopDr). Past the threshold the shop drives (the update loop takes
+  sbShopInp for the player: straight for the bay, slower and slower), the camera sits low inside behind the right lift post and drifts
+  (fov 48), #cine's letterbox bars and card show the kart's name ("Pep's ride · Mechanic's shop"), the HUD and Sandbox's buttons hide
+  (stage.cinema, body.sbshop). The kart stops on the bay, holds 2.6 s, the screen fades to black and the driver screen opens as before.
+  A tap (#cine's own handler, introSkip) or Enter / Space / Escape skips. Back out: sbShopPut leaves the door open behind you.
+  Until the two packs arrive (they load after the menu) the old code-built playset stands there and works as before; sbShopTick swaps
+  the new one in once they have.
+- Tested: scratch/shop_drive2.js (sbprobe garage): door 0 at rest, opening as the kart comes, the kart stops on the bay (y -448, the bay
+  is -447), the card, the fade, the driver screen; scratch/shop_walls.js photographs each inside wall (fixed two mirrored posters and
+  axle stands that stood in the cinematic's view).
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| The first build of the shop code stopped Sandbox's step: "pkReady is not defined" | The toy helpers are inside the TM module | TM.pkReady / TM.pk / TM.paint ... | Search for a helper's scope before calling it from outside its file |
+| The cinematic camera was overridden | sbCam (the chase camera's walls check) ran after it | sbShopFrame runs last in sbRender | Anything that owns the camera goes at the end of sbRender |
+| Pictures on side walls came out mirrored | uv01 maps the face's across axis one way; a picture seen from inside a left wall reads the other way | uv01(o, ax, flip) per wall: front flip, left not, right flip | Photograph each wall from inside after changing a picture |
+| A kart in a hollow on Oven Rush could not drive out: "an invisible border was blocking me" | sbBlocked counted a drawn thing in the way when its top stood a step above the KART; cheese and pepperoni discs lying on a slope ahead do, only because the hill rises | patch42 (and PC sandbox.gd blocked): on a pizza a drawn thing counts from the higher of the kart and the ground under it | scratch/dip_find.js: 200 random spots off the road, can a kart drive out in six directions (1 trapped before, 0 after) |
+| The owner could not take item boxes on the kitchen track in Sandbox on the PC | NOT reproduced: godot tests/sbbox.tscn (CR_MAP=kitchen CR_MODE=sb) takes all 9, set down on them and driven through at speed; the web takes them too | (open: asked the owner what happened) | Run sbbox.tscn after any change to the box test or Sandbox's ground |
+
+The PC: (1) after leaving an online room the menu still thought it was in one and kept hiding Balloon Battle and Sandbox (off line only)
+until a restart: webnet.leave() now clears menu.net (the owner: "both balloon battle and sandbox disappeared"). (2) The PC's shop is still the
+old playset: porting the model and the pulling in is open work.
+
+### 2026-11-16 (the PC build after 92bf344; no online change): three things a PC guest saw wrong in a browser host's race
+The owner, on the PC exe as a guest: "when throwing a projectile for some you dont see them come from the car for example the anchovie",
+"the sound effect for hitting an item wasnt working on pc", "i can drive right inside the other online players car, on their end it shows
+us hitting each other but on the pc end it was showing me inside their car". All three are the picture or the sound on the guest only;
+the host still decides everything, so nothing here changes what the race does (no online version change). webnet.gd, view.gd, kart.gd.
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| No box break or pickup sound when a PC guest drove through an item box | A PC guest's boxes changed only by snapshot, and nothing made a "box" event; the web guest breaks the box at once (netGuestStep) | webnet `_box_guess` after each step (the race's own box test, `pr` marks it), and `_snap` breaks a box someone else took (nearest kart), as the web's boxFx(b, nk, true) | A guest shows what it can predict at once; the host's snapshot only confirms |
+| A guest's own anchovy (any fast throw) first appeared far up the road | It exists only in the host's snapshots, which reach the guest a trip late, while the guest's own kart is drawn where it is now | `_snap` gives a guest's own new projectile `lox/loy/lt` (the gap to the kart); view._draw_projectiles closes it over 0.3 s | Picture only; never move the projectile itself on a guest |
+| A PC guest seemed to drive inside a friend the host showed it bumping | The guest's kart is drawn where it is now, the others where the last snapshot put them: half a round trip plus a snapshot behind, about a kart length at speed | Kart.lead (webnet `_snap`: half the ping plus one snapshot, at most 0.15 s); view.draw_kart draws the others that much further along their heading | Picture only; the bump itself is the host's |
+The web guest has the same two picture gaps (projectiles, other karts drawn late); not changed there yet.
+
+### 2026-11-16 (web v204 and PC build 92bf344b; Sandbox only, online stays 114): drive up the hills on every pizza
 The owner, with a picture of the dunes beside Oven Rush Raceway: "You should be able to drive up them unless of course they are straight up
 and down. The car should struggle a little like a real car would ... better off-roading will help as well". Web: tools/mini/patch40.py;
 PC: kart.gd (the pull) and sandbox.gd `blocked` (the cliff), the same numbers.

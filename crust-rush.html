@@ -488,6 +488,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 #cine .c-card span{display:inline-block;margin-top:4px;font-size:13px;font-weight:700;color:#fff;background:rgba(0,0,0,.45);padding:3px 10px;border-radius:6px}
 #cine .c-skip{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(12vh + 10px);font-weight:800;font-size:13px;color:#fff;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.3);border-radius:99px;padding:6px 14px}
 #stage.cinema .hud-in{opacity:0;transition:opacity .3s}
+body.sbshop #sbPark,body.sbshop #sbSpd,body.sbshop #sbHud,body.sbshop #sbMapBtn,body.sbshop #sbBackBtn,body.sbshop #sbRace,body.sbshop #sbActB{visibility:hidden!important}
 .detail .abil{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:rgba(255,244,220,.06);border:1px solid rgba(255,244,220,.12)}
 .detail .abil i{flex:0 0 auto;width:12px;height:12px;border-radius:50%;box-shadow:0 0 10px currentColor}
 .detail .abil b{font-size:13px;white-space:nowrap}.detail .abil span{font-size:11.5px;color:rgba(255,244,220,.75);line-height:1.25}
@@ -5686,7 +5687,10 @@ function sbGrav(k){return clamp(.69-.04*sbOffRd(k),.4,.95);}
 function sbClimb(k){return SB_R*clamp(1.88+.24*sbOffRd(k),1.19,2.75);}
 function sbBlocked(x,z,wy){const n=sbSurf(x,z),S=SB.S,lv=sbLvl();for(let i=0;i<n;i++)if(S[i][2]>=0&&S[i][4]&&Math.abs(S[i][1]+2.5-wy)<=lv)return false;
   if(SB.kind==='open'&&!SB.inG){/* a pizza's own ground: a face that rises more than a step from where the kart stands is a cliff, not a hill (the land beside some tracks climbs 180 in a few lengths), and water deeper than the wheels is a shore */const g0=groundAt(x,z);if(g0>wy+sbClimb(player)||(WATER_Y!=null&&g0<WATER_Y-3&&wy<WATER_Y+SB_HEAD))return true;}
-for(let i=0;i<n;i++)if(S[i][0]>wy+SB_STEP&&S[i][1]<wy+SB_HEAD)return true;return false;}
+/* (patch 42) on a pizza a drawn thing counts by how far it stands above the ground it lies on: a cheese or pepperoni disc lying on a slope ahead
+   used to stand more than a step above the kart only because the hill rises, and hollows ringed with them could not be driven out of. Real walls
+   still stand far above both. */
+const base=SB.kind==='open'&&!SB.inG?Math.max(wy,groundAt(x,z)):wy;for(let i=0;i<n;i++)if(S[i][0]>base+SB_STEP&&S[i][1]<wy+SB_HEAD)return true;return false;}
 function sbTouch(x,z,wy,out){let nx=0,nz=0,n=0;for(let i=0;i<8;i++){const a=i*.785398,sx=Math.cos(a),sz=Math.sin(a);if(sbBlocked(x+sx*SB_R,z+sz*SB_R,wy)){nx+=sx;nz+=sz;n++;}}
   if(!n)return 0;const l=Math.hypot(nx,nz);if(l<1e-6){out.x=0;out.z=0;return 2;}out.x=nx/l;out.z=nz/l;return 1;}
 const _sbN={x:0,z:0};
@@ -5956,7 +5960,7 @@ function sbCam(){const k=camT;if(!k||state==='menu'||!SBF)return;if(k.loop||k.rt
   camera.position.set(tx+(cx-tx)*f,ty+(cy-ty)*f+(1-f)*9,tz+(cz-tz)*f);{/* pulled in close, it looks more and more at the kart itself, so the kart stays in the picture */const w=Math.min(1,(1-f)*1.6);camera.lookAt(cam.look.x+(tx-cam.look.x)*w,cam.look.y+cam.oy*.45+(ty-2-cam.look.y-cam.oy*.45)*w,cam.look.z+(tz-cam.look.z)*w);}}
 function sbRender(time){sbSpdUi();{const dt=Math.min(.1,Math.max(0,time-(SB.wT==null?time:SB.wT)));SB.wT=time;sbWarpTick(dt);}if(SBC.stars)SBC.stars.position.copy(camera.position);if(!SB.grp)return;sbCam();if(SB.flag){SB.flag.F.rotation.y=time*1.6;SB.flag.F.position.y=12+Math.sin(time*2.2)*1.2;}const im=SB.im;for(const c of SB.coins){const a=time*2.6+c.ph;if(c.rare){if(c.m&&c.m.visible){c.m.rotation.y=a;c.m.position.y=c.y+Math.sin(time*2+c.ph)*.8;}continue;}
     _sbE.set(0,a,0);_sbQ.setFromEuler(_sbE);_sbP.set(c.x,c.y,c.z);const s=c.t>0?0:1;_sbS.set(s,s,s);_sbM.compose(_sbP,_sbQ,_sbS);im.setMatrixAt(c.i,_sbM);}
-  if(im)im.instanceMatrix.needsUpdate=true;}
+  if(im)im.instanceMatrix.needsUpdate=true;try{sbShopFrame(time);}catch(e){console.warn('shop',e);}/* (patch 41) last: it owns the camera while pulling in */}
 function sbHud(){let e=SB.el;if(!e){e=SB.el=document.createElement('div');e.id='sbHud';e.style.cssText='position:absolute;left:max(10px,env(safe-area-inset-left));top:64px;z-index:6;font:700 13px/1.3 system-ui,sans-serif;color:#fff4dc;background:rgba(18,9,6,.62);border-radius:12px;padding:8px 12px;pointer-events:none;text-shadow:0 1px 2px #000';stage.appendChild(e);}
   e.hidden=!SBX||state==='menu';if(BB.el)BB.el.hidden=true;if(e.hidden)return;const sv=sbSave(),f=sbFound(),dot=(c,r)=>'<span style="display:inline-block;width:'+r+'px;height:'+r+'px;border-radius:50%;background:'+c+';box-shadow:inset 0 0 0 2px rgba(0,0,0,.25);vertical-align:-2px;margin-right:6px"></span>';
   e.innerHTML='<div style="font-size:11px;letter-spacing:.6px;opacity:.85;text-transform:uppercase">'+SB.reg.name+'</div><div style="font-size:20px;margin-top:2px">'+dot('#ffc93a',15)+sv.c+'</div><div style="margin-top:2px">'+dot('#d8402a',13)+f[0]+' / '+f[1]+'</div>'+(SB_CLOCK?'<div style="margin-top:3px;font-size:12px;opacity:.9">'+sbClockIcon()+sbClockStr()+'</div>':'');}
@@ -6216,7 +6220,7 @@ function sbClockSet(t){if(!SB_CLOCK)return null;SB.clock=((+t||0)%1+1)%1;sbClock
    and fast travel to it sets you down at its door. */
 const SB_SHOP={id:'garage',x:205,z:-443,w:100,d:90,h:46};
 function sbShopIn(){return SBX&&SB.regId===SB_SHOP.id;}
-function sbShopBuild(){if(!sbShopIn()||!SB.grp)return;const S=SB_SHOP,G=new THREE.Group(),x0=S.x-S.w/2,x1=S.x+S.w/2,z0=S.z-S.d/2,z1=S.z+S.d/2,H=S.h,T=4;
+function sbShopOld(){const S=SB_SHOP,G=new THREE.Group(),x0=S.x-S.w/2,x1=S.x+S.w/2,z0=S.z-S.d/2,z1=S.z+S.d/2,H=S.h,T=4;
   const pl=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.38,metalness:.02},o||{}));
   const box=(w,h,d,m,x,y,z)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;G.add(o);return o;};
   const red=pl('#d8342a'),yel=pl('#f5c21b'),blu=pl('#2a5bd7'),gry=pl('#8d949c',{roughness:.6}),drk=pl('#2b2f35',{roughness:.7});
@@ -6235,19 +6239,101 @@ function sbShopBuild(){if(!sbShopIn()||!SB.grp)return;const S=SB_SHOP,G=new THRE
   {const tg=new THREE.TorusGeometry(5,2.4,10,22);for(let i=0;i<3;i++){const o=new THREE.Mesh(tg,drk);o.rotation.x=Math.PI/2;o.position.set(x0+14,4.5+i*4.6,z0+14);o.castShadow=true;G.add(o);}}
   box(16,12,9,red,x1-16,8,z0+10);box(16.4,2,9.4,gry,x1-16,14.6,z0+10);for(let i=0;i<3;i++)box(14,.6,.4,gry,x1-16,4+i*3.4,z0+14.8);
   for(const sx of [S.x-24,S.x+24])box(3,30,3,yel,sx,17,S.z-14);box(52,2.4,3,yel,S.x,30,S.z-14);
-  G.traverse(o=>{o.userData.sunlit=true;});SB.grp.add(G);SB.shopG=G;
-  /* solid: the walls (the roof is overhead, out of a kart's way) */const wall=(a,b,c,d)=>SB.shapes.push({t:'box',x0:a,x1:b,z0:c,z1:d,b:0,h:H+2});
+  G.traverse(o=>{o.userData.sunlit=true;});SB.grp.add(G);SB.shopG=G;SB.shopPk=false;
+  /* solid: the walls (the roof is overhead, out of a kart's way) */const wall=(a,b,c,d)=>SB.shapes.push({t:'box',x0:a,x1:b,z0:c,z1:d,b:0,h:H+2,shop:1});
   wall(x0,x1,z0,z0+T);wall(x0,x0+T,z0,z1);wall(x1-T,x1,z0,z1);SB.shopIn=false;}
 /* each step: driving in opens the driver screen (once a visit: you have to leave the shop before it opens again) */
-function sbShopTick(k){if(!sbShopIn())return;const S=SB_SHOP,inside=k.x>S.x-S.w/2+10&&k.x<S.x+S.w/2-10&&k.y>S.z-S.d/2+6&&k.y<S.z+S.d/2-22&&Math.abs(k.wy||0)<8;
-  if(inside&&!SB.shopIn&&!SB.trav&&state==='race'){SB.shopIn=true;sbShopOpen();return;}if(!inside&&k.y>S.z+S.d/2+10)SB.shopIn=false;}
+/* ---- (patch 41) the Blender-built shop: tools/blender/mechshop.py. The model is a real 14.6 m workshop; SHOP_K game units to the metre
+   puts it on the old footprint. Blender's front (-Y) is the game's +z, where the door is. */
+const SHOP_K=100/14.6,SHOP_BAY=-.6*SHOP_K/* the lift bay's middle, from the shop's middle (z) */,SHOP_DW=2.6*SHOP_K/* half the door's width */,SHOP_DH=4.4*SHOP_K,SHOP_FL=.12*SHOP_K/* the floor slab */;
+/* a stored texture pair (tex_toy_<key>, its relief _n) as a material; plain paint when the pictures are not there */
+function sbShopTex(key,rough,col){const {mat,std,paint}=TM;if(typeof PROP_TEX==='undefined'||!PROP_TEX['tex_toy_'+key]||!PROP_TEX['tex_toy_'+key+'_n'])return paint('shop_'+key,col,rough);
+  return mat('shopt_'+key,()=>{const c=propTex('tex_toy_'+key),n=propTex('tex_toy_'+key+'_n',false);for(const t of [c,n])t.wrapS=t.wrapT=THREE.RepeatWrapping;return std({map:c,normalMap:n,normalScale:new THREE.Vector2(.8,.8),roughness:rough,metalness:0,envMapIntensity:.6});});}
+function sbShopSign(w,h,draw){const c=cnv(w,h),g=c.getContext('2d');draw(g,w,h);const t=T2(c);t.userData.keepCanvas=true;return new THREE.MeshStandardMaterial({map:t,roughness:.5,metalness:0,envMapIntensity:.5});}
+/* a spanner crossed with a pizza slice: our own mark, nobody else's */
+function sbShopMark(g,x,y,r){g.save();g.translate(x,y);g.fillStyle='#f2c21b';g.beginPath();g.moveTo(0,-r);g.lineTo(r*.86,r*.5);g.lineTo(-r*.86,r*.5);g.closePath();g.fill();g.fillStyle='#c0392b';for(const [px,py] of [[0,-r*.25],[-r*.3,r*.25],[r*.3,r*.22]]){g.beginPath();g.arc(px,py,r*.13,0,7);g.fill();}
+  g.strokeStyle='#d8a24a';g.lineWidth=r*.14;g.beginPath();g.moveTo(-r*.86,r*.5);g.lineTo(r*.86,r*.5);g.stroke();g.rotate(-.75);g.fillStyle='#cfd5db';g.fillRect(-r*1.15,-r*.09,r*2.3,r*.18);for(const e of [-1,1]){g.beginPath();g.arc(e*r*1.15,0,r*.27,0,7);g.fill();}g.fillStyle='#1b1f26';g.fillRect(-r*1.42,-r*.08,r*.3,r*.16);g.fillRect(r*1.12,-r*.08,r*.3,r*.16);g.restore();}
+function sbShopMats(){const {paint,metal,mat,std}=TM,tx=(k,r,col,t)=>[sbShopTex(k,r,col),t];
+  return {mconc:tx('concrete',.85,'#8f8c86',260),mblock:tx('gbrick',.9,'#d9d6cf',150),mbrick:tx('brick',.85,'#9a5a44',120),mroof:tx('asphalt',.9,'#55585c',300),
+    myel:[paint('shop_yel','#f2c21b',.45),60],mred:[paint('shop_red','#b8261d',.35),60],mblue:[paint('shop_blue','#24508f',.4),60],msteel:[paint('shop_steel','#5a616a',.45),60],
+    mgalv:[metal('shop_galv','#a0a6ac',.42),60],mchrome:[metal('shop_chrome','#d4d7db',.18),60],mrubber:[paint('shop_rubber','#2a2a2b',.9),60],mwood:tx('ash',.55,'#b88a55',90),
+    mlamp:[mat('shop_lamp',()=>new THREE.MeshBasicMaterial({color:'#fff8e0',toneMapped:false})),60],mglass:[mat('shop_glass',()=>std({color:'#5f7f8f',roughness:.08,metalness:.2,envMapIntensity:1.2})),60],
+    mblack:[paint('shop_black','#16171a',.55),60],/* (patch 41b) the pictures on the walls and the new things about the floor */
+    mposter1:[mat('shop_p1',()=>sbShopSign(256,358,(g,w,h)=>{const gr=g.createLinearGradient(0,0,0,h);gr.addColorStop(0,'#1d2b4a');gr.addColorStop(1,'#b8261d');g.fillStyle=gr;g.fillRect(0,0,w,h);
+      g.strokeStyle='rgba(255,255,255,.25)';g.lineWidth=14;g.beginPath();g.moveTo(-20,h*.78);g.bezierCurveTo(w*.3,h*.55,w*.6,h*.95,w+20,h*.6);g.stroke();sbShopMark(g,w/2,h*.36,58);
+      g.fillStyle='#fbf3df';g.textAlign='center';g.font='900 34px Arial Black, Arial';g.fillText('PIZZA',w/2,h*.68);g.fillText('GRAND PRIX',w/2,h*.79);g.fillStyle='#f2c21b';g.font='700 18px Arial';g.fillText('MARGHERITA RING \u00b7 SUNDAY',w/2,h*.9);})),100],
+    mposter2:[mat('shop_p2',()=>sbShopSign(256,358,(g,w,h)=>{g.fillStyle='#f2c21b';g.fillRect(0,0,w,h);g.fillStyle='#16171a';g.beginPath();g.arc(w/2,h*.42,92,0,7);g.fill();g.fillStyle='#f2c21b';g.beginPath();g.arc(w/2,h*.42,48,0,7);g.fill();
+      g.strokeStyle='#16171a';g.lineWidth=7;for(let i=0;i<16;i++){const a=i/16*6.283;g.beginPath();g.moveTo(w/2+Math.cos(a)*70,h*.42+Math.sin(a)*70);g.lineTo(w/2+Math.cos(a)*92,h*.42+Math.sin(a)*92);g.stroke();}
+      g.fillStyle='#16171a';g.textAlign='center';g.font='900 38px Arial Black, Arial';g.fillText('GRIP',w/2,h*.82);g.font='700 19px Arial';g.fillText('TYRES THAT STICK LIKE CHEESE',w/2,h*.92);})),100],
+    mposter3:[mat('shop_p3',()=>sbShopSign(320,240,(g,w,h)=>{g.fillStyle='#22508f';g.fillRect(0,0,w,h);g.strokeStyle='rgba(255,255,255,.18)';g.lineWidth=1;for(let x=0;x<w;x+=16){g.beginPath();g.moveTo(x,0);g.lineTo(x,h);g.stroke();}for(let y=0;y<h;y+=16){g.beginPath();g.moveTo(0,y);g.lineTo(w,y);g.stroke();}
+      g.strokeStyle='#eef4ff';g.lineWidth=3;g.beginPath();g.moveTo(40,150);g.lineTo(90,110);g.lineTo(220,104);g.lineTo(280,140);g.lineTo(280,160);g.lineTo(40,160);g.closePath();g.stroke();for(const x of [85,235]){g.beginPath();g.arc(x,165,26,0,7);g.stroke();g.beginPath();g.arc(x,165,9,0,7);g.stroke();}
+      g.fillStyle='#eef4ff';g.font='700 18px Arial';g.fillText('KART No.1 \u00b7 SIDE ELEVATION',20,32);g.font='14px Arial';g.fillText('scale 1:10',20,222);})),100],
+    msafety:[mat('shop_saf',()=>sbShopSign(300,200,(g,w,h)=>{g.fillStyle='#f2c21b';g.fillRect(0,0,w,h);g.fillStyle='#16171a';g.fillRect(8,8,w-16,h-16);g.fillStyle='#f2c21b';g.fillRect(14,14,w-28,h-28);
+      g.fillStyle='#16171a';g.beginPath();g.moveTo(58,40);g.lineTo(100,112);g.lineTo(16,112);g.closePath();g.fill();g.fillStyle='#f2c21b';g.font='900 56px Arial';g.textAlign='center';g.fillText('!',58,106);
+      g.fillStyle='#16171a';g.textAlign='left';g.font='900 30px Arial Black, Arial';g.fillText('SAFETY',112,72);g.fillText('FIRST',112,106);g.font='700 18px Arial';g.fillText('GOGGLES ON IN THE BAY',22,160);})),100],
+    mclock:[mat('shop_clock',()=>sbShopSign(256,256,(g,w,h)=>{g.fillStyle='#f4f1ea';g.fillRect(0,0,w,h);g.fillStyle='#16171a';for(let i=0;i<12;i++){const a=i/12*6.283;g.save();g.translate(w/2,h/2);g.rotate(a);g.fillRect(-3,-118,6,i%3?14:26);g.restore();}
+      g.lineCap='round';g.strokeStyle='#16171a';g.lineWidth=8;g.beginPath();g.moveTo(w/2,h/2);g.lineTo(w/2+48,h/2-40);g.stroke();g.lineWidth=5;g.beginPath();g.moveTo(w/2,h/2);g.lineTo(w/2-20,h/2-94);g.stroke();g.strokeStyle='#b8261d';g.lineWidth=2;g.beginPath();g.moveTo(w/2,h/2);g.lineTo(w/2+70,h/2+60);g.stroke();})),100],
+    mtv:[mat('shop_tv',()=>{const m=sbShopSign(340,196,(g,w,h)=>{g.fillStyle='#0c1a2c';g.fillRect(0,0,w,h);g.strokeStyle='#ff8a1f';g.lineWidth=10;g.beginPath();g.moveTo(30,150);g.bezierCurveTo(90,40,190,190,300,60);g.stroke();
+      g.fillStyle='#e0452c';g.fillRect(14,14,58,24);g.fillStyle='#fff';g.font='900 16px Arial';g.fillText('LIVE',24,32);g.font='700 16px Arial';g.fillText('LAP 2/3  \u00b7  P1 PEP',190,182);});m.emissive=new THREE.Color('#ffffff');m.emissiveMap=m.map;m.emissiveIntensity=.55;return m;}),100],
+    mcone:[paint('shop_cone','#ff6a1a',.5),60],mtarp:[paint('shop_tarp','#2f6f6a',.85),60],mdoor:[metal('shop_door','#b9bec4',.4),40],mpeg:[paint('shop_peg','#c7b08a',.8),60],mgreen:[paint('shop_green','#2f6b3d',.45),60],
+    msign:[mat('shop_sign',()=>sbShopSign(1024,202,(g,w,h)=>{g.fillStyle='#1d2b4a';g.fillRect(0,0,w,h);g.fillStyle='#f2c21b';g.fillRect(0,h-14,w,14);g.fillRect(0,0,w,8);sbShopMark(g,105,h/2+6,62);
+      g.fillStyle='#fbf3df';g.font='900 86px Arial Black, Arial';g.textBaseline='middle';g.fillText('CRUST RUSH',200,h/2-14);g.fillStyle='#f2c21b';g.font='700 40px Arial';g.fillText('GARAGE  \u00b7  TUNING & REPAIRS',204,h/2+52);})),100],
+    mlogo:[mat('shop_logo',()=>sbShopSign(1024,376,(g,w,h)=>{g.fillStyle='#e9e2d0';g.fillRect(0,0,w,h);g.fillStyle='rgba(0,0,0,.06)';for(let i=0;i<60;i++)g.fillRect(Math.random()*w,Math.random()*h,2+Math.random()*30,1+Math.random()*3);
+      sbShopMark(g,170,h/2,120);g.fillStyle='#1d2b4a';g.font='italic 900 120px Arial Black, Arial';g.textBaseline='middle';g.fillText('Crust Rush',330,h/2-40);g.fillStyle='#b8261d';g.font='italic 700 58px Arial';g.fillText('Garage \u00b7 est. 2026',340,h/2+70);})),100]};}
+function sbShopBuild(){if(!sbShopIn()||!SB.grp)return;SB.shapes=SB.shapes.filter(q=>!q.shop);if(SB.shopG){SB.grp.remove(SB.shopG);SB.shopG=null;}SB.shopDoorG=null;SB.shopLt=null;
+  if(!TM.pkReady('mshop')||!TM.pkReady('mshopdoor')){sbShopOld();return;}
+  const S=SB_SHOP,K=SHOP_K,sc=K/347,G=new THREE.Group(),Mt=sbShopMats();for(const q in Mt)if(!Mt[q])delete Mt[q];
+  const B=TM.pk('mshop',Mt);B.scale.setScalar(sc);B.position.set(S.x,0,S.z);G.add(B);
+  const D=TM.pk('mshopdoor',Mt);D.scale.setScalar(sc);const Dg=new THREE.Group();Dg.position.set(S.x,SHOP_FL,S.z+6.42*K);Dg.add(D);G.add(Dg);SB.shopDoorG=Dg;
+  /* the light inside: off until the door opens */const L=new THREE.PointLight('#fff1d6',0,150,1.4);L.position.set(S.x,4.6*K,S.z);G.add(L);SB.shopLt=L;
+  G.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});SB.grp.add(G);SB.shopG=G;SB.shopPk=true;
+  /* solid: the walls, the door while it is shut, the lift posts; the slab and the apron are floor */
+  const x0=S.x-50,x1=S.x+50,z0=S.z-6.55*K,z1=S.z+6.55*K,T=.3*K+.6,H=S.h,box=(a,b,c,d,h,bt)=>SB.shapes.push({t:'box',x0:a,x1:b,z0:c,z1:d,b:bt==null?0:bt,h,shop:1});
+  box(x0,x1,z0,z0+T,H);box(x0,x0+T,z0,z1,H);box(x1-T,x1,z0,z1,H);box(x0,S.x-SHOP_DW,z1-T,z1,H);box(S.x+SHOP_DW,x1,z1-T,z1,H);
+  const dr={t:'box',x0:S.x-SHOP_DW,x1:S.x+SHOP_DW,z0:z1-T,z1:z1,b:0,h:H,shop:1};SB.shapes.push(dr);SB.shopDr=dr;
+  box(x0,x1,z0,z1,SHOP_FL,-1);box(S.x-3.6*K,S.x+3.6*K,z1,z1+4.2*K,.08*K,-1);
+  for(const sx of [-1,1])SB.shapes.push({t:'cyl',x:S.x+sx*1.85*K,z:S.z-.6*K,r:.3*K,b:0,h:4*K,shop:1});
+  SB.shopIn=false;SB.shopQ=null;SB.shopD=SB.shopD||0;sbShopDoor(SB.shopD);}
+/* the door: f 0 shut, 1 open (rolled up into its box) */
+function sbShopDoor(f){SB.shopD=f;const g=SB.shopDoorG;if(g){const h=1-.95*f;g.scale.y=h;g.position.y=SHOP_FL+SHOP_DH*(1-h);g.visible=f<.99;}if(SB.shopDr)SB.shopDr.h=f>.8?-1:SB_SHOP.h;if(SB.shopLt)SB.shopLt.intensity=SB.shopQ?1.6:Math.min(1,f*1.4)*1.2;}
+/* each step: the door, and the way in */
+function sbShopTick(k){if(!sbShopIn())return;const S=SB_SHOP,z1=S.z+6.55*SHOP_K,Q=SB.shopQ;
+  if(!SB.shopPk&&TM.pkReady('mshop')&&TM.pkReady('mshopdoor'))sbShopBuild();/* the models arrived after the room was built: swap them in */
+  if(!SB.shopPk){/* the old open-fronted playset until then: drive in and the driver screen opens, as before */const inside=k.x>S.x-S.w/2+10&&k.x<S.x+S.w/2-10&&k.y>S.z-S.d/2+6&&k.y<S.z+S.d/2-22&&Math.abs(k.wy||0)<8;
+    if(inside&&!SB.shopIn&&!SB.trav&&state==='race'){SB.shopIn=true;sbShopOpen();return;}if(!inside&&k.y>S.z+S.d/2+10)SB.shopIn=false;return;}
+  const near=Math.abs(k.x-S.x)<46&&k.y>z1-50&&k.y<z1+95;const want=Q||near?1:0;let f=SB.shopD||0;if(f!==want){f+=(want?1:-1)*STEP/(want?1.1:1.4);f=clamp(f,0,1);sbShopDoor(f);if(want&&f>0&&f<.2&&!SB.shopSnd){SB.shopSnd=1;try{SFX.bump(.25);}catch(e){}}if(!want)SB.shopSnd=0;}
+  if(!Q){if(f>.8&&!SB.shopIn&&!SB.trav&&state==='race'&&k.y<z1-4&&k.y>S.z&&Math.abs(k.x-S.x)<SHOP_DW){SB.shopIn=true;SB.shopQ={t:0,drive:true,st:'in'};if(SBA&&SBA.act)sbActEnd('cancel');try{SFX.ready();}catch(e){}}
+    if(k.y>z1+20)SB.shopIn=false;return;}
+  Q.t+=STEP;const bay=S.z+SHOP_BAY,left=k.y-bay;
+  if(Q.st==='in'&&(Math.abs(left)<3||Q.t>7)){Q.st='hold';Q.h=0;}
+  if(Q.st==='hold'){k.speed*=.9;if(Math.abs(k.speed)<.5)k.speed=0;Q.h+=STEP;if(Q.h>2.6&&!Q.fade){Q.fade=1;sbShopFade(true);setTimeout(()=>{if(SB.shopQ===Q)sbShopGo();},380);}}}
+/* the controls while the shop drives: straight for the bay, slower and slower */
+function sbShopInp(k){const S=SB_SHOP,Q=SB.shopQ,bay=S.z+SHOP_BAY,ax=S.x,az=Math.min(k.y-12,bay-8),want=Math.atan2(az-k.y,ax-k.x),left=Math.max(0,k.y-bay);
+  const st=Q.st==='in'?clamp(angDiff(want,k.a)*2.4,-1,1):0;return {steer:st,brake:false,nb:false,mul:Q.st==='in'?clamp(.1+left/90,.1,.42):0,use:false,back:false,hold:false,holdSl:1,release:null};}
+function sbShopGo(){const Q=SB.shopQ;SB.shopQ=null;sbShopCard(false);sbShopOpen();setTimeout(()=>sbShopFade(false),250);}
+/* the black between the shop and the driver screen */
+function sbShopFade(on){let el=document.getElementById('sbShopFade');if(!el){el=document.createElement('div');el.id='sbShopFade';el.style.cssText='position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .35s;z-index:60';document.body.appendChild(el);}el.style.opacity=on?'1':'0';}
+/* the kart's name, as it rolls in: the intro's own cinematic overlay (#cine: letterbox bars, the card, Skip); the HUD and Sandbox's
+   buttons are hidden meanwhile (stage.cinema, and the sbshop class for the buttons outside the HUD) */
+function sbShopCard(on){const ci=$('cine');if(!ci)return;if(on){const b=BODIES[playerBuild.b]||BODIES[0];stage.classList.add('cinema');document.body.classList.add('sbshop');ci.hidden=false;ci.classList.remove('out');void ci.offsetWidth;ci.classList.add('on');
+    $('cineName').textContent=b.name;$('cineSub').textContent=(player&&player.r?player.r.name+'’s ride · ':'')+'Mechanic’s shop';$('cineSkip').hidden=false;SB.shopCine=true;}
+  else if(SB.shopCine){SB.shopCine=false;stage.classList.remove('cinema');document.body.classList.remove('sbshop');ci.classList.remove('on');ci.classList.add('out');setTimeout(()=>{if(!SB.shopCine&&state!=='intro')ci.hidden=true;},450);}}
+/* each frame while pulling in: the camera low inside, behind the lift, drifting; the name at 0.8 s; a tap or a key skips */
+function sbShopFrame(time){const Q=SB.shopQ;if(!Q||!SBX){if(SB.shopCamOn){SB.shopCamOn=false;camera.fov=SB.shopFov||camera.fov;camera.updateProjectionMatrix();}return;}
+  const S=SB_SHOP,K=SHOP_K,k=player;if(!SB.shopCamOn){SB.shopCamOn=true;SB.shopFov=camera.fov;camera.fov=48;camera.updateProjectionMatrix();Q.c0=time;
+    const sk=e=>{if(!SB.shopQ||SB.shopQ!==Q||Q.fade)return;if(e.type==='keydown'&&!['Enter',' ','Escape','KeyX','KeyZ','KeyA'].includes(e.key)&&!['Space','Enter','Escape'].includes(e.code))return;Q.fade=1;sbShopFade(true);setTimeout(()=>{if(SB.shopQ===Q)sbShopGo();},380);};
+    addEventListener('keydown',sk);Q.unhook=()=>removeEventListener('keydown',sk);}
+  const u=time-Q.c0;if(!Q.card){Q.card=1;introSkip=false;sbShopCard(true);}if(introSkip&&!Q.fade){introSkip=false;Q.fade=1;sbShopFade(true);setTimeout(()=>{if(SB.shopQ===Q)sbShopGo();},380);}
+  const e=Math.min(1,u/5),ease=e*e*(3-2*e),cx=S.x+(3.4-1.0*ease)*K,cz=S.z-(2.6-.5*ease)*K,cy=(.55+.25*ease)*K;camera.position.set(cx,cy,cz);
+  const rx=k.rx!=null?k.rx:k.x,ry=k.ry!=null?k.ry:k.y,rz=(k.rz!=null?k.rz:k.wy)||0;if(!Q.look)Q.look={x:rx,y:rz+2.5,z:ry};Q.look.x+=(rx-Q.look.x)*.08;Q.look.y+=(rz+2.5-Q.look.y)*.08;Q.look.z+=(ry-Q.look.z)*.08;camera.lookAt(Q.look.x,Q.look.y,Q.look.z);
+  if(Q.fade&&Q.unhook){Q.unhook();Q.unhook=null;}}
 function sbShopOpen(){if(SBA&&SBA.act)sbActEnd('cancel');SB.shopBack=true;try{SFX.ready();}catch(e){}toMenu();goStep('driver');sbShopLabels(true);}
 function sbShopLabels(on){const d=document.querySelector('[data-step="driver"] .st-back'),g=$('gDone');if(on){if(d){d.dataset.was=d.innerHTML;d.innerHTML='‹ Sandbox';}if(g){g.dataset.was=g.innerHTML;g.innerHTML='Back to Sandbox ›';}}
   else{if(d&&d.dataset.was){d.innerHTML=d.dataset.was;delete d.dataset.was;}if(g&&g.dataset.was){g.innerHTML=g.dataset.was;delete g.dataset.was;}}}
 /* the driver screen's back, or the garage's last button: back into Sandbox, out of the shop's door (true: handled) */
 function sbShopDone(){if(!SB.shopBack)return false;SB.shopBack=false;sbShopLabels(false);try{closeGarage();}catch(e){}const mi=MAPS.findIndex(m=>m.id===SB_SHOP.id);if(mi<0)return false;mode='sb';SB.shopPut=true;introSkip=true;/* (no fly-over: straight back out of the door) */menu.hidden=true;goRace(mi);return true;}
 /* where the kart comes out: just in front of the door, facing away from it */
-function sbShopPut(k){const S=SB_SHOP;k.x=k.px=S.x;k.y=k.py=S.z+S.d/2+34;k.a=k.ma=k.pa=k.pma=Math.PI/2;k.speed=0;k.wy=k.pwy=k.lastG=sbG(k.x,k.y,2);k.idx=sbIdx(k,k.idx);k.rx=k.x;k.ry=k.y;k.rz=k.wy;k.rma=k.ma;cam.a=k.ma;camSnap=true;SB.shopIn=false;}
+function sbShopPut(k){const S=SB_SHOP;SB.shopQ=null;sbShopCard(false);sbShopFade(false);if(SB.shopPk)sbShopDoor(1);k.x=k.px=S.x;k.y=k.py=S.z+S.d/2+(SB.shopPk?40:34);k.a=k.ma=k.pa=k.pma=Math.PI/2;k.speed=0;k.wy=k.pwy=k.lastG=sbG(k.x,k.y,2);k.idx=sbIdx(k,k.idx);k.rx=k.x;k.ry=k.y;k.rz=k.wy;k.rma=k.ma;cam.a=k.ma;camSnap=true;SB.shopIn=false;}
 
 /* ================= SANDBOX: THINGS TO DO (web v200; the owner's brief, section 5) =================
    "Add optional activities that start and finish in the world. Include a pizza delivery between two regions with a safe route and a riskier
@@ -8642,7 +8728,7 @@ function update0(dt){
   for(const r of rollers){const p=track[r.j];r.lat=Math.sin(simTime*1.05+r.ph)*(RW+6);r.x=p.x+p.nx*r.lat;r.y=p.y+p.ny*r.lat;
     for(const k of karts){if(!k.loop&&k.z<14&&(k.x-r.x)**2+(k.y-r.y)**2<306)spinOut(k,'meat',1);}}
   updateHazards(dt);itemsTick(dt);abilityTick(dt);if(abilQueued){abilQueued=false;if(player&&state==='race')useAbility(player,lookingBack());}
-  for(const k of karts){k.px=k.x;k.py=k.y;k.pa=k.a;k.pma=k.ma;k.pz=k.z;k.pwy=k.wy;k.pth=k.loopTh||0;if(k.netId&&!k.finished){const n=netSteps(k);k.stall=n===0?Math.min(30,(k.stall||0)+(k.speed>1?1:0)):Math.max(0,(k.stall||0)-(n-1));k.nst=n;for(let s2=0;s2<n;s2++){const inp=netInput(k);if(k.rush>0)inp.use=false;stepKart(k,inp,dt);netApplyClaims(k);}continue;}const inp=(k.isPlayer&&!k.auto&&!(k.rush>0&&!(k.megaT>0)&&!(k.pestoT>0)))?playerInput():(k.isPlayer&&k.rush>0?rushInput(k,dt):aiInput(k,dt));/* abilities keep your own steering and drifting; only the rush items drive for you */if(k.rush>0)inp.use=false;stepKart(k,inp,dt);}
+  for(const k of karts){k.px=k.x;k.py=k.y;k.pa=k.a;k.pma=k.ma;k.pz=k.z;k.pwy=k.wy;k.pth=k.loopTh||0;if(k.netId&&!k.finished){const n=netSteps(k);k.stall=n===0?Math.min(30,(k.stall||0)+(k.speed>1?1:0)):Math.max(0,(k.stall||0)-(n-1));k.nst=n;for(let s2=0;s2<n;s2++){const inp=netInput(k);if(k.rush>0)inp.use=false;stepKart(k,inp,dt);netApplyClaims(k);}continue;}const inp=SBX&&k===player&&SB.shopQ&&SB.shopQ.drive?sbShopInp(k):(k.isPlayer&&!k.auto&&!(k.rush>0&&!(k.megaT>0)&&!(k.pestoT>0)))?playerInput():(k.isPlayer&&k.rush>0?rushInput(k,dt):aiInput(k,dt));/* (patch 41: pulling into the mechanic's shop) *//* abilities keep your own steering and drifting; only the rush items drive for you */if(k.rush>0)inp.use=false;stepKart(k,inp,dt);}
   for(let i=0;i<karts.length;i++)for(let j=i+1;j<karts.length;j++){const a=karts[i],b=karts[j];if(MULTI&&Math.abs((a.wy||0)-(b.wy||0))>18)continue;const dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy,mg=(a.megaT>0)!==(b.megaT>0);
     if(d2<(mg?784:361)&&d2>0&&!a.loop&&!b.loop){const sa2=a.shield>0||(a.rush>0&&!(a.pestoT>0)),sb2=b.shield>0||(b.rush>0&&!(b.pestoT>0)),am=a.megaT>0,bm=b.megaT>0;if(am!==bm){if(megaCrush(am?a:b,am?b:a))continue;/* rolled over: no shove */if(d2>=361)continue;}else if(sa2&&!sb2)spinOut(b,'garlic');else if(sb2&&!sa2)spinOut(a,'garlic');const d=Math.sqrt(d2),p=(19-d)/2,nx=dx/d,ny=dy/d,wa=a.sm.wgt,wb=b.sm.wgt;let ra=1.6*wb/(wa+wb),rb=1.6*wa/(wa+wb);
       /* online: a friend's kart (predicted on their own screen) is never shoved by the host; the other kart takes the whole push, so there is nothing to correct afterwards */
