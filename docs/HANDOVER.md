@@ -145,6 +145,30 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-16 (web v207; the PC does not have it yet): usernames and the world leaderboard
+The owner: "add an online leaderboard for each map where you can see the top 20 fastest runs from any player"; "each player should have to pick
+a username and they can change it in settings"; off-line races count too; split "with rivals" and "alone". Web: tools/mini/patch44.py.
+- THE STORE is the owner's Supabase project (free): https://ymlfwrwrewxxsazylprf.supabase.co, the publishable key sb_publishable_K_widd5...
+  (in the game: LB in patch44; it is public by design). The owner made the project and ran the SQL below; the dashboard is theirs. NEVER ask
+  for or use the service_role / secret key or the database password. Tables players and runs are not readable or writable from outside
+  (row level security on, no grants); everything goes through four functions (security definer) and one view:
+  name_free(p_name) -> bool; claim_name(p_token, p_name) -> name (claims, or renames the player holding that token; 'name taken');
+  whoami(p_token) -> name; submit_run(p_token, p_map, p_cls, p_time_ms, p_driver, p_kart, p_platform, p_ver, p_solo) ('no player');
+  view best_runs (map, cls, solo, name, driver, kart, platform, time_ms, created_at): each player's best per map, class and solo.
+  Checks in the table: name ^[A-Za-z0-9_ .-]{3,16}$ (unique ignoring case), cls easy|medium|hard|mirror, time 20 s to 30 min,
+  platform web|pc. The full SQL is in the conversation of 2026-11-16 and in tools/mini/lb_schema.sql.
+- THE TOKEN (crust-lb-token, 40 hex) owns the name; Settings > More > Username > Account code shows it, and the username sheet's "Already
+  have a username on another device?" takes it (whoami) to bring the name to another device or the PC.
+- RUNS: saveRun -> lbRun: a finished race (not est, not the TESTING autopilot, not Last Slice / Balloon Battle / Sandbox) goes on a queue on
+  the device (crust-lb-q, at most 40) and lbFlush sends it when there is a name and a connection ('online' event, menu boot, every run).
+  Map key: id (+ '@'+recv), class small/medium/large/reverse -> easy/medium/hard/mirror, solo = one kart on the grid. A run the board
+  refuses is dropped; "no player" or no connection waits.
+- SCREENS: the username sheet (first menu of a session while there is no name; Not now allowed; name_free as you type); Settings > More >
+  Username (Change, Account code); Records: tap a track for its board (lbOpen): speed class, With rivals / Alone, top 20 (your row lit).
+  Online rooms use the username (netName).
+- TEST: tools/neon/lbtest.py (reads the real board; claim_name and submit_run are caught in the page, nothing is written).
+- OPEN: the PC (same functions over HTTPS from Godot: HTTPRequest; platform 'pc'); a "your world rank" line on the results screen.
+
 ### 2026-11-16 (web v206; Sandbox only; the PC build after it has the PC fixes below but NOT the night lights yet): Sandbox at night
 The owner: "When it's nighttime on the tracks make those little white lines we added to the walls on the hot wheels maps light up like leds
 and make the shadows and lighting looks good. Do this for every map in sandbox but maybe for some add street lights or for more off road type
