@@ -3932,7 +3932,7 @@ function toyRails(def){if(def.battle)return;const W=TOYW(),by={},dash=[],sp=T.L/
   for(const k in by)toyRailMesh(by[k],k);
   if(dash.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(dash,3));g.computeVertexNormals();
     const dm=new THREE.Mesh(g,TM.mat('toydash',()=>toySmooth(new THREE.MeshPhysicalMaterial({color:'#f6f5f0',roughness:.4,clearcoat:.6,clearcoatRoughness:.2,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}))));
-    dm.receiveShadow=true;dm.userData.noLift=true;dm.userData.noMerge=true;world.add(dm);}}
+    dm.receiveShadow=true;dm.userData.noLift=true;dm.userData.noMerge=true;dm.userData.led=1;/* (patch 43: Sandbox lights them at night) */world.add(dm);}}
 /* raised track: the thin underside of the plastic and blue piers down to whatever is underneath (the floor, a desk, a stack of books) */
 function toyDecks(def){if(def.battle)return;const W=TOYW()+3,inGl=j=>GLIDE&&j>=GLIDE.j0&&j<GLIDE.j1,P=j=>track[((j%N)+N)%N],unds={};
   for(let j=0;j<N;j++){const p=P(j),q=P(j+1);if(inGl(j)||inGl(j+1))continue;const pe=p.ey||0,qe=q.ey||0;if(pe<1.5&&qe<1.5)continue;const c=(t,o,h)=>[t.x+t.nx*o,h,t.y+t.ny*o],kc=toyColAt(def,j),und=unds[kc]||(unds[kc]=[]);
@@ -4939,7 +4939,7 @@ function sbCam(){const k=camT;if(!k||state==='menu'||!SBF)return;if(k.loop||k.rt
   camera.position.set(tx+(cx-tx)*f,ty+(cy-ty)*f+(1-f)*9,tz+(cz-tz)*f);{/* pulled in close, it looks more and more at the kart itself, so the kart stays in the picture */const w=Math.min(1,(1-f)*1.6);camera.lookAt(cam.look.x+(tx-cam.look.x)*w,cam.look.y+cam.oy*.45+(ty-2-cam.look.y-cam.oy*.45)*w,cam.look.z+(tz-cam.look.z)*w);}}
 function sbRender(time){sbSpdUi();{const dt=Math.min(.1,Math.max(0,time-(SB.wT==null?time:SB.wT)));SB.wT=time;sbWarpTick(dt);}if(SBC.stars)SBC.stars.position.copy(camera.position);if(!SB.grp)return;sbCam();if(SB.flag){SB.flag.F.rotation.y=time*1.6;SB.flag.F.position.y=12+Math.sin(time*2.2)*1.2;}const im=SB.im;for(const c of SB.coins){const a=time*2.6+c.ph;if(c.rare){if(c.m&&c.m.visible){c.m.rotation.y=a;c.m.position.y=c.y+Math.sin(time*2+c.ph)*.8;}continue;}
     _sbE.set(0,a,0);_sbQ.setFromEuler(_sbE);_sbP.set(c.x,c.y,c.z);const s=c.t>0?0:1;_sbS.set(s,s,s);_sbM.compose(_sbP,_sbQ,_sbS);im.setMatrixAt(c.i,_sbM);}
-  if(im)im.instanceMatrix.needsUpdate=true;try{sbShopFrame(time);}catch(e){console.warn('shop',e);}/* (patch 41) last: it owns the camera while pulling in */}
+  if(im)im.instanceMatrix.needsUpdate=true;try{sbNightFrame(time);}catch(e){console.warn('night',e);}try{sbShopFrame(time);}catch(e){console.warn('shop',e);}/* (patch 41) last: it owns the camera while pulling in */}
 function sbHud(){let e=SB.el;if(!e){e=SB.el=document.createElement('div');e.id='sbHud';e.style.cssText='position:absolute;left:max(10px,env(safe-area-inset-left));top:64px;z-index:6;font:700 13px/1.3 system-ui,sans-serif;color:#fff4dc;background:rgba(18,9,6,.62);border-radius:12px;padding:8px 12px;pointer-events:none;text-shadow:0 1px 2px #000';stage.appendChild(e);}
   e.hidden=!SBX||state==='menu';if(BB.el)BB.el.hidden=true;if(e.hidden)return;const sv=sbSave(),f=sbFound(),dot=(c,r)=>'<span style="display:inline-block;width:'+r+'px;height:'+r+'px;border-radius:50%;background:'+c+';box-shadow:inset 0 0 0 2px rgba(0,0,0,.25);vertical-align:-2px;margin-right:6px"></span>';
   e.innerHTML='<div style="font-size:11px;letter-spacing:.6px;opacity:.85;text-transform:uppercase">'+SB.reg.name+'</div><div style="font-size:20px;margin-top:2px">'+dot('#ffc93a',15)+sv.c+'</div><div style="margin-top:2px">'+dot('#d8402a',13)+f[0]+' / '+f[1]+'</div>'+(SB_CLOCK?'<div style="margin-top:3px;font-size:12px;opacity:.9">'+sbClockIcon()+sbClockStr()+'</div>':'');}
@@ -5142,7 +5142,48 @@ function sbClockArm(){if(!SB_CLOCK)return;sbClockOff();const def=MAPS[mapIdx],c=
   SBC.list=[];SBC.seen=new Set();sbClockMats();
   if(R.kind==='out'&&(R.sky||def.id==='backyard')){/* stars, where there is an open sky: one small cloud of points that follows the camera */const P=[];let sd=977;const r=()=>(sd=sd*16807%2147483647)/2147483647;for(let i=0;i<620;i++){const a=r()*Math.PI*2,y=.1+r()*.9,q=Math.sqrt(1-y*y);P.push(Math.cos(a)*q*7600,y*7600,Math.sin(a)*q*7600);}
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));const st=SBC.stars=new THREE.Points(g,new THREE.PointsMaterial({color:'#000000',size:2.1,sizeAttenuation:false,transparent:false,blending:THREE.AdditiveBlending,depthWrite:false,fog:false,toneMapped:false}));st.frustumCulled=false;st.renderOrder=-.9;st.visible=false;scene.add(st);/* (web v199: they were see-through things, drawn after everything solid and sorted among the other see-through things by distance, so they came out in front of the far tree cards, which stand further off than this ball of points. Now they are drawn among the solid things, straight after the sky (renderOrder -1) and before everything else, adding light and writing no depth: whatever is drawn later covers them. They fade by their colour, not by see-through) */}
-  sbClockApply();}
+  try{sbNightArm();}catch(e){console.warn('night',e);}sbClockApply();}
+/* ================= (patch 43) SANDBOX AT NIGHT: LED strips on the toy tracks, headlights, street lamps ================= */
+const SB_LAMPS=new Set(['spiral','basil','napoli','tour']);
+function sbNightArm(){const R=SBC.rec,def=MAPS[mapIdx];SBC.night=null;if(!R||!SB.grp)return;const Nt=SBC.night={led:[],spot:null,lamps:[],pool:[],head:null,glow:null,pick:0};
+  const halos=[];world.traverse(o=>{if(o.userData&&o.userData.led&&o.material){if(Nt.led.indexOf(o.material)<0){Nt.led.push(o.material);o.material.emissive=new THREE.Color('#8fd0ff');o.material.emissiveIntensity=0;}halos.push(o);}});
+  if(halos.length){/* the glow round each dash: the same strips again, drawn adding light, a little proud of the wall */const hm=new THREE.MeshBasicMaterial({color:'#6fc2ff',transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-6});
+    for(const o of halos){const h=new THREE.Mesh(o.geometry,hm);h.position.copy(o.position);h.scale.setScalar(1.0);h.renderOrder=3;SB.grp.add(h);}Nt.halo=hm;}
+  const lite=!QUAL[qKey]||QUAL[qKey].lite||qKey==='fast';
+  if(R.kind==='out'){/* headlights: one spot light just ahead of the kart, looking down the road */const sp=new THREE.SpotLight('#fff1d8',0,420,.5,.55,1.0);sp.castShadow=!lite;
+    if(sp.castShadow){sp.shadow.mapSize.set(1024,1024);sp.shadow.camera.near=3;sp.shadow.camera.far=560;sp.shadow.bias=-.0005;}SB.grp.add(sp);SB.grp.add(sp.target);Nt.spot=sp;
+    /* the beam on the ground: a cone 18 wide at the kart and 90 wide 174 ahead, its light in the vertices (brightest close in, fading to the edges and the far end) */
+    const bg=new THREE.PlaneGeometry(1,1,6,12),bp=bg.attributes.position,base=new Float32Array(bp.count*2),col=new Float32Array(bp.count*3);for(let i=0;i<bp.count;i++){const f=bp.getY(i)+.5,ac=bp.getX(i)*2,u=4+f*170,v=ac*(9+f*36);base[i*2]=u;base[i*2+1]=v;
+      const e=1.6*Math.pow(1-f,.75)*Math.pow(Math.max(0,1-Math.abs(ac)),1.2)*(f<.04?f/.04:1);col[i*3]=e;col[i*3+1]=e*.95;col[i*3+2]=e*.84;}bg.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+    const beam=new THREE.Mesh(bg,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4}));
+    beam.userData.base=base;beam.renderOrder=2;beam.frustumCulled=false;SB.grp.add(beam);Nt.beam=beam;}
+  if(SB_LAMPS.has(def.id)&&R.kind==='out'){const sp=T.L/N,step=Math.max(1,Math.round(300/sp)),pts=[];let side=1;
+    for(let j=0;j<N;j+=step){const p=track[j];if(p.cut||(p.ey||0)>4)continue;side=-side;const o=WALLD+12,x=p.x+p.nx*o*side,z=p.y+p.ny*o*side,g=groundAt(x,z);
+      if(WATER_Y!=null&&g<WATER_Y+1)continue;if(typeof nearSC==='function'&&nearSC(x,z,SCW+12))continue;if(nearTrack(x,z,WALLD+4))continue;if(sbBlocked(x,z,g+1))continue;if(Math.abs(g-groundAt(p.x,p.y)-(p.ey||0))>18)continue;
+      pts.push({x,z,g,hx:x-p.nx*side*9,hz:z-p.ny*side*9,a:Math.atan2(-p.ny*side,-p.nx*side)});}
+    if(pts.length){const H=48,pole=new THREE.InstancedMesh(new THREE.CylinderGeometry(.55,.85,H,8),new THREE.MeshStandardMaterial({color:'#4a4f57',roughness:.55,metalness:.4}),pts.length),
+        arm=new THREE.InstancedMesh(new THREE.BoxGeometry(11,.7,.7),pole.material,pts.length),
+        hm=new THREE.MeshStandardMaterial({color:'#3a3d42',roughness:.4,emissive:new THREE.Color('#ffd7a0'),emissiveIntensity:0}),head=new THREE.InstancedMesh(new THREE.BoxGeometry(5,1.3,2.6),hm,pts.length);
+      const c=cnv(128,128),g2=c.getContext('2d'),gr=g2.createRadialGradient(64,64,0,64,64,64);gr.addColorStop(0,'rgba(255,214,160,.9)');gr.addColorStop(.45,'rgba(255,200,140,.35)');gr.addColorStop(1,'rgba(255,190,120,0)');g2.fillStyle=gr;g2.fillRect(0,0,128,128);
+      const gm=new THREE.MeshBasicMaterial({map:T2(c),transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,polygonOffset:true,polygonOffsetFactor:-4,toneMapped:false}),glow=new THREE.InstancedMesh(new THREE.PlaneGeometry(80,80),gm,pts.length);
+      const M=new THREE.Matrix4(),Q=new THREE.Quaternion(),E=new THREE.Euler(),P=new THREE.Vector3(),S=new THREE.Vector3(1,1,1);
+      pts.forEach((q,i)=>{P.set(q.x,q.g+H/2,q.z);M.compose(P,Q.identity(),S);pole.setMatrixAt(i,M);E.set(0,-q.a,0);Q.setFromEuler(E);P.set((q.x+q.hx)/2,q.g+H-.5,(q.z+q.hz)/2);M.compose(P,Q,S);arm.setMatrixAt(i,M);
+        P.set(q.hx,q.g+H-1.6,q.hz);M.compose(P,Q,S);head.setMatrixAt(i,M);E.set(-Math.PI/2,0,0);Q.setFromEuler(E);const gg=groundAt(q.hx,q.hz);P.set(q.hx,gg+.4,q.hz);M.compose(P,Q,S);glow.setMatrixAt(i,M);
+        SB.shapes.push({t:'cyl',x:q.x,z:q.z,r:1.6,b:q.g-1,h:q.g+H,night:1});q.ly=q.g+H-4;});
+      for(const m of [pole,arm,head]){m.castShadow=true;m.receiveShadow=true;SB.grp.add(m);}glow.renderOrder=2;SB.grp.add(glow);
+      Nt.lamps=pts;Nt.head=hm;Nt.glow=gm;for(let i=0;i<(lite?2:3);i++){const l=new THREE.PointLight('#ffcf95',0,170,1.6);l.position.set(pts[0].hx,pts[0].ly,pts[0].hz);SB.grp.add(l);Nt.pool.push(l);}}}}
+/* each frame: the night's lights follow the hour (the clock's L: 0 by day, 1 at night) and the kart */
+function sbNightFrame(time){const Nn=SBC.night;if(!Nn||!SBC.rec||!SBX)return;const L=sbClockF().L,on=L>.02;
+  for(const m of Nn.led)m.emissiveIntensity=2.4*L;if(Nn.halo)Nn.halo.opacity=.85*L;
+  const k=camT||player;if(Nn.spot&&k){const sp=Nn.spot;sp.intensity=on?5.5*L:0;sp.visible=on;if(on){const a=k.rma!=null?k.rma:k.ma,x=k.rx!=null?k.rx:k.x,z=k.ry!=null?k.ry:k.y,y=(k.rz!=null?k.rz:k.wy)||0;
+      sp.position.set(x+Math.cos(a)*7,y+6.5,z+Math.sin(a)*7);sp.target.position.set(x+Math.cos(a)*80,y-9,z+Math.sin(a)*80);sp.target.updateMatrixWorld();}}
+  if(Nn.beam&&k){const b=Nn.beam;b.visible=L>.02;b.material.opacity=.9*L;if(b.visible){const a=k.rma!=null?k.rma:k.ma,x=k.rx!=null?k.rx:k.x,z=k.ry!=null?k.ry:k.y,gnd=(px,pz)=>sbG(px,pz,((k.rz!=null?k.rz:k.wy)||0)+8);
+      /* lying on the ground from the front of the kart to 120 ahead: each row of the strip set down on the ground under it */const P=b.geometry.attributes.position,ca=Math.cos(a),sa=Math.sin(a);
+      const B0=b.userData.base;for(let i=0;i<P.count;i++){const u=B0[i*2],v=B0[i*2+1],wx=x+ca*u-sa*v,wz=z+sa*u+ca*v;P.setXYZ(i,wx,gnd(wx,wz)+.5,wz);}
+      P.needsUpdate=true;b.position.set(0,0,0);b.rotation.set(0,0,0);b.geometry.computeBoundingSphere();}}
+  if(Nn.lamps.length){if(Nn.head)Nn.head.emissiveIntensity=on?.4+2.6*L:0;if(Nn.glow)Nn.glow.opacity=.55*L;
+    if(k&&on&&time-Nn.pick>.25){Nn.pick=time;const x=k.x,z=k.y,best=Nn.lamps.map(q=>[(q.hx-x)**2+(q.hz-z)**2,q]).sort((a,b)=>a[0]-b[0]);Nn.pool.forEach((l,i)=>{const q=best[i]&&best[i][1];if(q)l.position.set(q.hx,q.ly,q.hz);});}
+    for(const l of Nn.pool){l.intensity=on?1.9*L:0;l.visible=on;}}}
 /* the materials the clock touches, listed once (again when the karts have been rebuilt): k 0 a lit surface (its share of the sky's
    light), 1 a surface with a little glow of its own that stands in for daylight (the tree cards), 2 a lamp (anything that glows
    strongly: windows, signs, neon, a car's lights), 3 paint that no light reaches (unlit scenery: it is dimmed by hand),
