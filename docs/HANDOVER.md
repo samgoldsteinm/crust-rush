@@ -145,6 +145,20 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-16 (web v211; online still 116): THE TUNNEL FREEZE FIXED
+The owner: "the whole game froze for like 5 seconds, it should be smooth". Patches tools/mini/patch50.py, 50b, 50c, 50d and build/build_gh.py.
+Measured with sbprobe.py and scratch/lights.js, glprof.js, glstack.js, fsplit.js, ftrip.js (margherita -> garage, the worst trip):
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| One warm-up step of 7.3 s on a trip | A shader is built for a COUNT of each kind of light. The garage has a room lamp (PointLight) Margherita has not, the SB_LAMPS places three; a trip that changed the count rebuilt every material's shader, the karts' livery shader too | sbLightPad: every Sandbox place has the same number of point lights (lite 3, else 4), dark placeholders making up the rest; called from sbNightArm and sbWarmG | Anything that adds or removes a light in Sandbox keeps each kind's count the same in every place; a light is dimmed to 0, never hidden or removed (patch 49 headlights) |
+| ~20 steps of 170-420 ms after it | renderer.compile ran with no render target (shaders for the screen, sRGB); the game draws into the post pass's target (linear), a different shader: the warm-up was wasted and the real ones were built in the draw step | Compile into the same target (wtg) | Any warm-up compiles into the target the game really draws to |
+| A last step of 2.4-2.9 s | warmScene() at the end drew the whole place three times, nothing culled: post target, screen, a 64 px target; the last two need shaders Sandbox never uses | In the tunnel: one draw into wtg (builds the shadows' shaders too); with no post pass the one-object draws are skipped | Do not call warmScene() from the tunnel |
+| Steps of up to 330 ms inside renderer.compile | build_gh.py's three.js change skipped the blocking getUniforms only for the material that CREATED a program; a second material sharing a program still being built asked for it and waited (2.2 s in all) | Every material compiled with __crDefer skips it (set up at its first draw) | build_gh.py's three.js replacement is the place; glprof.js shows getProgramParameter's worst call |
+| Frames of 100-375 ms in warm3/warm4 | The tunnel's loop ran 16 steps before reading the clock; warm3 asked all ~300 programs each step (24 ms) | Clock after every step; warm3 asks only unfinished programs (marked __crOk), once a frame; new programs at most 3 a frame (yield 'warmF') | Keep the budget check inside the inner loop |
+Result (first trip to the garage, this PC): worst frame in the tunnel 7-8 s -> 152 ms, the game's own work at most 28 ms a frame; the
+first frame after arriving ~110 ms; later trips worst ~100 ms. What is left is the graphics driver finishing in the background. sbtest.py
+garage passes; sbtest.py (back garden) fails only its two known wall checks (see 2026-11-15).
+
 ### 2026-11-16 (web v210; online still 116): tunnels, headlights, garage tabs, glossier paint
 Patches tools/mini/patch48.py (tunnel), 49 (headlights), 49b (garage tabs on a phone), 49c (paint).
 - TUNNEL CAMERA: the tunnel copied the game camera as it was at the gate, so coming in on a turn it looked off to the side all the way

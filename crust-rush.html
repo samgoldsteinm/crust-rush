@@ -5866,22 +5866,26 @@ function* sbTripG(g,mi,sp){const k=player;
       shapes go up to the card; one a step spreads that out;
    5. warmScene, which then has little left to do (about 0.09 s).
    In Sandbox every shader compiled is then kept (its use count raised once): a place you come back to has none of this to do. */
-function* sbWarmG(){try{sunShadeAll();}catch(e){}yield "warm1";
+/* (patch 50) the same number of point lights in every Sandbox place: dark placeholders make up the rest (a different count rebuilds every shader) */
+function sbLightPad(){if(!SB.grp)return;const K=(!QUAL[qKey]||QUAL[qKey].lite||qKey==='fast')?3:4;let n=0;const ph=[];scene.traverse(o=>{if(!o.isPointLight)return;if(o.userData.sbPad)ph.push(o);else n++;});
+  for(const o of ph)if(o.parent)o.parent.remove(o);for(let i=n;i<K;i++){const l=new THREE.PointLight('#000000',0,1,2);l.userData.sbPad=1;l.position.set(0,-50000,0);SB.grp.add(l);}}
+function* sbWarmG(){try{sunShadeAll();}catch(e){}try{sbLightPad();}catch(e){}yield "warm1";
+  let wtg=null;try{if(!LOWQF()&&CFG.post!==false){postInit();const sz=renderer.getDrawingBufferSize(v2);postSize(sz.x,sz.y);wtg=POST.rt;}}catch(e){}/* (patch 50) compile for the target the game draws into */
   const objs=[];scene.traverse(o=>{if(o.material)objs.push(o);});
   try{const gl=renderer.getContext(),ext=renderer.extensions.get('KHR_parallel_shader_compile');
     if(ext){const F=new THREE.Scene();F.environment=scene.environment;F.fog=scene.fog;F.traverseVisible=f=>scene.traverseVisible(x=>{if(x.isLight)f(x);});
-      for(let i=0;i<objs.length;i+=8){const ch=objs.slice(i,i+8);F.traverse=f=>{for(const x of ch)f(x);};const ck=renderer.debug.checkShaderErrors;renderer.debug.checkShaderErrors=false;renderer.__crDefer=true;
-        try{renderer.compile(F,camera);}catch(e){console.warn('sandbox shaders',e);}finally{renderer.debug.checkShaderErrors=ck;renderer.__crDefer=false;}yield "warm2";}
-      const t0=performance.now();for(;;){let all=true;for(const p of renderer.info.programs)if(!gl.getProgramParameter(p.program,ext.COMPLETION_STATUS_KHR)){all=false;break;}if(all||performance.now()-t0>8000)break;yield "warm3";}}}catch(e){console.warn('sandbox shaders',e);}
+      for(let i=0;i<objs.length;i+=2){const ch=objs.slice(i,i+2);F.traverse=f=>{for(const x of ch)f(x);};const ck=renderer.debug.checkShaderErrors;renderer.debug.checkShaderErrors=false;renderer.__crDefer=true;
+        try{renderer.setRenderTarget(wtg);renderer.compile(F,camera);}catch(e){console.warn('sandbox shaders',e);}finally{renderer.setRenderTarget(null);renderer.debug.checkShaderErrors=ck;renderer.__crDefer=false;}yield "warm2";{const np=renderer.info.programs.length;if(np-(sbWarmG.np||0)>=3){sbWarmG.np=np;yield 'warmF';}}/* (patch 50c: a few new shaders a frame) */}
+      const t0=performance.now();for(;;){let all=true;for(const p of renderer.info.programs){if(p.__crOk)continue;if(gl.getProgramParameter(p.program,ext.COMPLETION_STATUS_KHR))p.__crOk=1;else{all=false;break;}}if(all||performance.now()-t0>8000)break;yield 'warmF';}/* (patch 50d: only the unfinished ones, once a frame) */}}catch(e){console.warn('sandbox shaders',e);}
   if(typeof renderer.initTexture==='function'){const seen=new Set(),tex=[];for(const o of objs){const ms=Array.isArray(o.material)?o.material:[o.material];for(const m of ms)for(const key in m){const v=m[key];if(v&&v.isTexture&&!seen.has(v)){seen.add(v);tex.push(v);}}}
     for(const t of tex){try{if(!t.image||t.image.width||t.image.data||t.isRenderTargetTexture)renderer.initTexture(t);}catch(e){}yield "warm4";}}
   {const lights=[];let wc=null,tgt=null;const au=renderer.shadowMap.autoUpdate,nu=renderer.shadowMap.needsUpdate;
     try{scene.traverse(x=>{if(x.isLight&&!x.layers.isEnabled(30)){x.layers.enable(30);lights.push(x);}});wc=camera.clone();wc.layers.set(30);
       try{if(!LOWQF()&&CFG.post!==false){postInit();const sz=renderer.getDrawingBufferSize(v2);postSize(sz.x,sz.y);tgt=POST.rt;}}catch(e){}if(!tgt)tgt=SB.wrt||(SB.wrt=new THREE.WebGLRenderTarget(64,64));
-      for(const x of objs){if(!(x.isMesh||x.isPoints||x.isLine||x.isSprite))continue;const fc=x.frustumCulled,L=x.layers.mask;x.layers.enable(30);x.frustumCulled=false;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=false;
+      for(const x of (wtg?objs:[])){if(!(x.isMesh||x.isPoints||x.isLine||x.isSprite))continue;const fc=x.frustumCulled,L=x.layers.mask;x.layers.enable(30);x.frustumCulled=false;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=false;
         try{renderer.setRenderTarget(tgt);renderer.render(scene,wc);}catch(e){}finally{renderer.setRenderTarget(null);x.layers.mask=L;x.frustumCulled=fc;renderer.shadowMap.autoUpdate=au;}yield "warm5";}}
     catch(e){console.warn('sandbox draw',e);}finally{for(const x of lights)x.layers.disable(30);renderer.shadowMap.autoUpdate=au;renderer.shadowMap.needsUpdate=nu;}}
-  try{warmScene();}catch(e){}
+  try{sunShadeAll();renderer.shadowMap.needsUpdate=true;renderer.setRenderTarget(wtg);renderer.render(scene,camera);}catch(e){}finally{renderer.setRenderTarget(null);}/* (patch 50b: one draw into the real target, not warmScene's three) */
   if(SBX)for(const p of renderer.info.programs)if(!p.__crKeep){p.__crKeep=1;p.usedTimes++;}}
 /* each frame in the tunnel: drive, draw, then build for what is left of the frame */
 function sbWarpFrame(dt,time){const w=SB.warp,k=player;w.t+=dt;
@@ -5890,7 +5894,7 @@ function sbWarpFrame(dt,time){const w=SB.warp,k=player;w.t+=dt;
   if(k)k.speed=w.sp;SB_WU.value=(SB_WU.value+dt*.5)%1000;SB_WV.value=(SB_WV.value+dt*.9*Math.max(.7,w.sp/150)+1000)%1000;w.ft.offset.y=(w.ft.offset.y+w.sp*dt*w.ft.repeat.y/SB_WL)%1;
   if(Math.abs(w.cam.aspect-camera.aspect)>1e-3){w.cam.aspect=camera.aspect;w.cam.updateProjectionMatrix();}
   const td=performance.now();postRender.s=w.S;postRender.c=w.cam;try{drawNow();}finally{postRender.s=postRender.c=null;}{const d=performance.now()-td;if(d>30&&w.log.length<24)w.log.push([Math.round(d),'draw',w.pv]);}
-  if(w.job){const t0=performance.now(),B=COARSE?6:9;try{for(;;){let r;for(let i=0;i<16;i++){const a=performance.now();r=w.job.next();const d=performance.now()-a;if(d>30&&w.log.length<24)w.log.push([Math.round(d),w.pv]);/* (the slices that took long, and the yield before each: SB.lastWarp.log; ids in the build's SLICE_MAP) */w.pv=r.value;if(r.done)break;}if(r.done){w.job=null;break;}if(performance.now()-t0>B)break;}}catch(e){console.warn('sandbox travel',e);w.job=null;}
+  if(w.job){const t0=performance.now(),B=COARSE?6:9;try{for(;;){let r;for(let i=0;i<16;i++){const a=performance.now();r=w.job.next();const d=performance.now()-a;if(d>30&&w.log.length<24)w.log.push([Math.round(d),w.pv]);/* (the slices that took long, and the yield before each: SB.lastWarp.log; ids in the build's SLICE_MAP) */w.pv=r.value;if(r.done||r.value==='warmF'||performance.now()-t0>B)break;}/* (patch 50d: the clock after every step) */if(r.done){w.job=null;break;}if(r.value==='warmF'||performance.now()-t0>B)break;}}catch(e){console.warn('sandbox travel',e);w.job=null;}
     const d=performance.now()-t0;if(d>w.slow)w.slow=d;}
   if(!w.job&&w.t>=w.minT)sbWarpOut();}
 /* at the start of Sandbox (sbStart): the tunnel's own scene and the kart's copy drawn once out of sight, so the first trip does not stop to
@@ -6223,7 +6227,7 @@ function sbNightArm(){const R=SBC.rec,def=MAPS[mapIdx];SBC.night=null;if(!R||!SB
         P.set(q.hx,q.g+H-1.6,q.hz);M.compose(P,Q,S);head.setMatrixAt(i,M);E.set(-Math.PI/2,0,0);Q.setFromEuler(E);const gg=groundAt(q.hx,q.hz);P.set(q.hx,gg+.4,q.hz);M.compose(P,Q,S);glow.setMatrixAt(i,M);
         SB.shapes.push({t:'cyl',x:q.x,z:q.z,r:1.6,b:q.g-1,h:q.g+H,night:1});q.ly=q.g+H-4;});
       for(const m of [pole,arm,head]){m.castShadow=true;m.receiveShadow=true;SB.grp.add(m);}glow.renderOrder=2;SB.grp.add(glow);
-      Nt.lamps=pts;Nt.head=hm;Nt.glow=gm;for(let i=0;i<(lite?2:3);i++){const l=new THREE.PointLight('#ffcf95',0,170,1.6);l.position.set(pts[0].hx,pts[0].ly,pts[0].hz);SB.grp.add(l);Nt.pool.push(l);}}}}
+      Nt.lamps=pts;Nt.head=hm;Nt.glow=gm;for(let i=0;i<(lite?2:3);i++){const l=new THREE.PointLight('#ffcf95',0,170,1.6);l.position.set(pts[0].hx,pts[0].ly,pts[0].hz);SB.grp.add(l);Nt.pool.push(l);}}}try{sbLightPad();}catch(e){}/* (patch 50) */}
 /* each frame: the night's lights follow the hour (the clock's L: 0 by day, 1 at night) and the kart */
 function sbNightFrame(time){const Nn=SBC.night;if(!Nn||!SBC.rec||!SBX)return;const L=sbClockF().L,on=L>.02;
   for(const m of Nn.led)m.emissiveIntensity=2.4*L;if(Nn.halo)Nn.halo.opacity=.85*L;

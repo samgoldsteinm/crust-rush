@@ -107,10 +107,13 @@ game_rel = hashed('js', 'game', 'js', game.encode())
 # once, which waits: 0.1 s a program, 1.4 s for a new place). Sandbox's tunnel compiles that way, waits a frame at a time until the driver is
 # done (KHR_parallel_shader_compile), then draws. A material compiled so is set up again at its next draw (its __version is cleared), as a
 # new one would be. Nothing else changes. The file is named by its contents, so no browser keeps the unpatched copy under the new name.
+# Web v211 (tools/mini/patch50.py): EVERY material compiled with __crDefer skips the uniforms, not only the one that made the program: a
+# second material sharing a program that was still being built asked for its uniforms and waited for the driver (up to 0.33 s each,
+# 2.2 s on a first trip to the garage: scratch/glprof.js).
 _three = open(GH + '/vendor/three-0.149.0.min.js', encoding='utf-8', newline='').read()
 for _a, _b in [('c.set(l,h),n.uniforms=o.uniforms;', 'c.set(l,h),n.uniforms=o.uniforms,n.__crNew=1;'),
                ('const d=h.getUniforms(),m=rs.seqWithValue(d.seq,u);return n.currentProgram=h,n.uniformsList=m,h}',
-                'if(g.__crDefer&&n.__crNew)return n.__crNew=0,n.__version=void 0,h;n.__crNew=0;const d=h.getUniforms(),m=rs.seqWithValue(d.seq,u);return n.currentProgram=h,n.uniformsList=m,h}')]:
+                'if(g.__crDefer)return n.__crNew=0,n.__version=void 0,h;n.__crNew=0;const d=h.getUniforms(),m=rs.seqWithValue(d.seq,u);return n.currentProgram=h,n.uniformsList=m,h}')]:
     assert _three.count(_a) == 1, _a
     _three = _three.replace(_a, _b)
 three_rel = hashed('vendor', 'three-0.149.0', 'js', _three.encode())
