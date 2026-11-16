@@ -74,6 +74,17 @@ async def main():
                 if time.time() - last > 5: last = time.time(); print('XMODES web', json.dumps(s), flush=True)
                 if ended and s['res']:
                     ok = s['bb'] and s['ack'] > 300; print('XMODES WEB %s battle: PC controls played %d, results shown' % ('PASS' if ok else 'FAIL', s['ack']), flush=True); break
+            elif MODE == 'sbr':
+                s = json.loads(await pg.evaluate("__ev(`JSON.stringify({sbx:SBX,st:state,map:MAPS[mapIdx].id,inv:!!SBI.inv,cfg:NET.cfg?{sbr:NET.cfg.sbr,n:NET.cfg.karts.filter(k=>k.who!=null&&k.who>=0).length}:null})`)"))
+                if time.time() - last > 5: last = time.time(); print('XMODES web', json.dumps(s), flush=True)
+                if s['inv'] and not getattr(main, 'joined', False):
+                    await pg.evaluate("__ev(`sbInvAnswer(true)`)"); main.joined = True; print('XMODES web: joined the PC invite', flush=True)
+                if s['cfg'] and s['st'] == 'race' and not s['sbx'] and not getattr(main, 'raced', False):
+                    main.raced = s['cfg']; main.raceT = time.time(); print('XMODES web: racing', json.dumps(s), flush=True)
+                if getattr(main, 'raced', False) and not getattr(main, 'back', False) and time.time() - main.raceT > 8:
+                    await pg.evaluate("__ev(`toMenu()`)"); main.back = True; print('XMODES web: back to Sandbox', flush=True)
+                if getattr(main, 'back', False) and s['sbx'] and not s['cfg']:
+                    ok = main.raced['sbr'] == 1 and main.raced['n'] == 2; print('XMODES WEB %s sandbox race: raced with the PC (%s), back in Sandbox' % ('PASS' if ok else 'FAIL', json.dumps(main.raced)), flush=True); break
             else:
                 s = json.loads(await pg.evaluate("__ev(`JSON.stringify({sbx:SBX,st:state,map:MAPS[mapIdx].id,peers:[...SBN.peers.values()].map(P=>({nm:P.nm,reg:P.reg,drawn:!!(P.m&&P.m.g.visible)}))})`)"))
                 if time.time() - last > 5: last = time.time(); print('XMODES web', json.dumps(s), flush=True)

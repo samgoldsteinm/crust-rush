@@ -592,6 +592,8 @@ func _sb_tick() -> void:
 		sb.arrived = false
 		_sb_out()
 	hud.sb_race = ("Race here: " + T.title) if (sb.race_near and state == "race" and not sb_trav) else ""
+	if hud.sb_race == "" and not sbi_ask.is_empty():
+		_sbi_pick("c")
 	# things to do (scripts/sandbox_acts.gd): the offer at a marker, the bar while one runs, the panel when one ends
 	hud.sb_act = sb.acts.offer() if (sb.acts != null and state == "race" and not sb_trav and hud.sb_race == "") else []
 	hud.sb_bar = SandboxActs.bar() if state == "race" and not sb_trav else []
@@ -1140,11 +1142,258 @@ func _sb_cover_off() -> void:
 func _sb_race_here() -> void:
 	if race == null or race.sb == null or sb_trav or state != "race" or paused or not race.sb.race_near:
 		return
+	if Time.get_ticks_msec() - sbi_pick_t < 600:
+		return
+	if web.sbx and web.role != "":
+		# a friends' room (web patch 52): race with friends (an invite to everyone) or alone
+		if not sbi_ask.is_empty():
+			_sbi_pick("f")
+		elif sbi_wait.is_empty() and sbi_inv.is_empty():
+			_sbi_ask_open()
+		return
+	_sb_race_solo()
+
+
+## the start line's race, off line (in a room too: the room is not asked)
+func _sb_race_solo() -> void:
 	SandboxActs.finish("cancel")
 	sb_back = map_id
 	gp = {}
 	_new_cpu_builds()
 	_start_race({})
+
+
+# ---------------------------------------------------------------- a room's Sandbox race from a start line (web v213 patch 52)
+# Anyone at a start line in a friends' room's Sandbox can ask everyone to race there. The host's game runs the race, so the host has
+# to join; guests who join are taken to the start line, the rest keep driving. After it, Back to Sandbox puts each racer there.
+var sbi_ask := {}       # the start line's question on screen: {mi}
+var sbi_inv := {}       # an invite on screen: {id, mi, t0, ans}
+var sbi_wait := {}      # asked, waiting for the answers: {mi, t0, n}
+var sbi_host := {}      # the host: the invite out: {id, mi, by, ans: {pid: bool}, t0}
+var sbi_pick_t := 0
+var sbi_ui: Control = null
+var sbi_tl: Label = null    # the card's clock line
+
+
+func _sbi_card(lines: Array, buttons: Array, clock := false) -> void:
+	_sbi_close_ui()
+	var pc := PanelContainer.new()
+	pc.add_theme_stylebox_override("panel", menu.box([Color(24.0 / 255, 12.0 / 255, 8.0 / 255, 0.93)], 0.0, 16.0, Color("#f5b62e"), 2.0, Vector4(16, 12, 16, 12)))
+	pc.mouse_filter = Control.MOUSE_FILTER_STOP
+	var v := menu.vbox(6)
+	pc.add_child(v)
+	for i in lines.size():
+		var l := menu.label(String(lines[i]), menu.f_bold if i == 0 else menu.f_med, 16.0 if i == 0 else 13.0, Color("#fff4dc") if i == 0 else Color("#c2a58c"))
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(l)
+	if not buttons.is_empty():
+		var row := menu.hbox(8)
+		row.alignment = BoxContainer.ALIGNMENT_CENTER
+		for b in buttons:
+			var bt := menu.button(String(b[0]), "cta" if bool(b[2]) else "ghost", 15.0, Vector4(14, 9, 14, 9))
+			bt.pressed.connect(b[1])
+			row.add_child(bt)
+		v.add_child(row)
+	sbi_tl = null
+	if clock:
+		sbi_tl = menu.label("", menu.f_med, 11.0, Color(1, 0.96, 0.86, 0.6))
+		sbi_tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(sbi_tl)
+	pc.anchor_left = 0.5
+	pc.anchor_right = 0.5
+	pc.anchor_top = 1.0
+	pc.anchor_bottom = 1.0
+	pc.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	pc.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	pc.offset_bottom = -menu.z(150)
+	hud_race.add_child(pc)
+	sbi_ui = pc
+
+
+func _sbi_close_ui() -> void:
+	if sbi_ui != null and is_instance_valid(sbi_ui):
+		sbi_ui.queue_free()
+	sbi_ui = null
+	sbi_tl = null
+
+
+func _sbi_clear() -> void:
+	sbi_ask = {}
+	sbi_inv = {}
+	sbi_wait = {}
+	_sbi_close_ui()
+
+
+func _sbi_title(mi: int) -> String:
+	var id := _map_by_mi(mi)
+	return String(_map_info(id).get("name", "a track")) if id != "" else "a track"
+
+
+func _sbi_ask_open() -> void:
+	var mi := int(_map_info(map_id).get("mi", -1))
+	sbi_ask = {"mi": mi}
+	_sbi_card(["Race on " + _sbi_title(mi), "With friends: everyone in the room is asked to join you here.", "1 friends · 2 alone · Esc cancel · controller: up friends, down alone"],
+		[["Race with friends", _sbi_pick.bind("f"), true], ["Race alone", _sbi_pick.bind("a"), false], ["Cancel", _sbi_pick.bind("c"), false]])
+
+
+func _sbi_pick(w: String) -> void:
+	var a := sbi_ask
+	sbi_ask = {}
+	sbi_pick_t = Time.get_ticks_msec()
+	_sbi_close_ui()
+	if a.is_empty() or w == "c":
+		return
+	if w == "a":
+		_sb_race_solo()
+		return
+	if web.role == "host":
+		_sbi_start(int(a["mi"]), 0)
+	else:
+		web._send({"t": "sbinv", "mi": int(a["mi"])})
+		_sbi_wait_open(int(a["mi"]))
+
+
+## the host: an invite out (by: 0 the host, else the guest who asked)
+func _sbi_start(mi: int, by: int) -> void:
+	var bc := {}
+	for ch in web.guests_open():
+		if int(ch["pid"]) == by:
+			bc = ch
+	var in_sb := race != null and race.sb != null and (state == "race" or state == "paused")
+	if not sbi_host.is_empty() or not web.cfg.is_empty() or _map_by_mi(mi) == "" or (by == 0 and not in_sb):
+		if not bc.is_empty():
+			web._send_to(bc, {"t": "sbinvx", "why": "busy"})
+		else:
+			_toast("A race is already being set up")
+		return
+	var nm: String = web.name_ if by == 0 else String(web._player(by).get("name", "A friend"))
+	var id := WebNet.rid()
+	sbi_host = {"id": id, "mi": mi, "by": by, "ans": {by: true}, "t0": Time.get_ticks_msec()}
+	for ch in web.guests_open():
+		web._send_to(ch, {"t": "sbinv", "id": id, "mi": mi, "by": by, "name": nm, "me": 1 if int(ch["pid"]) == by else 0})
+	if by == 0:
+		_sbi_wait_open(mi)
+	elif in_sb and state == "race":
+		_sbi_show({"id": id, "mi": mi, "name": nm})
+	else:
+		sbi_host["ans"][0] = false
+
+
+func _sbi_ans(pid: int, id: String, yes: bool) -> void:
+	if not sbi_host.is_empty() and String(sbi_host["id"]) == id:
+		sbi_host["ans"][pid] = yes
+
+
+## every frame: the invite's clocks; the host decides when everyone has answered or the time is up
+func _sbi_tick() -> void:
+	var now := Time.get_ticks_msec()
+	if not sbi_inv.is_empty():
+		var left := maxf(0.0, 10.0 - float(now - int(sbi_inv["t0"])) / 1000.0)
+		if sbi_tl != null and is_instance_valid(sbi_tl):
+			sbi_tl.text = ("Joined: waiting for the others" if sbi_inv.get("ans") == true else "%d s" % ceili(left)) + " · J join · N no · controller: up join, down no"
+		if left <= 0.0 and sbi_inv.get("ans") == null:
+			_sbi_answer(false)
+	if not sbi_wait.is_empty():
+		if sbi_tl != null and is_instance_valid(sbi_tl):
+			sbi_tl.text = ("%d in so far · " % int(sbi_wait["n"]) if sbi_wait.get("n") != null else "") + "%d s" % maxi(0, ceili(10.0 - float(now - int(sbi_wait["t0"])) / 1000.0))
+		if now - int(sbi_wait["t0"]) > 16000:
+			_sbi_off("host")
+	if sbi_host.is_empty():
+		return
+	var H := sbi_host
+	var ans: Dictionary = H["ans"]
+	var ids: Array = []
+	var all := ans.has(0)
+	for ch in web.guests_open():
+		ids.append(int(ch["pid"]))
+		if not ans.has(int(ch["pid"])):
+			all = false
+	if not sbi_wait.is_empty():
+		var n := 0
+		for v in ans.values():
+			if v == true:
+				n += 1
+		sbi_wait["n"] = n
+	var late := now - int(H["t0"]) > 10500
+	if ans.get(0) != false and not all and not late:
+		return
+	sbi_host = {}
+	if ans.get(0) != true:
+		# the host is not racing: no race on line
+		_sbi_clear()
+		for ch in web.guests_open():
+			web._send_to(ch, {"t": "sbinvx", "why": "host"})
+		return
+	var go_ids: Array = []
+	for i in ids:
+		if ans.get(i) == true:
+			go_ids.append(i)
+	_sbi_clear()
+	SandboxActs.finish("cancel")
+	var err: String = web.sb_race_start(int(H["mi"]), go_ids)
+	if err != "":
+		_toast(err)
+
+
+## a guest: an invite in
+func _sbi_got(d: Dictionary) -> void:
+	if int(d.get("me", 0)) == 1:
+		return
+	var in_sb := race != null and race.sb != null and (state == "race" or state == "paused")
+	if not in_sb or not web.cfg.is_empty():
+		web._send({"t": "sbans", "id": String(d.get("id", "")), "yes": false})
+		return
+	_sbi_show(d)
+
+
+func _sbi_show(d: Dictionary) -> void:
+	sbi_inv = {"id": String(d.get("id", "")), "mi": int(d.get("mi", -1)), "t0": Time.get_ticks_msec(), "ans": null}
+	_sbi_card([String(d.get("name", "A friend")) + " wants to race on " + _sbi_title(int(d.get("mi", -1))) + "!", "Join and you go straight to the start line."],
+		[["Join", _sbi_answer.bind(true), true], ["No thanks", _sbi_answer.bind(false), false]], true)
+
+
+func _sbi_answer(yes: bool) -> void:
+	if sbi_inv.is_empty() or sbi_inv.get("ans") != null:
+		return
+	sbi_inv["ans"] = yes
+	if web.role == "host":
+		if not sbi_host.is_empty() and String(sbi_host["id"]) == String(sbi_inv["id"]):
+			sbi_host["ans"][0] = yes
+	else:
+		web._send({"t": "sbans", "id": String(sbi_inv["id"]), "yes": yes})
+	if not yes:
+		sbi_inv = {}
+		_sbi_close_ui()
+
+
+func _sbi_wait_open(mi: int) -> void:
+	sbi_wait = {"mi": mi, "t0": Time.get_ticks_msec()}
+	_sbi_card(["Asking everyone in the room to race on " + _sbi_title(mi) + "..."], [], true)
+
+
+func _sbi_alone_now() -> void:
+	_sbi_close_ui()
+	_sb_race_solo()
+
+
+## the host's answer: no race on line (host: the host said no; busy: one is being set up; go: it started without you)
+func _sbi_off(why: String) -> void:
+	var asked := not sbi_wait.is_empty()
+	_sbi_clear()
+	if why == "busy":
+		_toast("A race is already being set up")
+	elif why == "host" and asked:
+		_sbi_card(["The room's host can't race right now", "A race on line is run by the host's game, so the host has to join it."],
+			[["Race alone", _sbi_alone_now, true], ["OK", _sbi_close_ui, false]])
+
+
+## a guest: the host went back to Sandbox, so the race is over
+func _sbi_end() -> void:
+	if sb_back == "" and not web.cfg.is_empty():
+		sb_back = _map_by_mi(int(web.cfg.get("mi", -1)))
+	_to_menu("")
+
+
 
 
 ## leaving a race that began at a start line in Sandbox: back to Sandbox there (web sbBack; _to_menu asks this first)
@@ -1155,6 +1404,13 @@ func _sb_return() -> bool:
 	sb_back = ""
 	if net_role != "" or (web.role != "" and not web.sbx) or not _sb_has(id):
 		return false
+	if not web.cfg.is_empty():
+		if web.cfg.get("sbr") == null:
+			return false
+		if web.role == "host":
+			web.sb_race_end()   # (the race ends for everyone still in it)
+		else:
+			web.quit_race()
 	if id != map_id and not load_map(id):
 		return false
 	sb_next = true
@@ -3146,6 +3402,9 @@ func _show_results() -> void:
 	v.add_child(row)
 	# down from the big button goes to the first of the two under it
 	again.focus_neighbor_bottom = again.get_path_to(tb)
+	if not web.cfg.is_empty() and web.cfg.get("sbr") != null:
+		again.visible = false   # (a room's Sandbox race: everyone goes back to Sandbox from here)
+		mb.grab_focus.call_deferred()
 	if race.mode == "bb" or sb_back != "":
 		# a battle has one arena: nothing else to choose (web: trackBtn hidden)
 		tb.visible = false
@@ -3492,6 +3751,13 @@ func _input(ev: InputEvent) -> void:
 				# Sandbox's own keys. Enter takes the race on offer at the start line (whatever else Enter does: the web's
 				# rule); K parks and M opens and closes the map, unless the player has given the key to something else in
 				# Settings > Controls
+				# a friends' room's start line question and invite (web patch 52): 1 / 2 / Esc, J / N
+				if not sbi_ask.is_empty() and (code == KEY_1 or code == KEY_KP_1 or code == KEY_2 or code == KEY_KP_2 or code == KEY_ESCAPE):
+					_sbi_pick("f" if (code == KEY_1 or code == KEY_KP_1) else ("a" if (code == KEY_2 or code == KEY_KP_2) else "c"))
+					return
+				if not sbi_inv.is_empty() and sbi_inv.get("ans") == null and (code == KEY_J or code == KEY_N):
+					_sbi_answer(code == KEY_J)
+					return
 				if (code == KEY_ENTER or code == KEY_KP_ENTER) and racing and state == "race" and race.sb.race_near:
 					_sb_race_here()
 					return
@@ -3542,6 +3808,12 @@ func _input(ev: InputEvent) -> void:
 				if jb.button_index == JOY_BUTTON_BACK:
 					_sb_map(sb_map_ui == null)
 					return
+				if not sbi_ask.is_empty() and (jb.button_index == JOY_BUTTON_DPAD_UP or jb.button_index == JOY_BUTTON_DPAD_DOWN):
+					_sbi_pick("f" if jb.button_index == JOY_BUTTON_DPAD_UP else "a")
+					return
+				if not sbi_inv.is_empty() and sbi_inv.get("ans") == null and (jb.button_index == JOY_BUTTON_DPAD_UP or jb.button_index == JOY_BUTTON_DPAD_DOWN):
+					_sbi_answer(jb.button_index == JOY_BUTTON_DPAD_UP)
+					return
 				if jb.button_index == JOY_BUTTON_DPAD_DOWN and not paused:
 					_sb_park()
 					return
@@ -3571,6 +3843,7 @@ func _zone(p: Vector2) -> String:
 func _process(dt: float) -> void:
 	if web != null:
 		web.poll()
+	_sbi_tick()
 	if music != null and not auto_drive:
 		music.want(map_id, "loading" if (loading != null and loading.visible) else state, paused, dt)
 	if not (menu != null and menu.visible):

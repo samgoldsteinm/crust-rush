@@ -18,6 +18,8 @@ var pops := 0
 var bal_min := 99
 var clock_ok := false
 var saw_peer := false
+var sbr_step := 0
+var sbr_ok := false
 
 
 func _ready() -> void:
@@ -74,6 +76,23 @@ func _process(dt: float) -> void:
 			print("XMODES PC %s sandbox: in Sandbox at %s, no race config %s, the host's car drawn %s, peers %s" % ["PASS" if ok else "FAIL", main.map_id, web.cfg.is_empty(), saw_peer, str(web.sb_peers.keys())])
 			await _linger(web)
 			get_tree().quit(0 if ok else 1)
+			return
+	if mode == "sbr" and race != null:
+		# (web patch 52) the PC asks to race at its start line; the web host joins; both race; the host goes back, the PC is back in Sandbox
+		if sbr_step == 0 and race.sb != null and main.state == "race" and t > 25.0 and web.sb_peers.size() > 0 and main.sb_peer_nodes.size() > 0:
+			main.sbi_ask = {"mi": int(main._map_info(main.map_id).get("mi", -1))}
+			main._sbi_pick("f")
+			sbr_step = 1
+			print("XMODES pc: asked to race on %s" % main.map_id)
+		elif sbr_step == 1 and race.sb == null and main.state == "race" and not web.cfg.is_empty():
+			sbr_step = 2
+			sbr_ok = web.cfg.get("sbr") != null
+			print("XMODES pc: racing, a Sandbox race %s, karts %d" % [sbr_ok, race.karts.size()])
+		elif sbr_step == 2 and race.sb != null and web.cfg.is_empty():
+			done = true
+			print("XMODES PC %s sandbox race: raced (a Sandbox race %s) and back in Sandbox at %s" % ["PASS" if sbr_ok else "FAIL", sbr_ok, main.map_id])
+			await _linger(web)
+			get_tree().quit(0 if sbr_ok else 1)
 			return
 	if t > 1500.0:
 		done = true

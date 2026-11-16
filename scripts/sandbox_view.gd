@@ -73,6 +73,8 @@ var _rare: Array = []               # [[coin number, its node]]
 var _flag: Node3D
 const SandboxClock := preload("res://scripts/sandbox_clock.gd")
 var clock: SandboxClock = null      # the day and night of this place (scripts/sandbox_clock.gd)
+const SandboxNight := preload("res://scripts/sandbox_night.gd")
+var night: Node3D = null            # LED strips, street lamps, headlights (scripts/sandbox_night.gd; web v206 / v210)
 var _clk_acc := 1.0
 var _flag_mats: Array = []          # the start flag's unlit materials: at night they keep half their brightness (web v199)
 
@@ -81,6 +83,9 @@ func _exit_tree() -> void:
 	if clock != null:
 		clock.off()
 		clock = null
+	if night != null:
+		night.off()
+		night = null
 
 
 ## the warp picture's shader (the arches' faces here, and the tunnel's bright end in scripts/sandbox_warp.gd)
@@ -648,12 +653,19 @@ func _process(dt: float) -> void:
 			if clock == null:
 				clock = SandboxClock.new()
 				clock.arm(mn, T, String(sb.id))
+			if night == null:
+				night = SandboxNight.new()
+				add_child(night)
+				night.arm(mn, T, String(sb.id), clock.kind)
 			clock.apply(float(sb.save.get("t", 0.4)))
 			if _flag_mats.size() > 0:
 				var Fd: Dictionary = SandboxClock.f(float(sb.save.get("t", 0.4)))
 				var kf := 0.5 + 0.5 * float(Fd["D"])
 				for m in _flag_mats:
 					(m as BaseMaterial3D).albedo_color = Color(kf, kf, kf)
+	# the night's lights follow the kart every frame (the clock sets their level)
+	if night != null and mn != null:
+		night.frame(dt, float(SandboxClock.f(float(sb.save.get("t", 0.4)))["L"]), mn.get("kart"))
 	# the egg hops when found
 	if _egg != null and sb.acts != null and not sb.acts.egg.is_empty():
 		var hop := float(sb.acts.egg["hop"])

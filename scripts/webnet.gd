@@ -7,7 +7,9 @@ extends Node
 ## takes that and replays the controls the host hasn't seen yet, so steering is instant. Everything else is drawn as the
 ## host sends it. PC-to-PC races (ENet) are separate and unchanged.
 
-const PROTO := 116   # (116: web v209, cfg.ni: a race without items, the host's choice; 115: web v208, Balloon Battle and Sandbox on line)
+const PROTO := 117   # (117: web v213, a Sandbox race from a start line with invites; 116: web v209, cfg.ni; 115: web v208)
+const RACE_T := {"s": 1, "hit": 1, "tst": 1, "go": 1, "load": 1, "menu": 1, "elim": 1, "sbend": 1}   # race messages: a Sandbox race's racers only
+var sb_race := {}   # the host, a room's Sandbox race (web NET.sbRace): {pid: true} of the guests in it; empty otherwise
 # (113: web v202, the abilities evened out; 112: web v200, a grid may have fewer than eight)
 const TOP := "crustrush/v2/"
 const BROKERS := ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884/mqtt", "wss://test.mosquitto.org:8081/mqtt"]
@@ -137,6 +139,8 @@ func _send(m: Dictionary, dup := false) -> void:
 func _send_to(ch: Dictionary, m: Dictionary, dup := false, raw := false) -> void:
 	if ch.is_empty():
 		return
+	if not sb_race.is_empty() and RACE_T.has(String(m.get("t", ""))) and not sb_race.has(int(ch.get("pid", -1))):
+		return   # (web patch 52: a Sandbox race's messages go to its racers only)
 	# a direct link (WebRTC) carries everything once it's open: race pictures, controls and hits on the fast channel
 	# (a lost packet is skipped, the next one has fresh data), the rest on the ordered one; the relay is the fallback
 	if not raw and _rtc_send(ch, m):
@@ -296,6 +300,7 @@ func _send_pick() -> void:
 
 
 func leave(tell := true) -> void:
+	sb_race = {}
 	if role == "guest" and tell and not chan.is_empty():
 		_send({"t": "bye"})
 	if role == "host" and tell:
@@ -349,6 +354,15 @@ func _recv(d: Dictionary) -> void:
 					main._web_sb_start(mid)
 		"sps":
 			_sb_list(d)
+		"sbinv":
+			if main != null:
+				main._sbi_got(d)
+		"sbinvx":
+			if main != null:
+				main._sbi_off(String(d.get("why", "")))
+		"sbend":
+			if main != null and not cfg.is_empty() and cfg.get("sbr") != null:
+				main._sbi_end()
 		"lobby":
 			pl = d.get("pl", [])
 			me = int(d.get("you", 0))
@@ -361,6 +375,9 @@ func _recv(d: Dictionary) -> void:
 			var c: Dictionary = d.get("cfg", {})
 			if not cfg.is_empty() and String(c.get("id", "")) != "" and String(c.get("id", "")) == String(cfg.get("id", "")):
 				return
+			if c.get("sbr") != null and main != null:
+				main.sb_back = main._map_by_mi(int(c.get("mi", -1)))   # (a Sandbox race: back to Sandbox there after it)
+				main._sbi_clear()
 			_begin_load(c)
 		"go":
 			_go()
@@ -1124,6 +1141,12 @@ func _recv_host(ch: Dictionary, d: Dictionary) -> void:
 	var pid := int(ch.get("pid", 0))
 	var P := _player(pid)
 	match String(d.get("t", "")):
+		"sbinv":
+			if main != null:
+				main._sbi_start(int(d.get("mi", -1)), pid)
+		"sbans":
+			if main != null:
+				main._sbi_ans(pid, String(d.get("id", "")), bool(d.get("yes", false)))
 		"sp":
 			if d.get("p") is Dictionary:
 				var q: Dictionary = (d["p"] as Dictionary).duplicate()
@@ -1207,6 +1230,8 @@ func _wire_cfg(c: Dictionary) -> Dictionary:
 func _build_cfg(mi: int) -> Dictionary:
 	var humans: Array = [{"id": 0, "ri": int(main.sel["ri"]), "build": main._my_build(), "name": name_}]
 	for ch in guests_open():
+		if not sb_race.is_empty() and not sb_race.has(int(ch["pid"])):
+			continue   # (a Sandbox race: those who joined)
 		var P := _player(int(ch["pid"]))
 		if not P.is_empty():
 			humans.append(P)
@@ -1288,13 +1313,58 @@ func _maybe_go() -> void:
 	if role != "host" or cfg.is_empty() or go:
 		return
 	for ch in guests_open():
-		if not loaded_ids.has(int(ch["pid"])):
+		if not loaded_ids.has(int(ch["pid"])) and (sb_race.is_empty() or sb_race.has(int(ch["pid"]))):
 			return
 	go = true
 	for ch2 in guests_open():
 		_send_to(ch2, {"t": "go"})
 	if main != null:
 		main._web_go()
+
+
+## the host: a room's Sandbox race on a track for the host and the guests who joined (web patch 52 sbInvGo); everyone else keeps driving
+func sb_race_start(mi: int, ids: Array) -> String:
+	sb_race = {}
+	for i in ids:
+		sb_race[int(i)] = true
+	for ch in guests_open():
+		if not sb_race.has(int(ch["pid"])):
+			_send_to(ch, {"t": "sbinvx", "why": "go"})
+	main.sb_back = main._map_by_mi(mi)
+	cfg = _build_cfg(mi)
+	cfg["mode"] = "single"
+	cfg["gp"] = null
+	cfg["sbr"] = 1
+	cfg["id"] = rid()
+	rk = _rk_of(String(cfg["id"]))
+	loaded_ids = {0: true}
+	in_q = {}
+	in_s = {}
+	acks = {}
+	sn = 0
+	h_sig = ""
+	tick_n = 0
+	go = false
+	for ch in guests_open():
+		_send_to(ch, {"t": "load", "cfg": _wire_cfg(cfg)})   # (its racers only: _send_to)
+	var err: String = main._web_host_load(pc_cfg(cfg))
+	if err != "":
+		cfg = {}
+		sb_race = {}
+		return err
+	_lobby_sync()
+	_maybe_go()
+	return ""
+
+
+## the host back in Sandbox after a room's Sandbox race: it ends for everyone still in it (web sbBack: sbend)
+func sb_race_end() -> void:
+	if role == "host":
+		for ch in guests_open():
+			_send_to(ch, {"t": "sbend"})
+	sb_race = {}
+	cfg = {}
+	go = false
 
 
 ## back to the room after a race (web toMenu: netAll menu)
