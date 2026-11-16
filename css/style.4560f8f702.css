@@ -483,6 +483,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 #cine .c-card span{display:inline-block;margin-top:4px;font-size:13px;font-weight:700;color:#fff;background:rgba(0,0,0,.45);padding:3px 10px;border-radius:6px}
 #cine .c-skip{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(12vh + 10px);font-weight:800;font-size:13px;color:#fff;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.3);border-radius:99px;padding:6px 14px}
 #stage.cinema .hud-in{opacity:0;transition:opacity .3s}
+body.sbshop #sbPark,body.sbshop #sbSpd,body.sbshop #sbHud,body.sbshop #sbMapBtn,body.sbshop #sbBackBtn,body.sbshop #sbRace,body.sbshop #sbActB{visibility:hidden!important}
 .detail .abil{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:rgba(255,244,220,.06);border:1px solid rgba(255,244,220,.12)}
 .detail .abil i{flex:0 0 auto;width:12px;height:12px;border-radius:50%;box-shadow:0 0 10px currentColor}
 .detail .abil b{font-size:13px;white-space:nowrap}.detail .abil span{font-size:11.5px;color:rgba(255,244,220,.75);line-height:1.25}
