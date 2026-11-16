@@ -145,6 +145,25 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-16 (PC build for web v208, ONLINE VERSION 115 on the PC too): Balloon Battle and Sandbox on line on the PC, the rivals count
+The PC port of web v208 (patches 45, 46). All in D:/crust-rush/godot:
+- webnet.gd: PROTO 115; the six battle fields at the end of REM, bbDead in ZB, bb [clock, over] in the host's snapshots; `_build_cfg`
+  sets mode "bb" on the arena; `_battle(d, mine)` turns a guest's changes into the same race.fx events the host makes (bb_pop, +1, out,
+  the winner). Sandbox: `sbx`, `sb_peers`, `sb_in`; every 80 ms a place is sent (`_sb_send`); the host relays all places with its clock
+  (`sps`); a guest takes `sbgo` from any screen except a room race or while loading (it first took it only on the menu: the PC sat on a
+  results screen and never came). leave() clears all of it.
+- main.gd: `_web_sb_start`, `_sb_mine`, `sb_peer_nodes` (friends' cars, name tags, 100 ms behind), `_sb_peers_frame`; Sandbox's
+  "Race here" off and leaving goes back to the room as on the web; a guest's battle ends with the host's (race.bb.over). hud.gd: the
+  friends list. menu.gd: Balloon Battle and Sandbox are offered in rooms.
+- THE RIVALS COUNT DID NOTHING (owner: "setting the cpu number has no effect on the game, i just set it to 0 and still had a full cpu
+  lobby"). `_start_race` gave a full grid whenever `state == "menu"`, meant for the menu's background race; but a race started from
+  the menu also starts while the state is still "menu", so every race had seven rivals. Now `_start_race(cfg, bg)`: only the three
+  background-race callers pass bg=true. Test: tests/cpus.tscn (0, 1, 3 rivals from the menu, a full background grid).
+- Tests: tests/xmodes.tscn + tools/xmodes_web.py (browser hosts, PC joins; CR_XMODE=bb | sb): both pass both sides; xplay (race
+  cross-play), gpnet, smoke, battle, sandbox, cpus pass. Not tested: the PC hosting a web friend in battle or Sandbox.
+- Memory: the cross-play tests need about 5 GB free (a browser plus Godot); twice Claude Code stopped them when the machine ran low.
+  Close other apps first, and stop leftovers by their script names (xmodes_web.py, mqtt_broker.py, xmodes.tscn) afterwards.
+
 ### 2026-11-16 (web v208, ONLINE VERSION 115 on the web; the PC is still 114 and cannot join web rooms until it is ported): Balloon Battle and Sandbox on line
 The owner: "lets add sandbox and balloon battle online to the web version before porting to pc". Web: tools/mini/patch45.py (battle),
 patch46.py (Sandbox), patch46b.py (the username sheet closes when a race or a place starts). Tests: tools/neon/bbnet.py, sbnet.py (two
@@ -1084,7 +1103,8 @@ so the PC build of that push does not publish), and runs are watched through the
     tracks or rooms, a room's furniture, or battle.js): SANDBOX TEST passed in each.
 4b. A phone session: `neon/phonetest.py bedroom kitchen bedroom margherita grid bedroom` (any change to textures, materials,
     scenery caches or track loading): PHONE TEST passed, and look at `scratch/phone_*.png` for the repeat visits.
-5. PC: export from CI, `tests/tmp_neon` (AI race), `tests/tmp_cam` (pictures), then push.
+5. PC: `tests/smoke.tscn` (AI race; `tmp_neon`/`tmp_cam` no longer exist), the test of whatever changed (battle, sandbox, cpus,
+   gpnet; online changes: xplay and xmodes cross-play with the browser), then `tools/release_pc.py` (export from CI, build, push).
 
 ### 2026-11-12 (move to the Windows PC)
 | What broke | Why | Fix | Keep it fixed |
