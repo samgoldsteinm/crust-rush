@@ -81,6 +81,7 @@ var ai := {}              # lane, lane_target, lane_t, skill, item_delay, in_ben
 var info := {}            # roster entry: model file, stats
 var peer := 0             # online: who drives it (0 = computer)
 var remote := false       # online host: driven by a friend's controls
+var lead := 0.0           # (the picture only) a browser host's guest draws this kart this many seconds further along its way: webnet._snap
 var net_inp := {"steer": 0.0, "brake": false, "nb": false, "mul": 1.0, "look": false}
 var net_items: Array[String] = []
 var web := false          # online host: a browser friend's kart, driven by exactly the controls they sent

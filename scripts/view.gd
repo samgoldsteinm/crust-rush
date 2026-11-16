@@ -470,6 +470,13 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 	var x := lerpf(k.ox, k.x, al)
 	var y := lerpf(k.oy, k.y, al)
 	var z := lerpf(k.owy, k.wy, al)
+	if k.lead > 0.0 and k.loop.is_empty() and k.spin <= 0.0 and not k.finished:
+		# a guest's own kart is drawn where it is now, the others where the host last said: about one trip over the line behind,
+		# a kart's length at speed, so you seemed to drive inside a friend the host saw you bump (the owner, 2026-11-16). They are
+		# drawn that much further along their heading (webnet sets k.lead, at most 0.15 s); what hits what is still the host's.
+		var ma_ := lerp_angle(k.oma, k.ma, al)
+		x += cos(ma_) * k.speed * k.lead
+		y += sin(ma_) * k.speed * k.lead
 	var a := lerp_angle(k.oa, k.a, al)
 	var lth := 0.0
 	if not k.loop.is_empty():
@@ -1074,6 +1081,12 @@ func _draw_projectiles(al: float, dt: float) -> void:
 		if pd.has("px") and str(pd.get("ph", "")) == "":   # "ph" is a word on some items and a number on others: String() of a number is an error and stopped every thrown item being drawn
 			x = lerpf(float(pd["px"]), x, al)
 			y = lerpf(float(pd["py"]), y, al)
+		if pd.has("lox"):
+			# a guest's own throw (webnet._snap): it leaves from your kart as you see it, and joins the host's path over 0.3 s
+			var lf := 1.0 - clampf(float(Time.get_ticks_msec() - int(pd["lt"])) / 300.0, 0.0, 1.0)
+			lf *= lf
+			x += float(pd["lox"]) * lf
+			y += float(pd["loy"]) * lf
 		if not proj_nodes.has(id):
 			var nn := item_node(PROJ_NODE.get(type, "pep"))
 			var halo: MeshInstance3D = null

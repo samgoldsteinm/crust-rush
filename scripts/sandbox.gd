@@ -659,8 +659,11 @@ func blocked(x: float, z: float, wy: float) -> bool:
 		var off: float = race.player.sm_off if race != null and race.player != null else 0.0
 		if g0 > wy + R * clampf(1.88 + 0.24 * off, 1.19, 2.75) or (not is_nan(water) and g0 < water - 3.0 and wy < water + HEAD):
 			return true
+	# (web patch 42) on a pizza a drawn thing counts by how far it stands above the ground it lies on: a cheese or pepperoni disc on a
+	# slope ahead stood more than a step above the kart only because the hill rises, and a hollow ringed with them could not be left
+	var base := maxf(wy, T.ground(x, z)) if kind == "open" and in_g < 0 else wy
 	for i in n:
-		if s_top[i] > wy + STEP and s_bot[i] < wy + HEAD:
+		if s_top[i] > base + STEP and s_bot[i] < wy + HEAD:
 			return true
 	return false
 

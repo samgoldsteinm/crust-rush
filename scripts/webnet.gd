@@ -306,6 +306,10 @@ func leave(tell := true) -> void:
 	pend_map = ""
 	go = false
 	loaded = false
+	# out of the room: the menu is no longer a room's, so Balloon Battle and Sandbox (off line only) are offered again. It stayed "host"
+	# or "guest" until the game was restarted (the owner, 2026-11-16: "both balloon battle and sandbox disappeared" after leaving a lobby)
+	if main != null and main.menu != null:
+		main.menu.net = ""
 
 
 func _lost(msg: String) -> void:
@@ -449,6 +453,28 @@ func step(dt: float, inp: Dictionary) -> void:
 	out_q.append([seq, stq, 1 if bool(inp["brake"]) else 0, ev if ev != "" else 0, ab, mq, 1 if bool(inp["nb"]) else 0])
 	k._save_prev()
 	k.step(i2, dt)
+	_box_guess(k)
+
+
+## an item box you drive through breaks on your own screen at once, with its sound (web netGuestStep): the host decides what is in
+## it and sends the item; "pr" keeps the snapshot that confirms it from showing the same box again. (The owner, 2026-11-16, on the
+## PC as a guest: "the sound effect for hitting an item wasnt working on pc": before this a guest's boxes only changed by snapshot.)
+func _box_guess(k: Kart) -> void:
+	var race: Race = main.race
+	var T0: TrackData = main.T
+	if main.state != "race" or k.finished or (T0.BOXCD > 0.0 and k.box_t > race.sim_time):
+		return
+	for b in race.boxes:
+		if float(b["r"]) > 0.0 or float(b.get("pr", -9.0)) > race.sim_time:
+			continue
+		var dx := k.x - float(b["x"])
+		var dy := k.y - float(b["y"])
+		var hit := (k.glide and dx * dx + dy * dy < 400.0) if bool(b["air"]) else (dx * dx + dy * dy < 270.0 and (not T0.multi or absf(k.wy - float(b["gy"])) < 18.0))
+		if hit:
+			b["pr"] = race.sim_time + 1.5
+			k.box_t = race.sim_time + T0.BOXCD
+			race.fx.append({"t": "box", "x": float(b["x"]), "y": float(b["y"]), "h": float(b["gy"]) if bool(b["air"]) else T0.ground(float(b["x"]), float(b["y"])), "k": k})
+			return
 
 
 ## relay: every message repeats every control the host hasn't confirmed, so a lost one costs nothing
@@ -706,7 +732,20 @@ func _snap(d: Dictionary) -> void:
 		if bool((T0.boxes[i] as Dictionary).get("train", false)):
 			continue
 		if bi < race.boxes.size():
-			race.boxes[bi]["r"] = float(bx[i]) / 20.0
+			var b: Dictionary = race.boxes[bi]
+			var r := float(bx[i]) / 20.0
+			# a box someone else just took breaks here too (yours already did, when you drove through it: web boxFx(b, nk, true))
+			if r > 3.5 and not (float(b["r"]) > 0.0) and not (float(b.get("pr", -9.0)) > race.sim_time - 0.6) and main.state == "race":
+				var nk: Kart = null
+				var nd := 1.0e18
+				for o in race.karts:
+					var dd := (o.x - float(b["x"])) ** 2 + (o.y - float(b["y"])) ** 2
+					if dd < nd:
+						nd = dd
+						nk = o
+				if nk != null and nk != mine:
+					race.fx.append({"t": "box", "x": float(b["x"]), "y": float(b["y"]), "h": float(b["gy"]) if bool(b["air"]) else T0.ground(float(b["x"]), float(b["y"])), "k": nk})
+			b["r"] = r
 		bi += 1
 	var old := {}
 	for p in race.projectiles:
@@ -727,6 +766,17 @@ func _snap(d: Dictionary) -> void:
 			"vx": float(r[11]) if r.size() > 11 else 0.0, "vy": float(r[12]) if r.size() > 12 else 0.0, "t": 1.0, "t0": 1.0, "ph": "", "pt": 0.0, "dir": 0.0, "spin": 0.0,
 			"age": 1.0, "storm": false, "landed": true, "fuse": 0.0, "owner": race.karts[ow] if ow >= 0 and ow < race.karts.size() else null,
 			"target": race.karts[tg] if tg >= 0 and tg < race.karts.size() else null})
+		# your own throw first reaches you from the host already on its way (an anchovy is far up the road by then): it is drawn
+		# leaving your kart and joins its real path over 0.3 s (view._draw_projectiles). Only the picture: the host decides every hit.
+		# (The owner, 2026-11-16: "when throwing a projectile for some you dont see them come from the car for example the anchovie")
+		var np: Dictionary = race.projectiles[race.projectiles.size() - 1]
+		if prev != null and (prev as Dictionary).has("lox"):
+			for f in ["lox", "loy", "lt"]:
+				np[f] = prev[f]
+		elif prev == null and mine != null and np["owner"] == mine and Vector2(mine.x - x, mine.y - y).length() < 400.0:
+			np["lox"] = mine.x - x
+			np["loy"] = mine.y - y
+			np["lt"] = Time.get_ticks_msec()
 	if d.has("h"):
 		race.hazards.clear()
 		for q in d.get("h", []):
@@ -742,6 +792,11 @@ func _snap(d: Dictionary) -> void:
 			elif hk != "oil":
 				hd["kind"] = hk
 			race.hazards.append(hd)
+	# how far behind the others are drawn (half a round trip to the host and about one snapshot): view.draw_kart draws them that much
+	# further on, so where they are on this screen matches where your own kart is (see Kart.lead)
+	var ld := clampf(((ping_ms if ping_ms > 0.0 else 80.0) * 0.5 + snap_dt * 1000.0) / 1000.0, 0.0, 0.15)
+	for o in race.karts:
+		o.lead = 0.0 if o == mine else ld
 	# our own kart: the host's copy, with the controls it hasn't played yet on top
 	var S = d.get("me")
 	if S is Dictionary and mine != null:
