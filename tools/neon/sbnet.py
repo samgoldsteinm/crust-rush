@@ -19,6 +19,8 @@ async def main():
             await pg.evaluate("__ev(`qKey='fast';applyQuality();introSkip=true;const ov=$('lbNameOv');if(ov)ov.hidden=true;`)")
         A, B = pages
         await A.evaluate("__ev(`mode='sb';mapIdx=MAPS.findIndex(m=>m.id==='margherita');loadMap(mapIdx,false);resetRace(true);try{refreshMenu();}catch(e){}`)")
+        # (patch 47b) the friend's menu shows another map: they must still start at the host's place
+        await B.evaluate("__ev(`mapIdx=MAPS.findIndex(m=>m.id==='backyard');loadMap(mapIdx,false);resetRace(true);1`)")
         ev = lambda pg, s: pg.evaluate("(js)=>__ev('JSON.stringify('+js+')')", s)
 
         def say(name, r, ok):
@@ -41,6 +43,7 @@ async def main():
         if not await until(A, "NET.pendMap!=null&&netAllReady()", 40, 'everyone ready'): return
         await A.evaluate("__ev(`netHostGo()`)")
         if not (await until(A, "SBX&&state==='race'", 240, 'the host in Sandbox') and await until(B, "SBX&&state==='race'", 240, 'the friend in Sandbox')): bad += 1; print('ERR', errs[:4]); return
+        say('the friend starts at the host place (patch 47b)', {'host': json.loads(await ev(A, "MAPS[mapIdx].id")), 'friend': json.loads(await ev(B, "MAPS[mapIdx].id"))}, json.loads(await ev(A, "MAPS[mapIdx].id")) == json.loads(await ev(B, "MAPS[mapIdx].id")) == 'margherita')
         await A.wait_for_timeout(3500)
         S = "(()=>{const o=[...SBN.peers.values()].map(P=>({nm:P.nm,reg:P.reg,drawn:!!(P.m&&P.m.g.visible),x:P.m?Math.round(P.m.g.position.x):null,z:P.m?Math.round(P.m.g.position.z):null}));return {sbx:SBX,cfg:!!NET.cfg,map:MAPS[mapIdx].id,me:[Math.round(player.x),Math.round(player.y)],peers:o,list:document.getElementById('sbnList')&&document.getElementById('sbnList').textContent,ck:+sbClockNow().toFixed(3)}})()"
         ra = json.loads(await ev(A, S)); rb = json.loads(await ev(B, S))

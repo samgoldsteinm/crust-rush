@@ -145,6 +145,31 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-16 (web v209, ONLINE VERSION 116 on the web; the PC is 115 until it is ported): no items, Sandbox fixes, headlights, cursor
+Patches tools/mini/patch47.py (no items, NET_PROTO 116), 47b (Sandbox guest's place), 47c (headlights), 47d (cursor), 47e (friends list).
+Database: tools/mini/lb_schema_noitems.sql, run by the owner in the SQL editor on 2026-11-16 (adds runs.noitems; keeps every time).
+- NO ITEMS (owner: "a without items section", "when you turn items off the item boxes should just disappear ... the game will pull from
+  the hosts selected options"). The item guide may switch every item off (it used to keep one); every item off = no items, and the
+  menu's new Items On/Off is the same setting (Off: all off; On: the guide's defaults). NOITM (resetRace): off line from the guide, on
+  line from the host's cfg.ni; never in Last Slice, Balloon Battle, Sandbox or the demo. The boxes are not drawn and give nothing (host
+  loop and guest prediction skipped). Specials still work. World boards: With rivals | Alone | No items; the view (best_runs) gives a
+  no-items run solo = null so the older boards never show it; such a run is sent with p_noitems (others exactly as before).
+  Locked items (itemUnlocked false) count as neither on nor off for "all on" (the menu's note once said "some switched off" for them).
+  Test: tools/neon/noitemtest.py. NOTE for tests: wait_for_function on an expression that ends in a function (`&&window.__ev`) never
+  passes (a function is not a value Playwright reads): end it with `!!window.__ev`.
+- SANDBOX GUEST STARTED IN THE BACKYARD (owner: "the host spawned in garage like selected but the guest started in backyard"). The guest's
+  sbgo set mapIdx, then goRace(mapIdx); goRace loads a map only when mi !== mapIdx, so the menu's map stayed. Now goRace(d.mi). Never set
+  mapIdx before goRace. sbnet.py now starts the friend on the backyard (passes).
+- HEADLIGHTS were one bright patch at the bumper (the ground beam was brightest there, the spot light aimed steeply down close in). Now
+  the beam is dim at the bumper, brightest 40 to 90 ahead, widening to 130 across 240 ahead with a clear edge; the spot sits at headlight
+  height aiming nearly level, 3 not 5.5. Pictures: sbprobe.py with scratch/night6.js (probe_beam47c_*.png).
+- CONTROLLER CURSOR could not click the Records rows (li.lb-open had only an onclick; A clicks what matches PAD_CLICK): added to PAD_CLICK.
+  New Settings > Controller cursor speed (CFG.curs, 25-200 %, 70 by default: the owner found it too fast). A pretend-controller check
+  (scratch/startpad.py): Start pauses and resumes in a race and in Sandbox; A on a Records row opens its board.
+- FRIENDS LIST covered the item slots on a phone (fixed top:118px): now placed left of #itemBtn/#itemBtn2, measured each time.
+- Not done yet: the PC port of all this (PROTO 116, cfg.ni, no items, the leaderboard), the lag in Sandbox's tunnels, the Sandbox
+  start-line race lobby on line.
+
 ### 2026-11-16 (PC build for web v208, ONLINE VERSION 115 on the PC too): Balloon Battle and Sandbox on line on the PC, the rivals count
 The PC port of web v208 (patches 45, 46). All in D:/crust-rush/godot:
 - webnet.gd: PROTO 115; the six battle fields at the end of REM, bbDead in ZB, bb [clock, over] in the host's snapshots; `_build_cfg`
