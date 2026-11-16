@@ -137,7 +137,7 @@ against the landmarks' coordinates before the real generator closed the lap; the
 ### OPEN WORK, in the order to do it (rewritten 2026-11-14 after web v193; the owner's words for each are in docs/NEXT-MODES-BRIEF.md)
 1. (done: a Grand Prix on line on the PC, the controller's cursor on the PC, the trees and previews: see the v195 entry.)
 4. (done: Balloon Battle and Sandbox on the PC: see their entries. The PC now has every mode the web has.)
-5. THE WEBSITE: `py.cmd tools/site_pc.py` brings `app/pc.html` level with the PC build (done for build 68030144 and checked again for 521732c1, 3b1ecefb, 91f7f6ea and 92bf344b: 24 tracks,
+5. THE WEBSITE: `py.cmd tools/site_pc.py` brings `app/pc.html` level with the PC build (done for build 68030144 and checked again for 521732c1, 3b1ecefb, 91f7f6ea, 92bf344b, 3297721a and 8789578d: 24 tracks,
    Balloon Battle, Sandbox, online cups, the pointer, the size). Edit `HAS` in it when the PC's modes change, run it, commit and push `app`.
 6. SANDBOX, what the brief still asks for and is not built (docs/SANDBOX-PLAN.md has the plan for each): the coin shop (kart and car
    unlocks), online free roam and the start-line lobby with ready-up. The clock, things to do, Easter eggs, Back to the track, the mechanic's
@@ -194,7 +194,7 @@ a username and they can change it in settings"; off-line races count too; split 
 - TEST: tools/neon/lbtest.py (reads the real board; claim_name and submit_run are caught in the page, nothing is written).
 - OPEN: the PC (same functions over HTTPS from Godot: HTTPRequest; platform 'pc'); a "your world rank" line on the results screen.
 
-### 2026-11-16 (web v206; Sandbox only; the PC build after it has the PC fixes below but NOT the night lights yet): Sandbox at night
+### 2026-11-16 (web v206 and PC build 8789578d; Sandbox only; that PC build has the PC fixes below but NOT the night lights): Sandbox at night
 The owner: "When it's nighttime on the tracks make those little white lines we added to the walls on the hot wheels maps light up like leds
 and make the shadows and lighting looks good. Do this for every map in sandbox but maybe for some add street lights or for more off road type
 of maps give the cars headlights instead". Web: tools/mini/patch43.py (sbNightArm, built when a place is armed, into SB.grp; sbNightFrame each
