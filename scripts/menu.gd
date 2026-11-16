@@ -16,6 +16,7 @@ signal leave_online
 signal start_online
 signal setting_changed(key: String, value)
 signal modal_closed
+signal lb_open(map_id: String, map_name: String, cls: String)   # Records: a track card opens its world board (scripts/lb.gd)
 
 const Z := 1.18
 const CHEESE := Color("#f7c948")
@@ -42,6 +43,7 @@ var f_med: Font
 var mode := "gp"
 var cls := "medium"
 var cpus := 7          # how many computer racers (web v200 crust-cpus): 0 to 7
+var no_items := false  # every item switched off (web v209 Items On / Off): set by main before the menu is built
 var shop := false      # opened from Sandbox's mechanic's shop: the driver screen's back and the garage's next go back to Sandbox
 signal shop_done
 var ri := 1
@@ -170,7 +172,7 @@ var sel_focus: Control = null   # this screen's current pick (driver, track, cup
 var _focus_after := ""          # a control to put the border back on after the screen is rebuilt (its key)
 
 
-const TAB_NAMES := {"kart": "Karts", "car": "Cars", "bike": "Bikes", "wheel": "Wheels", "glider": "Glider", "theme": "Theme"}
+const TAB_NAMES := {"kart": "Karts", "car": "Cars", "bike": "Bikes", "wheel": "Wheels", "glider": "Glider", "colour": "Colour", "theme": "Theme"}
 
 
 ## the garage's tabs for the current body (a bike's wheels are its own: no Wheels tab)
@@ -179,7 +181,7 @@ func _garage_tabs() -> Array:
 	var t := ["kart", "car", "bike"]
 	if not bool(bd.get("bike", false)):
 		t.append("wheel")
-	t.append_array(["glider", "theme"])
+	t.append_array(["glider", "colour", "theme"])   # (Colour back: the owner, 2026-11-16, "add the color section back ... wherever we removed it")
 	return t
 
 
@@ -898,6 +900,21 @@ func _home() -> Control:
 	s3.add_child(row3)
 	s3.add_child(cpu_note)
 	col.add_child(s3)
+	# Items On / Off (web v209 #itmSeg): Off is every item switched off in Settings > Items, so no item boxes; never in Last Slice,
+	# Balloon Battle or Sandbox. In a friends' room the host's choice is everyone's.
+	if mode != "lss" and mode != "bb" and mode != "sb":
+		var s4 := vbox(8)
+		s4.add_child(section_label("Items"))
+		var itm_note := para("", 13.0, MUTED, 300.0)
+		var itm_upd := func():
+			itm_note.text = "No item boxes: just driving" if no_items else "Item boxes on the track"
+		s4.add_child(seg("items", [["on", "On"], ["off", "Off"]], "off" if no_items else "on", func(k):
+			no_items = k == "off"
+			itm_upd.call()
+			setting_changed.emit("items", not no_items), 14.0, 10.0))
+		itm_upd.call()
+		s4.add_child(itm_note)
+		col.add_child(s4)
 	var tools := hbox(8)
 	for t in [["how", "How to play"], ["rec", "Records"], ["ach", "Awards"], ["set", "Settings"]]:
 		var b := button(String(t[1]), "icon", 14.0, Vector4(10, 10, 10, 10))
@@ -1606,8 +1623,6 @@ func _garage() -> Control:
 	h.add_child(sp)
 	var is_bike := bool(I["bodies"][int(build["b"])].get("bike", false))
 	var tabs := [["kart", "Karts"], ["car", "Cars"], ["bike", "Bikes"], ["glider", "Glider"], ["theme", "Theme"]]
-	if g_tab == "colour":
-		g_tab = "theme"
 	tabs.assign(_garage_tabs().map(func(k): return [k, TAB_NAMES[k]]))
 	if is_bike and g_tab == "wheel":
 		g_tab = "bike"
@@ -1822,6 +1837,27 @@ func _garage() -> Control:
 				grid.add_child(c2)
 			var cp: Dictionary = list[int(build[key])]
 			desc = "[b][color=#fff4dc]%s.[/color][/b] %s" % [cp["name"], cp["desc"]]
+		"colour":
+			grid.columns = 5
+			var paints: Array = I["paints"]
+			var pn: Array = I["paintNames"]
+			for i in paints.size():
+				var sw := Button.new()
+				sw.custom_minimum_size = Vector2(z(64), z(64))
+				sw.tooltip_text = String(pn[i])
+				sw.set_meta("gkey", "p:%d" % i)
+				var col := Color(String(paints[i])) if paints[i] != null else Color(String(I["racers"][ri]["color"]))
+				var on := i == int(build["p"]) and String(build.get("t", "")) == ""
+				var st := box([col], 180.0, 32.0, CHEESE if on else Color(1, 0.957, 0.863, 0.3), 3.0 if on else 1.5)
+				for s2 in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
+					sw.add_theme_stylebox_override(s2, st)
+				var pi2 := i
+				sw.pressed.connect(func():
+					build["p"] = pi2
+					build["t"] = ""
+					_build_changed())
+				grid.add_child(sw)
+			desc = "[b][color=#fff4dc]%s.[/color][/b] One colour all over the kart." % pn[int(build["p"])]
 		"theme":
 			grid.columns = 3
 			var bid := String(I["bodies"][int(build["b"])]["id"])
@@ -2565,7 +2601,7 @@ func _show_modal(kind: String) -> void:
 	var root := _screen_root()
 	m.add_child(scroll_wrap(root))
 	# centred column: the web's sheets are 760 CSS px wide (Records and Awards use the whole width)
-	var widths := {"how": 760.0, "set": 760.0, "tips": 760.0, "mp": 560.0, "netlog": 760.0}
+	var widths := {"how": 760.0, "set": 760.0, "tips": 760.0, "mp": 560.0, "netlog": 760.0, "lb": 760.0, "lbname": 600.0}
 	var row := HBoxContainer.new()
 	root.add_child(row)
 	var v := vbox(14)
@@ -2587,7 +2623,7 @@ func _show_modal(kind: String) -> void:
 		sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		sp.size_flags_stretch_ratio = 0.5
 		v.add_child(sp)
-	var titles := {"how": "How to play", "rec": "Records", "ach": "Achievements", "set": "Settings", "tips": "Best setup", "mp": "Play with friends", "netlog": "Network log"}
+	var titles := {"how": "How to play", "rec": "Records", "ach": "Achievements", "set": "Settings", "tips": "Best setup", "mp": "Play with friends", "netlog": "Network log", "lb": lb_title, "lbname": "Pick a username"}
 	var head := hbox(14)
 	var tl := label(String(titles.get(kind, "")).to_upper(), f_disp, 44.0, CHEESE, SAUCE_DARK, Vector2(0, 4))
 	tl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -2619,6 +2655,7 @@ func _show_modal(kind: String) -> void:
 
 
 var netlog_back := ""      # the sheet the network log was opened from ("set"), so Done returns there
+var lb_title := ""           # the world board's title (the track's name)
 var modal_builders := {}   # kind -> Callable returning a Control (set by main for settings and online)
 var rec_cls := ""
 const CLS_LABEL := {"small": "50cc", "medium": "100cc", "large": "200cc", "reverse": "Reverse"}
@@ -2697,6 +2734,16 @@ func _records() -> Control:
 		var tm := label(fmt_time(float(r["t"])) if not r.is_empty() else "–", f_bold, 14.0, CHEESE if not r.is_empty() else MUTED)
 		tm.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		h.add_child(tm)
+		# a click (the mouse, or A with the controller's cursor) opens the track's world board (web patch 44, lb-open)
+		card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		card.mouse_filter = Control.MOUSE_FILTER_STOP
+		for cc in card.find_children("*", "Control", true, false):
+			(cc as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE   # (the picture and labels let the click through to the card)
+		var mid := id
+		var mname := String(m.get("name", id))
+		card.gui_input.connect(func(ev: InputEvent):
+			if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and not (ev as InputEventMouseButton).pressed:
+				lb_open.emit(mid, mname, rec_cls))
 		g.add_child(card)
 	var right := vbox(10)
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL

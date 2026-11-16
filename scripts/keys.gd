@@ -4,9 +4,9 @@ class_name Keys
 ## so they stay put on any keyboard layout. Esc always pauses unless it has been given another job.
 
 const ACTS := [["left", "Steer left"], ["right", "Steer right"], ["brake", "Drift / brake"], ["item1", "Use first item"], ["item2", "Use second item"],
-	["hold", "Keep item behind"], ["ability", "Special ability"], ["look", "Look back"], ["pause", "Pause"]]
+	["hold", "Keep item behind"], ["ability", "Special ability"], ["look", "Look back"], ["pause", "Pause"], ["sbback", "Back to the track (Sandbox)"]]
 const DEF := {"left": [KEY_LEFT, KEY_A], "right": [KEY_RIGHT, KEY_D], "brake": [KEY_SPACE, KEY_DOWN, KEY_S], "item1": [KEY_X, KEY_E, KEY_ENTER],
-	"item2": [KEY_Z, KEY_Q, KEY_V], "hold": [KEY_SHIFT, KEY_B], "ability": [KEY_C, KEY_R], "look": [KEY_F], "pause": [KEY_P]}
+	"item2": [KEY_Z, KEY_Q, KEY_V], "hold": [KEY_SHIFT, KEY_B], "ability": [KEY_C, KEY_R], "look": [KEY_F], "pause": [KEY_P], "sbback": [KEY_T]}   # (sbback: web v212 patch 51)
 
 static var bind := {}         # action -> [keycodes]
 static var by_key := {}       # keycode -> action

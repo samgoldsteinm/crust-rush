@@ -1772,6 +1772,15 @@ func _build_hud() -> void:
 			_save_settings()
 		if k == "mode":
 			_bb_mode_map()   # Balloon Battle's arena comes in behind the menu, and goes again with the mode
+		if k == "items":
+			# the menu's Items On / Off (web v209): Off switches every item off in Settings > Items, On puts them all back
+			sel.erase("items")
+			if v == false:
+				for it in ITEM_NAMES:
+					item_set[it] = false
+			elif all_items_off():
+				item_set.clear()
+			_save_settings()
 		pass)
 	menu.modal_builders["mp"] = _mp_panel
 	menu.shop_done.connect(_sb_shop_done)
@@ -1801,6 +1810,19 @@ func _build_hud() -> void:
 	menu.net_room.connect(_mp_back)
 	menu.modal_builders["set"] = _settings_panel
 	menu.modal_builders["netlog"] = _netlog_panel
+	# world leaderboards and usernames (web v207/v209: scripts/lb.gd); the Records cards open a track's board
+	lb = preload("res://scripts/lb.gd").new()
+	lb.name = "Lb"
+	lb.main = self
+	add_child(lb)
+	menu.modal_builders["lb"] = lb.board_panel
+	menu.modal_builders["lbname"] = lb.name_panel
+	menu.lb_open.connect(func(mid, mname, c): lb.open_board(mid, mname, c))
+	if not auto_drive:
+		get_tree().create_timer(2.5).timeout.connect(func():
+			# the first time the menu is up: pick a username (once a run of the game; Settings > More changes it)
+			if lb.name_ == "" and state == "menu" and menu != null and menu.visible and menu.modal == null:
+				lb.open_name(""))
 	# the controller's cursor in the menus (scripts/pad_cursor.gd): the last child, so it hears every input before the menus do
 	var pcur: Node = preload("res://scripts/pad_cursor.gd").new()   # (by its file, not its class name: a fresh checkout has no class list yet)
 	pcur.name = "PadCursor"
@@ -2240,6 +2262,18 @@ func _start_race(cfg: Dictionary, bg := false) -> void:
 	race.mode = "bb" if race.bb != null else ("lss" if lss else "")
 	if race.sb != null:
 		race.mode = "sb"   # (the race set Sandbox up itself, scripts/race.gd setup_cfg)
+	# a race without items (web v209, patch 47): every item switched off in Settings > Items (off line), or the host's choice (cfg "ni");
+	# never the menu's background race, Last Slice, Balloon Battle or Sandbox. No boxes at all: none drawn, none taken, none guessed.
+	race.noitm = false
+	if not bg and race.mode == "":
+		if web.role != "" and not web.cfg.is_empty():
+			race.noitm = bool(web.cfg.get("ni", false))
+		elif net_role != "" and not cfg.is_empty():
+			race.noitm = bool(cfg.get("ni", false))
+		elif cfg.is_empty() and net_role == "" and web.role == "":
+			race.noitm = all_items_off()
+	if race.noitm:
+		race.boxes.clear()
 	T.LAPS = maxi(2, race.karts.size() - 1) if race.mode == "lss" else T.laps0
 	spec_k = null
 	_spec_reset()
@@ -2446,6 +2480,10 @@ func _progress_finish() -> void:
 	var cls := String(sel["cls"])
 	var run := ghost.finish() if ghost != null and race.mode != "lss" else {}
 	last_run = Ach.record(map_id, cls, kart.finish_time, kart.place, kart.ri, _my_build(), run)
+	# the world leaderboard (scripts/lb.gd): every race counts, on line or off; alone = no other kart on the grid; no items = race.noitm
+	if lb != null and not test_drive and race.mode == "":
+		var bd: Dictionary = KartBuilder.info["bodies"][int(_my_build()["b"])] if KartBuilder.ready() else {}
+		lb.run(map_id, cls, kart.finish_time, kart.racer_name, String(bd.get("name", "Kart")), race.karts.size() == 1, race.noitm)
 	Ach.n_tracks = maxi(1, _n_tracks())   # (the tracks there are to race on: the Balloon Battle arena is not one)
 	Ach.race_done(kart.place, was_last, cls, kart.ri, map_id, gp)
 	_ach_toasts()
@@ -2797,6 +2835,8 @@ func _map_by_mi(mi: int) -> String:
 
 
 func _web_name() -> String:
+	if lb != null and lb.name_ != "":
+		return lb.name_   # (the username is your name in rooms too, as on the web: netName uses lbName)
 	if net_name != "":
 		return net_name
 	for q in roster.get("racers", []):
@@ -3468,6 +3508,11 @@ func _input(ev: InputEvent) -> void:
 				if act == "" and code == KEY_M and (sb_map_ui != null or (racing and state == "race")):
 					_sb_map(sb_map_ui == null)
 					return
+				# Back to the track (web v212 patch 51: a key of its own, T by default): pauses and asks, as the pause menu's button does
+				if act == "sbback" and racing and state == "race" and sb_go.is_empty():
+					_toggle_pause()
+					_sb_back_ask()
+					return
 			match act:
 				"item1":
 					if racing:
@@ -3978,6 +4023,7 @@ func _menu_sync() -> void:
 	menu.mode = String(sel["mode"])
 	menu.cls = String(sel["cls"])
 	menu.cpus = clampi(int(sel.get("cpus", 7)), 0, 7)
+	menu.no_items = all_items_off()
 	menu.ri = int(sel["ri"])
 	menu.cup = int(sel["cup"])
 	menu.map_id = map_id
@@ -4028,6 +4074,15 @@ func _menu_preview_map(id: String) -> void:
 	if state == "menu" and menu != null:
 		menu.visible = true
 		menu.pad_refocus()
+
+
+## every item you have switched off in Settings > Items (locked ones do not count): a race without items, no boxes (web itemsOff, patch 47)
+func all_items_off() -> bool:
+	for it in ITEM_NAMES:
+		var locked := Race.ITEM_AWARD.has(it) and not Ach.unlocked(String(Race.ITEM_AWARD[it]))
+		if not locked and item_set.get(it, true) != false:
+			return false
+	return true
 
 
 ## items left out of races: the award items until their achievement is won, and any switched off in Settings
@@ -4439,6 +4494,7 @@ func _settings_panel() -> Control:
 				["Speed units", "", "units", [["mph", "mph"], ["kmh", "km/h"]], "kmh" if hud.kmh else "mph"],
 				["Camera", "Close sits right behind your driver. First person: from the driver's seat.", "cam", [["close", "Close"], ["far", "Far"], ["fp", "First person"]], "fp" if cam_fp else ("far" if cam_far else "close")],
 				["Camera distance", "How far behind your kart the camera sits.", "camd", {"lo": 75, "hi": 150, "step": 5, "fmt": "%d%%", "mul": 1.0}, cam_d],
+				["Controller cursor speed", "How fast the on-screen cursor moves in menus when you use a controller.", "curs", {"lo": 25, "hi": 200, "step": 5, "fmt": "%d%%", "mul": 1.0}, curs],
 				["Camera shake", "Shake on bumps, boosts and hits.", "shake", on_off, "1" if shake_on else "0"],
 				["Best-run ghost", "Race a see-through copy of your personal best.", "ghost", on_off, "1" if ghost_on else "0"],
 			]))
@@ -4488,6 +4544,24 @@ func _settings_panel() -> Control:
 				sv.add_child(menu.para(String(st[1]), 12.5, Color("#c2a58c"), 720.0))
 				c.add_child(sv)
 		"more":
+			c.add_child(menu.section_label("Username"))
+			var ur := menu.hbox(20)
+			var uv := menu.vbox(2)
+			uv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			uv.add_child(menu.label(lb.name_ if lb != null and lb.name_ != "" else "Not picked yet", menu.f_bold, 16.0, Color("#fff4dc")))
+			uv.add_child(menu.para("Your name on the world leaderboards and in online rooms. The account code puts the same username on another device: keep it private.", 13.0, Color("#c2a58c"), 420.0))
+			ur.add_child(uv)
+			var ub := menu.button("Change", "ghost", 14.0, Vector4(14, 8, 14, 8))
+			ub.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			ub.pressed.connect(func(): lb.open_name("set"))
+			ur.add_child(ub)
+			var uc := menu.button("Copy account code", "ghost", 14.0, Vector4(14, 8, 14, 8))
+			uc.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			uc.pressed.connect(func():
+				DisplayServer.clipboard_set(lb.token)
+				uc.text = "Copied")
+			ur.add_child(uc)
+			c.add_child(ur)
 			c.add_child(menu.section_label("Online"))
 			var nr := menu.hbox(20)
 			var nv := menu.vbox(2)
@@ -4731,6 +4805,7 @@ func _reset_settings() -> void:
 	cam_far = false
 	cam_fp = false
 	cam_d = 100
+	curs = 70
 	shake_on = true
 	ghost_on = true
 	music_on = true
@@ -4772,6 +4847,8 @@ var snd_level := 1.0
 var cam_far := false
 var cam_fp := false       # first person: from the driver's seat (Settings > Camera)
 var cam_d := 100
+var lb: Node = null            # scripts/lb.gd: world leaderboards and usernames
+var curs := 70              # Settings > Controller cursor speed, % (web v209 CFG.curs: 70 by default, the old speed was too fast)
 var shake_on := true
 var fs_on := true         # full screen (saved; F11 switches too)
 
@@ -4869,6 +4946,8 @@ func _apply_setting(key: String, val: String) -> void:
 			cam_fp = val == "fp"
 		"camd":
 			cam_d = int(round(float(val)))
+		"curs":
+			curs = int(round(float(val)))
 		"shake":
 			shake_on = val == "1"
 		"ghost":
@@ -4976,7 +5055,7 @@ func _save_settings() -> void:
 	cf.set_value("gfx", "res", res_scale)
 	cf.set_value("snd", "vol", sfx_vol)
 	cf.set_value("snd", "level", snd_level)
-	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "mblur_on", "dof_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "mblur_on", "dof_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "curs", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
 		cf.set_value("opt", k2, get(k2))
 	cf.set_value("opt", "stats_on", KartBuilder.stats_on)
 	Keys.save_to(cf)
@@ -5003,7 +5082,7 @@ func _load_settings() -> void:
 	res_scale = float(cf.get_value("gfx", "res", res_scale))
 	sfx_vol = float(cf.get_value("snd", "vol", 1.0))
 	snd_level = float(cf.get_value("snd", "level", 1.0))
-	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "mblur_on", "dof_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "mblur_on", "dof_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "curs", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
 		var vv = cf.get_value("opt", k2, get(k2))
 		if typeof(vv) == typeof(get(k2)):
 			set(k2, vv)
@@ -5180,6 +5259,7 @@ func _net_start() -> void:
 	var pri := int(sel["ri"])
 	var cfg := Race.new().make_cfg(roster, pri, peers, int(randi() & 0x7fffffff) + 1, String(sel["cls"]), _my_build(), net_prefs)
 	Race.trim_cpus(cfg, _cpu_count())
+	cfg["ni"] = all_items_off()   # (web v209: a race without items is the host's choice)
 	cfg["map"] = map_id
 	if String(sel.get("mode", "")) == "lss" and gp.is_empty():
 		cfg["mode"] = "lss"

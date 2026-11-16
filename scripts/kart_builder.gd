@@ -536,10 +536,10 @@ static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false) -> v
 					wm2.albedo_texture = wrap
 					wm2.vertex_color_use_as_albedo = true
 					wm2.metallic = float(lv.get("m", 0.3))
-					wm2.roughness = float(lv.get("r", 0.28))
+					wm2.roughness = float(lv.get("r", 0.22))
 					wm2.clearcoat_enabled = true
 					wm2.clearcoat = 1.0
-					wm2.clearcoat_roughness = 0.05
+					wm2.clearcoat_roughness = 0.03
 					wm2.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 					m3.set_surface_override_material(si, wm2)
 				elif not lv.is_empty() and liv != null and not lv.has("tex"):
@@ -552,11 +552,11 @@ static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false) -> v
 					pcol.a = 1.0
 					pm.albedo_color = pcol
 					pm.vertex_color_use_as_albedo = true
-					pm.roughness = float(lv.get("r", 0.38)) if not lv.is_empty() else 0.38
-					pm.metallic = minf(float(lv.get("m", 0.12)), 0.62) if not lv.is_empty() else 0.12
+					pm.roughness = float(lv.get("r", 0.2)) if not lv.is_empty() else 0.2   # (glossier: web v210 patch49c, "the colors look pretty flat")
+					pm.metallic = minf(float(lv.get("m", 0.14)), 0.62) if not lv.is_empty() else 0.14
 					pm.clearcoat_enabled = true
 					pm.clearcoat = 1.0
-					pm.clearcoat_roughness = 0.08
+					pm.clearcoat_roughness = 0.03
 					m3.set_surface_override_material(si, pm)
 			elif nm.begins_with("g_dark") or nm.begins_with("g_stripe"):
 				var dm := StandardMaterial3D.new()
@@ -576,7 +576,8 @@ static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false) -> v
 ## read as fully metal and fully rough everywhere: dark, flat metal all over. The table is the web's CAR_PBR.
 const CAR_CLS := ["paint", "dark", "stripe", "tail", "light", "glass", "carbon", "metal", "rubber", "seat", "chrome", "rim",
 	"disc", "caliper", "blue", "gunmetal", "green", "red", "bluem", "bronze", "white"]
-const CAR_PBR := {"paint": [0.36, 0.5, 1.0], "dark": [0.36, 0.25, 1.0], "stripe": [0.36, 0.5, 1.0], "tail": [0.4, 0.0, 0.0],
+const CAR_PBR := {"paint": [0.2, 0.32, 1.0], "dark": [0.36, 0.25, 1.0], "stripe": [0.2, 0.32, 1.0],   # (paint and stripe glossier, less metal: web v210 patch49c)
+	 "tail": [0.4, 0.0, 0.0],
 	"light": [0.2, 0.0, 0.0], "glass": [0.05, 0.0, 1.0], "carbon": [0.36, 0.25, 1.0], "metal": [0.32, 0.9, 0.0],
 	"rubber": [0.9, 0.0, 0.0], "seat": [0.8, 0.0, 0.0], "chrome": [0.1, 1.0, 0.0], "rim": [0.24, 0.95, 0.0],
 	"disc": [0.45, 0.85, 0.0], "caliper": [0.35, 0.2, 0.8], "blue": [0.3, 0.0, 0.0], "gunmetal": [0.26, 0.9, 0.4],
@@ -616,7 +617,7 @@ static func car_vc_mat() -> StandardMaterial3D:
 	m.metallic_specular = 0.5
 	m.clearcoat_enabled = true
 	m.clearcoat = 1.0
-	m.clearcoat_roughness = 0.08
+	m.clearcoat_roughness = 0.03
 	m.clearcoat_texture = ImageTexture.create_from_image(cc)
 	_car_vc = m
 	return m

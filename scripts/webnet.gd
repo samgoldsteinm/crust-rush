@@ -7,7 +7,7 @@ extends Node
 ## takes that and replays the controls the host hasn't seen yet, so steering is instant. Everything else is drawn as the
 ## host sends it. PC-to-PC races (ENet) are separate and unchanged.
 
-const PROTO := 115   # (115: web v208, Balloon Battle and Sandbox on line: the battle fields in REM, bb in snapshots, the Sandbox messages)
+const PROTO := 116   # (116: web v209, cfg.ni: a race without items, the host's choice; 115: web v208, Balloon Battle and Sandbox on line)
 # (113: web v202, the abilities evened out; 112: web v200, a grid may have fewer than eight)
 const TOP := "crustrush/v2/"
 const BROKERS := ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884/mqtt", "wss://test.mosquitto.org:8081/mqtt"]
@@ -1244,7 +1244,7 @@ func _build_cfg(mi: int) -> Dictionary:
 	if cls == "reverse":
 		cls = "large"
 	var cup = main.gp_wire()   # a Grand Prix for the room: the cup goes out with every race, as the web's does
-	return {"mi": mi, "cls": cls, "mode": "bb" if bool(main._map_info(main.map_id).get("battle", false)) else ("gp" if cup != null else ("lss" if String(main.sel.get("mode", "")) == "lss" else "single")), "gp": cup, "karts": ks}
+	return {"mi": mi, "cls": cls, "mode": "bb" if bool(main._map_info(main.map_id).get("battle", false)) else ("gp" if cup != null else ("lss" if String(main.sel.get("mode", "")) == "lss" else "single")), "gp": cup, "karts": ks, "ni": main.all_items_off()}
 
 
 ## start a race for everyone in the room on the track you picked (web netHostStart)

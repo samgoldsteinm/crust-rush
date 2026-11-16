@@ -83,6 +83,7 @@ var sb_defer := false        # ...set up on another thread (scripts/world_build.
 var lss_lap := 0
 var lss_done := false
 var items_off := {}         # items switched off (settings) or not yet won (award items): {name: true}
+var noitm := false          # a race without items (web NOITM, patch 47): main.gd empties `boxes` for it
 ## the glide's boost rings (web GLIDE.rings): [x, y, z, yaw] from the track data; their heights float to meet the
 ## local player's glide line as they fly (web steerGlideRings), so each machine has its own; online, a person's kart is
 ## judged on the ring's line only (net_on), as on the web

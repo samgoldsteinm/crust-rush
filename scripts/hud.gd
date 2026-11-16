@@ -570,8 +570,10 @@ func _draw_sb_friends() -> void:
 		wmax = maxf(wmax, f_bold.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs * s)).x / s)
 	var w := wmax + 20.0
 	var h := ls.size() * (fs + 5.0) + 10.0
-	var x0 := W - w - 10.0
-	var y0 := 118.0
+	# beside the item slots, never over them (web v209 patch 47e: on a phone the slots sat under the list): left of slot 2, level with its top
+	var r2 := item_rect(2)
+	var x0 := r2.position.x / s - w - 10.0
+	var y0 := r2.position.y / s
 	_rbox(x0, y0, w, h, Color(18.0 / 255, 9.0 / 255, 6.0 / 255, 0.55), Color(0, 0, 0, 0), 0.0, 10.0)
 	for i in ls.size():
 		_text(f_bold, ls[i], x0 + 10.0, y0 + 6.0 + i * (fs + 5.0), fs, CREAM)

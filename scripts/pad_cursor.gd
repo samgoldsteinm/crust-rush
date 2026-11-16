@@ -102,6 +102,7 @@ func _process(dt: float) -> void:
 		var d := Vector2(float(Input.is_joy_button_pressed(j, JOY_BUTTON_DPAD_RIGHT)) - float(Input.is_joy_button_pressed(j, JOY_BUTTON_DPAD_LEFT)), float(Input.is_joy_button_pressed(j, JOY_BUTTON_DPAD_DOWN)) - float(Input.is_joy_button_pressed(j, JOY_BUTTON_DPAD_UP)))
 		v += d * 430.0
 	v *= clampf(minf(size.x, size.y) / 720.0, 0.7, 2.2)
+	v *= float(main.get("curs") if main != null and main.get("curs") != null else 70) / 100.0   # Settings > Controller cursor speed (web v209)
 	if _pad:
 		# a screen that has just opened gave its main button the focus: the pointer starts there, and the focus (its yellow ring) is let go.
 		# A box being typed in keeps it.
