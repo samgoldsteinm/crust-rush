@@ -1285,6 +1285,12 @@ func _build_world() -> void:
 	# doesn't normalise. A high white point and exposure x(1.667/1.8) make the two curves match.
 	env.tonemap_white = 16.0
 	env.tonemap_exposure = float(L.get("exposure", 0.92)) * ((1.0 if night or T.toy else 0.96) if vivid else 1.0) * (1.0 / 0.6) / 1.8
+	# the frozen tracks are snow, ice and pale paving: with Vivid's stronger sun they burned out to white (the owner, 2026-11-16, on
+	# the PC: "this map is also super bright ... make sure the snowy maps are not super bright"): less exposure and fill there
+	var frozen := T.theme == "freezer" and not T.toy
+	if frozen:
+		env.tonemap_exposure *= 0.84
+		env.ambient_light_energy *= 0.85
 	# Ultra's screen-space ambient occlusion (radius 7, strong) and its bloom (threshold .94, strength .3)
 	env.ssao_enabled = not is_phone
 	env.ssao_radius = 2.5
@@ -1326,7 +1332,7 @@ func _build_world() -> void:
 	world.add_child(sun)
 	sun.look_at_from_position(to_sun * 100.0, Vector3.ZERO, Vector3.UP)
 	sun.light_color = _hex(L.get("sunColor"), Color(1, 0.84, 0.66))
-	sun.light_energy = float(L.get("sunI", 3.25)) * (0.5 if T.toy else ((1.12 if T.theme == "night" else 1.25) if look != "classic" else 1.0))
+	sun.light_energy = float(L.get("sunI", 3.25)) * (0.5 if T.toy else ((1.12 if T.theme == "night" else (1.0 if T.theme == "freezer" else 1.25)) if look != "classic" else 1.0))   # (no Vivid boost on the snow: see the exposure above)
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 300.0
@@ -3173,7 +3179,10 @@ func _input_state() -> Dictionary:
 	# X (or the look key) turns the camera round; the stick pulled back only aims the next item behind (web PAD.back)
 	look_back = look or test_look
 	aim_back = look_back or stick_back
-	var o := {"steer": clampf(steer, -1.0, 1.0), "brake": brake, "nb": nb, "mul": mul, "use": false, "back": false, "hold": false, "hold_sl": 1, "release": null}
+	# "look": the special goes behind you too (race.gd reads it for use_ability: Pepperoni Storm, School of Fish). It was never
+	# set here, so on the PC off line and when hosting every special went forward (the owner, 2026-11-16: "the pepperoni special
+	# ability needs to be able to go backwards as well"); the same as an item: looking back, or the left stick pulled back
+	var o := {"steer": clampf(steer, -1.0, 1.0), "brake": brake, "nb": nb, "mul": mul, "use": false, "back": false, "hold": false, "hold_sl": 1, "release": null, "look": aim_back}
 	if race != null and race.sb != null:
 		# Sandbox: parked, or both brake pedals held on a touch screen: no throttle, and no brake either (held, it would
 		# reverse); sandbox.gd's tick takes the speed down to nothing (web playerInput: if(SBX&&sbStop()))
@@ -4774,7 +4783,9 @@ func _apply_quality() -> void:
 		return
 	env.ssao_enabled = quality >= 2 and not is_phone and ao_on
 	env.glow_enabled = quality >= 1 or not is_phone
-	env.ssil_enabled = plus and ao_on
+	# (2026-11-16) SSIL off for good: a friend of the owner's on Ultra saw the picture break into spreading black squares (bad values
+	# from the screen-space effects, spread by the glow); Fast, with no SSIL or SSAO, was "fixed for the most part"
+	env.ssil_enabled = false
 	env.ssil_radius = 6.0
 	env.ssil_intensity = 0.55
 	env.ssil_sharpness = 0.98

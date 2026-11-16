@@ -44,6 +44,9 @@ void fragment() {
 		}
 		c0 *= 0.125;
 	}
+	// a pixel that came out invalid (not a number) or out of range draws as black instead of poisoning the colour maths below
+	if (any(isnan(c0)) || any(isinf(c0))) c0 = vec3(0.0);
+	c0 = clamp(c0, 0.0, 64.0);
 	vec3 c = lin(c0);
 	c = clamp(c * tint, 0.0, 1.0);
 	float l = dot(c, vec3(0.2126, 0.7152, 0.0722));

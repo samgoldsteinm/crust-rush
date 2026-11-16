@@ -27,7 +27,9 @@ void fragment() {
 	float gz = -n0.z / ny;
 	vec3 du = vec3(ax.x, hs * gx, ax.y);
 	vec3 dv = vec3(az.x, hs * gz, az.y);
-	vec3 nl = normalize(cross(dv, du));
+	vec3 cr = cross(dv, du);
+	// (a length of nothing would make every number after it invalid, and the glow spreads one such pixel into black squares)
+	vec3 nl = dot(cr, cr) > 1e-12 ? normalize(cr) : vec3(0.0, 1.0, 0.0);
 	if (nl.y < 0.0) nl = -nl;
 	vec3 nw = normalize((MODEL_MATRIX * vec4(nl, 0.0)).xyz);
 	NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
