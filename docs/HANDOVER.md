@@ -145,6 +145,31 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-16 (web v204 and the next PC build; Sandbox only, online stays 114): drive up the hills on every pizza
+The owner, with a picture of the dunes beside Oven Rush Raceway: "You should be able to drive up them unless of course they are straight up
+and down. The car should struggle a little like a real car would ... better off-roading will help as well". Web: tools/mini/patch40.py;
+PC: kart.gd (the pull) and sandbox.gd `blocked` (the cliff), the same numbers.
+- Measured first (scratch/oven_probe.js, sbprobe.py): the land beside the pizza tracks rises 50-75 degrees for its first 40-60 units, then
+  rolls gently. v200's limit (about 40 degrees for a middle kart) stopped every kart at the foot of every dune. The red and white kerb
+  beside the road is 4.6 high: already a step. What else stands there (68 of 286 sides on Oven Rush) is drawn things: the start arch's
+  legs, trees, rocks.
+- sbClimb (the cliff): a rise over SB_R of tan 1.88 + 0.24*off, clamped 1.19..2.75: about 62 degrees for a middle kart, 70 the best
+  off-road, 50 the worst. sbGrav: the pull uphill in Sandbox is 165*sin(slope)*(.69-.04*off, clamped .4..95) (it was tan(slope) times
+  .45-.085*off, which grows without end on steep ground). The engine's own push (ACCEL 110 x acceleration, less as the speed rises) is what
+  climbs, so a kart's acceleration matters as a real car's power does.
+- scratch/climb7.js (the climb test with bands 20-72 degrees, 8 s): Oven Rush and Margherita: the middle kart climbs all to 50, most at
+  50-57, about half at 57-64, none steeper; the best off-road everything to 64; the worst stalls past 50. A middle kart takes about 1.2-1.5 s
+  for the last 36 units from a standstill (about a sixth of its top speed): the struggle.
+- TESTS: web sbtest bedroom and margherita passed; PC tests/sandbox.tscn (CR_MAP=margherita CR_MODE=sb) PASS.
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| PC tests/sandbox.tscn failed "it comes out of the matching gate garage>margherita", also with PC build 91f7f6ea's own maps and without this change | The kart comes out of the tunnel still moving and had driven 60.8 when measured; the limit was 60 | The limit is 80 (other gates are hundreds away, so it still tells the right gate) | Read fromGate in its report before calling a failure a wrong gate |
+
+The owner said (2026-11-16) Balloon Battle and Sandbox were not on the PC. The copy in their Downloads (build 91f7f6ea) has the arena and
+every place's Sandbox block, and tests/menushots.tscn with CR_MAPS set to that copy's maps folder shows both in the home screen's Mode row.
+They are hidden only inside Play with friends (both are off line). If it comes up again, ask for a screenshot of the home screen and the
+build number printed small in its bottom right corner.
+
 ### 2026-11-15 (web v203 and PC build 91f7f6ea; ONLINE VERSION 114 on both): the vehicles evened out; Shockwave through garlic; two unblockable anchovies
 The owner, after the trial below: "Yes go ahead with the vehicle changes", then: "make the pineapple go through the garlic shield but not
 the mozz shield let's also make anchovy not blockable instead let's go with the 2 anchovies instead of 3". Web: tools/mini/patch38.py

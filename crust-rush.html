@@ -5679,10 +5679,11 @@ function sbG(x,z,wy){if(wy==null)wy=1e9;const n=sbSurf(x,z),S=SB.S;if(SB.inG&&SB
    proves nothing real stands on the track; where the picture has the track run through the edge of a worktop or under a low beam, the track wins. */
 /* climbing (web v200): how much of the engine's pull back down a slope a kart feels going up, and the steepest ground it can climb at all
    (as a rise over SB_R, the distance the walls are looked for at), both from its off-road (statMods .off: -3.6 to 3.6, 0 a middle kart; with
-   kart stats off, 0). A middle kart: 45% of the pull, up to about 40 degrees; the best off-road 15%, 50 degrees; the worst 85%, 26 degrees */
+   kart stats off, 0). (patch 40, the owner: drive up the hills "unless of course they are straight up and down") the pull goes by the sine of the slope:
+   a middle kart 69% of it, up to about 62 degrees; the best off-road 55%, 70 degrees; the worst 83%, 50 degrees */
 function sbOffRd(k){const sm=k&&k.sm;return sm&&isFinite(sm.off)?sm.off:0;}
-function sbGrav(k){return clamp(.45-.085*sbOffRd(k),.12,.9);}
-function sbClimb(k){return SB_R*clamp(.84+.1*sbOffRd(k),.45,1.2);}
+function sbGrav(k){return clamp(.69-.04*sbOffRd(k),.4,.95);}
+function sbClimb(k){return SB_R*clamp(1.88+.24*sbOffRd(k),1.19,2.75);}
 function sbBlocked(x,z,wy){const n=sbSurf(x,z),S=SB.S,lv=sbLvl();for(let i=0;i<n;i++)if(S[i][2]>=0&&S[i][4]&&Math.abs(S[i][1]+2.5-wy)<=lv)return false;
   if(SB.kind==='open'&&!SB.inG){/* a pizza's own ground: a face that rises more than a step from where the kart stands is a cliff, not a hill (the land beside some tracks climbs 180 in a few lengths), and water deeper than the wheels is a shore */const g0=groundAt(x,z);if(g0>wy+sbClimb(player)||(WATER_Y!=null&&g0<WATER_Y-3&&wy<WATER_Y+SB_HEAD))return true;}
 for(let i=0;i<n;i++)if(S[i][0]>wy+SB_STEP&&S[i][1]<wy+SB_HEAD)return true;return false;}
@@ -8558,7 +8559,7 @@ function stepKart(k,inp,dt){
     if(k.brake>.04){if(k.speed>2)k.speed-=200*k.brake*dt;else k.speed=Math.max(-55,k.speed-100*k.brake*dt);}
     else if(k.speed<max){const f=1-.72*clamp(k.speed/max,0,1);k.speed=Math.min(max,k.speed+(ACCEL*sm.acc*(k.boost>0?2.8:1)*f+(k.speed<0?220:0))*dt);}
     else k.speed+=(max-k.speed)*Math.min(1,dt*1.5);
-    if(!k.air){const ca=Math.cos(k.ma),sa=Math.sin(k.ma),sl=(groundAt(k.x+ca*5,k.y+sa*5)-groundAt(k.x-ca*5,k.y-sa*5))/10;k.speed-=sl*165*(SBX&&sl>0?sbGrav(k):1)*dt;}
+    if(!k.air){const ca=Math.cos(k.ma),sa=Math.sin(k.ma),sl=(groundAt(k.x+ca*5,k.y+sa*5)-groundAt(k.x-ca*5,k.y-sa*5))/10;k.speed-=sl*165*(SBX&&sl>0?sbGrav(k)/Math.sqrt(1+sl*sl):1)*dt;/* (patch 40) Sandbox uphill: by the sine */}
     const sp=Math.abs(k.speed),dir=(k.speed<0?-1:1)*(k.air&&k.big?.35:1);
     const hs=clamp((sp-40)/(BASE_MAX-40),0,1),lo=sp<1?0:Math.min(1,sp/35),tfN=lo*(1-.52*hs)*(isHuman(k)?1:1.4)*sm.hnd*(1+.4*clamp((sp-BASE_MAX)/(BASE_MAX*.58),0,1))/* steering keeps more authority at speed, and gains some above top speed, so a boost (an item's or an ability's) can still be steered through a bend */,tfD=lo*(1-.38*hs)*1.02*sm.hnd*(1+.55*clamp((sp-BASE_MAX)/(BASE_MAX*.58),0,1));/* drifting: a touch tighter than before, and much tighter above top speed so a boost doesn't carry you wide */
     let dRel=false;if(k.spin>0||k.sink!=null)k.dLatch=false;if(dPress&&k.air&&!k.drift){if(!trickNow&&!(k.glide&&(k.gH||0)>16)){k.dLatch=!k.dLatch;k.dWant=0;}}/* tapped mid-air (jump or glide): stay armed and drift the moment you land */else if(dPress&&k.drift&&!k.air)dRel=true;else{if(dPress&&!k.drift)k.dWant=.6;if(k.dWant>0&&inp.brake)k.dWant=Math.max(k.dWant,.12);
