@@ -137,7 +137,7 @@ against the landmarks' coordinates before the real generator closed the lap; the
 ### OPEN WORK, in the order to do it (rewritten 2026-11-14 after web v193; the owner's words for each are in docs/NEXT-MODES-BRIEF.md)
 1. (done: a Grand Prix on line on the PC, the controller's cursor on the PC, the trees and previews: see the v195 entry.)
 4. (done: Balloon Battle and Sandbox on the PC: see their entries. The PC now has every mode the web has.)
-5. THE WEBSITE: `py.cmd tools/site_pc.py` brings `app/pc.html` level with the PC build (done for build 68030144 and checked again for 521732c1, 3b1ecefb, 91f7f6ea, 92bf344b, 3297721a and 8789578d: 24 tracks,
+5. THE WEBSITE: `py.cmd tools/site_pc.py` brings `app/pc.html` level with the PC build (done for build 68030144 and checked again for 521732c1, 3b1ecefb, 91f7f6ea, 92bf344b, 3297721a, 8789578d and 031c895: 24 tracks,
    Balloon Battle, Sandbox, online cups, the pointer, the size). Edit `HAS` in it when the PC's modes change, run it, commit and push `app`.
 6. SANDBOX, what the brief still asks for and is not built (docs/SANDBOX-PLAN.md has the plan for each): the coin shop (kart and car
    unlocks), online free roam and the start-line lobby with ready-up. The clock, things to do, Easter eggs, Back to the track, the mechanic's
@@ -171,6 +171,8 @@ Database: tools/mini/lb_schema_noitems.sql, run by the owner in the SQL editor o
   start-line race lobby on line.
 
 ### 2026-11-16 (PC build for web v208, ONLINE VERSION 115 on the PC too): Balloon Battle and Sandbox on line on the PC, the rivals count
+PUBLISHED as PC build 031c895 (export 1a3bf97; its cross-play check passed). Web v209 moved to online 116 the same day, so this
+build cannot join web rooms again until the PC has v209's changes (cfg.ni, PROTO 116).
 The PC port of web v208 (patches 45, 46). All in D:/crust-rush/godot:
 - webnet.gd: PROTO 115; the six battle fields at the end of REM, bbDead in ZB, bb [clock, over] in the host's snapshots; `_build_cfg`
   sets mode "bb" on the arena; `_battle(d, mine)` turns a guest's changes into the same race.fx events the host makes (bb_pop, +1, out,
