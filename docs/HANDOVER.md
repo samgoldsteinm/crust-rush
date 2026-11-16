@@ -137,7 +137,7 @@ against the landmarks' coordinates before the real generator closed the lap; the
 ### OPEN WORK, in the order to do it (rewritten 2026-11-14 after web v193; the owner's words for each are in docs/NEXT-MODES-BRIEF.md)
 1. (done: a Grand Prix on line on the PC, the controller's cursor on the PC, the trees and previews: see the v195 entry.)
 4. (done: Balloon Battle and Sandbox on the PC: see their entries. The PC now has every mode the web has.)
-5. THE WEBSITE: `py.cmd tools/site_pc.py` brings `app/pc.html` level with the PC build (done for build 68030144 and checked again for 521732c1: 24 tracks,
+5. THE WEBSITE: `py.cmd tools/site_pc.py` brings `app/pc.html` level with the PC build (done for build 68030144 and checked again for 521732c1 and 3b1ecefb: 24 tracks,
    Balloon Battle, Sandbox, online cups, the pointer, the size). Edit `HAS` in it when the PC's modes change, run it, commit and push `app`.
 6. SANDBOX, what the brief still asks for and is not built (docs/SANDBOX-PLAN.md has the plan for each): the coin shop (kart and car
    unlocks), online free roam and the start-line lobby with ready-up. The clock, things to do, Easter eggs, Back to the track, the mechanic's
@@ -145,7 +145,36 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
-### 2026-11-15 (web v202 and the next PC build; ONLINE VERSION 113 on both): the drivers' specials evened out
+### 2026-11-15 (web v203 and the next PC build; ONLINE VERSION 114 on both): the vehicles evened out; Shockwave through garlic; two unblockable anchovies
+The owner, after the trial below: "Yes go ahead with the vehicle changes", then: "make the pineapple go through the garlic shield but not
+the mozz shield let's also make anchovy not blockable instead let's go with the 2 anchovies instead of 3". Web: tools/mini/patch38.py
+(vehicles) and patch39.py (specials); PC: scratch/pc_patch38.py and pc_patch39.py made the edits in kart_builder.gd, kart.gd, race.gd,
+webnet.gd, tests/abil.gd, assets/kart/roster.json (and the git-ignored assets/garage/garage.json, which the release exports again from the
+live web anyway).
+- SPEED per point 2.2% -> 1.4% (statMods `.spd`, KartBuilder.stat_mods). HANDLING is grip too: outside a drift the path follows the
+  facing `(gripT?7:9) * (1 + 1.2*(hnd-1))` as fast. WEIGHT in a wall hit: every `k.speed*=1-X*dot` (7 on the web, `_slide` and the
+  shortcut wall on the PC) is times `wallK(k)` / `wall_k()` = 1 - 0.4*(wgt-1). OFF-ROAD: kerb .86+.03*off (was .02), grass
+  clamp(.58+.08*off, .36, .86) (was .06, .4, .82).
+- STAT SUMS (numbers only, models untouched): Slicer [2,-2,1,-1,-2] -> [2,-1,1,-1,-1]; Pronto [0,-1,0,2,1] -> [0,-2,0,2,1];
+  Tomatino [-1,1,0,0,2] -> [-1,0,0,0,2]. Interceptor stays +1.
+- TRIAL after the change (abiltest.py trial, 3 maps): worst body +10% behind the best (was +12%); Monster Truck and Vintage Tourer last.
+  0.8% per point was tried too: no better (worst +9.5%) and speed would mean almost nothing, so 1.4% stayed. The solo trial is noisy
+  (the same body differs 10% between tracks) and cannot show weight's worth (bumps, spins), so do not tune it below about 5%.
+  What still holds the heavy, slow-turning bodies back alone is turning (the auto driver's steering scales with hnd).
+- PINEAPPLE: only a Mozz Melt Shield (shield with mzH) is popped without a spin; garlic (shL) no longer stops it: spun, cloves kept.
+- ANCHOVY: two fish (`j<=2`, spread (j-1.5)*.25), nothing blocks one: the held-item stop of patch 37 is gone, and a Mozz shield is
+  cleared before the forced spin. A hop still dodges; blinking after a hit, Pesto Rush, Fire Trail etc. still make it wait as before.
+- TESTS: abiltest / tests/abil.gd updated (garlic spun with 2 cloves left; a fish through a held item and a Mozz shield); web boottest,
+  simtest margherita (8 finished, 0 respawns) and bedroom (8, 0), sbtest bedroom passed; PC abil, items and smoke on margherita and
+  bedroom, battle (preptable) and stats PASS.
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| PC tests/stats.tscn failed after the speed change (2924 builds differ) | It compares with scratch/stats/web_stats.json, written by the web's statstest.py, and that file was from before; statstest.py also had .022 written in | statstest.py now checks .014; run it first, then the PC test | Whenever statMods changes: change statstest.py, run it, then run tests/stats.tscn |
+
+PC build 3b1ecefb (godot 3b1ecef, tracks exported from web v202, online 113) is OUT: it races web v202. It does not race web v203
+(online 114) until the next PC build.
+
+### 2026-11-15 (web v202 and PC build 3b1ecefb; ONLINE VERSION 113 on both): the drivers' specials evened out
 The owner asked which specials were too strong or too weak, then: "Let's commit those changes". Web: tools/mini/patch37.py; PC: race.gd,
 view.gd, webnet.gd (scratch/pc_patch37.py made the PC edits). The descriptions in ABIL say the same on both.
 - PINEAPPLE (Spiky Shockwave) was the one hit nothing stopped, 260 across, karts in the air too. Now 150; still through ability boosts
@@ -164,7 +193,7 @@ view.gd, webnet.gd (scratch/pc_patch37.py made the PC edits). The descriptions i
   run ONE map at a time: three in one browser ran the machine out of memory). Found (margherita, peaks, kitchen; scratch/trial_sum.py):
   the vehicle's own top-speed point decides nearly everything: speed +2 bodies 1-4% behind the best, +1 3-7%, 0 7-9%, -1 9-12% (about
   20 s over a race between Formula and Monster Truck); acceleration, handling, weight and off-road barely move it. Vehicle points sum
-  to 0 except Interceptor +1, Pronto +2, Tomatino +2, Slicer -2. Nothing changed yet: the owner decides.
+  to 0 except Interceptor +1, Pronto +2, Tomatino +2, Slicer -2. (Acted on in web v203, above.)
 | What broke | Why | Fix | Keep it fixed |
 |---|---|---|---|
 | A test kart placed 700 units off the track was never reached by a sure anchovy | Off the track a projectile is folded back inside RIM (1662 on Margherita) | Test karts stay on the grid or on track points | Place test karts with `track[j]` (web) or on their grid spots (PC) |

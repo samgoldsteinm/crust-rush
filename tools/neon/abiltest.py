@@ -3,7 +3,7 @@
    py.cmd tools/neon/abiltest.py trial [maps...]   every body on Standard wheels and the Parachute, the player's kart driving itself alone
                                             (no rivals, items taken away every step, the same random numbers each run): race time
 Checks: the Shockwave's reach (150), what it spares (air, the blink after a hit) and what it pops without a spin (shields, garlic),
-that it still goes through an ability boost; a held item stops a sure anchovy; MEGA_T 4.5, FLAT_T 2; Olive's slick reach; a storm
+that it still goes through an ability boost and garlic (patch 39); nothing stops a sure anchovy; MEGA_T 4.5, FLAT_T 2; Olive's slick reach; a storm
 slice's first bounce turns toward a racer ahead; NET_PROTO 113."""
 import asyncio, json, sys
 from playwright.async_api import async_playwright
@@ -15,14 +15,14 @@ clr(P);const put=(k,d,o)=>{clr(k);k.x=P.x+d;k.y=P.y;k.wy=P.wy;Object.assign(k,o|
 const cs=[['plain 100',100,{}],['plain 200',200,{}],['Mozz shield',100,{shield:7,mzH:3}],['in the air',100,{air:true}],['blinking',100,{inv:2}],['Pesto Rush',100,{pestoT:3,rush:3}],['garlic',100,{shL:2}]];
 cs.forEach((c,i)=>put(O[i],c[1],c[2]));blast(P.x,P.y,150,P,'pep','#ffd23a',true);
 R.shock=cs.map((c,i)=>({case:c[0],spun:O[i].spin>0,shield:O[i].shield,shL:O[i].shL}));
-const want={'plain 100':1,'plain 200':0,'Mozz shield':0,'in the air':0,'blinking':0,'Pesto Rush':1,'garlic':0};
-R.shockOk=R.shock.every(q=>q.spun===!!want[q.case])&&R.shock[2].shield===0&&R.shock[6].shL===0;
-/* anchovy: a held item stops it; without one it hits */
+const want={'plain 100':1,'plain 200':0,'Mozz shield':0,'in the air':0,'blinking':0,'Pesto Rush':1,'garlic':1};/* (patch 39) garlic no longer stops the Shockwave */
+R.shockOk=R.shock.every(q=>q.spun===!!want[q.case])&&R.shock[2].shield===0&&R.shock[6].shL===2;
+/* anchovy (patch 39): nothing blocks it, not a held item, not a Mozz shield */
 const fish=tg=>({type:'torp',custom:1,sure:1,target:tg,x:tg.x+4,y:tg.y,vx:0,vy:0,t:600,owner:P,safe:0,b:0,mesh:itemMesh('torpedo')});
-/* both on the track, well apart */const tp=j=>track[((P.idx+j)%N+N)%N];const A=O[0],B=O[1];clr(A);clr(B);A.held={it:'oil',sl:1,t:0,mesh:null};A.x=tp(40).x;A.y=tp(40).y;B.x=tp(80).x;B.y=tp(80).y;
+/* both on the track, well apart */const tp=j=>track[((P.idx+j)%N+N)%N];const A=O[0],B=O[1];clr(A);clr(B);A.held={it:'oil',sl:1,t:0,mesh:null};A.shield=7;A.mzH=3;A.x=tp(40).x;A.y=tp(40).y;B.x=tp(80).x;B.y=tp(80).y;
 const r1=itemsProj(fish(A),STEP),r2=itemsProj(fish(B),STEP);R.fish={RIM:typeof RIM!=='undefined'?RIM:null,heldUsedUp:r1,heldGone:A.held===null,heldSpun:A.spin>0,plainSpun:B.spin>0,r2};
-R.fishOk=r1&&A.held===null&&!(A.spin>0)&&B.spin>0;
-R.consts={MEGA_T,FLAT_T,NET_PROTO};R.constOk=MEGA_T===4.5&&FLAT_T===2&&NET_PROTO===113;
+R.fish.heldShieldLeft=A.shield;R.fishOk=r1&&A.spin>0&&A.shield===0&&B.spin>0;
+R.consts={MEGA_T,FLAT_T,NET_PROTO};R.constOk=MEGA_T===4.5&&FLAT_T===2&&NET_PROTO>=113;
 /* Olive: a slick catches at 16.5 units (it used not to past 14.1) */
 const C=O[2];clr(C);C.x=tp(120).x;C.y=tp(120).y;C.wy=C.lastG=groundAt(C.x,C.y);C.idx=(P.idx+120)%N;C.speed=0;hazards.push({x:C.x+16.5,y:C.y,ti:C.idx,t:1e9,born:1,owner:P,armed:true,olive:1,mesh:itemMesh('oil')});
 update(STEP);R.slick={oilT:+(C.oilT||0).toFixed(2),air:C.air,slicksLeft:hazards.filter(h=>h.olive&&h.owner===P).length};R.slickOk=C.oilT>0;
