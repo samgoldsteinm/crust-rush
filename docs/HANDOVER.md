@@ -137,7 +137,7 @@ against the landmarks' coordinates before the real generator closed the lap; the
 ### OPEN WORK, in the order to do it (rewritten 2026-11-14 after web v193; the owner's words for each are in docs/NEXT-MODES-BRIEF.md)
 1. (done: a Grand Prix on line on the PC, the controller's cursor on the PC, the trees and previews: see the v195 entry.)
 4. (done: Balloon Battle and Sandbox on the PC: see their entries. The PC now has every mode the web has.)
-5. THE WEBSITE: `py.cmd tools/site_pc.py` brings `app/pc.html` level with the PC build (done for build 68030144 and checked again for 521732c1 and 3b1ecefb: 24 tracks,
+5. THE WEBSITE: `py.cmd tools/site_pc.py` brings `app/pc.html` level with the PC build (done for build 68030144 and checked again for 521732c1, 3b1ecefb and 91f7f6ea: 24 tracks,
    Balloon Battle, Sandbox, online cups, the pointer, the size). Edit `HAS` in it when the PC's modes change, run it, commit and push `app`.
 6. SANDBOX, what the brief still asks for and is not built (docs/SANDBOX-PLAN.md has the plan for each): the coin shop (kart and car
    unlocks), online free roam and the start-line lobby with ready-up. The clock, things to do, Easter eggs, Back to the track, the mechanic's
@@ -145,7 +145,7 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
-### 2026-11-15 (web v203 and the next PC build; ONLINE VERSION 114 on both): the vehicles evened out; Shockwave through garlic; two unblockable anchovies
+### 2026-11-15 (web v203 and PC build 91f7f6ea; ONLINE VERSION 114 on both): the vehicles evened out; Shockwave through garlic; two unblockable anchovies
 The owner, after the trial below: "Yes go ahead with the vehicle changes", then: "make the pineapple go through the garlic shield but not
 the mozz shield let's also make anchovy not blockable instead let's go with the 2 anchovies instead of 3". Web: tools/mini/patch38.py
 (vehicles) and patch39.py (specials); PC: scratch/pc_patch38.py and pc_patch39.py made the edits in kart_builder.gd, kart.gd, race.gd,
@@ -171,8 +171,8 @@ live web anyway).
 |---|---|---|---|
 | PC tests/stats.tscn failed after the speed change (2924 builds differ) | It compares with scratch/stats/web_stats.json, written by the web's statstest.py, and that file was from before; statstest.py also had .022 written in | statstest.py now checks .014; run it first, then the PC test | Whenever statMods changes: change statstest.py, run it, then run tests/stats.tscn |
 
-PC build 3b1ecefb (godot 3b1ecef, tracks exported from web v202, online 113) is OUT: it races web v202. It does not race web v203
-(online 114) until the next PC build.
+PC build 91f7f6ea (godot 91f7f6e, tracks exported from web v203, online 114) is OUT: PC and web race each other again.
+(Before it, PC build 3b1ecefb went out with web v202's tracks, online 113.)
 
 ### 2026-11-15 (web v202 and PC build 3b1ecefb; ONLINE VERSION 113 on both): the drivers' specials evened out
 The owner asked which specials were too strong or too weak, then: "Let's commit those changes". Web: tools/mini/patch37.py; PC: race.gd,
