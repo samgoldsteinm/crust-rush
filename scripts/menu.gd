@@ -843,9 +843,9 @@ func _home() -> Control:
 	s1.add_child(section_label("Mode"))
 	var mode_note := para(MODE_NOTE.get(mode, ""), 13.0, MUTED, 300.0)
 	mode_note.visible = MODE_NOTE.has(mode)
-	# Balloon Battle is offered when its arena is in the maps folder, and not in a friends' room (it is off line only)
-	# ...and so is Sandbox, when at least one map in the folder was exported as a place
-	var modes: Array = MODES.filter(func(m): return (m[0] != "bb" or (_arena() != "" and net == "")) and (m[0] != "sb" or (_sb_first() != "" and net == "")))
+	# Balloon Battle is offered when its arena is in the maps folder, and Sandbox when at least one map in the folder was exported as a place
+	# (web v208, patch 45 and 46: both are on line now, in a friends' room too)
+	var modes: Array = MODES.filter(func(m): return (m[0] != "bb" or _arena() != "") and (m[0] != "sb" or _sb_first() != ""))
 	s1.add_child(seg("mode", modes, mode, func(k):
 		mode = k
 		# the arena belongs to Balloon Battle alone: the mode brings it, any other mode leaves it (web modeSeg)

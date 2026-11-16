@@ -7,15 +7,17 @@ extends Node
 ## takes that and replays the controls the host hasn't seen yet, so steering is instant. Everything else is drawn as the
 ## host sends it. PC-to-PC races (ENet) are separate and unchanged.
 
-const PROTO := 114   # (113: web v202, the abilities evened out; 112: web v200, a grid may have fewer than eight)
+const PROTO := 115   # (115: web v208, Balloon Battle and Sandbox on line: the battle fields in REM, bb in snapshots, the Sandbox messages)
+# (113: web v202, the abilities evened out; 112: web v200, a grid may have fewer than eight)
 const TOP := "crustrush/v2/"
 const BROKERS := ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884/mqtt", "wss://test.mosquitto.org:8081/mqtt"]
 const STEP := 1.0 / 120.0
 ## the web kart record (NET_REM): the first 8 always, the rest only when not at rest
 const REM := ["x", "y", "a", "ma", "z", "wy", "speed", "steer", "drift", "charge", "boost", "spin", "air", "glide", "loopTh", "onRamp", "rush", "shL",
 	"shield", "mzH", "sink", "sinkT", "trickK", "trickT", "frozen", "acc", "brake", "dAmt", "fx", "prog", "finished", "place", "finishTime", "inv", "big",
-	"ghostT", "shrinkT", "absT", "idx", "gRings", "trick", "bPk", "fTier", "megaT", "pestoT", "flatT", "chiliT", "oilT", "burnT", "est", "oliveT"]
-const ZB := ["air", "glide", "onRamp", "finished", "big", "trick", "est"]
+	"ghostT", "shrinkT", "absT", "idx", "gRings", "trick", "bPk", "fTier", "megaT", "pestoT", "flatT", "chiliT", "oilT", "burnT", "est", "oliveT",
+	"bal", "bbL", "bbS", "bbOut", "bbDead", "bbPlace"]   # (the last six: Balloon Battle on line, web patch 45)
+const ZB := ["air", "glide", "onRamp", "finished", "big", "trick", "est", "bbDead"]
 const ZN := ["shL", "sink", "sinkT", "trickK", "dAmt", "ghostT", "shrinkT", "absT", "bPk", "fTier", "megaT", "pestoT", "flatT", "chiliT", "oilT", "burnT", "oliveT"]
 ## web kart fields the PC must never take from the network (they belong to this machine's own set-up)
 const KEEP := ["ri", "is_player", "human", "peer", "remote", "auto", "sf", "events", "sm_spd", "sm_acc", "sm_hnd", "sm_off", "sm_wgt", "base_max", "glider_sink", "glider_air"]
@@ -73,6 +75,13 @@ var fresh := true
 var bytes_in := 0
 var bytes_out := 0
 var fixes := 0
+# Sandbox on line (web patch 46): each screen runs its own Sandbox; the room carries where everyone is
+var sbx := false           # this room's game is Sandbox
+var sb_peers := {}         # id -> {nm, ri, reg, tr, b, at, s: [{t, x, y, z, a, sp}]}: everyone else's places (main.gd draws them)
+var sb_got := {}           # hosting: id -> their last place as sent (0 is this PC)
+var sb_in := {}            # hosting: friends seen in Sandbox (a late one is sent in)
+var _sb_t := 0
+var _sb_bt := 0
 
 static var _map := {}      # web field -> [pc field, type]
 
@@ -190,6 +199,9 @@ func poll() -> void:
 		(q as Mqtt).poll()
 	var now := _now()
 	_rtc_poll(now)
+	if sbx and now - _sb_t >= 80:
+		_sb_t = now
+		_sb_send(now)
 	if role == "host":
 		_poll_host(now)
 		return
@@ -306,6 +318,10 @@ func leave(tell := true) -> void:
 	pend_map = ""
 	go = false
 	loaded = false
+	sbx = false
+	sb_peers.clear()
+	sb_got.clear()
+	sb_in.clear()
 	# out of the room: the menu is no longer a room's, so Balloon Battle and Sandbox (off line only) are offered again. It stayed "host"
 	# or "guest" until the game was restarted (the owner, 2026-11-16: "both balloon battle and sandbox disappeared" after leaving a lobby)
 	if main != null and main.menu != null:
@@ -323,6 +339,16 @@ func _lost(msg: String) -> void:
 func _recv(d: Dictionary) -> void:
 	var t := String(d.get("t", ""))
 	match t:
+		"sbgo":
+			# (web patch 46) the room's Sandbox: start our own, at the host's place
+			# (any screen but a room race or Sandbox itself: the menu, the room, a results screen after the last race)
+			if main != null and cfg.is_empty() and (main.race == null or main.race.sb == null) and main.state != "loading":
+				var mid: String = main._map_by_mi(int(d.get("mi", -1)))
+				if mid != "":
+					sbx = true
+					main._web_sb_start(mid)
+		"sps":
+			_sb_list(d)
 		"lobby":
 			pl = d.get("pl", [])
 			me = int(d.get("you", 0))
@@ -392,6 +418,8 @@ func _begin_load(c: Dictionary) -> void:
 	loaded = false
 	fresh = true
 	fixes = 0
+	_bbp.clear()
+	_watch_at = 0
 	if main == null:
 		return
 	var err: String = main._web_load(c)
@@ -797,6 +825,8 @@ func _snap(d: Dictionary) -> void:
 	var ld := clampf(((ping_ms if ping_ms > 0.0 else 80.0) * 0.5 + snap_dt * 1000.0) / 1000.0, 0.0, 0.15)
 	for o in race.karts:
 		o.lead = 0.0 if o == mine else ld
+	if race.bb != null and d.has("bb"):
+		_battle(d, mine)
 	# our own kart: the host's copy, with the controls it hasn't played yet on top
 	var S = d.get("me")
 	if S is Dictionary and mine != null:
@@ -805,6 +835,112 @@ func _snap(d: Dictionary) -> void:
 		else:
 			_apply_full(mine, S)
 	race.stand = race.standings()
+
+
+## Sandbox on line (web patch 46): this PC's place out 12 times a second; hosting, everyone's back out with the clock, and a friend
+## who joined late is sent in
+func _sb_send(now: int) -> void:
+	var mine: Dictionary = main._sb_mine() if main != null else {}
+	if not mine.is_empty() and now - _sb_bt > 2000:
+		_sb_bt = now
+		mine["b"] = KartBuilder.web_build(main._my_build())
+	if role == "guest":
+		if not mine.is_empty():
+			_send({"t": "sp", "p": mine})
+		return
+	if not mine.is_empty():
+		mine["id"] = 0
+		mine["at"] = now
+		if not mine.has("b") and sb_got.has(0):
+			mine["b"] = (sb_got[0] as Dictionary).get("b")
+		sb_got[0] = mine
+	var l: Array = []
+	for id in sb_got:
+		var q: Dictionary = sb_got[id]
+		if now - int(q.get("at", 0)) < 4000:
+			var c := q.duplicate()
+			c.erase("at")
+			l.append(c)
+	var ck = null
+	if main != null and main.race != null and main.race.sb != null:
+		ck = snappedf(float(main.race.sb.save.get("t", 0.4)), 0.0001)
+	for ch in guests_open():
+		_send_to(ch, {"t": "sps", "ck": ck, "l": l})
+		var pid := int(ch["pid"])
+		if not mine.is_empty() and not sb_in.has(pid) and now - int(ch.get("sbgo_t", 0)) > 2000:
+			ch["sbgo_t"] = now
+			_send_to(ch, {"t": "sbgo", "mi": int(main._map_info(main.map_id).get("mi", -1))})
+
+
+func _sb_list(d: Dictionary) -> void:
+	var now := _now()
+	for qv in d.get("l", []):
+		if qv is Dictionary and int((qv as Dictionary).get("id", -1)) != me:
+			_sb_peer(qv, now)
+	# the world clock is the host's
+	var ck = d.get("ck")
+	if ck != null and main != null and main.race != null and main.race.sb != null:
+		var cur := float(main.race.sb.save.get("t", 0.4))
+		var df := fposmod(float(ck) - cur + 0.5, 1.0) - 0.5
+		if absf(df) > 0.004:
+			main.race.sb.save["t"] = fposmod(float(ck), 1.0)
+
+
+func _sb_peer(q: Dictionary, now: int) -> void:
+	var id := int(q.get("id", -1))
+	var P: Dictionary = sb_peers.get(id, {"id": id, "s": []})
+	P["nm"] = String(q.get("nm", "Friend"))
+	P["ri"] = int(q.get("ri", 0))
+	P["reg"] = String(q.get("reg", ""))
+	P["tr"] = int(q.get("tr", 0)) != 0
+	P["at"] = now
+	if q.get("b") is Dictionary:
+		P["b"] = q["b"]
+	var S: Array = P["s"]
+	S.append({"t": now, "x": float(q.get("x", 0)), "y": float(q.get("y", 0)), "z": float(q.get("z", 0)), "a": float(q.get("a", 0)), "sp": float(q.get("sp", 0))})
+	if S.size() > 6:
+		S.pop_front()
+	sb_peers[id] = P
+
+
+## Balloon Battle on a guest (web netBattle, patch 45): the host runs the round; what its rules did since the last snapshot becomes the
+## events the PC already shows for its own battles (main.gd: bb_pop, bb_point, bb_out, bb_back, bb_elim, bb_watch, bb_end)
+var _bbp := {}          # kart -> [balloons, set, points, out] as last seen
+var _watch_at := 0      # out of the round: when to start watching the others
+func _battle(d: Dictionary, mine: Kart) -> void:
+	var race: Race = main.race
+	var B = race.bb
+	var bv: Array = d["bb"]
+	var was: bool = B.over
+	B.t = float(bv[0])
+	B.over = int(bv[1]) != 0
+	for k in race.karts:
+		var pv = _bbp.get(k)
+		_bbp[k] = [k.bal, k.bb_l, k.bb_s, k.bb_dead]
+		if pv == null:
+			continue
+		var me_ := k == mine
+		if k.bb_dead and not bool(pv[3]):
+			k.elim = true
+			race.fx.append({"t": "bb_elim", "k": k, "place": maxi(1, k.bb_place), "x": k.x, "y": k.y, "h": k.wy})
+			if me_:
+				_watch_at = _now() + 1600
+			continue
+		if k.bal < int(pv[0]) and not k.bb_dead:
+			race.fx.append({"t": "bb_pop", "k": k})
+		if me_ and k.bb_s > int(pv[2]):
+			race.fx.append({"t": "bb_point", "k": k})
+		if me_ and k.bb_l > int(pv[1]) and not k.bb_dead:
+			race.fx.append({"t": "bb_out", "k": k, "next": int(B.SETS[mini(k.bb_l, B.SETS.size() - 1)])})
+		if me_ and k.bal == 1 and int(pv[0]) == 0 and not k.bb_dead:
+			race.fx.append({"t": "bb_back", "k": k, "last": true})
+	if _watch_at > 0 and _now() >= _watch_at:
+		_watch_at = 0
+		if not B.over:
+			race.fx.append({"t": "bb_watch"})
+	if B.over and not was:
+		var r: Array = B.rank()
+		race.fx.append({"t": "bb_end", "time": B.t <= 0.0, "first": r[0] if not r.is_empty() else mine, "fast": false})
 
 
 ## how far between the last two snapshots the other karts are drawn
@@ -988,6 +1124,16 @@ func _recv_host(ch: Dictionary, d: Dictionary) -> void:
 	var pid := int(ch.get("pid", 0))
 	var P := _player(pid)
 	match String(d.get("t", "")):
+		"sp":
+			if d.get("p") is Dictionary:
+				var q: Dictionary = (d["p"] as Dictionary).duplicate()
+				q["id"] = pid
+				if not q.has("b") and sb_got.has(pid):
+					q["b"] = (sb_got[pid] as Dictionary).get("b")
+				q["at"] = _now()
+				sb_got[pid] = q
+				sb_in[pid] = true
+				_sb_peer(q, _now())
 		"hello":
 			if int(d.get("v", 0)) != PROTO:
 				_send_to(ch, {"t": "full", "why": "You and the host have different versions of the game. Both close the game, open it again so it updates, then try again."})
@@ -1098,7 +1244,7 @@ func _build_cfg(mi: int) -> Dictionary:
 	if cls == "reverse":
 		cls = "large"
 	var cup = main.gp_wire()   # a Grand Prix for the room: the cup goes out with every race, as the web's does
-	return {"mi": mi, "cls": cls, "mode": "gp" if cup != null else ("lss" if String(main.sel.get("mode", "")) == "lss" else "single"), "gp": cup, "karts": ks}
+	return {"mi": mi, "cls": cls, "mode": "bb" if bool(main._map_info(main.map_id).get("battle", false)) else ("gp" if cup != null else ("lss" if String(main.sel.get("mode", "")) == "lss" else "single")), "gp": cup, "karts": ks}
 
 
 ## start a race for everyone in the room on the track you picked (web netHostStart)
@@ -1108,6 +1254,14 @@ func host_start() -> String:
 	var info: Dictionary = main._map_info(pend_map if pend_map != "" else main.map_id)
 	if info.is_empty() or int(info.get("mi", 99)) >= 99:
 		return "Pick one of the web game's tracks first."
+	if String(main.sel.get("mode", "")) == "sb":
+		# (web patch 46) Sandbox: everyone starts their own, here; no race config
+		sbx = true
+		sb_in.clear()
+		for ch0 in guests_open():
+			_send_to(ch0, {"t": "sbgo", "mi": int(info["mi"])})
+		main._web_sb_start(pend_map if pend_map != "" else main.map_id)
+		return ""
 	cfg = _build_cfg(int(info["mi"]))
 	cfg["id"] = rid()
 	rk = _rk_of(String(cfg["id"]))
@@ -1395,6 +1549,8 @@ func _snapshot() -> void:
 		bx.append(roundi(r * 20.0) if r > 0.0 else 0)
 		bi += 1
 	var base := {"t": "s", "n": sn, "rk": rk, "st": snappedf(race.sim_time, 0.01), "rt": snappedf(race.race_time, 0.01), "gs": gs, "kc": kc, "p": pp, "b": bx, "fx": []}
+	if race.bb != null:
+		base["bb"] = [snappedf(race.bb.t, 0.01), 1 if race.bb.over else 0]   # the round's clock and end (web patch 45)
 	var ids := PackedStringArray()
 	for h in race.hazards:
 		ids.append(str(h["id"]))

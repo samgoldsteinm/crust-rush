@@ -338,7 +338,7 @@ func _bb_no_net() -> void:
 	var sheet := menu.modal_kind if (menu != null and menu.modal != null) else ""
 	if not load_map(id):
 		return
-	_start_race({})
+	_start_race({}, in_menu)
 	if in_menu:
 		state = "menu"
 		hud_race.visible = false
@@ -463,6 +463,124 @@ func _sb_view_clear() -> void:
 	if sb_view != null and is_instance_valid(sb_view):
 		sb_view.queue_free()
 	sb_view = null
+	_sb_peers_clear()
+
+
+# ---------------------------------------------------------------- Sandbox on line (web patch 46)
+## a friends' room starts Sandbox here (the host chose it; or the host's 'sbgo' to this guest)
+func _web_sb_start(mid: String) -> void:
+	sel["mode"] = "sb"
+	if menu != null:
+		menu.mode = "sb"
+		menu.close_modal()
+		menu.visible = false
+	_race_on(mid)
+
+
+## this PC's place for the room (webnet _sb_send)
+func _sb_mine() -> Dictionary:
+	if race == null or race.sb == null or kart == null:
+		return {}
+	return {"reg": map_id, "x": snappedf(kart.x, 0.01), "y": snappedf(kart.y, 0.01), "z": snappedf(kart.wy, 0.01), "a": snappedf(kart.ma, 0.0001),
+		"sp": snappedf(kart.speed, 0.01), "nm": web.name_, "ri": int(sel["ri"]), "tr": 1 if (sb_trav or state != "race") else 0}
+
+
+var sb_peer_nodes := {}    # id -> {g, key, tag}
+func _sb_peers_clear() -> void:
+	for id in sb_peer_nodes:
+		var n: Dictionary = sb_peer_nodes[id]
+		if is_instance_valid(n["g"]):
+			(n["g"] as Node).queue_free()
+	sb_peer_nodes.clear()
+
+
+## each frame: friends in this place drawn 100 ms behind, between the places they sent (web sbnRender); others in the corner list
+func _sb_peers_frame() -> void:
+	if not web.sbx or race == null or race.sb == null or world == null:
+		if not sb_peer_nodes.is_empty():
+			_sb_peers_clear()
+		if hud != null:
+			hud.sb_friends = ""
+		return
+	var now := Time.get_ticks_msec()
+	var lines: Array = []
+	for id in web.sb_peers.keys():
+		var P: Dictionary = web.sb_peers[id]
+		if now - int(P["at"]) > 5000:
+			web.sb_peers.erase(id)
+			if sb_peer_nodes.has(id):
+				(sb_peer_nodes[id]["g"] as Node).queue_free()
+				sb_peer_nodes.erase(id)
+			continue
+		var here := String(P["reg"]) == map_id
+		lines.append(String(P["nm"]) + " · " + ("here" if here else String(_sb_place_name(String(P["reg"])))))
+		var show := here and not bool(P["tr"]) and state == "race" and not sb_trav and not (P["s"] as Array).is_empty()
+		var key := JSON.stringify([int(P["ri"]), P.get("b")])
+		var N: Dictionary = sb_peer_nodes.get(id, {})
+		if show and (N.is_empty() or String(N["key"]) != key):
+			if not N.is_empty():
+				(N["g"] as Node).queue_free()
+			var g := Node3D.new()
+			var spec = P.get("b")
+			var built: Dictionary = KartBuilder.build(spec if spec is Dictionary else {"b": 0, "w": 0, "g": 0, "p": 0, "t": ""}, int(P["ri"])) if KartBuilder.ready() else {}
+			if built.is_empty():
+				continue
+			g.add_child(built["node"])
+			var meta: Dictionary = built.get("meta", {})
+			g.scale = Vector3.ONE * float(meta.get("scale", 1.76))
+			var tag := Label3D.new()
+			tag.text = String(P["nm"])
+			tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			tag.no_depth_test = true
+			tag.font_size = 48
+			tag.outline_size = 10
+			tag.modulate = Color("#fff4dc")
+			tag.pixel_size = 0.004
+			tag.position = Vector3(0, 9.0, 0)
+			g.add_child(tag)
+			world.add_child(g)
+			N = {"g": g, "key": key}
+			sb_peer_nodes[id] = N
+		if N.is_empty():
+			continue
+		var gn: Node3D = N["g"]
+		gn.visible = show
+		if not show:
+			continue
+		var S: Array = P["s"]
+		var t := float(now - 100)
+		var A: Dictionary = S[0]
+		var B: Dictionary = S[S.size() - 1]
+		for i in range(S.size() - 1, 0, -1):
+			if float(S[i - 1]["t"]) <= t:
+				A = S[i - 1]
+				B = S[i]
+				break
+		var x: float
+		var y: float
+		var z: float
+		var a: float
+		if t >= float(B["t"]):
+			var e := minf(0.2, (t - float(B["t"])) / 1000.0)
+			x = float(B["x"]) + cos(float(B["a"])) * float(B["sp"]) * e
+			y = float(B["y"]) + sin(float(B["a"])) * float(B["sp"]) * e
+			z = float(B["z"])
+			a = float(B["a"])
+		else:
+			var f := clampf((t - float(A["t"])) / maxf(1.0, float(B["t"]) - float(A["t"])), 0.0, 1.0)
+			x = lerpf(float(A["x"]), float(B["x"]), f)
+			y = lerpf(float(A["y"]), float(B["y"]), f)
+			z = lerpf(float(A["z"]), float(B["z"]), f)
+			a = lerp_angle(float(A["a"]), float(B["a"]), f)
+		gn.transform = Transform3D(Basis(Vector3.UP, -a) * Basis.from_scale(gn.scale), Vector3(x, z, y))
+	if hud != null:
+		hud.sb_friends = "
+".join(lines)
+
+
+func _sb_place_name(id: String) -> String:
+	var info := _map_info(id)
+	return String(info.get("name", id))
 
 
 ## each physics step in Sandbox, after the race's own: what the mode asks of the game
@@ -1035,7 +1153,7 @@ func _sb_return() -> bool:
 		return false
 	var id := sb_back
 	sb_back = ""
-	if net_role != "" or web.role != "" or not _sb_has(id):
+	if net_role != "" or (web.role != "" and not web.sbx) or not _sb_has(id):
 		return false
 	if id != map_id and not load_map(id):
 		return false
@@ -2071,8 +2189,8 @@ func _restart() -> void:
 
 
 ## builds the grid: a one-player race, or (online) the configuration the host sent
-func _start_race(cfg: Dictionary) -> void:
-	var cpu_n := 7 if state == "menu" else _cpu_count()   # (the menu's background race always has a full grid)
+func _start_race(cfg: Dictionary, bg := false) -> void:
+	var cpu_n := 7 if bg else _cpu_count()   # (bg: the menu's background race, always a full grid; a race started from the menu is not one)
 	if not sb_go.is_empty() or sb_tun != null:
 		_sb_go_finish()   # (a Sandbox journey in hand is ended first; in a race there never is one)
 	if menu != null:
@@ -2090,7 +2208,7 @@ func _start_race(cfg: Dictionary) -> void:
 			return
 	race = Race.new()
 	# Sandbox: only when it was asked for by a real start (never for the menu's background race), off line
-	race.sb_want = sb_next and cfg.is_empty() and net_role == "" and web.role == ""
+	race.sb_want = sb_next and cfg.is_empty() and net_role == "" and (web.role == "" or web.sbx)   # (web.sbx: a friends' room's Sandbox, web patch 46)
 	sb_next = false
 	_sb_view_clear()
 	var pri := int(sel["ri"])
@@ -2688,7 +2806,7 @@ func _web_name() -> String:
 
 
 func _web_join() -> void:
-	_bb_no_net()
+	# (web v208: Balloon Battle and Sandbox are on line in a friends' room too)
 	_net_close()
 	web.join(web_code_text, _web_name())
 
@@ -2800,7 +2918,6 @@ func _web_host_load(pc: Dictionary) -> String:
 
 
 func _web_host_room() -> void:
-	_bb_no_net()
 	_net_close()
 	web.host(_web_name())
 
@@ -2872,9 +2989,11 @@ func _web_physics(dt: float) -> void:
 		for k in race.karts:
 			if k.peer != 0 and not k.finished:
 				all_done = false
-		if all_done or Time.get_ticks_msec() - web.snap_at > 4000:
+		if race.bb != null:
+			all_done = race.bb.over   # (a battle on line: out of the round is not the end of it; the round ends when the host says so)
+		if all_done or (race.bb == null and Time.get_ticks_msec() - web.snap_at > 4000):
 			state = "finished"
-			fin_t = 3.5
+			fin_t = bb_fin if race.bb != null else 3.5
 	elif state == "finished":
 		fin_t -= dt
 		if fin_t <= 0.0:
@@ -3419,6 +3538,7 @@ func _process(dt: float) -> void:
 	_bb_fast()
 	if hud != null:
 		hud.sb_spd = Sandbox.spd() if _sb_spd_shown() else -1.0   # Sandbox's speed slider on the screen, or not
+	_sb_peers_frame()   # (Sandbox on line: friends drawn where they are)
 	if not sb_go.is_empty() or not sb_trash.is_empty():
 		_sb_go_tick(dt)   # Sandbox: a journey in hand, a stage a frame
 	if not paused:
@@ -3833,7 +3953,7 @@ func _to_menu(note: String) -> void:
 	elif web.hosting():
 		web.host_menu()
 	gp = {}
-	_start_race({})
+	_start_race({}, true)
 	state = "menu"
 	hud_race.visible = false
 	hud.banner("", 0.0)
@@ -3898,7 +4018,7 @@ func _menu_preview_map(id: String) -> void:
 		if state != "menu":
 			break
 		if load_map(want):
-			_start_race({})
+			_start_race({}, true)
 			state = "menu"
 			hud_race.visible = false
 		loading.visible = false
@@ -3980,7 +4100,7 @@ func _race_on(id: String) -> void:
 		_net_start()
 	else:
 		sb_back = ""
-		sb_next = String(sel.get("mode", "")) == "sb" and gp.is_empty() and web.role == ""
+		sb_next = String(sel.get("mode", "")) == "sb" and gp.is_empty() and (web.role == "" or web.sbx)
 		_start_race({})
 
 

@@ -29,6 +29,7 @@ var t := 0.0
 
 var banner_text := ""
 var banner_t := 0.0
+var sb_friends := ""      # Sandbox on line: who is where, a line each (main.gd _sb_peers_frame; web #sbnList)
 var banner_kind := ""   # "" (big), "md", "sm"
 var pos_txt: GradText
 var spectating := false   # watching the others after you finish (web body.spectating): only the progress bar shows
@@ -519,6 +520,8 @@ func _draw() -> void:
 		_draw_bb()
 	elif sbx:
 		_draw_sb()
+		if sb_friends != "":
+			_draw_sb_friends()
 	else:
 		_draw_top_bar()
 	_draw_pause()
@@ -557,6 +560,23 @@ func _draw() -> void:
 ## Balloon Battle's read-out (web #bbHud): one small line at the top left, "2:41 · 3 pts · 3rd": the clock, your own points
 ## (in yellow) and your place. Everybody's balloons are on their karts; the full table is the results screen.
 ## The web's numbers: left 10, top 64, bold 14, padding 6 by 10, corners 10, a dark see-through pill.
+## Sandbox on line: the friends' list in the top-right corner, under the item buttons (web #sbnList)
+func _draw_sb_friends() -> void:
+	var ls := sb_friends.split("
+")
+	var fs := 13.0
+	var wmax := 0.0
+	for l in ls:
+		wmax = maxf(wmax, f_bold.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs * s)).x / s)
+	var w := wmax + 20.0
+	var h := ls.size() * (fs + 5.0) + 10.0
+	var x0 := W - w - 10.0
+	var y0 := 118.0
+	_rbox(x0, y0, w, h, Color(18.0 / 255, 9.0 / 255, 6.0 / 255, 0.55), Color(0, 0, 0, 0), 0.0, 10.0)
+	for i in ls.size():
+		_text(f_bold, ls[i], x0 + 10.0, y0 + 6.0 + i * (fs + 5.0), fs, CREAM)
+
+
 func _draw_bb() -> void:
 	# since the web's v197: three pips for your own sets of balloons (5, 3, 1: a filled pip is a set you still have),
 	# the clock, how many drivers are left (or "Out · 4th"), your points (in yellow)
