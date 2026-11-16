@@ -555,7 +555,9 @@ func _travel() -> void:
 				if ga != null:
 					dist = Vector2(k.x - float(ga["x"]), k.y - float(ga["z"])).length()
 				tr["fromGate"] = snappedf(dist, 0.1)
-				_check("it comes out of the matching gate %s" % at, ga != null and dist < 60.0)
+				# (80: the kart comes out still moving and has driven on a little when this is measured; v203's karts reached 60.8. Other gates are
+				# hundreds away, so this still tells the matching gate from any other)
+				_check("it comes out of the matching gate %s" % at, ga != null and dist < 80.0)
 				_check("out free of the walls", not sb.free or sb.touch(k.x, k.y, k.wy) == 0)
 				_check("no countdown after a passage", main.state == "race")
 				_check("drives on after arriving", _free_after(240))

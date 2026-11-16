@@ -655,9 +655,9 @@ func blocked(x: float, z: float, wy: float) -> bool:
 		# a pizza's own ground: a face that rises more than a step from where the kart stands is a cliff, not a hill, and
 		# water deeper than the wheels is a shore
 		var g0 := T.ground(x, z)
-		# (web v200 sbClimb: how steep a kart can climb comes from its off-road: about 40 degrees for a middle kart, 50 the best, 26 the worst)
+		# (web sbClimb, patch 40: how steep a kart can climb comes from its off-road: about 62 degrees for a middle kart, 70 the best, 50 the worst)
 		var off: float = race.player.sm_off if race != null and race.player != null else 0.0
-		if g0 > wy + R * clampf(0.84 + 0.1 * off, 0.45, 1.2) or (not is_nan(water) and g0 < water - 3.0 and wy < water + HEAD):
+		if g0 > wy + R * clampf(1.88 + 0.24 * off, 1.19, 2.75) or (not is_nan(water) and g0 < water - 3.0 and wy < water + HEAD):
 			return true
 	for i in n:
 		if s_top[i] > wy + STEP and s_bot[i] < wy + HEAD:
