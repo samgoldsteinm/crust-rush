@@ -5915,15 +5915,15 @@ function sbFlag(){if(SB.flag&&SB.flag.glow)SB.flag.glow.dispose();const p=track[
   const fl=new THREE.Mesh(new THREE.PlaneGeometry(10,6.6),new THREE.MeshBasicMaterial({map:t2,side:THREE.DoubleSide,toneMapped:false}));fl.position.set(5,13.6,0);F.add(fl);F.position.y=12;G.add(F);
   let glow=null;try{glow=glowMat('#fff2c0').clone();/* (its own copy: the clock dims it, and glowMat's are shared) */const sp=new THREE.Sprite(glow);sp.scale.setScalar(30);sp.position.y=22;G.add(sp);}catch(e){}
   G.position.set(p.x,e,p.y);G.traverse(o=>{o.userData.sunlit=true;});SB.grp.add(G);SB.flag={G,F,x:p.x,z:p.y,y:e,mats:[ring.material,fl.material],glow};}
-function sbRaceBtn(on){if(NET.sbx&&NET.role)on=false;/* (patch 46) */let b=SB.raceEl;if(!b){if(!on)return;b=SB.raceEl=document.createElement('button');b.id='sbRace';b.type='button';
+function sbRaceBtn(on){if(!on&&SBI.ask)sbRaceAskPick('c');/* (patch 52: the offer is back in rooms; driving away cancels its question) */let b=SB.raceEl;if(!b){if(!on)return;b=SB.raceEl=document.createElement('button');b.id='sbRace';b.type='button';
     b.style.cssText='position:absolute;left:50%;bottom:max(96px,calc(env(safe-area-inset-bottom) + 96px));transform:translateX(-50%);z-index:7;font:800 15px/1.15 system-ui,sans-serif;color:#1b0f0b;background:linear-gradient(#ffd97a,#f5b62e);border:0;border-radius:14px;padding:10px 18px 10px 44px;box-shadow:0 4px 0 #9b6a10,0 8px 18px rgba(0,0,0,.4);cursor:pointer;white-space:nowrap;text-align:left';
     b.innerHTML='<i style="position:absolute;left:12px;top:50%;width:22px;height:22px;margin-top:-11px;border-radius:5px;background:conic-gradient(#141210 25%,#fbf6ea 0 50%,#141210 0 75%,#fbf6ea 0) 0 0/11px 11px"></i><span id="sbRaceT"></span><small style="display:block;font-weight:600;font-size:11px;opacity:.75" id="sbRaceS"></small>';
     b.onclick=e=>{e.preventDefault();sbRaceHere();};b.addEventListener('pointerdown',e=>e.stopPropagation());stage.appendChild(b);
     addEventListener('keydown',e=>{if(SBX&&SB.raceOn&&state==='race'&&e.code==='Enter'){e.preventDefault();sbRaceHere();}});}
   if(on===SB.raceOn)return;SB.raceOn=on;b.hidden=!on;if(on){const m=MAPS[mapIdx],touch=typeof COARSE!=='undefined'&&COARSE;document.getElementById('sbRaceT').textContent='Race here: '+m.name;document.getElementById('sbRaceS').textContent=CLASSES[clsKey].label+' \u00b7 single race'+(touch?' \u00b7 tap':' \u00b7 Enter, or D-pad up');}}
-function sbRaceHere(){if(!SBX||SB.trav||state!=='race'||raceLoading)return;if(SBA.act)sbActEnd('cancel');SB.back=SB.regId;sbRaceBtn(false);mode='single';goRace(mapIdx);}
+function sbRaceHere(){if(!SBX||SB.trav||state!=='race'||raceLoading)return;if(performance.now()-(SBI.pickT||0)<600)return;if(NET.sbx&&NET.role){if(SBI.ask)sbRaceAskPick('f');else if(!SBI.wait&&!SBI.inv)sbRaceAsk();return;}/* (patch 52) */if(SBA.act)sbActEnd('cancel');SB.back=SB.regId;sbRaceBtn(false);mode='single';goRace(mapIdx);}
 /* leaving a race that began at a start line in Sandbox: back to Sandbox there (the engine's toMenu asks this first) */
-function sbBack(){if(!SB.back)return false;const id=SB.back;SB.back=null;if(NET.cfg||NET.role)return false;const mi=MAPS.findIndex(m=>m.id===id);if(mi<0||!sbRegOf(id))return false;mode='sb';results.hidden=true;pauseOv.hidden=true;goRace(mi);return true;}
+function sbBack(){if(!SB.back)return false;const id=SB.back;SB.back=null;if(NET.role&&!NET.sbx)return false;if(NET.cfg&&!NET.cfg.sbr)return false;if(NET.cfg){NETLOG.stop();if(NET.role==='host'){netAll({t:'sbend'});NET.sbRace=null;}else netSend(NET.conns[0],{t:'quit'});NET.cfg=null;netClearMirrors();}NET.soloSb=false;NET.fromNet=!!NET.role;/* (patch 52: a room's Sandbox race, or a race alone in a room, goes back to Sandbox at that track) */const mi=MAPS.findIndex(m=>m.id===id);if(mi<0||!sbRegOf(id))return false;mode='sb';results.hidden=true;pauseOv.hidden=true;goRace(mi);return true;}
 /* ---- coins ---- */
 /* a region's places are written in its own measure: the garden in metres (sbGX, sbGZ), a room in centimetres from its middle, x east and y north (SB_RX, SB_RZ) */
 const SB_RX=c=>c*3.47,SB_RZ=c=>-c*3.47;
@@ -5974,7 +5974,7 @@ function sbParkBtn(){let b=SB.parkEl;const show=SBX&&(state==='race'||state==='c
   if(b.hidden===show)b.hidden=!show;}
 function sbTick(dt){sbParkBtn();sbSpdUi();if(state!=='race'){sbRaceBtn(false);sbActBtn(null);return;}const k=player;if(!k)return;sbClockTick(dt);
   if(sbStop()&&!k.loop&&!k.air){const sp=k.speed,d=Math.min(Math.abs(sp),(140+Math.abs(sp)*5)*dt);k.speed=sp-Math.sign(sp)*d;if(Math.abs(k.speed)<1.5)k.speed=0;k.boost=0;k.drift=0;k.charge=0;}
-{const f=SB.flag,near=!!f&&!SB.trav&&(k.x-f.x)**2+(k.y-f.z)**2<46*46&&Math.abs((k.wy||0)-f.y)<10;sbRaceBtn(near);if(near){try{const gp=navigator.getGamepads&&navigator.getGamepads()[PAD.idx];const up=!!gp&&gp.buttons[12]&&gp.buttons[12].pressed;if(up&&!SB.padUp)sbRaceHere();SB.padUp=up;}catch(e){}}}try{sbActTick(k,dt);sbEggTick(k,dt);sbActPad();}catch(e){console.warn('activities',e);}sbShopTick(k);if(state!=='race')return;sbGuide(k,dt);if(SB.cool>0)SB.cool-=dt;else for(const g of SB.gates){const d=(k.x-g.x)*g.nx+(k.y-g.z)*g.nz;if(d>(g.road?0:g.plain?64:SB_GLEN-70)&&(!g.road||(d<26&&Math.abs((k.wy||0)-g.y)<14))&&Math.abs((k.x-g.x)*g.tx+(k.y-g.z)*g.tz)<g.hw+2&&Math.cos(k.ma)*g.nx+Math.sin(k.ma)*g.nz>.2){sbTravel(g);return;}}
+{const f=SB.flag,near=!!f&&!SB.trav&&(k.x-f.x)**2+(k.y-f.z)**2<46*46&&Math.abs((k.wy||0)-f.y)<10;sbRaceBtn(near);if(near){try{const gp=navigator.getGamepads&&navigator.getGamepads()[PAD.idx];const up=!!gp&&gp.buttons[12]&&gp.buttons[12].pressed;if(up&&!SB.padUp&&!SBI.ask&&!SBI.inv)sbRaceHere();SB.padUp=up;}catch(e){}}}try{sbActTick(k,dt);sbEggTick(k,dt);sbActPad();}catch(e){console.warn('activities',e);}sbShopTick(k);if(state!=='race')return;sbGuide(k,dt);if(SB.cool>0)SB.cool-=dt;else for(const g of SB.gates){const d=(k.x-g.x)*g.nx+(k.y-g.z)*g.nz;if(d>(g.road?0:g.plain?64:SB_GLEN-70)&&(!g.road||(d<26&&Math.abs((k.wy||0)-g.y)<14))&&Math.abs((k.x-g.x)*g.tx+(k.y-g.z)*g.tz)<g.hw+2&&Math.cos(k.ma)*g.nx+Math.sin(k.ma)*g.nz>.2){sbTravel(g);return;}}
   const sv=sbSave(),y=(k.wy||0)+3.5;let ch=false;
   for(const c of SB.coins){if(c.t<0)continue;if(c.t>0){c.t-=dt;if(c.t<=0){c.t=0;}continue;}const dx=c.x-k.x,dz=c.z-k.y,r=c.rare?12:10.5;if(dx*dx+dz*dz>r*r||Math.abs(c.y-y)>(c.rare?14:10))continue;
     if(c.rare){c.t=-1;sv.r[c.id]=1;sv.c+=10;if(c.m)c.m.visible=false;burst(c.x,c.y,c.z,26,['#ffd65a','#d8402a','#ffffff'],70,2.4);spawnRing(c.x,c.y,c.z,'#ffd65a',26,.5,false);const f=sbFound();showBanner('Pepperoni coin! '+f[0]+' of '+f[1],1.6,'sm');try{SFX.ready();}catch(e){}}
@@ -9137,7 +9137,7 @@ let _abSetup=false;function startRace(){try{drsReset();}catch(e){}if(!_abSetup){
   buildProg();if(mode!=='lss'&&!SBX)ghostStart();{const r=loadRecs()[recKey()],e=$('hudPB');if(e){e.hidden=!r;if(r)e.textContent='Best '+fmt(r.t);}}lastPos=lastLap=lastItem=lastTimeStr='';lastSpd=-1;hud.ch=-1;hud.bst=null;hud.dr=null;banner.textContent='';hintShown=false;itemQueued=null;}
 const paint=()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
 let raceLoading=false;
-async function goRace(mi){if(raceLoading)return;{const ov=document.getElementById('lbNameOv');if(ov&&!ov.hidden)ov.hidden=true;}/* (patch 46b) */if(NET.role&&!NET.fromNet&&!(NET.sbx&&mode==='sb')){if(NET.role==='host'&&NET.conns.some(c=>c.open)){netHostPrepare(mi);return;}if(NET.role==='guest'){netShowLobby();return;}}NET.fromNet=false;if(!NET.role||!NET.conns.some(c=>c.open))NET.cfg=null;raceLoading=true;const rev=!!CLASSES[clsKey].rev,L=$('raceLd'),bar=$('rlBar'),txt=$('rlTxt'),m=MAPS[mi];try{MUS.nextMap=mi;}catch(e){}
+async function goRace(mi){if(raceLoading)return;{const ov=document.getElementById('lbNameOv');if(ov&&!ov.hidden)ov.hidden=true;}/* (patch 46b) */if(NET.role&&!NET.fromNet&&!(NET.sbx&&mode==='sb')&&!NET.soloSb){if(NET.role==='host'&&NET.conns.some(c=>c.open)){netHostPrepare(mi);return;}if(NET.role==='guest'){netShowLobby();return;}}NET.fromNet=false;if(!NET.role||!NET.conns.some(c=>c.open))NET.cfg=null;raceLoading=true;const rev=!!CLASSES[clsKey].rev,L=$('raceLd'),bar=$('rlBar'),txt=$('rlTxt'),m=MAPS[mi];try{MUS.nextMap=mi;}catch(e){}
   const step=async(p,t)=>{bar.style.width=p+'%';if(t)txt.textContent=t;await paint();};
   try{$('rlBg').style.backgroundImage=MAP_SHOTS[m.id]?'url('+shotURL(m.id,'h')+')':'';$('rlName').textContent=m.name;$('rlSub').textContent=(gp?CUPS[gp.cup].name+' · race '+(gp.race+1)+' of 4'+(CLASSES[clsKey].rev?' · reverse':''):mode==='sb'?'Sandbox':mode==='bb'?'Balloon Battle':mode==='lss'?'Last Slice Standing':'Single race')+' · '+CLASSES[clsKey].label;
     L.classList.remove('out');L.hidden=false;state='loading';await step(8,'Rolling out the dough…');
@@ -9245,6 +9245,71 @@ function sbnRender(time){if(!NET.role||!NET.sbx){if(SBN.peers.size)sbnClear();re
   /* the corner list: who is where (four times a second) */
   if(time-SBN.listT>.25){SBN.listT=time;let e=SBN.el;if(!e){e=SBN.el=document.createElement('div');e.id='sbnList';e.style.cssText='position:absolute;right:max(10px,env(safe-area-inset-right));top:118px;z-index:6;font:700 12px/1.35 system-ui,sans-serif;color:#fff4dc;background:rgba(18,9,6,.55);border-radius:10px;padding:6px 10px;pointer-events:none;text-shadow:0 1px 2px #000;max-width:46vw';stage.appendChild(e);}
     e.hidden=!SBX||!list.length||state==='menu';if(!e.hidden){/* (patch 47e) beside the item slots, never over them */const sr=stage.getBoundingClientRect();let L=null,T=null;for(const id of ['itemBtn','itemBtn2']){const q=document.getElementById(id);if(!q||q.hidden||!q.offsetParent)continue;const r=q.getBoundingClientRect();if(r.width<4)continue;if(L==null||r.left<L)L=r.left;if(T==null||r.top<T)T=r.top;}if(L!=null){e.style.right=Math.round(sr.right-L+10)+'px';e.style.top=Math.round(T-sr.top)+'px';e.style.maxWidth=Math.max(120,Math.round((L-sr.left)*.5))+'px';}else{e.style.right='max(10px,env(safe-area-inset-right))';e.style.top='118px';}}if(!e.hidden)e.innerHTML=list.map(P=>{const r=sbRegOf(P.reg),nm=String(P.nm||'Friend').replace(/[<>&]/g,''),w=P.reg===here?'<span style="color:#8be08b">here</span>':(r?r.name.split(' \u00b7 ').pop():P.reg);return nm+' <span style="opacity:.6">\u00b7</span> '+w;}).join('<br>');}}
+
+/* ================= (patch 52) A ROOM'S SANDBOX: A RACE FROM A START LINE, WITH INVITES ================= */
+const SBI={ask:null,inv:null,wait:null,host:null,res:0,pickT:0};
+const SBI_BTN='font:800 14px system-ui,sans-serif;border:0;border-radius:11px;padding:9px 14px;margin:8px 4px 0;cursor:pointer;';
+function sbiEl(id,html){let e=document.getElementById(id);if(!e){e=document.createElement('div');e.id=id;e.setAttribute('role','dialog');
+    e.style.cssText='position:absolute;left:50%;transform:translateX(-50%);bottom:max(150px,calc(env(safe-area-inset-bottom) + 150px));z-index:30;width:max-content;max-width:min(92vw,470px);font:700 15px/1.35 system-ui,sans-serif;color:#fff4dc;background:rgba(24,12,8,.93);border:2px solid #f5b62e;border-radius:16px;padding:12px 16px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.5)';
+    e.addEventListener('pointerdown',ev=>ev.stopPropagation());stage.appendChild(e);}if(html!=null)e.innerHTML=html;e.hidden=false;return e;}
+function sbiHide(id){const e=document.getElementById(id);if(e)e.hidden=true;}
+function sbiClear(){SBI.ask=null;SBI.inv=null;SBI.wait=null;clearInterval(SBI.ct);clearInterval(SBI.wt);for(const id of ['sbiAsk','sbiInv','sbiWait'])sbiHide(id);}
+const sbiHelp=t=>typeof COARSE!=='undefined'&&COARSE?'':'<div style="font-weight:600;font-size:11px;opacity:.6;margin-top:6px">'+t+'</div>';
+/* the start line's question */
+function sbRaceAsk(){const mi=mapIdx;SBI.ask={mi};
+  sbiEl('sbiAsk','<div>Race on '+lbEsc(MAPS[mi].name)+'</div><div style="font-weight:600;font-size:12.5px;opacity:.8">With friends: everyone in the room is asked to join you here.</div>'+
+    '<button id="sbiF" type="button" style="'+SBI_BTN+'background:#f5b62e;color:#1b0f0b">Race with friends</button><button id="sbiA" type="button" style="'+SBI_BTN+'background:#4a3428;color:#fff4dc">Race alone</button><button id="sbiC" type="button" style="'+SBI_BTN+'background:transparent;color:#fff4dc;border:1px solid rgba(255,244,220,.35)">Cancel</button>'+
+    sbiHelp('1 friends · 2 alone · Esc cancel · controller: up friends, down alone'));
+  $('sbiF').onclick=()=>sbRaceAskPick('f');$('sbiA').onclick=()=>sbRaceAskPick('a');$('sbiC').onclick=()=>sbRaceAskPick('c');}
+function sbRaceAskPick(w){const a=SBI.ask;SBI.ask=null;SBI.pickT=performance.now();sbiHide('sbiAsk');if(!a||w==='c')return;
+  if(w==='a'){sbRaceAlone(a.mi);return;}
+  if(NET.role==='host')sbInvStart(a.mi,0);else{netSend(NET.conns[0],{t:'sbinv',mi:a.mi});sbInvWait(a.mi);}}
+function sbRaceAlone(mi){if(!SBX||state!=='race')return;if(SBA.act)sbActEnd('cancel');NET.soloSb=true;SB.back=MAPS[mi].id;sbRaceBtn(false);mode='single';goRace(mi);}
+/* the host: an invite out, the answers in, then the race (or not) */
+function sbInvStart(mi,by){const bc=by?NET.conns.find(c=>c._id===by):null;
+  if(SBI.host||NET.cfg||!SBX&&by===0){if(bc)netSend(bc,{t:'sbinvx',why:'busy'});else showBanner('A race is already being set up',1.6,'sm');return;}
+  if(!MAPS[mi]){if(bc)netSend(bc,{t:'sbinvx',why:'busy'});return;}
+  const id=netRid(),name=by===0?netName():((NET.pl.find(p=>p.id===by)||{}).name||'A friend');
+  SBI.host={id,mi,by,name,ans:new Map([[by,true]]),t0:performance.now()};
+  for(const c of NET.conns)if(c.open)netSend(c,{t:'sbinv',id,mi,by,name,me:c._id===by?1:0});
+  if(by===0)sbInvWait(mi);else if(SBX&&state==='race')sbInvShow({id,mi,name});else SBI.host.ans.set(0,false);
+  clearInterval(SBI.tick);SBI.tick=setInterval(sbInvTick,200);}
+function sbInvTick(){const H=SBI.host;if(!H){clearInterval(SBI.tick);return;}
+  const open=NET.conns.filter(c=>c.open).map(c=>c._id),all=open.every(id=>H.ans.has(id))&&H.ans.has(0),late=performance.now()-H.t0>10500;
+  if(SBI.wait)sbInvWaitTxt([...H.ans.values()].filter(Boolean).length);
+  if(H.ans.get(0)!==false&&!all&&!late)return;
+  clearInterval(SBI.tick);SBI.host=null;
+  if(H.ans.get(0)!==true){/* the host is not racing: no race on line */sbiClear();for(const c of NET.conns)if(c.open)netSend(c,{t:'sbinvx',why:'host'});return;}
+  sbInvGo(H.mi,open.filter(id=>H.ans.get(id)===true));}
+function sbInvGo(mi,ids){sbiClear();NET.sbRace=new Set(ids);for(const c of NET.conns)if(c.open&&!NET.sbRace.has(c._id))netSend(c,{t:'sbinvx',why:'go'});
+  if(SBA.act)sbActEnd('cancel');sbRaceBtn(false);SB.back=MAPS[mi].id;mode='single';gp=null;
+  if(!cpuBuilds||!cpuBuilds.length)cpuBuilds=RACERS.map(randomBuild);NET.pl[0].ri=selected;NET.pl[0].build=playerBuild;
+  const cfg=netBuildCfg(mi);cfg.id=netRid();cfg.sbr=1;NET.loaded=new Set();
+  for(const c of NET.conns)if(c.open&&NET.sbRace.has(c._id))netSend(c,{t:'load',cfg});netBeginLoad(cfg);}
+/* everyone: an invite in */
+function sbInvGot(d){if(d.me){if(SBI.wait)SBI.wait.id=d.id;return;}
+  if(!SBX||(state!=='race'&&state!=='paused')||NET.cfg||NET.soloSb){netSend(NET.conns[0],{t:'sbans',id:d.id,yes:false});return;}sbInvShow(d);}
+function sbInvShow(d){SBI.inv={id:d.id,t0:performance.now(),mi:d.mi,ans:null};
+  sbiEl('sbiInv','<div>'+lbEsc(d.name)+' wants to race on '+lbEsc((MAPS[d.mi]||{}).name||'a track')+'!</div><div style="font-weight:600;font-size:12.5px;opacity:.8">Join and you go straight to the start line.</div>'+
+    '<button id="sbiJ" type="button" style="'+SBI_BTN+'background:#f5b62e;color:#1b0f0b">Join</button><button id="sbiN" type="button" style="'+SBI_BTN+'background:#4a3428;color:#fff4dc">No thanks</button><div id="sbiT" style="font-weight:600;font-size:11px;opacity:.6;margin-top:6px"></div>');
+  $('sbiJ').onclick=()=>sbInvAnswer(true);$('sbiN').onclick=()=>sbInvAnswer(false);
+  clearInterval(SBI.ct);SBI.ct=setInterval(()=>{const I=SBI.inv;if(!I){clearInterval(SBI.ct);return;}const left=Math.max(0,10-(performance.now()-I.t0)/1000),t=$('sbiT');
+    if(t)t.textContent=(I.ans?'Joined: waiting for the others':Math.ceil(left)+' s')+(typeof COARSE!=='undefined'&&COARSE?'':' · J join · N no · controller: up join, down no');if(left<=0&&I.ans==null)sbInvAnswer(false);},200);}
+function sbInvAnswer(yes){const I=SBI.inv;if(!I||I.ans!=null)return;I.ans=!!yes;
+  if(NET.role==='host'){const H=SBI.host;if(H&&H.id===I.id)H.ans.set(0,!!yes);}else netSend(NET.conns[0],{t:'sbans',id:I.id,yes:!!yes});
+  if(!yes){SBI.inv=null;clearInterval(SBI.ct);sbiHide('sbiInv');}else{const b=$('sbiJ'),n=$('sbiN');if(b){b.disabled=true;b.textContent='Joined';}if(n)n.hidden=true;}}
+/* whoever asked: waiting for the answers */
+function sbInvWait(mi){SBI.wait={mi,t0:performance.now()};sbiEl('sbiWait','<div>Asking everyone in the room to race on '+lbEsc(MAPS[mi].name)+'...</div><div id="sbiWT" style="font-weight:600;font-size:12.5px;opacity:.8"></div>');
+  sbInvWaitTxt(null);clearInterval(SBI.wt);SBI.wt=setInterval(()=>{if(!SBI.wait){clearInterval(SBI.wt);return;}sbInvWaitTxt(null);if(performance.now()-SBI.wait.t0>16000)sbInvOff('host');},250);}
+function sbInvWaitTxt(n){const W=SBI.wait,t=$('sbiWT');if(!W||!t)return;if(n!=null)W.n=n;t.textContent=(W.n!=null?W.n+' in so far · ':'')+Math.max(0,Math.ceil(10-(performance.now()-W.t0)/1000))+' s';}
+/* the host's answer: off (no race on line) */
+function sbInvOff(why){const asked=!!SBI.wait,mi=SBI.wait?SBI.wait.mi:mapIdx;sbiClear();
+  if(why==='busy')showBanner('A race is already being set up',1.8,'sm');
+  else if(why==='host'&&asked){const e=sbiEl('sbiAsk','<div>The room\'s host can\'t race right now</div><div style="font-weight:600;font-size:12.5px;opacity:.8">A race on line is run by the host\'s game, so the host has to join it.</div>'+
+      '<button id="sbiA2" type="button" style="'+SBI_BTN+'background:#f5b62e;color:#1b0f0b">Race alone</button><button id="sbiC2" type="button" style="'+SBI_BTN+'background:transparent;color:#fff4dc;border:1px solid rgba(255,244,220,.35)">OK</button>');
+    $('sbiA2').onclick=()=>{sbiHide('sbiAsk');sbRaceAlone(mi);};$('sbiC2').onclick=()=>sbiHide('sbiAsk');}}
+addEventListener('keydown',e=>{if(SBI.ask){if(e.code==='Digit1'||e.code==='Numpad1'){e.preventDefault();sbRaceAskPick('f');}else if(e.code==='Digit2'||e.code==='Numpad2'){e.preventDefault();sbRaceAskPick('a');}else if(e.code==='Escape'){e.preventDefault();e.stopPropagation();sbRaceAskPick('c');}}
+  else if(SBI.inv&&SBI.inv.ans==null){if(e.code==='KeyJ'){e.preventDefault();e.stopPropagation();sbInvAnswer(true);}else if(e.code==='KeyN'){e.preventDefault();e.stopPropagation();sbInvAnswer(false);}}},true);
 /* ================= (patch 44) USERNAMES AND THE WORLD LEADERBOARD (the owner's Supabase project) ================= */
 const LB={url:'https://ymlfwrwrewxxsazylprf.supabase.co',key:'sb_publishable_K_widd5Q0EyMhUm7JVuv_Q_FWXc0CQZ'};
 const lbEsc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
@@ -9427,7 +9492,7 @@ function renderResultsNet(){const bat=BATTLE&&!SBX,rows=bat?bbRank().map(k=>({k,
     if(fin&&!live){const cp=order.indexOf(player)+1;resTitle.textContent=cp===1?'You won the '+CUPS[gp.cup].name+'!':cp+suf(cp)+' in the '+CUPS[gp.cup].name;if(cp<=3){tr.innerHTML=TROPHY(['#ffd54a','#d8dde3','#e09a5a'][cp-1]);tr.hidden=false;}resSub.textContent='Final standings · '+cl+' class';}
     $('againBtn').textContent=fin?'Play this cup again':'Next race';$('toMenuBtn').textContent='Quit to menu';}
   else{gb.hidden=true;$('againBtn').textContent='Race again';$('toMenuBtn').textContent='Change track or driver';}
-  resLive=rows.some(r=>r.racing)?.5:0;$('specBtn').hidden=!specCanWatch();$('resNetLog').hidden=false;}
+  resLive=rows.some(r=>r.racing)?.5:0;$('specBtn').hidden=!specCanWatch();$('resNetLog').hidden=false;if(NET.cfg&&NET.cfg.sbr){SBI.res=1;$('againBtn').hidden=true;$('trackBtn').hidden=true;$('toMenuBtn').hidden=false;$('toMenuBtn').textContent='Back to Sandbox';}else if(SBI.res){SBI.res=0;$('againBtn').hidden=false;$('trackBtn').hidden=false;}/* (patch 52) */}
 /* ---- spectating: after you finish an online race, watch the others. Three cameras: chase (behind the racer), track cameras (tall camera
    posts round the course, the nearest one follows the racer and zooms in) and a blimp view high above and behind the racer. ---- */
 var SPEC={on:false,i:0,mode:0,tv:null,tvMap:null,tvI:-1,snap:true,lk:null,bp:null,labT:0};
@@ -10294,7 +10359,7 @@ function musTick(){if(!ac||!master)return;musInit();if(!MUS.bus)return;
    Phones find each other through a short room code over a relay server; the race data uses a direct link when one opens. */
 const NET={role:null,code:'',peer:null,conns:[],me:0,pl:[],cfg:null,fromNet:false,loaded:new Set(),tick:0,seq:0,hist:[],outQ:[],inQ:{},inS:{},inLast:{},ack:{},
   snaps:[],mir:new Map(),mirH:new Map(),mirList:[],fxQ:[],nid:0,inUpd:false,finSeen:false,lastRecv:0,goT:0,waitTimer:0,replay:false,abQ:false,relay:null,lastFl:0,unack:[],ackRx:0};
-const NET_PROTO=116;/* (patch 47: cfg.ni, a race without items) *//* bump when race messages or kart physics change: friends on different versions would drive differently */
+const NET_PROTO=117;/* (117: patch 52, a Sandbox race from a start line with invites) *//* (patch 47: cfg.ni, a race without items) *//* bump when race messages or kart physics change: friends on different versions would drive differently */
 const NET_SLOTS=[4,3,5,2],NET_ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const netId=c=>'crustrush-v1-'+c.toUpperCase();
 const NET_REM=['x','y','a','ma','z','wy','speed','steer','drift','charge','boost','spin','air','glide','loopTh','onRamp','rush','shL','shield','mzH','sink','sinkT','trickK','trickT','frozen','acc','brake','dAmt','fx','prog','finished','place','finishTime','inv','big','ghostT','shrinkT','absT','idx','gRings','trick','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT','est','oliveT','bal','bbL','bbS','bbOut','bbDead','bbPlace'];/* (patch 45: Balloon Battle on line) */
@@ -10313,7 +10378,7 @@ function netLoadLib(){return new Promise((res,rej)=>{if(window.Peer)return res()
 function netReset(){try{for(const c of NET.conns)c.close();}catch(e){}try{if(NET.relay)NET.relay.stop();}catch(e){}NET.relay=null;try{if(NET.peer)NET.peer.destroy();}catch(e){}
   netClearMirrors();Object.assign(NET,{role:null,code:'',peer:null,conns:[],me:0,pl:[],cfg:null,fromNet:false,loaded:new Set(),tick:0,seq:0,hist:[],outQ:[],inQ:{},inS:{},inLast:{},ack:{},snaps:[],fxQ:[],nid:0,finSeen:false,sbx:null,sbP:new Map(),sbIn:new Set()});try{sbnClear();}catch(e){}netBadge();}
 function netSend(c,m){try{if(c&&c.open)c.send(m);}catch(e){}}
-function netAll(m){for(const c of NET.conns)netSend(c,m);}
+function netAll(m){for(const c of NET.conns){if(NET.sbRace&&!NET.sbRace.has(c._id))continue;/* (patch 52: a Sandbox race: its racers only) */netSend(c,m);}}
 /* ---------- transport ----------
    Joining and racing go through a public relay (MQTT over a secure WebSocket), which works on Wi-Fi and mobile data alike,
    even when the phones can't reach each other directly. When a direct phone-to-phone link (PeerJS) can also be opened,
@@ -10480,10 +10545,11 @@ function netOnHost(c,d){if(!d||!d.t)return;const P=NET.pl.find(q=>q.id===c._id);
   else if(d.t==='quit'){for(const k of karts)if(k.netId===c._id){k.netId=null;k.auto=true;}if(P)P.ready=false;netLobbySync();}
   else if(d.t==='bye'){try{c.close();}catch(e){}netDrop(c);}
   else if(d.t==='rtc'){if(d.nat)c.natPeer=NET.natPeer=d.nat;rtcOnHost(c,d);}
+  else if(d.t==='sbinv'){sbInvStart(d.mi|0,c._id);}else if(d.t==='sbans'){const H=SBI.host;if(H&&H.id===d.id)H.ans.set(c._id,!!d.yes);}/* (patch 52) */
   else if(d.t==='sp'&&d.p){/* (patch 46) a friend's place in Sandbox */const q=Object.assign({},d.p,{id:c._id,at:performance.now()});if(!q.b){const o=NET.sbP&&NET.sbP.get(c._id);if(o)q.b=o.b;}(NET.sbP||(NET.sbP=new Map())).set(c._id,q);if(NET.sbIn)NET.sbIn.add(c._id);sbnPeer(q);}
   else if(d.t==='pg')netSend(c,{t:'po',ts:d.ts});}
 /* the host builds the grid: host in slot 4, friends next to them, rivals in the rest */
-function netBuildCfg(mi){const pl=NET.pl.filter(p=>p.id===0||p.conn&&p.conn.open);const used=new Set(pl.map(p=>p.ri));const others=RACERS.map((_,i)=>i).filter(i=>!used.has(i));
+function netBuildCfg(mi){const pl=NET.pl.filter(p=>p.id===0||p.conn&&p.conn.open&&(!NET.sbRace||NET.sbRace.has(p.id)));const used=new Set(pl.map(p=>p.ri));const others=RACERS.map((_,i)=>i).filter(i=>!used.has(i));
   for(let i=others.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[others[i],others[j]]=[others[j],others[i]];}
   const ks=[];const taken=new Set();pl.forEach((p,i)=>{const slot=NET_SLOTS[i];taken.add(slot);ks.push({slot,ri:p.id===0?selected:p.ri,build:p.id===0?playerBuild:(p.build||randomBuild(p.ri)),who:p.id,name:p.name});});
   {let nc=cpuCount(false);/* the host's count of computer racers fills the seats the friends leave (patch 35) */for(const s of [3,5,2,6,1,7,0,4]){if(nc<=0)break;if(taken.has(s))continue;const ri=others.shift()??(s%RACERS.length);ks.push({slot:s,ri,build:cpuBuilds[ri]||randomBuild(ri),who:-1});taken.add(s);nc--;}}
@@ -10494,7 +10560,7 @@ function netHostPrepare(mi){NET.pendMap=mi;NET.pendAt=performance.now();NET.pl[0
 function netAllReady(){const open=new Set(NET.conns.filter(c=>c.open).map(c=>c._id));return NET.pl.filter(p=>p.id!==0&&open.has(p.id)).every(p=>p.ready);}
 function netHostGo(){const mi=NET.pendMap;if(mi==null)return;NET.pendMap=null;clearInterval(NET.pendTick);netHideLobby();netLobbySync();netHostStart(mi);}
 function netHostStart(mi){if(mode==='sb'){/* (patch 46) Sandbox: everyone starts their own, here */NET.sbx={on:true};NET.sbIn=new Set();netAll({t:'sbgo',mi});NET.fromNet=true;goRace(mi);return;}if(!cpuBuilds||!cpuBuilds.length)cpuBuilds=RACERS.map(randomBuild);NET.pl[0].ri=selected;NET.pl[0].build=playerBuild;const cfg=netBuildCfg(mi);cfg.id=netRid();NET.loaded=new Set();netAll({t:'load',cfg});netBeginLoad(cfg);}
-function netMaybeGo(){if(NET.role!=='host'||state!=='netwait')return;const open=NET.conns.filter(c=>c.open),need=open.map(c=>c._id);if(!(need.every(id=>NET.loaded.has(id))&&NET.loaded.has(0)))return;
+function netMaybeGo(){if(NET.role!=='host'||state!=='netwait')return;const open=NET.conns.filter(c=>c.open&&(!NET.sbRace||NET.sbRace.has(c._id))),need=open.map(c=>c._id);if(!(need.every(id=>NET.loaded.has(id))&&NET.loaded.has(0)))return;
   /* everyone has the track loaded: give the direct links up to 8 s more so the race starts on the fast connection, not the relay */
   if(!NET.allLoadedAt)NET.allLoadedAt=performance.now();const pend=open.filter(c=>!c.direct&&c.rtcSt!=='failed'),w=performance.now()-NET.allLoadedAt;
   if(pend.length&&w<8000){if(!NET.linkMsgT||performance.now()-NET.linkMsgT>400){NET.linkMsgT=performance.now();showBanner('Linking players… '+(open.length-pend.length)+' of '+open.length+' direct',1,'sm');}return;}
@@ -10510,7 +10576,7 @@ function netSendPick(ready){if(NET.role!=='guest')return;NET.ready=!!ready;netSe
 function netOnGuest(d){if(!d||!d.t)return;NET.lastRecv=performance.now();
   if(d.t==='lobby'){NET.pl=d.pl;NET.me=d.you;NET.code=d.code;NET.hostTk=d.tk||null;netLobbyRender();netBadge();}
   else if(d.t==='full'){netLost(d.why||'This room is full.');}
-  else if(d.t==='load'){if(!(NET.cfg&&d.cfg.id&&NET.cfg.id===d.cfg.id))netBeginLoad(d.cfg);}
+  else if(d.t==='load'){if(!(NET.cfg&&d.cfg.id&&NET.cfg.id===d.cfg.id)){if(d.cfg.sbr){SB.back=MAPS[d.cfg.mi].id;sbiClear();}netBeginLoad(d.cfg);}}
   else if(d.t==='go'){netGo();}
   else if(d.t==='away'){NET.hostAway=true;}else if(d.t==='back'){NET.hostAway=false;}
   else if(d.t==='s'){netOnSnap(d);}
@@ -10519,6 +10585,7 @@ function netOnGuest(d){if(!d||!d.t)return;NET.lastRecv=performance.now();
   else if(d.t==='rtc'){if(d.nat)NET.natPeer=d.nat;rtcOnGuest(NET.conns[0],d);}
   else if(d.t==='sbgo'){/* (patch 46) the room's Sandbox: start our own, at the host's place */if(!SBX&&state==='menu'){NET.sbx={on:true};netHideLobby();if(garageOpen)closeGarage();mode='sb';NET.fromNet=true;goRace(d.mi|0);/* (patch 47b: goRace loads it; setting mapIdx first kept the menu's map) */}}
   else if(d.t==='sps'){sbnGot(d);}
+  else if(d.t==='sbinv'){sbInvGot(d);}else if(d.t==='sbinvx'){sbInvOff(d.why);}else if(d.t==='sbend'){if(NET.cfg&&NET.cfg.sbr){if(!SB.back)SB.back=MAPS[NET.cfg.mi].id;sbBack();}}/* (patch 52) */
   else if(d.t==='hit'){if((d.rk==null||d.rk===NET.rk)&&state==='race'&&player&&!player.finished&&d.me&&d.ack>=(NET.ackRx||0)){NET.ackRx=d.ack;netReconcile(d.me,d.ack);NETLOG.ev('hit',0);}}
   else if(d.t==='tst'){if((d.rk==null||d.rk===NET.rk)&&state==='race'&&karts[d.v|0])hitToast(String(d.ty||''),karts[d.v|0]);}
   else if(d.t==='po'){const r=performance.now()-d.ts;NET.ping=NET.ping==null?r:NET.ping*.6+r*.4;}}
@@ -10573,13 +10640,13 @@ function netSnapshot(){const n=++NET.sn,base={t:'s',n,rk:NET.rk,st:r3(simTime),r
     b:boxes.map(b=>b.r>0?Math.round(b.r*20):0),fx:NET.fxQ.splice(0)};if(BATTLE&&!SBX)base.bb=[r3(BB.t),BB.over?1:0];
   /* traps barely move: send them when the set changes and every third snapshot (the guest keeps the last copy in between) */
   const hs=hazards.map(h=>{if(!h.nid)h.nid=++NET.nid;return h.nid;}).join(',');if(hs!==NET.hSig||n%3===0){NET.hSig=hs;base.h=hazards.map(h=>netMeshRec(h.nid,h.mesh,[h.olive?'olive':h.kind||'oil',karts.indexOf(h.owner),h.armed?1:0,r3(h.x),r3(h.y)]));}
-  for(const c of NET.conns){if(!c.open)continue;const dv=netSnDiv(c);if(n%dv)continue;
+  for(const c of NET.conns){if(!c.open||(NET.sbRace&&!NET.sbRace.has(c._id)))continue;const dv=netSnDiv(c);if(n%dv)continue;
     /* the fast channel still queues: if the last snapshots haven't left the phone yet, adding more only makes the lag worse */
     const buf=c.bufF;if(buf>3000){c.snSkip=(c.snSkip||0)+1;NETLOG.ev('skip',c._id);continue;}
     const k=karts.find(q=>q.netId===c._id),fast=!!c.fast,me=k&&(!fast||dv>1||n%2===0||k.finished);c.snSent=(c.snSent||0)+1;
     const o=Object.assign({},base,{mi:k?karts.indexOf(k):-1,ack:NET.ack[c._id]||0,sd:dv});if(me)o.me=netKScal(k);if(!c.snAt)c.snAt=new Map();c.snAt.set(n,performance.now());if(c.snAt.size>90)c.snAt.delete(c.snAt.keys().next().value);if(c.sendF)c.sendF(o);else netSend(c,o);}}
 setInterval(()=>{if(NET.role)netBadge();
-  if(NET.role==='host'&&NET.cfg&&(state==='loading'||state==='netwait'))for(const c of NET.conns)if(c.open&&!NET.loaded.has(c._id))netSend(c,{t:'load',cfg:NET.cfg});
+  if(NET.role==='host'&&NET.cfg&&(state==='loading'||state==='netwait'))for(const c of NET.conns)if(c.open&&!NET.loaded.has(c._id)&&(!NET.sbRace||NET.sbRace.has(c._id)))netSend(c,{t:'load',cfg:NET.cfg});
   if(NET.role==='guest'&&NET.conns[0])netSend(NET.conns[0],{t:'pg',ts:performance.now()});
   if(NET.role==='guest'&&NET.conns[0]){if(state==='netwait')netSend(NET.conns[0],{t:'loaded'});else if(!NET.cfg&&state==='menu')netSend(NET.conns[0],{t:'pick',ri:selected,build:playerBuild,ready:!!NET.ready});}},2000);
 /* per friend: how many base snapshots to skip between sends. A long round trip (queues building up on their link, or on ours) means the
@@ -10841,7 +10908,7 @@ function padPoll(){let gps;try{gps=navigator.getGamepads?navigator.getGamepads()
     if(SPEC&&SPEC.on){/* watching: left/right or the bumpers pick the racer, Y or X the camera, B goes back to the results */if(edge(M.LEFT)||M.I1.some(edge))specNext(-1);if(edge(M.RIGHT)||M.I2.some(edge))specNext(1);if(edge(M.Y)||edge(M.X))specCam();if(edge(M.B))specExit(true);}
     PAD.steer=SBX?sx:clamp(sx+(dr?1:0)-(dl?1:0),-1,1);if(SBX&&state==='race'&&!(SPEC&&SPEC.on)){if(edge(M.LEFT))sbSpdStep(-1);if(edge(M.RIGHT))sbSpdStep(1);}/* (in Sandbox the D-pad's left and right are the speed slider; the stick steers) */PAD.gas=M.GAS.some(pr);PAD.brake=M.D.some(pr);PAD.nb=PAD.gas&&M.D.some(pr);/* drift trigger with the throttle held: drift only, never brake */PAD.look=pr(M.X)||(pr(M.BACK)&&!SBX);/* (in Sandbox Select opens the map) */
     PAD.back=ay>.55;/* left stick pulled back: the next item goes behind you, no mirror needed; it never brakes or steers */
-    if(edge(M.Y)&&!(SPEC&&SPEC.on))abilQueued=true;/* (patch 36: Y is the ability in Sandbox too; its map is Select) */if(SBX&&edge(M.BACK))sbMap(true,'drive');if(SBX&&edge(M.DOWN)&&state==='race')sbPark();
+    if(edge(M.Y)&&!(SPEC&&SPEC.on))abilQueued=true;/* (patch 36: Y is the ability in Sandbox too; its map is Select) */if(SBX&&edge(M.BACK))sbMap(true,'drive');if(SBI.ask){if(edge(M.UP))sbRaceAskPick('f');else if(edge(M.DOWN))sbRaceAskPick('a');}else if(SBI.inv&&SBI.inv.ans==null){if(edge(M.UP))sbInvAnswer(true);else if(edge(M.DOWN))sbInvAnswer(false);}/* (patch 52) */else if(SBX&&edge(M.DOWN)&&state==='race')sbPark();
     /* items: slot 1 and slot 2 */
     [[M.I1,1],[M.I2,2]].forEach(([btns,sl])=>{const down=btns.some(pr),was=PAD.held[sl];if(down===was)return;PAD.held[sl]=down;const k=player;if(!k||(SPEC&&SPEC.on))return;
       const it=sl===1?k.item:k.item2,suf=sl===2?'2':'';

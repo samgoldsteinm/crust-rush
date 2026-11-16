@@ -145,6 +145,27 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-16 (web v213 and the PC build after it; ONLINE 117 ON BOTH): a room's Sandbox race from a start line, with invites
+The owner: anyone (guest or host) at a start line can start a race and "send out like an invite to the other person and they can just be
+teleported to the race and when the race is over they just stay at the track when they go back into sandbox"; agreed rule: "the host would
+always have to be in an online race in sandbox" (the host's game runs every room race: one world is loaded at a time, so a host cannot
+run a race on a track it is not on). Web: tools/mini/patch52.py. PC: scripts/webnet.gd (PROTO 117, RACE_T and sb_race in _send_to,
+sb_race_start / sb_race_end, the messages), main.gd (the _sbi_* block after _sb_race_here; _sb_race_solo; _sb_return; results).
+- At a start line in a room's Sandbox: Race with friends / Race alone / Cancel (1 / 2 / Esc; controller up / down; driving away cancels).
+- With friends: the host sends {t:'sbinv', id, mi, by, name, me}; everyone else (driving in Sandbox) sees "<name> wants to race on
+  <track>!" Join / No thanks (J / N; up / down), 10 s. Anyone not driving in Sandbox answers no by itself. If the host says no (or
+  is not in Sandbox) it is off: {t:'sbinvx', why:'host'}, and whoever asked is offered a race alone.
+- The race: an ordinary room race (cfg.sbr = 1, mode single) for the host and those who joined. The host keeps their ids
+  (web NET.sbRace, PC sb_race) and every race message (netAll / _send_to: s, hit, tst, go, load, menu, elim, sbend), the load
+  resend, "everyone loaded" and the grid leave the others out; they keep driving, their places still relayed by the host.
+- After it: results show only "Back to Sandbox" (sbBack / _sb_return): each racer goes back into Sandbox at that track. The host going
+  back ends it for anyone still racing ({t:'sbend'}); a guest going back first sends {t:'quit'}.
+- Race alone in a room: the start line's own race off line; NET.soloSb lets goRace past the room's ready-up (the PC never had that stop).
+- Tests: tools/neon/sbrace.py (two browsers: the friend asks from the garage while the host is on Margherita, both race on the garage,
+  both back in the garage; the host says no; the friend says no while the host races) PASS; cross-play CR_XMODE=sbr / MODE=sbr (the PC
+  asks, the web host joins, both race, both back) PASS both sides; gpnet2, bbnet, xplay, PC smoke and sandbox still pass.
+  A test that asks before the host is driving in Sandbox gets "the host can't race": wait for the host's car (sbr in xmodes.gd).
+
 ### 2026-11-16 (web v212 and the PC build after it; ONLINE 116 ON BOTH): the PC catches up, a key for Back to the track
 - Web v212, tools/mini/patch51.py: keyboard action 'sbback' "Back to the track (Sandbox)", T by default, in Settings > Controls like every
   key (owner: "make it bindable like the other keys"). Driving in Sandbox it pauses and asks the pause menu's question (sbBackAsk).
