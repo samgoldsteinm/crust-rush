@@ -5557,6 +5557,7 @@ function bbTarget(k,back){let best=null,bs=1e9;for(const o of karts){if(o===k||o
 /* the pizza cutter's mark: whoever is winning (not the thrower) */
 function bbLeader(k){for(const o of bbRank())if(o!==k&&!o.bbDead&&!(o.bbOut>0))return o;return null;}
 /* Balloon Battle is played off line for now: starting or joining a friends' race leaves the mode and its arena */
+/* (patch 46) a room keeps Balloon Battle and Sandbox */function sbNoNet(){}
 function bbNoNet(){if(mode!=='bb'&&mode!=='sb')return;mode='single';try{store.set('crust-mode',mode);}catch(e){}if(MAPS[mapIdx].battle){mapIdx=0;loadMap(0,false);resetRace(true);}try{refreshMenu();}catch(e){}}
 /* what a battle's item boxes give. The owner, 2026-11-13: "any homing items should be removed for the balloon game mode, as well as items that drop
    on the floor. It should only be projectiles the player has to aim or speed boosts. The auto drive speed boost items should also be removed".
@@ -5909,7 +5910,7 @@ function sbFlag(){if(SB.flag&&SB.flag.glow)SB.flag.glow.dispose();const p=track[
   const fl=new THREE.Mesh(new THREE.PlaneGeometry(10,6.6),new THREE.MeshBasicMaterial({map:t2,side:THREE.DoubleSide,toneMapped:false}));fl.position.set(5,13.6,0);F.add(fl);F.position.y=12;G.add(F);
   let glow=null;try{glow=glowMat('#fff2c0').clone();/* (its own copy: the clock dims it, and glowMat's are shared) */const sp=new THREE.Sprite(glow);sp.scale.setScalar(30);sp.position.y=22;G.add(sp);}catch(e){}
   G.position.set(p.x,e,p.y);G.traverse(o=>{o.userData.sunlit=true;});SB.grp.add(G);SB.flag={G,F,x:p.x,z:p.y,y:e,mats:[ring.material,fl.material],glow};}
-function sbRaceBtn(on){let b=SB.raceEl;if(!b){if(!on)return;b=SB.raceEl=document.createElement('button');b.id='sbRace';b.type='button';
+function sbRaceBtn(on){if(NET.sbx&&NET.role)on=false;/* (patch 46) */let b=SB.raceEl;if(!b){if(!on)return;b=SB.raceEl=document.createElement('button');b.id='sbRace';b.type='button';
     b.style.cssText='position:absolute;left:50%;bottom:max(96px,calc(env(safe-area-inset-bottom) + 96px));transform:translateX(-50%);z-index:7;font:800 15px/1.15 system-ui,sans-serif;color:#1b0f0b;background:linear-gradient(#ffd97a,#f5b62e);border:0;border-radius:14px;padding:10px 18px 10px 44px;box-shadow:0 4px 0 #9b6a10,0 8px 18px rgba(0,0,0,.4);cursor:pointer;white-space:nowrap;text-align:left';
     b.innerHTML='<i style="position:absolute;left:12px;top:50%;width:22px;height:22px;margin-top:-11px;border-radius:5px;background:conic-gradient(#141210 25%,#fbf6ea 0 50%,#141210 0 75%,#fbf6ea 0) 0 0/11px 11px"></i><span id="sbRaceT"></span><small style="display:block;font-weight:600;font-size:11px;opacity:.75" id="sbRaceS"></small>';
     b.onclick=e=>{e.preventDefault();sbRaceHere();};b.addEventListener('pointerdown',e=>e.stopPropagation());stage.appendChild(b);
@@ -5984,7 +5985,7 @@ function sbCam(){const k=camT;if(!k||state==='menu'||!SBF)return;if(k.loop||k.rt
   camera.position.set(tx+(cx-tx)*f,ty+(cy-ty)*f+(1-f)*9,tz+(cz-tz)*f);{/* pulled in close, it looks more and more at the kart itself, so the kart stays in the picture */const w=Math.min(1,(1-f)*1.6);camera.lookAt(cam.look.x+(tx-cam.look.x)*w,cam.look.y+cam.oy*.45+(ty-2-cam.look.y-cam.oy*.45)*w,cam.look.z+(tz-cam.look.z)*w);}}
 function sbRender(time){sbSpdUi();{const dt=Math.min(.1,Math.max(0,time-(SB.wT==null?time:SB.wT)));SB.wT=time;sbWarpTick(dt);}if(SBC.stars)SBC.stars.position.copy(camera.position);if(!SB.grp)return;sbCam();if(SB.flag){SB.flag.F.rotation.y=time*1.6;SB.flag.F.position.y=12+Math.sin(time*2.2)*1.2;}const im=SB.im;for(const c of SB.coins){const a=time*2.6+c.ph;if(c.rare){if(c.m&&c.m.visible){c.m.rotation.y=a;c.m.position.y=c.y+Math.sin(time*2+c.ph)*.8;}continue;}
     _sbE.set(0,a,0);_sbQ.setFromEuler(_sbE);_sbP.set(c.x,c.y,c.z);const s=c.t>0?0:1;_sbS.set(s,s,s);_sbM.compose(_sbP,_sbQ,_sbS);im.setMatrixAt(c.i,_sbM);}
-  if(im)im.instanceMatrix.needsUpdate=true;try{sbNightFrame(time);}catch(e){console.warn('night',e);}try{sbShopFrame(time);}catch(e){console.warn('shop',e);}/* (patch 41) last: it owns the camera while pulling in */}
+  if(im)im.instanceMatrix.needsUpdate=true;try{sbNightFrame(time);}catch(e){console.warn('night',e);}try{sbnRender(time);}catch(e){console.warn('sbnet',e);}try{sbShopFrame(time);}catch(e){console.warn('shop',e);}/* (patch 41) last: it owns the camera while pulling in */}
 function sbHud(){let e=SB.el;if(!e){e=SB.el=document.createElement('div');e.id='sbHud';e.style.cssText='position:absolute;left:max(10px,env(safe-area-inset-left));top:64px;z-index:6;font:700 13px/1.3 system-ui,sans-serif;color:#fff4dc;background:rgba(18,9,6,.62);border-radius:12px;padding:8px 12px;pointer-events:none;text-shadow:0 1px 2px #000';stage.appendChild(e);}
   e.hidden=!SBX||state==='menu';if(BB.el)BB.el.hidden=true;if(e.hidden)return;const sv=sbSave(),f=sbFound(),dot=(c,r)=>'<span style="display:inline-block;width:'+r+'px;height:'+r+'px;border-radius:50%;background:'+c+';box-shadow:inset 0 0 0 2px rgba(0,0,0,.25);vertical-align:-2px;margin-right:6px"></span>';
   e.innerHTML='<div style="font-size:11px;letter-spacing:.6px;opacity:.85;text-transform:uppercase">'+SB.reg.name+'</div><div style="font-size:20px;margin-top:2px">'+dot('#ffc93a',15)+sv.c+'</div><div style="margin-top:2px">'+dot('#d8402a',13)+f[0]+' / '+f[1]+'</div>'+(SB_CLOCK?'<div style="margin-top:3px;font-size:12px;opacity:.9">'+sbClockIcon()+sbClockStr()+'</div>':'');}
@@ -9122,7 +9123,7 @@ let _abSetup=false;function startRace(){try{drsReset();}catch(e){}if(!_abSetup){
   buildProg();if(mode!=='lss'&&!SBX)ghostStart();{const r=loadRecs()[recKey()],e=$('hudPB');if(e){e.hidden=!r;if(r)e.textContent='Best '+fmt(r.t);}}lastPos=lastLap=lastItem=lastTimeStr='';lastSpd=-1;hud.ch=-1;hud.bst=null;hud.dr=null;banner.textContent='';hintShown=false;itemQueued=null;}
 const paint=()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
 let raceLoading=false;
-async function goRace(mi){if(raceLoading)return;if(NET.role&&!NET.fromNet){if(NET.role==='host'&&NET.conns.some(c=>c.open)){netHostPrepare(mi);return;}if(NET.role==='guest'){netShowLobby();return;}}NET.fromNet=false;if(!NET.role||!NET.conns.some(c=>c.open))NET.cfg=null;raceLoading=true;const rev=!!CLASSES[clsKey].rev,L=$('raceLd'),bar=$('rlBar'),txt=$('rlTxt'),m=MAPS[mi];try{MUS.nextMap=mi;}catch(e){}
+async function goRace(mi){if(raceLoading)return;{const ov=document.getElementById('lbNameOv');if(ov&&!ov.hidden)ov.hidden=true;}/* (patch 46b) */if(NET.role&&!NET.fromNet&&!(NET.sbx&&mode==='sb')){if(NET.role==='host'&&NET.conns.some(c=>c.open)){netHostPrepare(mi);return;}if(NET.role==='guest'){netShowLobby();return;}}NET.fromNet=false;if(!NET.role||!NET.conns.some(c=>c.open))NET.cfg=null;raceLoading=true;const rev=!!CLASSES[clsKey].rev,L=$('raceLd'),bar=$('rlBar'),txt=$('rlTxt'),m=MAPS[mi];try{MUS.nextMap=mi;}catch(e){}
   const step=async(p,t)=>{bar.style.width=p+'%';if(t)txt.textContent=t;await paint();};
   try{$('rlBg').style.backgroundImage=MAP_SHOTS[m.id]?'url('+shotURL(m.id,'h')+')':'';$('rlName').textContent=m.name;$('rlSub').textContent=(gp?CUPS[gp.cup].name+' · race '+(gp.race+1)+' of 4'+(CLASSES[clsKey].rev?' · reverse':''):mode==='sb'?'Sandbox':mode==='bb'?'Balloon Battle':mode==='lss'?'Last Slice Standing':'Single race')+' · '+CLASSES[clsKey].label;
     L.classList.remove('out');L.hidden=false;state='loading';await step(8,'Rolling out the dough…');
@@ -9156,7 +9157,7 @@ function startGP(){gp={cup:cupIdx,race:0,pts:new Array(8).fill(0),last:new Array
 function startFromMenu(){cpuBuilds=RACERS.map(randomBuild);if(mode==='gp')startGP();else{gp=null;goRace(mapIdx);}}
 function finalizeRace(){if(raceDone)return;raceDone=true;if(NET.role==='guest')return;/* online the host decides; a guest only shows it */const st=standings();for(const k of st){if(NET.cfg&&k.netName&&k!==player)continue;/* a friend still racing keeps racing */if(!k.finished){k.finished=true;k.place=++finishCount;k.est=true;k.finishTime=raceTime+Math.max(0,LAPS*N-k.prog)*8/Math.max(60,BASE_MAX*.85);}}
   if(gp&&!NET.cfg){/* (on line the cup is scored from the results table, when the host goes on: netGpNow) */gp.last.fill(0);for(const k of karts){const pt=PTS[k.place-1]||0;gp.pts[k.ri]+=pt;gp.last[k.ri]=pt;}}}
-function toMenu(){if(sbBack())return;sbOff();LAPS=3;if(NET.cfg){NETLOG.stop();if(NET.role==='host')netAll({t:'menu'});else if(NET.role==='guest')netSend(NET.conns[0],{t:'quit'});NET.cfg=null;netClearMirrors();setTimeout(()=>{if(NET.role)netShowLobby();},50);}gp=null;menuStep='home';document.querySelectorAll('#menu .step').forEach(e=>e.hidden=e.dataset.step!=='home');BASE_MAX=BASE0;if(curRev)loadMap(mapIdx,false);state='menu';results.hidden=true;pauseOv.hidden=true;menu.hidden=false;resetRace(true);stage.classList.add('demo');wrong.hidden=true;banner.textContent='';speedfx.classList.remove('on');refreshMenu();}
+function toMenu(){if(sbBack())return;const wasSb=SBX&&NET.sbx&&NET.role;sbOff();if(wasSb)setTimeout(()=>{if(NET.role&&state==='menu')netShowLobby();},60);LAPS=3;if(NET.cfg){NETLOG.stop();if(NET.role==='host')netAll({t:'menu'});else if(NET.role==='guest')netSend(NET.conns[0],{t:'quit'});NET.cfg=null;netClearMirrors();setTimeout(()=>{if(NET.role)netShowLobby();},50);}gp=null;menuStep='home';document.querySelectorAll('#menu .step').forEach(e=>e.hidden=e.dataset.step!=='home');BASE_MAX=BASE0;if(curRev)loadMap(mapIdx,false);state='menu';results.hidden=true;pauseOv.hidden=true;menu.hidden=false;resetRace(true);stage.classList.add('demo');wrong.hidden=true;banner.textContent='';speedfx.classList.remove('on');refreshMenu();}
 /* ================= RECORDS: race history, personal bests and a ghost of your best run ================= */
 const REC_HZ=10,REC_MAX=6000;let recBuf=null,recT=0,recLaps=[],ghost=null,ghostRun=null,lastRun=null;
 const recKey=()=>MAPS[mapIdx].id+(MAPS[mapIdx].recv?'@'+MAPS[mapIdx].recv:'')+'|'+clsKey;
@@ -9199,6 +9200,37 @@ function renderRecords(){if(!recCls)recCls=clsKey;const recs=loadRecs(),hist=loa
   $('recHist').innerHTML=hist.length?hist.map(h=>{const m=MAPS.find(x=>x.id===h.m);return '<li><span class="pl">'+h.p+suf(h.p)+'</span><span class="nm">'+(m?m.name:h.m)+'<small>'+(CLASSES[h.c]?CLASSES[h.c].label:h.c)+' · '+RACERS[h.dr].name+' · '+fmtDate(h.d)+'</small></span><span class="tm">'+fmt(h.t)+(h.pb?'<em>PB</em>':'')+'</span></li>';}).join(''):'<li class="empty">Finish a race and it will show up here.</li>';}
 
 
+
+/* ================= (patch 46) SANDBOX ON LINE: where everyone is ================= */
+const SBN={peers:new Map(),bT:0,el:null,listT:0};
+function sbnMine(){const k=player;if(!k)return null;const o={reg:MAPS[mapIdx].id,x:r3(k.rx!=null?k.rx:k.x),y:r3(k.ry!=null?k.ry:k.y),z:r3(k.rz!=null?k.rz:(k.wy||0)),a:r3(k.rma!=null?k.rma:k.ma),sp:r3(k.speed||0),nm:netName(),ri:selected,tr:SB.trav||state!=='race'?1:0};
+  const now=performance.now();if(now-SBN.bT>2000){SBN.bT=now;o.b={b:playerBuild.b,w:playerBuild.w,g:playerBuild.g,p:playerBuild.p,t:playerBuild.t||''};}return o;}
+/* 12 a second: my place out; on the host, everyone's places back out with the clock; a friend who came into the room late is sent in */
+setInterval(()=>{if(!NET.role||!NET.sbx)return;const now=performance.now(),mine=SBX&&player?sbnMine():null;
+  if(NET.role==='guest'){const c=NET.conns[0];if(mine&&c){const m={t:'sp',p:mine};if(c.sendF)c.sendF(m);else netSend(c,m);}return;}
+  if(mine)(NET.sbP||(NET.sbP=new Map())).set(0,Object.assign(mine,{id:0,at:now,b:mine.b||(NET.sbP.get(0)||{}).b}));
+  const l=[];for(const [id,q] of NET.sbP||[])if(now-q.at<4000)l.push(q);const m={t:'sps',ck:SB_CLOCK?+sbClockNow().toFixed(4):null,l};
+  for(const c of NET.conns){if(!c.open)continue;if(c.sendF)c.sendF(m);else netSend(c,m);if(SBX&&NET.sbIn&&!NET.sbIn.has(c._id)&&(!c.sbgoT||now-c.sbgoT>2000)){c.sbgoT=now;netSend(c,{t:'sbgo',mi:mapIdx});}}},80);
+function sbnGot(d){const now=performance.now();for(const q of d.l||[]){if(q.id===NET.me)continue;sbnPeer(Object.assign({},q,{at:now}));}
+  /* the world clock is the host's */if(d.ck!=null&&SBX&&SB_CLOCK){const df=((d.ck-sbClockNow())%1+1.5)%1-.5;if(Math.abs(df)>.004){SB.clock=(d.ck+1)%1;try{sbClockApply();}catch(e){}}}}
+function sbnPeer(q){let P=SBN.peers.get(q.id);if(!P){P={id:q.id,s:[]};SBN.peers.set(q.id,P);}P.nm=q.nm;P.ri=q.ri;P.reg=q.reg;P.tr=q.tr;P.at=q.at;if(q.b)P.b=q.b;
+  P.s.push({t:q.at,x:q.x,y:q.y,z:q.z,a:q.a,sp:q.sp});if(P.s.length>6)P.s.shift();}
+function sbnDrop(P){if(P.m){scene.remove(P.m.g);P.m=null;}if(P.tag){scene.remove(P.tag);P.tag.material.map.dispose();P.tag.material.dispose();P.tag=null;}}
+function sbnClear(){for(const P of SBN.peers.values())sbnDrop(P);SBN.peers.clear();if(SBN.el)SBN.el.hidden=true;}
+function sbnTag(nm){const c=cnv(256,64),g=c.getContext('2d');g.font='800 30px system-ui,sans-serif';const w=Math.min(240,g.measureText(nm).width+28);g.fillStyle='rgba(18,9,6,.7)';g.beginPath();g.roundRect?g.roundRect(128-w/2,8,w,48,14):g.rect(128-w/2,8,w,48);g.fill();
+  g.fillStyle='#fff4dc';g.textAlign='center';g.textBaseline='middle';g.fillText(nm,128,33);const t=T2(c);t.userData.keepCanvas=true;const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t,depthTest:false,transparent:true,toneMapped:false}));sp.scale.set(16,4,1);sp.renderOrder=6;return sp;}
+/* each frame: friends in this place are drawn 100 ms behind (between the places they sent), others listed in the corner */
+function sbnRender(time){if(!NET.role||!NET.sbx){if(SBN.peers.size)sbnClear();return;}const now=performance.now(),here=MAPS[mapIdx].id,list=[];
+  for(const P of [...SBN.peers.values()]){if(now-P.at>5000){sbnDrop(P);SBN.peers.delete(P.id);continue;}list.push(P);
+    const show=SBX&&state!=='menu'&&!SB.trav&&!P.tr&&P.reg===here&&P.s.length;if(!show){if(P.m)P.m.g.visible=false;if(P.tag)P.tag.visible=false;continue;}
+    const key=JSON.stringify([P.ri,P.b||null]);if(!P.m||P.key!==key){if(P.m)scene.remove(P.m.g);try{const m=buildKart(Object.assign({ri:P.ri|0},P.b||{b:0,w:0,g:0,p:0,t:''},{hq:0}));m.g.rotation.order='YZX';m.g.scale.setScalar(KS*m.sf);if(m.gl)m.gl.visible=false;m.g.traverse(o=>{if(o.isMesh)o.castShadow=true;});scene.add(m.g);P.m=m;P.key=key;}catch(e){P.m=null;continue;}}
+    if(!P.tag){P.tag=sbnTag(P.nm||'Friend');scene.add(P.tag);}
+    const t=now-100,S=P.s;let A=S[0],B=S[S.length-1];for(let i=S.length-1;i>0;i--){if(S[i-1].t<=t){A=S[i-1];B=S[i];break;}}
+    let x,y,z,a;if(t>=B.t){const e=Math.min(.2,(t-B.t)/1000);x=B.x+Math.cos(B.a)*B.sp*e;y=B.y+Math.sin(B.a)*B.sp*e;z=B.z;a=B.a;}else{const f=B.t>A.t?clamp((t-A.t)/(B.t-A.t),0,1):1;x=A.x+(B.x-A.x)*f;y=A.y+(B.y-A.y)*f;z=A.z+(B.z-A.z)*f;a=lerpA(A.a,B.a,f);}
+    P.m.g.visible=true;P.m.g.position.set(x,z,y);P.m.g.rotation.set(0,-a,0);P.tag.visible=true;P.tag.position.set(x,z+17,y);}
+  /* the corner list: who is where (four times a second) */
+  if(time-SBN.listT>.25){SBN.listT=time;let e=SBN.el;if(!e){e=SBN.el=document.createElement('div');e.id='sbnList';e.style.cssText='position:absolute;right:max(10px,env(safe-area-inset-right));top:118px;z-index:6;font:700 12px/1.35 system-ui,sans-serif;color:#fff4dc;background:rgba(18,9,6,.55);border-radius:10px;padding:6px 10px;pointer-events:none;text-shadow:0 1px 2px #000;max-width:46vw';stage.appendChild(e);}
+    e.hidden=!SBX||!list.length||state==='menu';if(!e.hidden)e.innerHTML=list.map(P=>{const r=sbRegOf(P.reg),nm=String(P.nm||'Friend').replace(/[<>&]/g,''),w=P.reg===here?'<span style="color:#8be08b">here</span>':(r?r.name.split(' \u00b7 ').pop():P.reg);return nm+' <span style="opacity:.6">\u00b7</span> '+w;}).join('<br>');}}
 /* ================= (patch 44) USERNAMES AND THE WORLD LEADERBOARD (the owner's Supabase project) ================= */
 const LB={url:'https://ymlfwrwrewxxsazylprf.supabase.co',key:'sb_publishable_K_widd5Q0EyMhUm7JVuv_Q_FWXc0CQZ'};
 const lbEsc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
@@ -9361,7 +9393,7 @@ function lssElim(k,place,loud){if(k.finished)return;k.finished=true;k.elim=true;
 function lssWin(k){SFX.finish();if(k===player){showBanner('Last Slice Standing!',2.6,'md');try{achFinish();}catch(e){}}else showBanner((k.netName||k.r.name)+' wins!',2.4,'md');player.auto=true;resultsAt=2.6;}
 function onPlayerElim(){player.auto=true;setTimeout(()=>{if(state==='race'&&mode==='lss'&&player.elim&&!raceDone)specEnter();},1600);}
 function lssGuestElim(d){const k=karts.find(q=>q.idx===d.idx);if(!k)return;if(d.win){k.finished=true;k.place=1;k.finishTime=raceTime;lssWin(k);return;}lssElim(k,d.place,true);}
-function onPlayerFinish(){if(mode!=='lss')saveRun();try{achFinish();}catch(e){}player.auto=true;showBanner('Finish!',2.4,'md');SFX.finish();try{finishPunch();}catch(e){}resultsAt=2.4;}
+function onPlayerFinish(){if(BATTLE&&!SBX){/* (patch 45) a battle on a friend's screen: no race time to log, the end of the round has its own banner */player.auto=true;resultsAt=2.4;return;}if(mode!=='lss')saveRun();try{achFinish();}catch(e){}player.auto=true;showBanner('Finish!',2.4,'md');SFX.finish();try{finishPunch();}catch(e){}resultsAt=2.4;}
 const TROPHY=c=>'<svg class="trophy" viewBox="0 0 24 24"><path d="M7 3h10v4.5a5 5 0 0 1-10 0z" fill="'+c+'"/><path d="M7 5H4a3 3 0 0 0 3 4.2M17 5h3a3 3 0 0 1-3 4.2" stroke="'+c+'" stroke-width="1.6" fill="none"/><rect x="10.5" y="12" width="3" height="5" fill="'+c+'"/><rect x="7" y="17" width="10" height="3.4" rx="1" fill="#8a5f42"/></svg>';
 /* online: after the host's own finish the computer racers get estimated times; a friend who finishes later slots in by time */
 function netRerank(){const f=karts.filter(k=>k.finished).sort((a,b)=>a.finishTime-b.finishTime);f.forEach((k,i)=>k.place=i+1);}
@@ -9372,10 +9404,10 @@ function netResultRows(){const est=k=>raceTime+Math.max(0,LAPS*N-(k.prog||0))*8/
 /* (the cup keeps a computer racer's points under the racer, as off line; a player's under the player (gp.np, by the room's own number for them): two friends may both drive the same racer) */
 function netGpNow(){const rows=netResultRows(),pts=gp.pts.slice(),np=Object.assign({},gp.np||{}),tot=new Map(),last=new Map();rows.forEach((r,i)=>{const k=r.k,c=NET.cfg&&NET.cfg.karts[karts.indexOf(k)],pt=PTS[i]||0;last.set(k,pt);if(c&&c.who>=0){np[c.who]=(np[c.who]||0)+pt;tot.set(k,np[c.who]);}else{pts[k.ri]+=pt;tot.set(k,pts[k.ri]);}});return {pts,np,last,tot};}
 let resLive=0;
-function renderResultsNet(){const rows=netResultRows(),cl=CLASSES[clsKey].label,me=rows.findIndex(r=>r.k===player)+1;
-  resList.innerHTML=rows.map((r,i)=>{const k=r.k,nm=(k.netName||k.r.name)+(k===player?' (you)':''),tm=r.racing?'<em class="racing">racing…</em>':(r.est?'~':'')+fmt(r.t);
+function renderResultsNet(){const bat=BATTLE&&!SBX,rows=bat?bbRank().map(k=>({k,human:!!k.netName,racing:false,est:false,t:0})):netResultRows(),cl=CLASSES[clsKey].label,me=rows.findIndex(r=>r.k===player)+1;
+  resList.innerHTML=rows.map((r,i)=>{const k=r.k,nm=(k.netName||k.r.name)+(k===player?' (you)':''),tm=bat?bbResRow(k):r.racing?'<em class="racing">racing…</em>':(r.est?'~':'')+fmt(r.t);
     return '<li class="'+(k===player?'me':'')+'"><span class="pl">'+(i+1)+'</span><span class="sw" style="background:'+k.r.color+'"></span><span>'+String(nm).replace(/[<>&]/g,'')+(k.netName?'':' <small class="cpu">CPU</small>')+'</span><span class="tm">'+tm+'</span></li>';}).join('');
-  const gb=$('gpBox'),tr=$('trophy'),live=rows.some(r=>r.racing);tr.hidden=true;resTitle.textContent=me===1?'1st place!':me+suf(me)+' place';resSub.textContent=MAPS[mapIdx].name+' · '+cl+' class'+(live?' · waiting for friends to finish':'');
+  const gb=$('gpBox'),tr=$('trophy'),live=rows.some(r=>r.racing);tr.hidden=true;resTitle.textContent=me===1?'1st place!':me+suf(me)+' place';resSub.textContent=bat?MAPS[mapIdx].name+' · Balloon Battle':MAPS[mapIdx].name+' · '+cl+' class'+(live?' · waiting for friends to finish':'');
   if(gp){/* the cup: its standings with this race counted, and the way on */const G=netGpNow(),fin=gp.race>=3,order=karts.slice().sort((a,b)=>G.tot.get(b)-G.tot.get(a));gb.hidden=false;$('gpLabel').textContent=CUPS[gp.cup].name+' · race '+(gp.race+1)+' of 4'+(live?' · so far':'');
     $('gpList').innerHTML=order.map((k,i)=>'<li class="'+(k===player?'me':'')+'"><span class="pl">'+(i+1)+'</span><span class="sw" style="background:'+k.r.color+'"></span><span>'+String(k.netName||k.r.name).replace(/[<>&]/g,'')+(k===player?' (you)':'')+'</span><span class="tm"><span class="add">+'+G.last.get(k)+'</span>'+G.tot.get(k)+' pts</span></li>').join('');
     if(fin&&!live){const cp=order.indexOf(player)+1;resTitle.textContent=cp===1?'You won the '+CUPS[gp.cup].name+'!':cp+suf(cp)+' in the '+CUPS[gp.cup].name;if(cp<=3){tr.innerHTML=TROPHY(['#ffd54a','#d8dde3','#e09a5a'][cp-1]);tr.hidden=false;}resSub.textContent='Final standings · '+cl+' class';}
@@ -9501,7 +9533,7 @@ $('howBtn').onclick=()=>{menu.hidden=true;howOv.hidden=false;howOv.scrollTop=0;}
 addEventListener('keydown',e=>{if(e.code!=='Escape')return;if(!setOv.hidden)closeSettings();else if(!howOv.hidden)$('howDone').onclick();else if(!$('tipsOv').hidden)$('tipsDone').onclick();else if(!$('recOv').hidden)$('recDone').onclick();else if(!$('achOv').hidden)closeAch();else if(garageOpen)closeGarage();else if(state==='race'||state==='countdown'||state==='paused')togglePause();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&(state==='race'||state==='countdown'))togglePause();});
 document.querySelectorAll('#clsSeg button').forEach(b=>b.onclick=()=>{clsKey=b.dataset.c;store.set('crust-cls',clsKey);refreshMenu();});document.querySelectorAll('#cpuSeg button').forEach(b=>b.onclick=()=>{CPUS=clamp(CPUS+(+b.dataset.d),0,7);store.set('crust-cpus',String(CPUS));refreshMenu();});
-document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{if((b.dataset.m==='bb'||b.dataset.m==='sb')&&NET.role)return;/* Balloon Battle is off line only for now */mode=b.dataset.m;store.set('crust-mode',mode);{const bi=MAPS.findIndex(m=>m.battle),si=sbRegOf(MAPS[mapIdx].id)?mapIdx:MAPS.findIndex(m=>m.id==='backyard'),want=mode==='bb'?bi:mode==='sb'?si:mapIdx===bi?0:mapIdx;if(want!==mapIdx&&mode!=='gp'){mapIdx=want;loadMap(want,false);resetRace(true);}}if(mode==='gp'){const t=CUP_TRACKS[cupIdx][0];if(t!==mapIdx){mapIdx=t;loadMap(t,false);resetRace(true);}}refreshMenu();});
+document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{mode=b.dataset.m;store.set('crust-mode',mode);{const bi=MAPS.findIndex(m=>m.battle),si=sbRegOf(MAPS[mapIdx].id)?mapIdx:MAPS.findIndex(m=>m.id==='backyard'),want=mode==='bb'?bi:mode==='sb'?si:mapIdx===bi?0:mapIdx;if(want!==mapIdx&&mode!=='gp'){mapIdx=want;loadMap(want,false);resetRace(true);}}if(mode==='gp'){const t=CUP_TRACKS[cupIdx][0];if(t!==mapIdx){mapIdx=t;loadMap(t,false);resetRace(true);}}refreshMenu();});
 document.querySelectorAll('#qual button').forEach(b=>b.onclick=()=>{qKey=b.dataset.q;store.set('crust-q',qKey);applyQuality();refreshMenu();});
 function applyQuality(){const q=QUAL[qKey];LIVQ.value=q.hqAll?2:qKey==='sharp'?1:0;{sunBox();rimL.intensity=q.hqAll?.28:0;}renderer.shadowMap.type=q.soft?THREE.PCFSoftShadowMap:THREE.PCFShadowMap;sun.shadow.mapSize.set(q.sm,q.sm);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
   /* shaders only need rebuilding when something baked into them changes (the shadow filter, the surface-detail level); every other
@@ -10248,15 +10280,15 @@ function musTick(){if(!ac||!master)return;musInit();if(!MUS.bus)return;
    Phones find each other through a short room code over a relay server; the race data uses a direct link when one opens. */
 const NET={role:null,code:'',peer:null,conns:[],me:0,pl:[],cfg:null,fromNet:false,loaded:new Set(),tick:0,seq:0,hist:[],outQ:[],inQ:{},inS:{},inLast:{},ack:{},
   snaps:[],mir:new Map(),mirH:new Map(),mirList:[],fxQ:[],nid:0,inUpd:false,finSeen:false,lastRecv:0,goT:0,waitTimer:0,replay:false,abQ:false,relay:null,lastFl:0,unack:[],ackRx:0};
-const NET_PROTO=114;/* bump when race messages or kart physics change: friends on different versions would drive differently */
+const NET_PROTO=115;/* bump when race messages or kart physics change: friends on different versions would drive differently */
 const NET_SLOTS=[4,3,5,2],NET_ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const netId=c=>'crustrush-v1-'+c.toUpperCase();
-const NET_REM=['x','y','a','ma','z','wy','speed','steer','drift','charge','boost','spin','air','glide','loopTh','onRamp','rush','shL','shield','mzH','sink','sinkT','trickK','trickT','frozen','acc','brake','dAmt','fx','prog','finished','place','finishTime','inv','big','ghostT','shrinkT','absT','idx','gRings','trick','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT','est','oliveT'];
+const NET_REM=['x','y','a','ma','z','wy','speed','steer','drift','charge','boost','spin','air','glide','loopTh','onRamp','rush','shL','shield','mzH','sink','sinkT','trickK','trickT','frozen','acc','brake','dAmt','fx','prog','finished','place','finishTime','inv','big','ghostT','shrinkT','absT','idx','gRings','trick','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT','est','oliveT','bal','bbL','bbS','bbOut','bbDead','bbPlace'];/* (patch 45: Balloon Battle on line) */
 const NET_SKIP=new Set(['px','py','pa','pma','pz','pwy','pth','rx','ry','rz','rg','rma','rth','isPlayer','auto','ri','netId','cox','coy','coz','coth','sf','col','stall','vl','nst']);
 const NET_ANG=new Set(['a','ma']),NET_POS=new Set(['x','y','z','wy','loopTh','speed','charge','steer','prog']);
 /* compact kart records: the first 8 fields always, then only the fields that differ from their resting value, as [index,value] pairs
    (a resting kart field is 0, false or null); the receiver rebuilds the full row, so everything downstream is unchanged */
-const NET_ZB=new Set(['air','glide','onRamp','finished','big','trick','est']),NET_ZN=new Set(['shL','sink','sinkT','trickK','dAmt','ghostT','shrinkT','absT','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT','oliveT']);
+const NET_ZB=new Set(['air','glide','onRamp','finished','big','trick','est','bbDead']),NET_ZN=new Set(['shL','sink','sinkT','trickK','dAmt','ghostT','shrinkT','absT','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT','oliveT']);
 let NET_Z=null;const netZ=()=>NET_Z||(NET_Z=NET_REM.map(f=>NET_ZB.has(f)?false:NET_ZN.has(f)?null:0));
 function netKEnc(v){const Z=netZ(),o=v.slice(0,8);for(let j=8;j<v.length;j++){let x=v[j];if(x===undefined)x=null;if(x!==Z[j])o.push(j,x);}return o;}
 function netKDec(a){const v=netZ().slice();for(let j=0;j<8;j++)v[j]=a[j];for(let i=8;i+1<a.length;i+=2)v[a[i]]=a[i+1];return v;}
@@ -10265,7 +10297,7 @@ function netLoadLib(){return new Promise((res,rej)=>{if(window.Peer)return res()
   const to=setTimeout(()=>rej(new Error('Could not load the multiplayer library. Check your internet connection.')),15000);
   s.onload=()=>{clearTimeout(to);window.Peer?res():rej(new Error('Multiplayer library failed to start.'));};s.onerror=()=>{clearTimeout(to);rej(new Error('Could not load the multiplayer library. Check your internet connection.'));};document.head.appendChild(s);});}
 function netReset(){try{for(const c of NET.conns)c.close();}catch(e){}try{if(NET.relay)NET.relay.stop();}catch(e){}NET.relay=null;try{if(NET.peer)NET.peer.destroy();}catch(e){}
-  netClearMirrors();Object.assign(NET,{role:null,code:'',peer:null,conns:[],me:0,pl:[],cfg:null,fromNet:false,loaded:new Set(),tick:0,seq:0,hist:[],outQ:[],inQ:{},inS:{},inLast:{},ack:{},snaps:[],fxQ:[],nid:0,finSeen:false});netBadge();}
+  netClearMirrors();Object.assign(NET,{role:null,code:'',peer:null,conns:[],me:0,pl:[],cfg:null,fromNet:false,loaded:new Set(),tick:0,seq:0,hist:[],outQ:[],inQ:{},inS:{},inLast:{},ack:{},snaps:[],fxQ:[],nid:0,finSeen:false,sbx:null,sbP:new Map(),sbIn:new Set()});try{sbnClear();}catch(e){}netBadge();}
 function netSend(c,m){try{if(c&&c.open)c.send(m);}catch(e){}}
 function netAll(m){for(const c of NET.conns)netSend(c,m);}
 /* ---------- transport ----------
@@ -10408,7 +10440,7 @@ function rtcOnHost(ch,d){if(!window.RTCPeerConnection||!d.sdp||d.sdp.type!=='off
     pc.setRemoteDescription(d.sdp).then(()=>pc.createAnswer()).then(a=>pc.setLocalDescription(a)).then(()=>rtcGather(pc,ice.length>3?4000:2500)).then(()=>{NET.natMe=rtcNat(pc);if(ch.pc===pc)ch.send({t:'rtc',id:d.id,nat:NET.natMe,sdp:pc.localDescription.toJSON()});}).catch(()=>{});}catch(e){}});}
 const netFast=()=>NET.conns.length>0&&NET.conns.every(c=>!c.open||c.direct);
 /* ---------- hosting ---------- */
-async function netHost(){bbNoNet();rtcIce();netReset();NET.role='host';NET.me=0;const R=new NetRelay();NET.relay=R;
+async function netHost(){sbNoNet();rtcIce();netReset();NET.role='host';NET.me=0;const R=new NetRelay();NET.relay=R;
   await R.start();if(NET.relay!==R)throw new Error('Cancelled.');
   let code='';for(let i=0;i<4;i++)code+=NET_ALPHA[Math.floor(Math.random()*NET_ALPHA.length)];NET.code=code;R.sub(NET_TOP+'r/'+code);
   NET.pl=[{id:0,name:netName(),ready:true,ri:selected,build:playerBuild}];let nextId=1;
@@ -10434,6 +10466,7 @@ function netOnHost(c,d){if(!d||!d.t)return;const P=NET.pl.find(q=>q.id===c._id);
   else if(d.t==='quit'){for(const k of karts)if(k.netId===c._id){k.netId=null;k.auto=true;}if(P)P.ready=false;netLobbySync();}
   else if(d.t==='bye'){try{c.close();}catch(e){}netDrop(c);}
   else if(d.t==='rtc'){if(d.nat)c.natPeer=NET.natPeer=d.nat;rtcOnHost(c,d);}
+  else if(d.t==='sp'&&d.p){/* (patch 46) a friend's place in Sandbox */const q=Object.assign({},d.p,{id:c._id,at:performance.now()});if(!q.b){const o=NET.sbP&&NET.sbP.get(c._id);if(o)q.b=o.b;}(NET.sbP||(NET.sbP=new Map())).set(c._id,q);if(NET.sbIn)NET.sbIn.add(c._id);sbnPeer(q);}
   else if(d.t==='pg')netSend(c,{t:'po',ts:d.ts});}
 /* the host builds the grid: host in slot 4, friends next to them, rivals in the rest */
 function netBuildCfg(mi){const pl=NET.pl.filter(p=>p.id===0||p.conn&&p.conn.open);const used=new Set(pl.map(p=>p.ri));const others=RACERS.map((_,i)=>i).filter(i=>!used.has(i));
@@ -10446,7 +10479,7 @@ function netHostPrepare(mi){NET.pendMap=mi;NET.pendAt=performance.now();NET.pl[0
   clearInterval(NET.pendTick);NET.pendTick=setInterval(()=>{if(NET.pendMap==null||!mpOv||mpOv.hidden){clearInterval(NET.pendTick);return;}netLobbyRender();},1000);}
 function netAllReady(){const open=new Set(NET.conns.filter(c=>c.open).map(c=>c._id));return NET.pl.filter(p=>p.id!==0&&open.has(p.id)).every(p=>p.ready);}
 function netHostGo(){const mi=NET.pendMap;if(mi==null)return;NET.pendMap=null;clearInterval(NET.pendTick);netHideLobby();netLobbySync();netHostStart(mi);}
-function netHostStart(mi){if(!cpuBuilds||!cpuBuilds.length)cpuBuilds=RACERS.map(randomBuild);NET.pl[0].ri=selected;NET.pl[0].build=playerBuild;const cfg=netBuildCfg(mi);cfg.id=netRid();NET.loaded=new Set();netAll({t:'load',cfg});netBeginLoad(cfg);}
+function netHostStart(mi){if(mode==='sb'){/* (patch 46) Sandbox: everyone starts their own, here */NET.sbx={on:true};NET.sbIn=new Set();netAll({t:'sbgo',mi});NET.fromNet=true;goRace(mi);return;}if(!cpuBuilds||!cpuBuilds.length)cpuBuilds=RACERS.map(randomBuild);NET.pl[0].ri=selected;NET.pl[0].build=playerBuild;const cfg=netBuildCfg(mi);cfg.id=netRid();NET.loaded=new Set();netAll({t:'load',cfg});netBeginLoad(cfg);}
 function netMaybeGo(){if(NET.role!=='host'||state!=='netwait')return;const open=NET.conns.filter(c=>c.open),need=open.map(c=>c._id);if(!(need.every(id=>NET.loaded.has(id))&&NET.loaded.has(0)))return;
   /* everyone has the track loaded: give the direct links up to 8 s more so the race starts on the fast connection, not the relay */
   if(!NET.allLoadedAt)NET.allLoadedAt=performance.now();const pend=open.filter(c=>!c.direct&&c.rtcSt!=='failed'),w=performance.now()-NET.allLoadedAt;
@@ -10454,7 +10487,7 @@ function netMaybeGo(){if(NET.role!=='host'||state!=='netwait')return;const open=
   netAll({t:'go'});netGo();}
 /* ---------- joining ---------- */
 async function netJoin(code){rtcIce();code=String(code||'').trim().toUpperCase();if(code.length<4)throw new Error('Enter the 4-letter room code.');
-  bbNoNet();netReset();NET.role='guest';const R=new NetRelay();NET.relay=R;await R.start();if(NET.relay!==R)throw new Error('Cancelled.');
+  sbNoNet();netReset();NET.role='guest';const R=new NetRelay();NET.relay=R;await R.start();if(NET.relay!==R)throw new Error('Cancelled.');
   let c;try{c=await R.knock(NET_TOP+'r/'+code,40000);}catch(e){if(e.message==='notfound')throw new Error('Could not find room '+code+'. Check the code, and make sure the host still has the room screen open. If they switched apps, ask them to come back to the game, then try again.');throw e;}
   if(NET.relay!==R)throw new Error('Cancelled.');
   NET.conns=[c];NET.code=code;c.on('data',netOnGuest);c.on('close',()=>netLost(c.why||'Lost the connection to the host.'));
@@ -10470,6 +10503,8 @@ function netOnGuest(d){if(!d||!d.t)return;NET.lastRecv=performance.now();
   else if(d.t==='menu'){if(state!=='menu'){toMenu();}netShowLobby();}
   else if(d.t==='elim'){if(mode==='lss')lssGuestElim(d);}
   else if(d.t==='rtc'){if(d.nat)NET.natPeer=d.nat;rtcOnGuest(NET.conns[0],d);}
+  else if(d.t==='sbgo'){/* (patch 46) the room's Sandbox: start our own, at the host's place */if(!SBX&&state==='menu'){NET.sbx={on:true};netHideLobby();if(garageOpen)closeGarage();mode='sb';mapIdx=d.mi|0;NET.fromNet=true;goRace(mapIdx);}}
+  else if(d.t==='sps'){sbnGot(d);}
   else if(d.t==='hit'){if((d.rk==null||d.rk===NET.rk)&&state==='race'&&player&&!player.finished&&d.me&&d.ack>=(NET.ackRx||0)){NET.ackRx=d.ack;netReconcile(d.me,d.ack);NETLOG.ev('hit',0);}}
   else if(d.t==='tst'){if((d.rk==null||d.rk===NET.rk)&&state==='race'&&karts[d.v|0])hitToast(String(d.ty||''),karts[d.v|0]);}
   else if(d.t==='po'){const r=performance.now()-d.ts;NET.ping=NET.ping==null?r:NET.ping*.6+r*.4;}}
@@ -10521,7 +10556,7 @@ function netKRem(k){/* a friend's kart the host is waiting on (inputs late) is s
 function netMeshRec(id,m,extra){const p=m.position,r=m.rotation,s=m.scale;return [id,m.userData.mk||'',r3(p.x),r3(p.y),r3(p.z),r3(r.x),r3(r.y),r3(r.z),r3(s.x),m.visible?1:0].concat(extra||[]);}
 function netSnapshot(){const n=++NET.sn,base={t:'s',n,rk:NET.rk,st:r3(simTime),rt:r3(raceTime),gs:state,kc:karts.map(netKRem),
     p:projectiles.map(p=>{if(!p.nid)p.nid=++NET.nid;return netMeshRec(p.nid,p.mesh,[p.type,r3(p.vx||0),r3(p.vy||0),p.target?karts.indexOf(p.target):-1,karts.indexOf(p.owner),r3(p.x),r3(p.y)]);}),
-    b:boxes.map(b=>b.r>0?Math.round(b.r*20):0),fx:NET.fxQ.splice(0)};
+    b:boxes.map(b=>b.r>0?Math.round(b.r*20):0),fx:NET.fxQ.splice(0)};if(BATTLE&&!SBX)base.bb=[r3(BB.t),BB.over?1:0];
   /* traps barely move: send them when the set changes and every third snapshot (the guest keeps the last copy in between) */
   const hs=hazards.map(h=>{if(!h.nid)h.nid=++NET.nid;return h.nid;}).join(',');if(hs!==NET.hSig||n%3===0){NET.hSig=hs;base.h=hazards.map(h=>netMeshRec(h.nid,h.mesh,[h.olive?'olive':h.kind||'oil',karts.indexOf(h.owner),h.armed?1:0,r3(h.x),r3(h.y)]));}
   for(const c of NET.conns){if(!c.open)continue;const dv=netSnDiv(c);if(n%dv)continue;
@@ -10577,7 +10612,7 @@ function netGuestStep(dt){simTime+=dt;standCache=standings();const k=player;
   const hostRacing=LS&&LS.gs==='race'&&!NET.hostAway&&!quiet;
   if(state==='race'&&!k.finished&&hostRacing){const raw=playerInput();const ev=raw.ev||0,ab=abilQueued?(lookingBack()?2:1):0;abilQueued=false;
     const stq=Math.round(raw.steer*100)/100,mq=raw.mul===0?0:1;const inp={steer:stq,brake:raw.brake,nb:!!raw.nb,mul:mq,use:false,back:false,hold:false,holdSl:1,release:null};NET.seq++;NET.hist.push({seq:NET.seq,inp,st:simTime});if(NET.hist.length>480)NET.hist.shift();
-    NET.outQ.push([NET.seq,stq,raw.brake?1:0,ev,ab,mq,raw.nb?1:0]);if(wHit){const h=NET.hist[NET.hist.length-1];(h.cl||(h.cl=[])).push('w:meat');}stepKart(k,inp,dt);netGuestClaims(k,NET.hist[NET.hist.length-1]);}
+    NET.outQ.push([NET.seq,stq,raw.brake?1:0,ev,ab,mq,raw.nb?1:0]);if(wHit){const h=NET.hist[NET.hist.length-1];(h.cl||(h.cl=[])).push('w:meat');}stepKart(k,inp,dt);if(BATTLE&&!SBX&&k.bbOut>0)k.speed*=Math.pow(.02,dt);/* (patch 45: as battleTick does on the host) */netGuestClaims(k,NET.hist[NET.hist.length-1]);}
   netInterp(k.finished?null:k);if(state==='race'&&(hostRacing||k.finished))raceTime+=dt;}
 /* relay servers may drop a message now and then: every input message repeats all inputs the host hasn't confirmed yet,
    so a lost packet costs nothing (the host ignores the copies it already has). A direct link never loses messages. */
@@ -10616,7 +10651,20 @@ function netOnSnap(d){if(d.rk!=null&&NET.rk&&d.rk!==NET.rk)return;if(d.n){if(d.n
   if(d.b)boxes.forEach((b,i)=>{const r=(d.b[i]||0)/20;if(r>3.5&&!(b.r>0)&&!(b.pr>simTime-.6)&&state==='race'){let nk=null,nd=1e9;for(const o of karts){const dd=(o.x-b.x)**2+(o.y-b.y)**2;if(dd<nd){nd=dd;nk=o;}}if(nk&&nk!==player)boxFx(b,nk,true);}b.r=r;});
   for(const f of d.fx||[]){try{const [kind,...a]=f;if(kind==='b'&&boxes.some(b=>b.pr>simTime-1.2&&Math.abs(b.x-a[0])<3&&Math.abs(b.y-a[2])<3))continue;/* already shown when we drove through it */if(kind==='b')burst0(...a);else if(kind==='r')spawnRing0(...a);}catch(e){}}
   if(d.me&&player&&!player.finished)netReconcile(d.me,d.ack);else if(d.me&&player)netApplyFull(player,d.me);
-  if(player&&player.finished&&!NET.finSeen){NET.finSeen=true;onPlayerFinish();}}
+  if(BATTLE&&!SBX&&d.bb)netBattle(d);
+  /* (a battle: out of the round is not the end of it; the results come when the round ends) */
+  if(player&&player.finished&&!NET.finSeen&&!(BATTLE&&!SBX&&!BB.over)){NET.finSeen=true;onPlayerFinish();}}
+/* (patch 45) Balloon Battle on a friend's screen: what the host's rules did since the last snapshot, shown as the host shows it for its own player */
+function netBattle(d){const was=BB.over;BB.t=d.bb[0];BB.over=!!d.bb[1];
+  for(const k of karts){const pb=k.nbB,pl=k.nbL,ps=k.nbS,pd=k.nbD,me=k===player;k.nbB=k.bal;k.nbL=k.bbL;k.nbS=k.bbS;k.nbD=!!k.bbDead;if(pb==null)continue;
+    if(k.bbDead&&!pd){/* out */if(k.m&&k.m.g)k.m.g.visible=false;if(me||near(k)>0)SFX.elim&&SFX.elim();showBanner(me?'Out! '+BB_DOT+' '+ord(k.bbPlace||1):k.r.name+' is out',me?2.2:1.3,'sm');
+      if(me)setTimeout(()=>{if(BATTLE&&!SBX&&player===k&&k.bbDead&&state==='race'&&!BB.over&&!SPEC.on)bbWatch();},1600);continue;}
+    if((k.bal||0)<(pb||0)&&!k.bbDead&&near(k)>0&&SFX.bump)SFX.bump(near(k)*.8);
+    if(me&&(k.bbS||0)>(ps||0)){SFX.ring&&SFX.ring();showBanner('+1',.5,'sm');}
+    if(me&&(k.bbL||0)>(pl||0)&&!k.bbDead)showBanner('All popped! Back with '+BB_SETS[k.bbL],1.6,'sm');
+    if(me&&k.bal===1&&pb===0&&!k.bbDead)showBanner('Last balloon!',1.5,'sm');}
+  if(BB.over&&!was){const r=bbRank();showBanner(r[0]===player?'Last one standing!':(r[0].netName||r[0].r.name)+' wins!',2.4,'md');}
+  bbHud();}
 /* a kart's loop state is its own object (progress th, lane lat0) tied to one of the track's loops; the network sends the loop's index,
    progress and lane so the receiver rebuilds the same state. (It used to look the per-kart object up in LOOPS, never found it, and every
    snapshot pulled the guest out of the loop: the screen jumped and the kart teleported to the exit.) */

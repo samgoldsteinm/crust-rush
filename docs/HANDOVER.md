@@ -145,6 +145,31 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-16 (web v208, ONLINE VERSION 115 on the web; the PC is still 114 and cannot join web rooms until it is ported): Balloon Battle and Sandbox on line
+The owner: "lets add sandbox and balloon battle online to the web version before porting to pc". Web: tools/mini/patch45.py (battle),
+patch46.py (Sandbox), patch46b.py (the username sheet closes when a race or a place starts). Tests: tools/neon/bbnet.py, sbnet.py (two
+browser windows through the real matchmaking; both pass), and gpnet2.py still passes.
+- BALLOON BATTLE ON LINE uses the race's model: the host runs it (rules, clock, CPU drivers, boxes, hits), friends predict their own kart.
+  NET_REM gained bal, bbL, bbS, bbOut, bbDead, bbPlace (bbDead in NET_ZB); a battle's snapshot carries bb:[BB.t, over]. A friend's screen
+  (netBattle) turns the changes into what the host shows its own player: pops, +1, "Back with N", "Last balloon!", "X is out", the
+  winner banner, the read-out; out of the round it watches (bbWatch) and the results wait for BB.over (netOnSnap and onPlayerFinish: a
+  battle logs no race time). While a friend waits for a new set the guest step slows its kart as battleTick does. Results on line:
+  bbRank order with bbResRow points (renderResultsNet, bat).
+- SANDBOX ON LINE is NOT the race's model: each player's Sandbox runs on their own screen as off line (NET.cfg stays null); the room only
+  carries where everyone is. NET.sbx is set by the host's netHostStart in mode 'sb' ({t:'sbgo', mi} to everyone; a late friend is sent in
+  every 2 s until its first place arrives: NET.sbIn). 12 times a second: guest {t:'sp', p:{reg, x, y, z, a, sp, nm, ri, tr, b every 2 s}}
+  -> host (NET.sbP) -> everyone {t:'sps', ck: the host's clock, l: [places]}. sbnRender draws a friend in the same place (buildKart of
+  their build, a name sprite, 100 ms behind between their places, at most 0.2 s run on); #sbnList lists everyone and where they are
+  (sbRegOf name). Friends never collide (nothing on line moves a kart). The clock follows the host's (sbnGot). In a room Sandbox's
+  "Race here" is off; leaving Sandbox goes back to the room screen; goRace inside a room's Sandbox (the shop, Back to the track) skips the
+  race's ready-up (NET.sbx && mode 'sb').
+- PC: none of this yet. The PC must speak PROTO 115 (the six battle fields at the end of NET_REM, bb in snapshots) and the Sandbox
+  messages (sbgo, sp, sps) before it can join a web room again; until then a PC and a browser cannot play together.
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| A friend's battle results said "First time logged 0:03.52" | onPlayerFinish logged the round as a timed race | onPlayerFinish in a battle only shows the results | A new mode on line: check what onPlayerFinish does for it |
+| The username sheet stayed over Sandbox when a friend's room started it | It opens 2.5 s after the menu, and the room can start the game meanwhile | goRace closes it (patch46b) | Overlays that can open by themselves must close when a race starts |
+
 ### 2026-11-16 (web v207; the PC does not have it yet): usernames and the world leaderboard
 The owner: "add an online leaderboard for each map where you can see the top 20 fastest runs from any player"; "each player should have to pick
 a username and they can change it in settings"; off-line races count too; split "with rivals" and "alone". Web: tools/mini/patch44.py.
