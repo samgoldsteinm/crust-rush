@@ -145,6 +145,31 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-16 (web v210; online still 116): tunnels, headlights, garage tabs, glossier paint
+Patches tools/mini/patch48.py (tunnel), 49 (headlights), 49b (garage tabs on a phone), 49c (paint).
+- TUNNEL CAMERA: the tunnel copied the game camera as it was at the gate, so coming in on a turn it looked off to the side all the way
+  (the owner's picture: half the screen the black outside of the tube), and steering slid the kart and the camera. Now the camera sits
+  square behind the kart looking down the tube, and steering does nothing in the tunnel (owner: "lock the player into driving straight").
+- TUNNEL LAG, found but NOT fixed yet: SB.lastWarp.log / the probe scratch/tunnel48c.js. Every long stall is sbWarmG's "warm2" step
+  (renderer.compile of 8 objects at a time): 150-330 ms a step, and one step of 7.1 s (8.5 s in another run) on margherita -> garage, a
+  step whose materials carry the 1604-character onBeforeCompile (MeshStandard/Physical). 384 programs after one trip. Next: find which
+  onBeforeCompile that is and whether its programs could be shared or compiled before the trip.
+- HEADLIGHTS (owner: "just looks like a white triangle beam, try to make it look more realistic", with reference pictures; and "only make
+  the headlights turn on when the player is not on the track" where there are track lights or street lights). The additive cone laid on
+  the ground is gone; the spot light makes the beam: cool white, bumper height, 120 ahead, cone .62 with a cookie (SpotLight.map: two soft
+  lobes, a low-beam cut-off), 24 x the night's L (legacy lights: at 7 it barely showed on dark grass). Every Sandbox place has it; where
+  the place has LED strips (toy tracks) or SB_LAMPS it fades out on the track (nearTrack RW+10) and in off it. The light is never hidden
+  (only its strength changes): a light switched in or out recompiles every shader. Pictures: scratch/head49_*.js with sbprobe.py.
+- GARAGE TABS on a phone held sideways: seven tabs needed 492 px of 427, so Theme sat off the right edge; narrower tabs up to 960 px wide.
+  The PC's garage lost its Colour tab on 2026-11-11 (commit a93e6d8): to be put back in the PC port.
+- PAINT (owner: "the colors look pretty flat on the car and dull try to make them a little sharper and reflective"): kart paint roughness
+  .38 -> .2, clear coat .08 -> .03, reflections 1 -> 1.45; car paint metalness .5 -> .32 (metal darkened the colour), roughness .34 -> .2,
+  reflections 1.2 -> 1.5; picture liveries .28 -> .22. Subtle in the dark garage, clearer outdoors. Same change due on the PC.
+- Checked, no change needed: Pepperoni Storm and thrown items go behind with the left stick pulled back or while looking back (web:
+  scratch/pepback.py, stickback.py; the PC reads the stick the same way). A held item let go with the stick back is fired behind (the
+  'hold' release is releaseHeld(k,true), a throw, not a drop). A test that waits 0.5 s can miss it: a slice thrown back at a rival
+  right behind is gone by then; test with no rivals.
+
 ### 2026-11-16 (web v209, ONLINE VERSION 116 on the web; the PC is 115 until it is ported): no items, Sandbox fixes, headlights, cursor
 Patches tools/mini/patch47.py (no items, NET_PROTO 116), 47b (Sandbox guest's place), 47c (headlights), 47d (cursor), 47e (friends list).
 Database: tools/mini/lb_schema_noitems.sql, run by the owner in the SQL editor on 2026-11-16 (adds runs.noitems; keeps every time).
