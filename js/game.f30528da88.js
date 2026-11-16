@@ -1501,7 +1501,7 @@ function carGeos(id){const p=CAR_PACKS[id];if(p.g)return p.g;const bin=p.b?new U
     geo.setIndex(new THREE.BufferAttribute(new Uint16Array(idx),1));geo.computeBoundingSphere();CARGEO.add(geo);g[m.n]=geo;}
   p.d=null;p.b=null;p.g=g;return g;}
 let HQB=false;let LODM=0,LODF=120;
-function carBody(id,M,B){const g=carGeos(HQB&&hqReady(id)?id+'_hq':id);M.carPaint=new THREE.MeshPhysicalMaterial({color:M.paint.color.clone(),vertexColors:true,metalness:.5,roughness:.34,clearcoat:1,clearcoatRoughness:.04,envMapIntensity:1.2});
+function carBody(id,M,B){const g=carGeos(HQB&&hqReady(id)?id+'_hq':id);M.carPaint=new THREE.MeshPhysicalMaterial({color:M.paint.color.clone(),vertexColors:true,metalness:.32,roughness:.2,clearcoat:1,clearcoatRoughness:.02,envMapIntensity:1.5});/* (patch 49c: glossier) */
   M.blue=new THREE.MeshStandardMaterial({color:'#2a5bff',emissive:'#2a5bff',emissiveIntensity:2});const mats={paint:M.carPaint,tail:M.tailM,light:SH.carLight,glass:SH.carGlass,vc:SH.carVC,blue:M.blue};
   for(const k in g){if(!k.startsWith('b_'))continue;const me=new THREE.Mesh(g[k],mats[k.slice(2)]);me.castShadow=k!=='b_glass';me.receiveShadow=true;B.add(me);if(k==='b_paint')M.paintMesh=me;}}
 /* bikes: the model's own two wheels (or none on a hover bike), a rider astride the seat */
@@ -1915,7 +1915,7 @@ const LIV_BODY=`
   diffuseColor.rgb*=lc;
 `;
 const LIVQ={value:0};/* livery finish level: 0 plain, 1 Sharp, 2 Ultra (shared by every livery material, set in applyQuality) */
-function liveryMaterial(lv,box,belt,numIdx,numPos){if(lv.tex){const t=propTex(lv.tex,true);t.flipY=false;t.anisotropy=8;t.needsUpdate=true;return new THREE.MeshPhysicalMaterial({map:t,vertexColors:true,metalness:lv.m??.3,roughness:lv.r??.28,clearcoat:1,clearcoatRoughness:.05,envMapIntensity:1.1});}
+function liveryMaterial(lv,box,belt,numIdx,numPos){if(lv.tex){const t=propTex(lv.tex,true);t.flipY=false;t.anisotropy=8;t.needsUpdate=true;return new THREE.MeshPhysicalMaterial({map:t,vertexColors:true,metalness:lv.m??.3,roughness:lv.r??.22,clearcoat:1,clearcoatRoughness:.03,envMapIntensity:1.35});}
   const mat=new THREE.MeshPhysicalMaterial({color:'#ffffff',vertexColors:true,metalness:Math.min(lv.m,lv.id==='chrome'||lv.chrome?.92:.62),roughness:lv.r,clearcoat:lv.r<.6?1:.2,clearcoatRoughness:.05,envMapIntensity:1.2});
   const U={uLA:{value:new THREE.Color(lv.A)},uLB:{value:new THREE.Color(lv.B)},uLC:{value:new THREE.Color(lv.C)},uLPat:{value:lv.pat},uLBox:{value:new THREE.Vector4(box[0],box[1],box[2],box[3])},
     uLBelt:{value:belt},uLNum:{value:lv.num?numIdx:-1},uLNumPos:{value:new THREE.Vector2(numPos[0],numPos[1])},uLNumTex:{value:numTex},uLDec:{value:decTex},
@@ -2024,7 +2024,7 @@ function bakeFar(g,tilt,skip){try{g.updateMatrixWorld(true);const inv=new THREE.
   out.userData.far=true;return out.children.length?out:null;}catch(e){console.warn('far bake',e);return null;}}
 function buildKart(spec){HQB=spec.hq!==0;
   const rc=RACERS[spec.ri],idx=spec.ri,body=BODIES[spec.b],gd=GLIDERS[spec.g];let wt=WHEELS[spec.w];let lv=spec.t?livOf(spec.t):null;if(lv&&!spec.pv&&livLocked(lv))lv=null;if(lv&&lv.only&&lv.only!==body.id)lv=null;const col=lv?lv.A:(PAINTS[spec.p]||rc.color);
-  const paint=new THREE.MeshPhysicalMaterial({color:col,roughness:.38,metalness:.12,clearcoat:1,clearcoatRoughness:.08,envMapIntensity:1});
+  const paint=new THREE.MeshPhysicalMaterial({color:col,roughness:.2,metalness:.14,clearcoat:1,clearcoatRoughness:.03,envMapIntensity:1.45})/* (patch 49c: glossier) */;
   const M={paint,dark:new THREE.MeshStandardMaterial({color:lv?lv.C:shade(col,-.45),roughness:.4,metalness:.3}),stripe:new THREE.MeshStandardMaterial({color:lv?lv.B:(rc.stripe===col?rc.top:rc.stripe),roughness:.3,metalness:.1}),
     tailM:new THREE.MeshStandardMaterial({color:'#ff2a1a',emissive:'#ff1a0a',emissiveIntensity:.8})};
   if(body.id==='oven'){M.brick=new THREE.MeshStandardMaterial({map:brickT,color:new THREE.Color('#ffffff').lerp(new THREE.Color(col),.3),roughness:.85});}
@@ -4793,7 +4793,7 @@ function sbWarpKart(){const w=sbWarpScene(),k=player;if(w.kart){w.S.remove(w.kar
   top.updateMatrixWorld(true);camera.updateMatrixWorld(true);const c=top.clone(true);c.traverse(o=>{o.frustumCulled=false;});
   _sbWM.makeRotationY(k.rma+Math.PI/2);_sbWN.makeTranslation(-k.rx,-(k.rz==null?k.wy||0:k.rz),-k.ry);_sbWM.multiply(_sbWN);
   _sbWN.multiplyMatrices(_sbWM,top.matrixWorld);_sbWN.decompose(c.position,c.quaternion,c.scale);w.base.copy(c.position);w.q0=c.quaternion.clone();
-  _sbWN.multiplyMatrices(_sbWM,camera.matrixWorld);_sbWN.decompose(w.cam.position,w.cam.quaternion,w.cam.scale);w.cb.copy(w.cam.position);
+  _sbWN.multiplyMatrices(_sbWM,camera.matrixWorld);_sbWN.decompose(w.cam.position,w.cam.quaternion,w.cam.scale);{/* (patch 48) square behind the kart, at the game camera's distance and height, looking down the tube */const d=clamp(Math.hypot(w.cam.position.x-w.base.x,w.cam.position.z-w.base.z),14,60),h=clamp(w.cam.position.y-w.base.y,4,30);w.cam.position.set(w.base.x,w.base.y+h,w.base.z+d);w.cam.up.set(0,1,0);w.cam.lookAt(w.base.x,w.base.y+h*.4,w.base.z-160);}w.cb.copy(w.cam.position);
   w.cam.fov=camera.fov;w.cam.near=camera.near;w.cam.far=4000;w.cam.aspect=camera.aspect;w.cam.updateProjectionMatrix();w.S.add(c);w.kart=c;w.lat=0;w.cl=0;w.yaw=0;}
 /* through a gate (or fast travel: g.start): from here the kart is in the tunnel until the next place is ready */
 function sbTravel(g){if(SB.trav||SB.warp)return;if(g.start&&SBA.act&&!SBA.retry)sbActEnd('cancel');/* (fast travel cannot finish a delivery) */const mi=MAPS.findIndex(m=>m.id===g.to);if(mi<0||!sbRegOf(g.to))return;SB.trav=g;const k=player,sp=Math.max(70,Math.abs(k.speed));
@@ -4839,7 +4839,7 @@ function* sbWarmG(){try{sunShadeAll();}catch(e){}yield "warm1";
   if(SBX)for(const p of renderer.info.programs)if(!p.__crKeep){p.__crKeep=1;p.usedTimes++;}}
 /* each frame in the tunnel: drive, draw, then build for what is left of the frame */
 function sbWarpFrame(dt,time){const w=SB.warp,k=player;w.t+=dt;
-  if(w.kart){const st=clamp((keys.right?1:0)-(keys.left?1:0)+(PAD.act?PAD.steer:0),-1,1);w.lat=clamp(w.lat+st*dt*42,-14,14);w.yaw+=(-st*.16-w.yaw)*Math.min(1,dt*8);w.cl+=(w.lat*.8-w.cl)*Math.min(1,dt*5);
+  if(w.kart){const st=0;/* (patch 48: no steering in the tunnel: straight through) */w.lat=clamp(w.lat+st*dt*42,-14,14);w.yaw+=(-st*.16-w.yaw)*Math.min(1,dt*8);w.cl+=(w.lat*.8-w.cl)*Math.min(1,dt*5);
     w.kart.position.set(w.base.x+w.lat,w.base.y+Math.sin(time*11)*.12,w.base.z);_sbWQ.setFromAxisAngle(_sbWY,w.yaw);w.kart.quaternion.copy(_sbWQ).multiply(w.q0);w.cam.position.set(w.cb.x+w.cl,w.cb.y,w.cb.z);}
   if(k)k.speed=w.sp;SB_WU.value=(SB_WU.value+dt*.5)%1000;SB_WV.value=(SB_WV.value+dt*.9*Math.max(.7,w.sp/150)+1000)%1000;w.ft.offset.y=(w.ft.offset.y+w.sp*dt*w.ft.repeat.y/SB_WL)%1;
   if(Math.abs(w.cam.aspect-camera.aspect)>1e-3){w.cam.aspect=camera.aspect;w.cam.updateProjectionMatrix();}
@@ -5146,18 +5146,23 @@ function sbClockArm(){if(!SB_CLOCK)return;sbClockOff();const def=MAPS[mapIdx],c=
   try{sbNightArm();}catch(e){console.warn('night',e);}sbClockApply();}
 /* ================= (patch 43) SANDBOX AT NIGHT: LED strips on the toy tracks, headlights, street lamps ================= */
 const SB_LAMPS=new Set(['spiral','basil','napoli','tour']);
+/* (patch 49) the headlights' cookie: what the spot light's cone looks like, as a picture across it */
+let _sbHC=null;function sbHeadCookie(){if(_sbHC)return _sbHC;const c=cnv(256,256),g=c.getContext('2d');g.fillStyle='#000';g.fillRect(0,0,256,256);g.globalCompositeOperation='lighter';
+  for(const cx of [100,156]){g.save();g.translate(cx,150);g.scale(1.35,.72);const r=g.createRadialGradient(0,0,0,0,0,92);r.addColorStop(0,'rgba(255,255,255,1)');r.addColorStop(.45,'rgba(235,242,255,.62)');r.addColorStop(1,'rgba(200,215,255,0)');g.fillStyle=r;g.beginPath();g.arc(0,0,92,0,7);g.fill();g.restore();}
+  g.globalCompositeOperation='destination-in';const v=g.createLinearGradient(0,70,0,256);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(.2,'rgba(0,0,0,1)');v.addColorStop(1,'rgba(0,0,0,.85)');g.fillStyle=v;g.fillRect(0,0,256,256);
+  _sbHC=T2(c,0,0,true);return _sbHC;}
 function sbNightArm(){const R=SBC.rec,def=MAPS[mapIdx];SBC.night=null;if(!R||!SB.grp)return;const Nt=SBC.night={led:[],spot:null,lamps:[],pool:[],head:null,glow:null,pick:0};
   const halos=[];world.traverse(o=>{if(o.userData&&o.userData.led&&o.material){if(Nt.led.indexOf(o.material)<0){Nt.led.push(o.material);o.material.emissive=new THREE.Color('#8fd0ff');o.material.emissiveIntensity=0;}halos.push(o);}});
   if(halos.length){/* the glow round each dash: the same strips again, drawn adding light, a little proud of the wall */const hm=new THREE.MeshBasicMaterial({color:'#6fc2ff',transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-6});
     for(const o of halos){const h=new THREE.Mesh(o.geometry,hm);h.position.copy(o.position);h.scale.setScalar(1.0);h.renderOrder=3;SB.grp.add(h);}Nt.halo=hm;}
   const lite=!QUAL[qKey]||QUAL[qKey].lite||qKey==='fast';
-  if(R.kind==='out'){/* headlights: one spot light just ahead of the kart, looking down the road */const sp=new THREE.SpotLight('#fff1d8',0,520,.42,.6,1.0);sp.castShadow=!lite;
+  if(true){/* headlights (patch 49: every place; a cookie shapes the light: two lobes and a low-beam cut-off) */const sp=new THREE.SpotLight('#eef3ff',0,420,.62,.45,1.15);sp.map=sbHeadCookie();sp.castShadow=!lite;
     if(sp.castShadow){sp.shadow.mapSize.set(1024,1024);sp.shadow.camera.near=3;sp.shadow.camera.far=560;sp.shadow.bias=-.0005;}SB.grp.add(sp);SB.grp.add(sp.target);Nt.spot=sp;
     /* the beam on the ground: a cone 18 wide at the kart and 90 wide 174 ahead, its light in the vertices (brightest close in, fading to the edges and the far end) */
     const bg=new THREE.PlaneGeometry(1,1,16,24),bp=bg.attributes.position,base=new Float32Array(bp.count*2),col=new Float32Array(bp.count*3);for(let i=0;i<bp.count;i++){const f=bp.getY(i)+.5,ac=bp.getX(i)*2,u=6+f*240,v=ac*(6+f*59);base[i*2]=u;base[i*2+1]=v;/* (patch 47c) */
       const ss=(a,b,x)=>{const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t);},e=.62*(.18+.82*ss(0,.28,f))*Math.pow(1-f,1.15)*(1-ss(.7,1,Math.abs(ac)));col[i*3]=e;col[i*3+1]=e*.95;col[i*3+2]=e*.84;}bg.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
     const beam=new THREE.Mesh(bg,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4}));
-    beam.userData.base=base;beam.renderOrder=2;beam.frustumCulled=false;SB.grp.add(beam);Nt.beam=beam;}
+    beam.userData.base=base;beam.renderOrder=2;beam.frustumCulled=false;Nt.beam=null;/* (patch 49: the light itself makes the beam now) */}
   if(SB_LAMPS.has(def.id)&&R.kind==='out'){const sp=T.L/N,step=Math.max(1,Math.round(300/sp)),pts=[];let side=1;
     for(let j=0;j<N;j+=step){const p=track[j];if(p.cut||(p.ey||0)>4)continue;side=-side;const o=WALLD+12,x=p.x+p.nx*o*side,z=p.y+p.ny*o*side,g=groundAt(x,z);
       if(WATER_Y!=null&&g<WATER_Y+1)continue;if(typeof nearSC==='function'&&nearSC(x,z,SCW+12))continue;if(nearTrack(x,z,WALLD+4))continue;if(sbBlocked(x,z,g+1))continue;if(Math.abs(g-groundAt(p.x,p.y)-(p.ey||0))>18)continue;
@@ -5176,8 +5181,8 @@ function sbNightArm(){const R=SBC.rec,def=MAPS[mapIdx];SBC.night=null;if(!R||!SB
 /* each frame: the night's lights follow the hour (the clock's L: 0 by day, 1 at night) and the kart */
 function sbNightFrame(time){const Nn=SBC.night;if(!Nn||!SBC.rec||!SBX)return;const L=sbClockF().L,on=L>.02;
   for(const m of Nn.led)m.emissiveIntensity=2.4*L;if(Nn.halo)Nn.halo.opacity=.85*L;
-  const k=camT||player;if(Nn.spot&&k){const sp=Nn.spot;sp.intensity=on?3*L:0;sp.visible=on;if(on){const a=k.rma!=null?k.rma:k.ma,x=k.rx!=null?k.rx:k.x,z=k.ry!=null?k.ry:k.y,y=(k.rz!=null?k.rz:k.wy)||0;
-      sp.position.set(x+Math.cos(a)*8,y+3.5,z+Math.sin(a)*8);sp.target.position.set(x+Math.cos(a)*220,y-5,z+Math.sin(a)*220);sp.target.updateMatrixWorld();}}
+  const k=camT||player;if(Nn.spot&&k){const sp=Nn.spot;{const def=MAPS[mapIdx],lit=SB_LAMPS.has(def.id)||!!def.toy||Nn.led.length>0,onT=lit&&nearTrack(k.rx!=null?k.rx:k.x,k.ry!=null?k.ry:k.y,RW+10),h0=Nn.hf==null?(onT?0:1):Nn.hf;Nn.hf=h0+((onT?0:1)-h0)*.06;}sp.intensity=on?24*L*Nn.hf:0;sp.visible=true;/* (patch 49: off on a lit track; never hidden) */if(on){const a=k.rma!=null?k.rma:k.ma,x=k.rx!=null?k.rx:k.x,z=k.ry!=null?k.ry:k.y,y=(k.rz!=null?k.rz:k.wy)||0;
+      sp.position.set(x+Math.cos(a)*7,y+4,z+Math.sin(a)*7);sp.target.position.set(x+Math.cos(a)*120,y-10,z+Math.sin(a)*120);sp.target.updateMatrixWorld();}}
   if(Nn.beam&&k){const b=Nn.beam;b.visible=L>.02;b.material.opacity=.9*L;if(b.visible){const a=k.rma!=null?k.rma:k.ma,x=k.rx!=null?k.rx:k.x,z=k.ry!=null?k.ry:k.y,gnd=(px,pz)=>sbG(px,pz,((k.rz!=null?k.rz:k.wy)||0)+8);
       /* lying on the ground from the front of the kart to 120 ahead: each row of the strip set down on the ground under it */const P=b.geometry.attributes.position,ca=Math.cos(a),sa=Math.sin(a);
       const B0=b.userData.base;for(let i=0;i<P.count;i++){const u=B0[i*2],v=B0[i*2+1],wx=x+ca*u-sa*v,wz=z+sa*u+ca*v;P.setXYZ(i,wx,gnd(wx,wz)+.5,wz);}

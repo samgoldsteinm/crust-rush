@@ -292,7 +292,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 #garage.overlay{overflow:hidden;padding-bottom:max(6px,env(safe-area-inset-bottom,0px))}
 .g-head{flex-wrap:nowrap}.g-title{margin:0;font-family:var(--display);font-weight:400;font-size:clamp(24px,4.4vw,40px);line-height:1;color:var(--cheese);text-shadow:0 3px 0 var(--sauce-dark)}
 .g-tabs{display:flex;gap:4px;padding:4px;border-radius:14px;background:linear-gradient(160deg,rgba(255,244,220,.07),rgba(255,244,220,.015));border:1px solid rgba(255,244,220,.12);margin:0 auto;min-width:0;overflow-x:auto}
-.g-tabs button{border:0;background:transparent;border-radius:10px;padding:8px 13px;font-weight:700;font-size:14px;color:var(--muted);white-space:nowrap}
+.g-tabs button{border:0;background:transparent;border-radius:10px;padding:8px 13px;font-weight:700;font-size:14px;color:var(--muted);white-space:nowrap}@media (max-width:960px){.g-tabs button{padding:8px 6px;font-size:12.5px}.g-tabs{gap:2px}}/* (patch 49b: all seven tabs on a phone) */
 .g-tabs button[aria-selected="true"]{background:linear-gradient(135deg,#ff8a1f,#e0452c);color:var(--cream);box-shadow:0 4px 14px rgba(224,69,44,.4)}
 .g-side{display:flex;flex-direction:column;gap:8px;min-height:0;min-width:0}
 .g-panel{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding:2px}
