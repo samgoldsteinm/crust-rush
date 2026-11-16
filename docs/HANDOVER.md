@@ -145,6 +145,35 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-16 (web v206; Sandbox only; the PC build after it has the PC fixes below but NOT the night lights yet): Sandbox at night
+The owner: "When it's nighttime on the tracks make those little white lines we added to the walls on the hot wheels maps light up like leds
+and make the shadows and lighting looks good. Do this for every map in sandbox but maybe for some add street lights or for more off road type
+of maps give the cars headlights instead". Web: tools/mini/patch43.py (sbNightArm, built when a place is armed, into SB.grp; sbNightFrame each
+frame, after everything else in sbRender; both follow the clock's L, 0 by day and 1 at night).
+- LED: toyRails' dash mesh is tagged userData.led; its material glows #8fd0ff at night (emissive 2.4*L) and a copy of the dashes drawn adding
+  light (#6fc2ff, opacity .85*L) is the halo. Rooms keep their own lamps, so the effect is gentler indoors.
+- HEADLIGHTS under every open sky (kind 'out'): a SpotLight just ahead of the kart (shadows except Lite/Fast) and, because most pizza ground is
+  unlit paint that no light reaches, a beam on the ground: a 7 x 13 vertex strip set down on the ground (sbG) each frame from 4 to 174 ahead,
+  18 to 90 wide, its light in vertex colours (additive).
+- STREET LAMPS on SB_LAMPS (spiral, basil, napoli, tour): posts every ~300 units beside the road (skipping water, shortcuts, other road, drawn
+  things, banks), glowing heads, an additive pool of light on the ground under each, and a pool of 3 point lights (2 on Lite/Fast) moved to
+  the nearest lamps four times a second. Posts are solid (SB.shapes cyl, night:1).
+- Neon places are night already: unchanged.
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| The headlight did nothing on the pizzas | Their ground is unlit painted scenery (k 3 in sbClockMats): lights do not reach it | The ground beam | A light added for a pizza needs a drawn stand-in on the ground |
+| The beam was invisible | Its texture's bright part was where flipY put the transparent end; then it faced down (culled) | Vertex-coloured strip, DoubleSide | Test a new mesh in a flat colour first (scratch/night4.js) |
+
+PC fixes in the same PC build (2026-11-16), none of them online-visible:
+- Specials backwards: race.gd use_ability read player_inp["look"], which main.gd never set, so off line and when hosting every special went
+  forward (the owner: "the pepperoni special ability needs to be able to go backwards as well"). main.gd's control dict now carries
+  "look": aim_back (looking back, or the left stick pulled back), the same as items. A guest of a browser room was already right.
+- Frozen tracks burned out to white (the owner, a picture of Frosty Freezer): Vivid's x1.25 sun is not applied on the freezer theme, and its
+  exposure is x0.84 and fill x0.85. tests/snap.tscn (CR_MAP, CR_SNAP_T, CR_SNAP_OUT; not headless) takes one picture of a race to judge it.
+- A friend's PC on Ultra broke into spreading black squares (fine on Fast): SSIL is off for good (main.gd _apply_quality), the mountain
+  shader's normal can no longer be the normalised zero vector, and post.gdshader turns any NaN/Inf pixel black and clamps the rest.
+  Not reproduced here (it is the friend's graphics card); if it comes back, ask for the card and a screenshot.
+
 ### 2026-11-16 (web v205; Sandbox only, online stays 114; the PC still has the old playset shop): the mechanic's shop, and pulling in
 The owner sent a video of a car pulling into a mechanic's garage in another game: "that is what i want for the garage in sandbox. it should
 be cool like in the video when you pull in", then "add some texture to the garage building" and "add more details inside the mechanic shop,
