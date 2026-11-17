@@ -24,13 +24,13 @@ async def main():
         await pg.evaluate("()=>{for(const b of document.querySelectorAll('button'))if(/^not now$/i.test(b.textContent.trim())&&b.offsetParent)b.click();}")
         setup = "const i=BODIES.findIndex(b=>b.id==='scissor');playerBuild.b=i;playerBuild.w=0;playerBuild.p=2;playerBuild.t='';playerBuild.st={gl:1};"
         for v in VS:
-            await ev(f"UGV={v};{setup}if(!garageOpen)openGarage();else refreshGarage(true);setBig(false);gRot=1.0;1")
+            await ev(f"{setup}if(!garageOpen)openGarage();else refreshGarage(true);setBig(false);gRot=1.0;1")
             await pg.wait_for_timeout(2000)
             await ev("gRot=1.0;1"); await pg.wait_for_timeout(120)
             await pg.screenshot(path=f'{SP}/web_garage_{v}.png')
         await ev("closeGarage&&closeGarage();1"); await pg.wait_for_timeout(800)
         for v in VS:
-            await ev(f"UGV={v};{setup}introSkip=true;mode='single';CPUS=3;clsKey='medium';mapIdx=MAPS.findIndex(q=>q.id==='{MAP}');goRace(mapIdx);1")
+            await ev(f"{setup}introSkip=true;mode='single';CPUS=3;clsKey='medium';mapIdx=MAPS.findIndex(q=>q.id==='{MAP}');goRace(mapIdx);1")
             for i in range(240):
                 if await ev("state==='race'"): break
                 await pg.wait_for_timeout(500)

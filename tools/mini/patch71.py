@@ -1,16 +1,16 @@
-"""Patch 71 (web v222): underglow styles to choose from.
-The owner (on v221's garage: "it looks like a massive glowing block of blue is under the car ... it should look like ambient light coming
-from under the car ... brightest at the center ... the edges should look a little fuzzy ... Make a few different versions").
-The old pool was the body's silhouette, blurred a little and filled evenly, on a plane 1.5-2x the body: a solid shape. Now the picture is
-worked out from the body's own footprint (length L, width W) with a margin m of ground around it: under the body (r = 0 middle, 1 at the
-body's edge, a rounded-rectangle distance) it is brightest in the middle; past the body's edge (o = 0 at the edge, 1 at the plane's
-edge) it fades out softly, with no line anywhere. Four versions (UGV; in the spec key, so a change rebuilds the kart):
-  1 Soft pool:      a bright middle, an even soft fade over m = .5 W.
-  2 Core and halo:  a strong core under the car and a wide faint halo (m = .75 W).
-  3 Side strips:    the light leaks out mostly along the sills (as the photos), less at nose and tail.
-  4 Wide and faint: one broad, dim wash (m = .9 W).
-  0 the old silhouette pool (for comparison).
-The light layer (patch 67, ground x colour) uses the same picture.
+"""Patch 71 (web v222): the underglow, remade from the owner's reference photos.
+The owner: the old pool "looks like a massive glowing block of blue is under the car ... it should look like ambient light coming from
+under the car"; then "the light shouldnt shine so smoothly around the wheels. since the wheels cut it off a bit the light will shine behind
+the wheels but not on the ground so it will be in sections the front and back and side to side instead of just a big circle around the
+car. also it still looks like a circle drawn around the car on the web version" and "make it a slightly more saturated light ... keep that
+ambient blur". In races it shows only when it should (the dark: the race loop's opacity .14 + .2 x darkness and the lights' strength).
+The picture (ugTex) is worked out from the body's footprint (L x W, a rounded rectangle) and its wheels, in units of W:
+- past the body's edge: a bright short fall (exp(-o/.09)) plus a long soft one (exp(-o/.3)): the light right under the sill and the
+  ambient blur around it; under the body it stays lit (seen at the edges only);
+- each tyre blocks it: beside a wheel the light is cut in a shadow that widens away from the car, so it comes out in sections (front,
+  back, and each side between the wheels), as in the photos;
+- the colour a little more saturated (ugSat). In the garage the two lights under the car are switched on (they were left at 0 there, so
+  the web garage had only the flat picture: the PC's lights are why its garage looked softer).
 Run once: py.cmd tools/mini/patch71.py"""
 p = 'D:/crust-rush/source/crust-rush.html'
 s = open(p, encoding='utf-8', newline='').read()
@@ -24,23 +24,26 @@ def rep(a, b, n=1):
 
 
 rep("let _ugG=null;function ugGenericT(){",
-    "/* (patch 71) the underglow's styles, from the body's footprint L x W and a margin m of ground around it (all in units of W) */\n"
-    "let UGV=1;try{const q=store.get('crust-ugv');if(q!=null&&+q>=0&&+q<=4)UGV=+q;}catch(e){}\n"
-    "const UG_M=[0,.4,.55,.45,.7];const UG_D=[0,.085,.13,.1,.2];\n"
-    "const _ugV={};function ugVarT(v,lr){const key=v+':'+lr.toFixed(1);if(_ugV[key])return _ugV[key];lr=+lr.toFixed(1);const m=UG_M[v],PL=lr+2*m,PW=1+2*m,W=256,H=Math.max(64,Math.round(256*PW/PL/8)*8),c=cnv(W,H),x=c.getContext('2d'),im=x.createImageData(W,H),D=im.data,rc=.3;\n"
-    "  for(let z=0;z<H;z++)for(let q=0;q<W;q++){const X=Math.abs((q+.5)/W-.5)*PL,Z=Math.abs((z+.5)/H-.5)*PW,bx=lr/2,bz=.5,\n"
-    "      qx=X-(bx-rc),qz=Z-(bz-rc),sd=Math.hypot(Math.max(qx,0),Math.max(qz,0))+Math.min(Math.max(qx,qz),0)-rc,o=Math.max(0,sd),t=Math.min(1,o/m),fz=1-t*t*(3-2*t),\n"
-    "      r=Math.pow(Math.pow(X/bx,4)+Math.pow(Z/bz,4),.25),k=Math.max(0,1-r*r),side=.4+.6*Math.min(1,Math.max(0,1-(X-bx)/.5));let a;\n"
-    "    if(sd<=0)a=.72;else{const e=.72*Math.exp(-o/UG_D[v])*fz;a=v===3?e*side:v===4?.6*e:e;}\n"
+    "/* (patch 71) the underglow's picture from the body's footprint (lr = L/W) and its wheels (wf, wr: their x from the middle, rr: radius;\n"
+    "   all in units of W): a bright fall past the sill plus a soft ambient one, cut beside each tyre into front, back and side sections */\n"
+    "const UG_M=.75;const _ugV={};function ugTex(lr,wf,wr,rr){lr=+lr.toFixed(2);wf=+wf.toFixed(2);wr=+wr.toFixed(2);rr=+rr.toFixed(2);const key=[lr,wf,wr,rr].join(':');if(_ugV[key])return _ugV[key];\n"
+    "  const m=UG_M,PL=lr+2*m,PW=1+2*m,W=256,H=Math.max(64,Math.round(256*PW/PL/8)*8),c=cnv(W,H),x=c.getContext('2d'),im=x.createImageData(W,H),D=im.data,rc=.28,bx=lr/2,bz=.5,sm=(a,b,v)=>{const t=Math.min(1,Math.max(0,(v-a)/(b-a)));return t*t*(3-2*t);};\n"
+    "  for(let z=0;z<H;z++)for(let q=0;q<W;q++){const xs=((q+.5)/W-.5)*PL,X=Math.abs(xs),Z=Math.abs((z+.5)/H-.5)*PW,qx=X-(bx-rc),qz=Z-(bz-rc),\n"
+    "      sd=Math.hypot(Math.max(qx,0),Math.max(qz,0))+Math.min(Math.max(qx,qz),0)-rc,o=Math.max(0,sd),fz=1-sm(0,m,o);let a=sd<=0?1:(.62*Math.exp(-o/.09)+.38*Math.exp(-o/.3))*fz;\n"
+    "    if(Z>bz-.14)for(const xw of [wf,wr]){const out=Math.max(0,Z-bz),hw=rr*(1.05+1.5*out),dx=Math.abs(xs-xw);a*=1-.92*sm(hw,hw*.5,dx)*sm(bz-.14,bz-.02,Z);}\n"
+    "    if(qx>0&&qx>qz)a*=.85;/* (nose and tail a little less than the sides) */\n"
     "    const i=(z*W+q)*4;D[i]=D[i+1]=D[i+2]=255;D[i+3]=Math.round(255*Math.max(0,Math.min(1,a)));}\n"
     "  x.putImageData(im,0,0);return _ugV[key]=new THREE.CanvasTexture(c);}\n"
+    "function ugSat(h){const c=new THREE.Color(h),o={};c.getHSL(o);return c.setHSL(o.h,Math.min(1,o.s*1.15+.05),o.l*.96);}\n"
     "let _ugG=null;function ugGenericT(){")
+# the footprint and wheels: a car's from its pack (the silhouette's box, its wheels), a code-built kart's from its axles
 rep("if(gi&&GLOWS[gi]&&GLOWS[gi].h&&!cfg.hover){const hg=cfg.car?ugTexFor(cfg.car):null,W=hg?hg.w*1.5:(cfg.fw[0]-cfg.rw[0]+2*Math.max(cfg.rw[2],cfg.fw[2])+3)*1.45,H=hg?hg.h*2:(2*Math.max(cfg.fw[1],cfg.rw[1])+2.6)*1.9,",
-    "if(gi&&GLOWS[gi]&&GLOWS[gi].h&&!cfg.hover){const hg=cfg.car?ugTexFor(cfg.car):null,uv=UGV,bL=hg?hg.w*(UGV?.84:1):cfg.fw[0]-cfg.rw[0]+2*Math.max(cfg.rw[2],cfg.fw[2])+3,bW=hg?hg.h*(UGV?.84:1):2*Math.max(cfg.fw[1],cfg.rw[1])+2.6,"
-    "W=uv?bL+2*UG_M[uv]*bW:bL*(hg?1.5:1.45),H=uv?bW*(1+2*UG_M[uv]):bW*(hg?2:1.9),")
-rep("gm=new THREE.MeshBasicMaterial({map:hg?hg.t:ugGenericT(),",
-    "gm=new THREE.MeshBasicMaterial({map:uv?ugVarT(uv,bL/bW):hg?hg.t:ugGenericT(),/* (patch 71) */")
-rep("transparent:true,opacity:.8,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}),pl=", "transparent:true,opacity:uv?1:.8,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}),pl=")
-rep("s.st?JSON.stringify(s.st):'',s.ugL?1:0].join('.'", "s.st?JSON.stringify(s.st):'',s.ugL?1:0,s.st&&s.st.gl?UGV:0].join('.'")
+    "if(gi&&GLOWS[gi]&&GLOWS[gi].h&&!cfg.hover){const hg=cfg.car?ugTexFor(cfg.car):null,bL=hg?hg.w*.84:cfg.fw[0]-cfg.rw[0]+2*Math.max(cfg.rw[2],cfg.fw[2])+3,bW=hg?hg.h*.84:2*Math.max(cfg.fw[1],cfg.rw[1])+2.6,"
+    "cx0=hg?hg.cx:(cfg.fw[0]+cfg.rw[0])/2,wq=cfg.car&&CAR_PACKS[cfg.car].h.wheels||null,wF=wq?(wq.find(q=>q.f)||{c:[cfg.fw[0]]}):{c:[cfg.fw[0]],r:cfg.fw[2]},wR=wq?(wq.find(q=>!q.f)||{c:[cfg.rw[0]]}):{c:[cfg.rw[0]],r:cfg.rw[2]},"
+    "ugT=ugTex(bL/bW,(wF.c[0]-cx0)/bW,(wR.c[0]-cx0)/bW,(wF.r||wR.r||1.3)/bW),W=bL+2*UG_M*bW,H=bW*(1+2*UG_M),")
+rep("gm=new THREE.MeshBasicMaterial({map:hg?hg.t:ugGenericT(),color:GLOWS[gi].h==='rainbow'?'#ff3030':GLOWS[gi].h,",
+    "gm=new THREE.MeshBasicMaterial({map:ugT,color:ugSat(GLOWS[gi].h==='rainbow'?'#ff3030':GLOWS[gi].h),/* (patch 71) */")
+rep("transparent:true,opacity:.8,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}),pl=",
+    "transparent:true,opacity:.62,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}),pl=")
 open(p, 'w', encoding='utf-8', newline='').write(s)
 print('patch 71 applied')

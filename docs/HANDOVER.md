@@ -24,6 +24,22 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
+### OPEN (the owner's asks of 2026-11-17, in progress; web patches 71-72 and pc71 written, NOT released)
+- Underglow (patch 71 / pc71): from the reference photos: lit under the sills, cut by each tyre into front / back / side sections,
+  a bright short fall plus soft ambient blur, a little more saturated. The owner liked "1 soft pool" and "2 core + halo" best; the track
+  pictures looked "airy, floating up the sides of the car" (the lights under the car lighting its flanks + the additive haze). Race glow
+  only when it should (dark). PC: "some of the light is super bright" (the released build's OmniLights at energy 2 in daylight light a big
+  disc on pale ground) and the released PC garage has no underglow at all (pc71 adds it). Web garage: the two lights reflect as beams on
+  the new glossy floor: keep them low.
+- Garage floor (patch 72 web; PC menu.gd still brown): a dark showroom floor so the glow reads.
+- Chrome interior black (patch 72: interior metal .45), trim on interior trim (class metal 7 added), rainbow in the garage (patch 72).
+- Silver trim does not look silver; trim must NOT change the rims: a separate Rims colour row.
+- Colour combos in the Colour tab: presets to pick or buy with coins; a combo may hold colours you can't afford alone, cheaper, but only
+  for the piece it is assigned to in that combo.
+- PC: car paints and colours "super flat": better lighting and reflections; sharpen the car models (hard edges, better angles). Show the
+  owner BEFORE / AFTER pictures of the cars before publishing.
+- Sandbox pizza delivery: an arrow (top of the screen) pointing the way to go.
+
 ### Space (the owner, 2026-11-13: "GitHub pages has a hard 1gb limit we also have to consider")
 - Measured 2026-11-13: the published site is 77 MB (models 25, textures 19, track pictures 17, code 2, three.js 5); GitHub
   reports the whole repository (all three branches and their history) at 280 MB. `release_web.py` prints both after every
