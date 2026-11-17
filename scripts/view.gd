@@ -390,6 +390,99 @@ func add_kart(k: Kart, sc_file_loader: Callable) -> void:
 		"fxL": fxl, "fxP": fxp, "smoke": smoke, "top": float(meta.get("top", 7.0)), "axF": float(meta.get("axF", 6.0)), "axR": float(meta.get("axR", -6.0)),
 		"axW": float(meta.get("axW", 5.0)), "hover": float(meta.get("hover", 0.0)), "hglow": meta.get("hglow"), "tp": 0.0, "tr": 0.0, "fxc": 0.0, "trick_on": false, "f_ti": -1, "fglow": fglow,
 		"held": null, "held_it": "", "rx": k.x, "ry": k.y, "rz": k.wy, "rma": k.ma, "glider": glider, "ga": 0.0}
+	_style_view(k, g, info, meta)
+
+
+## the style shop's look on a kart (web patches 65-67): the underglow (two coloured lights under it and a faint haze over the ground)
+## and the tyre smoke's colour (views[k]["smc"]; "rainbow" cycles)
+func _style_view(k: Kart, g: Node3D, info: Dictionary, meta: Dictionary) -> void:
+	var S := preload("res://scripts/style.gd")
+	var spec: Dictionary = info.get("spec", {}) if info.get("spec") is Dictionary else {}
+	var v: Dictionary = views[k]
+	var sm: Dictionary = S.pick(spec, "sm")
+	v["smc"] = String(sm["h"])
+	var gi: Dictionary = S.pick(spec, "gl")
+	v["ug"] = []
+	v["ug_rb"] = gi["h"] != null and String(gi["h"]) == "rainbow"
+	if gi["h"] == null or float(meta.get("hover", 0.0)) > 0.0:
+		return
+	var col := Color("#ff3030") if bool(v["ug_rb"]) else Color(String(gi["h"]))
+	var sc: float = g.scale.x if g.scale.x > 0.0 else 1.0
+	var axf := float(meta.get("axF", 6.0)) / sc
+	var axr := float(meta.get("axR", -6.0)) / sc
+	for ax in [axf * 0.55, axr * 0.55]:
+		var L := OmniLight3D.new()
+		L.light_color = col
+		L.omni_range = 95.0
+		L.omni_attenuation = 0.45
+		L.light_energy = 0.0
+		L.shadow_enabled = false
+		L.position = Vector3(ax, 0.3, 0.0)
+		g.add_child(L)
+		(v["ug"] as Array).append(L)
+	var q := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2((axf - axr) * 1.9 + 6.0, float(meta.get("axW", 5.0)) / sc * 3.4 + 3.0)
+	q.mesh = pm
+	var hm := StandardMaterial3D.new()
+	hm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	hm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	hm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	hm.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	hm.albedo_texture = _ug_tex()
+	hm.albedo_color = Color(col.r, col.g, col.b, 0.3)
+	hm.disable_fog = true
+	q.material_override = hm
+	q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	q.position = Vector3((axf + axr) / 2.0, 0.2, 0.0)
+	g.add_child(q)
+	v["ug_haze"] = hm
+
+
+static var _ugt: ImageTexture = null
+
+
+## a soft rounded pool: brightest near the edge of the body, fading out over the ground (web ugGenericT)
+static func _ug_tex() -> ImageTexture:
+	if _ugt != null:
+		return _ugt
+	var W := 128
+	var H := 64
+	var img := Image.create(W, H, false, Image.FORMAT_RGBA8)
+	for zz in H:
+		for q in W:
+			var u := absf(q + 0.5 - W / 2.0) / (W / 2.0)
+			var w := absf(zz + 0.5 - H / 2.0) / (H / 2.0)
+			var d := pow(pow(u, 6.0) + pow(w, 6.0), 1.0 / 6.0)
+			var ring := exp(-pow((d - 0.72) / 0.13, 2.0))
+			var fill := 0.55 if d < 0.72 else maxf(0.0, 1.0 - (d - 0.72) / 0.28) * 0.55
+			var a := minf(1.0, ring * 0.9 + fill) * (1.0 if d < 1.0 else 0.0)
+			img.set_pixel(q, zz, Color(1, 1, 1, a))
+	_ugt = ImageTexture.create_from_image(img)
+	return _ugt
+
+
+## each frame: the glow brighter in the dark, rainbow cycling (web patch 66's light, patch 67's haze)
+func _style_frame(k: Kart, v: Dictionary, time: float, dark: float) -> void:
+	var ug: Array = v.get("ug", [])
+	if ug.is_empty():
+		return
+	var rc := Color.from_hsv(fmod(time * 0.12 + k.ri * 0.13, 1.0), 1.0, 1.0) if bool(v.get("ug_rb", false)) else Color(0, 0, 0, 0)
+	for L in ug:
+		(L as OmniLight3D).light_energy = (2.0 + 6.0 * dark) * (1.2 if k.boost > 0.0 else 1.0)
+		if rc.a > 0.0:
+			(L as OmniLight3D).light_color = rc
+	var hm: StandardMaterial3D = v.get("ug_haze")
+	if hm != null:
+		var c := rc if rc.a > 0.0 else (ug[0] as OmniLight3D).light_color
+		hm.albedo_color = Color(c.r, c.g, c.b, 0.05 + 0.07 * dark)   # (a faint haze only: the lights do the work)
+
+
+func smoke_col(k: Kart, v: Dictionary) -> Color:
+	var h := String(v.get("smc", "#f2ebe0"))
+	if h == "rainbow":
+		return Color.from_hsv(fmod(Time.get_ticks_msec() / 1000.0 * 0.12 + k.ri * 0.13, 1.0), 0.85, 1.0)
+	return Color(h) if h != "" and h != "<null>" else Color("#f2ebe0")
 
 
 ## Sandbox, at the swap between two places (main.gd _sb_adopt): the same karts and their models go on, in another
@@ -465,6 +558,13 @@ func _near_cam(x: float, y: float, d: float) -> bool:
 ## web syncKart: place one kart between its last two physics steps and run its effects
 func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> void:
 	var v: Dictionary = views[k]
+	if not (v.get("ug", []) as Array).is_empty():
+		var dk := 0.0
+		if race != null and race.sb != null:
+			dk = float(preload("res://scripts/sandbox_clock.gd").f(float(race.sb.save.get("t", 0.4)))["L"])
+		elif String(T.theme) == "night":
+			dk = 1.0
+		_style_frame(k, v, time, dk)
 	var g: Node3D = v["g"]
 	var tilt: Node3D = v["tilt"]
 	var x := lerpf(k.ox, k.x, al)
@@ -761,9 +861,18 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 					fx.spawn_a(tv.x, tv.y + 0.3, tv.z, (randf() - 0.5) * 30.0 - cos(k.ma) * (22.0 + tier * 6.0), 10.0 + randf() * 30.0, (randf() - 0.5) * 30.0 - sin(k.ma) * (22.0 + tier * 6.0), SPARKC[tier], sz, 0.3, 0.3 + tier * 0.03, 80.0, 1.0)
 				if tier > 0 and i % 2 == 0:
 					fx.spawn_a(tv.x, tv.y + 0.7, tv.z, -cos(k.ma) * 8.0, 2.0, -sin(k.ma) * 8.0, SPARKC[tier], 4.5 + tier, 2.0, 0.14)
-			if i % 3 == 0:
-				var tv2: Vector3 = gt * (fxl[0 if randf() < 0.5 else mini(1, fxl.size() - 1)] as Vector3)
-				fx.spawn_n(tv2.x, tv2.y + 0.6, tv2.z, (randf() - 0.5) * 6.0, 4.0 + randf() * 4.0, (randf() - 0.5) * 6.0, Color("#f2ebe0"), 2.5, 8.0, 0.8, -2.0, 1.5)
+			if i % 2 == 0:
+				# tyre smoke in the chosen colour: thick, rolling up and out, hanging a while (web patch 65)
+				var scol := smoke_col(k, v)
+				for lv2 in fxl:
+					var tv2: Vector3 = gt * (lv2 as Vector3)
+					fx.spawn_n(tv2.x, tv2.y + 0.8, tv2.z, (randf() - 0.5) * 9.0 - cos(k.ma) * 6.0, 5.0 + randf() * 6.0, (randf() - 0.5) * 9.0 - sin(k.ma) * 6.0, scol, 3.6, 15.0, 1.25, -1.5, 1.2)
+		if not k.air and k.drift == 0 and k.speed > 3.0 and k.speed < 48.0 and k.acc > 30.0 and i % 2 == 0 and fxl.size() > 0 and (k == me or randf() < 0.4):
+			# a hard launch from slow: smoke off the rear tyres (web patch 65)
+			var lc := smoke_col(k, v)
+			for lv3 in fxl:
+				var tv3: Vector3 = gt * (lv3 as Vector3)
+				fx.spawn_n(tv3.x, tv3.y + 0.6, tv3.z, (randf() - 0.5) * 8.0 - cos(k.ma) * 12.0, 3.0 + randf() * 5.0, (randf() - 0.5) * 8.0 - sin(k.ma) * 12.0, lc, 3.0, 13.0, 1.1, -1.5, 1.4)
 		if on and (k == me and i % 3 == 0 or (k != me and i == 0 and randf() < 0.5 and _near_cam(x, y, 160.0))):
 			for pv in v["fxP"]:
 				var tp2: Vector3 = gt * (pv as Vector3)

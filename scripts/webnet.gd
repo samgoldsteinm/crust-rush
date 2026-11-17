@@ -7,7 +7,7 @@ extends Node
 ## takes that and replays the controls the host hasn't seen yet, so steering is instant. Everything else is drawn as the
 ## host sends it. PC-to-PC races (ENet) are separate and unchanged.
 
-const PROTO := 119   # (119: web v217, four new kart bodies; 118: web v216, what a stat point counts for; 117: web v213, a Sandbox race from a start line with invites; 116: web v209, cfg.ni; 115: web v208)
+const PROTO := 120   # (120: web v219 patch 68, the host's developer options in cfg "dev"; 119: web v217, four new kart bodies; 118: web v216, what a stat point counts for; 117: web v213, a Sandbox race from a start line with invites; 116: web v209, cfg.ni; 115: web v208)
 const RACE_T := {"s": 1, "hit": 1, "tst": 1, "go": 1, "load": 1, "menu": 1, "elim": 1, "sbend": 1}   # race messages: a Sandbox race's racers only
 var _last_poll := 0
 var sb_race := {}   # the host, a room's Sandbox race (web NET.sbRace): {pid: true} of the guests in it; empty otherwise
@@ -1279,7 +1279,7 @@ func _build_cfg(mi: int) -> Dictionary:
 	if cls == "reverse":
 		cls = "large"
 	var cup = main.gp_wire()   # a Grand Prix for the room: the cup goes out with every race, as the web's does
-	return {"mi": mi, "cls": cls, "mode": "bb" if bool(main._map_info(main.map_id).get("battle", false)) else ("gp" if cup != null else ("lss" if String(main.sel.get("mode", "")) == "lss" else "single")), "gp": cup, "karts": ks, "ni": main.all_items_off()}
+	return {"mi": mi, "cls": cls, "mode": "bb" if bool(main._map_info(main.map_id).get("battle", false)) else ("gp" if cup != null else ("lss" if String(main.sel.get("mode", "")) == "lss" else "single")), "gp": cup, "karts": ks, "ni": main.all_items_off(), "dev": main.dev_pack()}
 
 
 ## start a race for everyone in the room on the track you picked (web netHostStart)

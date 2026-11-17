@@ -18,6 +18,7 @@ func _ready() -> void:
 		bad += 1
 	for n in [0, 1, 3]:
 		main.sel["cpus"] = n
+		main.sel["mode"] = "single"   # (a Sandbox test run before saves "sb" as the last mode)
 		main.gp = {}
 		main.state = "menu"
 		await main._race_on(main.map_id)

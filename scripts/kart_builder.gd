@@ -137,7 +137,9 @@ static func random_build() -> Dictionary:
 			lv.append(l)
 	var np := (info.get("paints", []) as Array).size()
 	return {"b": b, "w": 0 if randf() < 0.35 else randi() % (info["wheels"] as Array).size(), "g": randi() % (info["gliders"] as Array).size(),
-		"p": 0 if randf() < 0.65 or np < 2 else 1 + randi() % (np - 1), "t": String(lv[randi() % lv.size()]["id"]) if randf() < 0.45 and not lv.is_empty() else ""}
+		"p": 0 if randf() < 0.65 or np < 2 else 1 + randi() % (np - 1), "t": String(lv[randi() % lv.size()]["id"]) if randf() < 0.45 and not lv.is_empty() else "",
+		# (web patch 65: CPU karts sometimes wear a glow or coloured smoke, for show)
+		"st": {"gl": randi() % 9, "sm": (randi() % 9) if randf() < 0.5 else 0} if randf() < 0.3 else {}}
 
 
 static func wheel_of(spec: Dictionary) -> Dictionary:
@@ -222,7 +224,70 @@ static func colours(spec: Dictionary, ri: int) -> Dictionary:
 		stripe = Color(String(lv["B"]))
 	elif Color(String(rc["stripe"])).to_html(false) == col.to_html(false):
 		stripe = Color(String(rc["top"]))
-	return {"paint": col, "dark": dark, "stripe": stripe, "lv": lv}
+	# the style shop (web patch 65): trim and accent on the code-built karts; a car body's part classes repainted (vcre: class -> colour)
+	var vcre := {}
+	var S := preload("res://scripts/style.gd")
+	if spec.get("st") is Dictionary:
+		var t: Dictionary = S.pick(spec, "tr")
+		var ac: Dictionary = S.pick(spec, "ac")
+		var inn: Dictionary = S.pick(spec, "in")
+		if t["h"] != null:
+			dark = Color(String(t["h"]))
+			for ci in [1, 6, 15]:
+				vcre[ci] = dark
+		if ac["h"] != null:
+			stripe = Color(String(ac["h"]))
+			for ci in [2, 13, 17]:
+				vcre[ci] = stripe
+		if inn["h"] != null:
+			vcre[9] = Color(String(inn["h"]))
+	return {"paint": col, "dark": dark, "stripe": stripe, "lv": lv, "vcre": vcre}
+
+
+## the classes' own colours, as the web's CAR_PBR (the baked vertex colour is this times the shading)
+const CAR_BASE := {1: "#161618", 6: "#161618", 15: "#3b3e44", 2: "#ffffff", 13: "#c8321e", 17: "#c0180c", 9: "#1c1918"}
+static var _vc_cache := {}
+
+
+## web styleVC (patch 65), done once on a copy of the mesh: each vertex of the chosen classes takes the new colour times its own shading
+static func _style_vc(m3: MeshInstance3D, si: int, re: Dictionary) -> void:
+	var mesh := m3.mesh as ArrayMesh
+	if mesh == null:
+		return
+	var ks: Array = re.keys()
+	ks.sort()
+	var key := "%d|%d" % [mesh.get_rid().get_id(), si]
+	for c in ks:
+		key += "|%d:%s" % [c, (re[c] as Color).to_html(false)]
+	var nm: ArrayMesh = _vc_cache.get(key)
+	if nm == null:
+		nm = ArrayMesh.new()
+		for j in mesh.get_surface_count():
+			var arr := mesh.surface_get_arrays(j)
+			if j == si and arr[Mesh.ARRAY_COLOR] != null and arr[Mesh.ARRAY_TEX_UV] != null:
+				var cs: PackedColorArray = arr[Mesh.ARRAY_COLOR]
+				var uv: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV]
+				for q in cs.size():
+					var ci := int(uv[q].x * 32.0)
+					if re.has(ci):
+						var b := Color(String(CAR_BASE.get(ci, "#808080"))).srgb_to_linear()
+						var bm := maxf(0.004, maxf(b.r, maxf(b.g, b.b)))
+						var c0: Color = cs[q]
+						var ao := clampf(maxf(c0.r, maxf(c0.g, c0.b)) / bm, 0.3, 1.2)
+						var t: Color = (re[ci] as Color).srgb_to_linear() * ao
+						t.a = c0.a
+						cs[q] = t
+				arr[Mesh.ARRAY_COLOR] = cs
+			nm.add_surface_from_arrays(mesh.surface_get_primitive_type(j), arr)
+			nm.surface_set_material(j, mesh.surface_get_material(j))
+		_vc_cache[key] = nm
+	var ov: Array = []
+	for j in mesh.get_surface_count():
+		ov.append(m3.get_surface_override_material(j))
+	m3.mesh = nm
+	for j in ov.size():
+		if ov[j] != null:
+			m3.set_surface_override_material(j, ov[j])
 
 
 static func _mat4(a: Array) -> Transform3D:
@@ -524,6 +589,8 @@ static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false) -> v
 			var fmt: int = mesh.surface_get_format(si)
 			if not nm.begins_with("g_") and _is_car_vc(sm, fmt):
 				m3.set_surface_override_material(si, car_vc_mat())
+				if not (cols.get("vcre", {}) as Dictionary).is_empty():
+					_style_vc(m3, si, cols["vcre"])
 				continue
 			if (fmt & Mesh.ARRAY_FORMAT_COLOR) != 0 and not sm.vertex_color_use_as_albedo and not nm.begins_with("g_"):
 				var c0 := sm.duplicate() as BaseMaterial3D

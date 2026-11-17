@@ -98,6 +98,7 @@ var sh_l := 0             # garlic layers: each blocks one hit
 var mz_h := 0
 var abs_t := 0.0
 var spin := 0.0
+var fly := false          # flying (web patch 68, the developer options: devFly)
 var frozen := 0.0
 var rush := 0.0
 var oil_t := 0.0
@@ -208,6 +209,31 @@ static func ang_diff(p: float, q: float) -> float:
 	return atan2(sin(p - q), cos(p - q))
 
 
+## web devFly (patch 68): no road, no walls; the throttle flies forward, the brake backs off, "flyup" climbs (-1..1); never below the ground
+func _dev_fly(inp: Dictionary, dt: float) -> void:
+	air = true
+	loop = {}
+	drift = 0
+	spin = 0.0
+	charge = 0.0
+	var thr := -0.45 if bool(inp["brake"]) else (1.0 if float(inp.get("mul", 1.0)) > 0.0 else 0.0)
+	speed += (thr * 300.0 - speed) * minf(1.0, dt * 1.5)
+	steer = float(inp["steer"])
+	a += steer * 2.1 * dt
+	ma = a
+	var up := clampf(float(inp.get("flyup", 0.0)), -1.0, 1.0)
+	wvy += (up * 150.0 - wvy) * minf(1.0, dt * 4.0)
+	x += cos(a) * speed * dt
+	y += sin(a) * speed * dt
+	wy += wvy * dt
+	var g := T.ground(x, y)
+	if wy < g + 1.0:
+		wy = g + 1.0
+		if wvy < 0.0:
+			wvy = 0.0
+	z = 0.0
+
+
 static func _drift_boost(t: int) -> float:
 	return [0.0, 0.55, 0.9, 1.3][t]
 
@@ -230,6 +256,9 @@ static func _tier_of(c: float) -> int:
 ## use / back / hold / hold_sl / release for items (see race.gd)
 func step(inp: Dictionary, dt: float) -> void:
 	_save_prev()
+	if fly and race != null and int(race.dev_local.get("fly", 0)) == 1:
+		_dev_fly(inp, dt)
+		return
 	inv = maxf(0.0, inv - dt)
 	if trick_t > 0.0:
 		trick_t -= dt
@@ -532,7 +561,7 @@ func _drive(inp: Dictionary, dt: float, brake_in: bool, d_press: bool, trick_now
 		if d_rel or sp < 35.0:
 			var tr := _tier_of(charge)
 			if tr > 0:
-				boost = maxf(boost, _drift_boost(tr))
+				boost = maxf(boost, _drift_boost(tr) * (race.dev_mul(self, "drift") if race != null else 1.0))
 				speed = maxf(speed, minf(speed + _drift_surge(tr), base_max * sm_spd * 1.45))
 				p_boost = boost
 				b_age = 9.0
@@ -1074,7 +1103,7 @@ func _vertical(dt: float) -> bool:
 				race.glide_rings(self)
 			g_h = wy - maxf(g, gyy)
 		else:
-			wvy -= ((80.0 if wvy > 0.0 else 110.0) if big else 260.0) * dt
+			wvy -= ((80.0 if wvy > 0.0 else 110.0) if big else 260.0) * dt * (race.dev_mul(self, "grav") if race != null else 1.0)
 		wy += wvy * dt
 		if wy <= g:
 			wy = g

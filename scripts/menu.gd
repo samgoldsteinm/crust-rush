@@ -1857,7 +1857,15 @@ func _garage() -> Control:
 					build["t"] = ""
 					_build_changed())
 				grid.add_child(sw)
-			desc = "[b][color=#fff4dc]%s.[/color][/b] One colour all over the kart." % pn[int(build["p"])]
+			desc = "[b][color=#fff4dc]%s.[/color][/b] One colour all over the kart. Below: the style shop." % pn[int(build["p"])]
+			# the style shop (web patch 65): its rows go under the paints, in the same scrolling list
+			var rr := sc.get_child(0)
+			sc.remove_child(rr)
+			var outer := vbox(6)
+			outer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			outer.add_child(rr)
+			_style_shop(outer)
+			sc.add_child(outer)
 		"theme":
 			grid.columns = 3
 			var bid := String(I["bodies"][int(build["b"])]["id"])
@@ -2352,6 +2360,63 @@ class _Dots extends Control:
 			if i == 5:
 				draw_circle(c, rr + maxf(1.0, rr * 0.35), Color(1, 0.957, 0.863, 0.45), false, maxf(1.0, rr * 0.25), true)
 			draw_circle(c, rr, col, true, -1.0, true)
+
+
+var _style_ask := ""
+
+
+## web styleUI: a row of swatches per slot; a locked one shows its price; the first press asks, a second buys
+func _style_shop(outer: VBoxContainer) -> void:
+	var S := preload("res://scripts/style.gd")
+	var coins := int(preload("res://scripts/sandbox.gd").load_save().get("c", 0))
+	outer.add_child(label("Style shop · %d coins" % coins, f_bold, 15.0, CHEESE))
+	var st: Dictionary = build.get("st", {}) if build.get("st") is Dictionary else {}
+	for row in [["tr", "Trim"], ["ac", "Accent"], ["in", "Interior"], ["gl", "Underglow"], ["hl", "Headlights"], ["sm", "Tyre smoke"]]:
+		var slot := String(row[0])
+		outer.add_child(section_label(String(row[1])))
+		var gr := GridContainer.new()
+		gr.columns = 6
+		gr.add_theme_constant_override("h_separation", zi(8))
+		gr.add_theme_constant_override("v_separation", zi(8))
+		var L: Array = S.SLOTS[slot][1]
+		for i in L.size():
+			var it: Dictionary = L[i]
+			var own: bool = S.is_owned(slot, i)
+			var on := int(st.get(slot, 0)) == i
+			var sw := Button.new()
+			sw.custom_minimum_size = Vector2(z(52), z(52))
+			sw.tooltip_text = String(it["n"]) + ("" if own else " · %d coins" % int(it["p"]))
+			sw.set_meta("gkey", "st:%s:%d" % [slot, i])
+			var cl: Array = [Color("#3a2a22"), Color("#2a1c16")] if it["h"] == null else ([Color("#ff3030"), Color("#ffd22a"), Color("#3dff6a"), Color("#2ae8ff"), Color("#a040ff")] if String(it["h"]) == "rainbow" else ([Color("#ffffff"), Color(String(it["h"])), Color("#222222")] if it.has("m") else [Color(String(it["h"]))]))
+			var stb := box(cl, 135.0, 26.0, CHEESE if on else Color(1, 0.957, 0.863, 0.3), 3.0 if on else 1.5)
+			for s2 in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
+				sw.add_theme_stylebox_override(s2, stb)
+			if not own:
+				sw.text = str(int(it["p"]))
+				sw.add_theme_font_override("font", f_bold)
+				sw.add_theme_font_size_override("font_size", zi(12))
+				sw.add_theme_color_override("font_color", CHEESE)
+				sw.add_theme_color_override("font_outline_color", Color("#2a140a"))
+				sw.add_theme_constant_override("outline_size", zi(4))
+			var si := i
+			sw.pressed.connect(func():
+				if not S.is_owned(slot, si):
+					var have := int(preload("res://scripts/sandbox.gd").load_save().get("c", 0))
+					if have < int(it["p"]):
+						setting_changed.emit("toast", "%s costs %d coins. You have %d. Earn coins by racing and in Sandbox." % [String(it["n"]), int(it["p"]), have])
+						return
+					if _style_ask != slot + str(si):
+						_style_ask = slot + str(si)
+						setting_changed.emit("toast", "Press %s again to buy it for %d coins" % [String(it["n"]), int(it["p"])])
+						return
+					_style_ask = ""
+					S.buy(slot, si)
+				var ns := st.duplicate()
+				ns[slot] = si
+				build["st"] = ns
+				_build_changed())
+			gr.add_child(sw)
+		outer.add_child(gr)
 
 
 func _build_changed() -> void:

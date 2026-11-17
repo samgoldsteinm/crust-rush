@@ -207,6 +207,11 @@ func frame(dt: float, L: float, k: Kart) -> void:
 	var hm = main.get("hl_mode")
 	var hon := clampf((L - 0.5) / 0.3, 0.0, 1.0) if hm == null else (1.0 if hm else 0.0)
 	spot.light_energy = 3.2 * maxf(L, 0.45) * hon * (1.0 if hm == true else hf)
+	# the headlight colour from the style shop (web patch 65); halogen, the first, keeps the cool white beam
+	var hli: Dictionary = preload("res://scripts/style.gd").pick(k.info.get("spec", {}) if k.info.get("spec") is Dictionary else {}, "hl")
+	var hc := Color(String(hli["h"])) if String(hli["h"]) != "#fff2d6" else Color("#eef3ff")
+	if spot.light_color != hc:
+		spot.light_color = hc
 	var from := kp + fwd * 7.0 + Vector3(0, 4, 0)
 	var to := kp + fwd * 120.0 + Vector3(0, -10, 0)
 	spot.global_position = from

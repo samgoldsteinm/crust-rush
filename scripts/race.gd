@@ -83,6 +83,10 @@ var sb_defer := false        # ...set up on another thread (scripts/world_build.
 var lss_lap := 0
 var lss_done := false
 var items_off := {}         # items switched off (settings) or not yet won (award items): {name: true}
+var itm_used := false       # the player used an item this race (web patch 64: a race without one counts as No items)
+var dev := {}                # the developer options' race settings in force (web patch 68): off line yours, in a room the host's cfg "dev"
+var dev_all := false         # in a room they apply to every kart; off line only to yours
+var dev_local := {}          # this device's own (off line only): fly, invincible, always this item, unlimited pepperoni
 var noitm := false          # a race without items (web NOITM, patch 47): main.gd empties `boxes` for it
 ## the glide's boost rings (web GLIDE.rings): [x, y, z, yaw] from the track data; their heights float to meet the
 ## local player's glide line as they fly (web steerGlideRings), so each machine has its own; online, a person's kart is
@@ -251,8 +255,10 @@ func setup_cfg(track: TrackData, roster: Dictionary, cfg: Dictionary, my_peer: i
 
 
 func _setup_haz() -> void:
+	# (web patch 68: a moving hazard switched off in the developer options is never built)
+	var hz: Dictionary = dev.get("hz", {}) if dev.get("hz") is Dictionary else {}
 	traffic.clear()
-	for c in T.haz.get("traffic", []):
+	for c in (T.haz.get("traffic", []) if int(hz.get("traffic", 1)) != 0 else []):
 		var cd: Dictionary = c
 		var ti := traffic.size()
 		var lat0: float = [-32.0, 30.0, 0.0][ti % 3]
@@ -264,12 +270,12 @@ func _setup_haz() -> void:
 		var j := int(rd["j"])
 		rollers.append({"j": j, "ph": float(rd["ph"]), "lat": 0.0, "x": T.px[j], "y": T.py[j]})
 	walkers.clear()
-	for w in T.haz.get("walk", []):
+	for w in (T.haz.get("walk", []) if int(hz.get("walk", 1)) != 0 else []):
 		var wd: Dictionary = w
 		walkers.append({"j": float(wd["j"]), "lat": float(wd["lat"]), "latT": 0.0, "v": float(wd["v"]), "ph": float(wd["ph"]), "pause": float(wd["pause"]), "H": float(wd["H"]), "along": 0.0, "x": 0.0, "y": 0.0, "face": 0.0, "hit_t": 0.0,
 			"sch": _hz_walk(int(wd.get("hi", walkers.size())), float(wd["v"]))})
 	train = {}
-	var tr = T.haz.get("train")
+	var tr = T.haz.get("train") if int(hz.get("train", 1)) != 0 else null
 	if typeof(tr) == TYPE_DICTIONARY:
 		var td: Dictionary = tr
 		var cars: Array = []
@@ -587,7 +593,38 @@ func _make_kart(ri: int, slot: int, is_player: bool, info: Dictionary) -> Kart:
 	k.sf = float((info.get("meta", {}) as Dictionary).get("sf", 1.0))
 	k.race = self
 	k.ai = {"lane": lat, "lane_target": lat, "lane_t": 1.0 + rng.randf() * 3.0, "skill": sk, "item_delay": 0.0, "in_bend": false, "auto": not is_player}
+	dev_kart(k)
+	if not dev.is_empty() and not is_player:
+		k.ai["skill"] = float(k.ai["skill"]) * float(dev.get("cpu", 1.0))
 	return k
+
+
+## web devFor / devKart (patch 68): a kart's race settings (in a room every kart's, off line only yours)
+func dev_for(k: Kart) -> Dictionary:
+	return dev if not dev.is_empty() and (dev_all or k.is_player) else {}
+
+
+func dev_mul(k: Kart, key: String) -> float:
+	var D := dev_for(k)
+	return float(D.get(key, 1.0)) if not D.is_empty() else 1.0
+
+
+func dev_kart(k: Kart) -> void:
+	var D := dev_for(k)
+	if D.is_empty():
+		return
+	k.sm_spd *= float(D.get("spd", 1.0))
+	k.sm_acc *= float(D.get("acc", 1.0))
+	k.sm_hnd *= float(D.get("hnd", 1.0))
+	k.sm_wgt *= float(D.get("wgt", 1.0))
+	k.sm_off += float(D.get("off", 0.0))
+
+
+func _dev_ab(k: Kart) -> float:
+	var D := dev_for(k)
+	if D.is_empty():
+		return 1.0
+	return 1e6 if int(D.get("abilReady", 0)) == 1 else float(D.get("abil", 1.0))
 
 
 func standings() -> Array[Kart]:
@@ -1258,6 +1295,8 @@ func item_intent(k: Kart, it: String, o: Dictionary) -> void:
 
 
 func roll_item(pos: int) -> String:
+	if String(dev_local.get("item", "")) != "":
+		return String(dev_local["item"])   # (web patch 68: always this item)
 	if bb != null:
 		return bb.roll()   # web: if(BATTLE)return bbRoll(): only pepperoni, trio, meatball, flour and chili
 	if sb != null:
@@ -1325,6 +1364,8 @@ func use_item(k: Kart, back_in: bool) -> void:
 	var it := k.item
 	if it == "":
 		return
+	if k.is_player:
+		itm_used = true   # (web patch 64)
 	var back := it in DROPS or (back_in and not it in NOBACK)
 	if it == "garlic" or it == "garlic2":
 		k.item = k.item2
@@ -1578,6 +1619,8 @@ func hold_item(k: Kart, sl: int) -> bool:
 	if it == "" or not it in HOLDABLE or not k.held.is_empty():
 		return false
 	k.held = {"it": it, "sl": sl, "t": 0.0}
+	if k.is_player:
+		itm_used = true   # (web patch 64: holding one is using it)
 	k.item = k.item2
 	k.item2 = ""
 	fx.append({"t": "hold", "k": k, "it": it})
@@ -1657,6 +1700,8 @@ var cur_p: Dictionary = {}
 
 
 func spin_out(k: Kart, kind: String, world := false, force := false) -> bool:
+	if k.is_player and int(dev_local.get("inv", 0)) == 1:
+		return false   # (web patch 68: invincible)
 	if force:
 		# the Spiky Shockwave (web patch 37): misses karts in the air and anyone blinking after a hit, and only pops a Mozz shield
 		# (web patch 39: garlic no longer stops it; the kart spins and keeps its cloves)
@@ -1827,7 +1872,7 @@ func blast(x: float, y: float, r: float, owner: Kart, kind: String, force := fal
 func _ability_tick(dt: float) -> void:
 	for k in karts:
 		if state == "race" and not k.finished and k.ab_c < 1.0:
-			k.ab_c = minf(1.0, k.ab_c + dt / ABIL_TIME)
+			k.ab_c = minf(1.0, k.ab_c + dt / ABIL_TIME * _dev_ab(k))
 			if k.ab_c >= 1.0:
 				fx.append({"t": "ability_ready", "k": k})
 		if not k.ab_q.is_empty():

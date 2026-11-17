@@ -136,7 +136,7 @@ func _ready() -> void:
 	mn.shader = load("res://shaders/particle_mix.gdshader")
 	mn.set_shader_parameter("tex", smoke_tex)
 	fxa = Pool.new(560, ma, self)
-	fxn = Pool.new(260, mn, self)
+	fxn = Pool.new(420, mn, self)   # (web patch 65: thicker tyre smoke)
 	fxa.node.sorting_offset = 5.0
 	# rings: a flat annulus, added on top, fading as it grows
 	var ring_mesh := _annulus(0.82, 1.0, 56)

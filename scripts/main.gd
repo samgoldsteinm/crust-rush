@@ -1187,6 +1187,112 @@ var sbi_inv := {}       # an invite on screen: {id, mi, t0, ans}
 var sbi_wait := {}      # asked, waiting for the answers: {mi, t0, n}
 var sbi_host := {}      # the host: the invite out: {id, mi, by, ans: {pid: bool}, t0}
 var sbi_pick_t := 0
+# ---- the developer options (web patch 68): DEVELOPER unlocks them; user://dev.json
+const DEV_DEF := {"on": 1, "spd": 1.0, "acc": 1.0, "hnd": 1.0, "wgt": 1.0, "off": 0.0, "drift": 1.0, "grav": 1.0, "abil": 1.0, "abilReady": 0, "cpu": 1.0,
+	"hz": {"traffic": 1, "train": 1, "walk": 1, "pool": 1, "city": 1}, "speed": 1.0, "fov": 58.0, "hud": 1, "fly": 0, "inv": 0, "item": "", "infPep": 0}
+var dev_u := false
+var dev := {}
+var _dev_l3 := false
+var race_pay := 0       # coins paid for this race (web patch 65 racePay)
+
+
+func _dev_load() -> void:
+	dev = DEV_DEF.duplicate(true)
+	var f := FileAccess.open("user://dev.json", FileAccess.READ)
+	if f != null:
+		var d = JSON.parse_string(f.get_as_text())
+		if d is Dictionary:
+			dev_u = bool((d as Dictionary).get("u", false))
+			for k in DEV_DEF:
+				if (d as Dictionary).has(k):
+					dev[k] = d[k]
+			var hz: Dictionary = DEV_DEF["hz"].duplicate()
+			if d.get("hz") is Dictionary:
+				hz.merge(d["hz"], true)
+			dev["hz"] = hz
+
+
+func _dev_save() -> void:
+	var d := dev.duplicate(true)
+	d["u"] = dev_u
+	var f := FileAccess.open("user://dev.json", FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(d))
+
+
+## web devR (off line) / devLocal / devPack
+func dev_race() -> Dictionary:
+	return dev if dev_u and int(dev.get("on", 1)) == 1 else {}
+
+
+func dev_here() -> Dictionary:
+	return dev if dev_u and int(dev.get("on", 1)) == 1 and net_role == "" and web.role == "" else {}
+
+
+func dev_pack():
+	var D := dev_race()
+	if D.is_empty():
+		return null
+	return {"spd": D["spd"], "acc": D["acc"], "hnd": D["hnd"], "wgt": D["wgt"], "off": D["off"], "drift": D["drift"], "grav": D["grav"], "abil": D["abil"],
+		"abilReady": 1 if int(D["abilReady"]) == 1 else 0, "cpu": D["cpu"], "hz": (D["hz"] as Dictionary).duplicate()}
+
+
+func _dev_frame() -> void:
+	var D := dev_here()
+	var racing := race != null and state == "race"
+	Engine.time_scale = float(D.get("speed", 1.0)) if (racing and not D.is_empty()) else 1.0
+	if hud_race != null and racing:
+		var show := D.is_empty() or int(D.get("hud", 1)) == 1
+		if hud_race.modulate.a != (1.0 if show else 0.0):
+			hud_race.modulate.a = 1.0 if show else 0.0
+	if D.is_empty() or not racing or kart == null:
+		return
+	if int(D.get("infPep", 0)) == 1 and not kart.finished and kart.item == "" and kart.held.is_empty():
+		kart.item = "pepperoni"
+	if int(D.get("fly", 0)) != 1 and kart.fly:
+		kart.fly = false
+	var pads := Input.get_connected_joypads()
+	var l3 := pads.size() > 0 and Input.is_joy_button_pressed(pads[0], JOY_BUTTON_LEFT_STICK)
+	if l3 and not _dev_l3:
+		_dev_fly_toggle()
+	_dev_l3 = l3
+
+
+func _dev_fly_toggle() -> void:
+	var D := dev_here()
+	if D.is_empty() or int(D.get("fly", 0)) != 1 or kart == null or state != "race":
+		return
+	kart.fly = not kart.fly
+	if kart.fly:
+		kart.wvy = 0.0
+		kart.spin = 0.0
+	_toast("Flying" if kart.fly else "Landing")
+
+
+func _dev_fly_axis() -> float:
+	var up := (1.0 if Keys.held("flyup") else 0.0) - (1.0 if Keys.held("flydown") else 0.0)
+	var pads := Input.get_connected_joypads()
+	if pads.size() > 0:
+		var ay := Input.get_joy_axis(pads[0], JOY_AXIS_LEFT_Y)
+		if absf(ay) > 0.2:
+			up -= ay
+	return clampf(up, -1.0, 1.0)
+
+
+## web racePay (patch 65): coins for a finished race, into the Sandbox save's purse
+func _race_pay() -> void:
+	if race == null or kart == null or kart.est or race_pay != 0:
+		return
+	var n := race.karts.size()
+	var p := kart.place if kart.place > 0 else n
+	var cm: float = {"small": 1.0, "medium": 1.2, "large": 1.5, "reverse": 1.5}.get(String(sel["cls"]), 1.0)
+	var amt := int(round((8.0 + maxf(0.0, n - p) * 3.0 + (10.0 if p == 1 else (5.0 if p == 2 else (2.0 if p == 3 else 0.0)))) * cm)) if n > 1 else 6
+	var sv := Sandbox.load_save()
+	sv["c"] = int(sv.get("c", 0)) + amt
+	Sandbox.keep()
+	race_pay = amt
+
+
 var hl_mode = null      # Sandbox's headlights by hand (web patch 54): null by themselves, true on, false off
 var sb_pdu := false     # the D-pad's up and down last frame, in Sandbox (read every frame)
 var sb_pdd := false
@@ -2054,6 +2160,9 @@ func _build_hud() -> void:
 		if state != "menu":
 			menu.visible = false)
 	menu.setting_changed.connect(func(k, v):
+		if k == "toast":
+			_toast(String(v))   # (the style shop's messages, web patch 65)
+			return
 		sel[k] = v
 		if k == "favs":
 			_save_settings()
@@ -2557,6 +2666,15 @@ func _start_race(cfg: Dictionary, bg := false) -> void:
 			_to_menu("This race is on %s, which isn't in your maps folder." % String(cfg["map"]))
 			return
 	race = Race.new()
+	race_pay = 0
+	# the developer options' race settings (web patch 68): in a room the host's (cfg "dev", every kart), off line yours (your kart only)
+	var wcfg: Dictionary = web.cfg if (web.role != "" and not web.cfg.is_empty()) else cfg
+	if not bg and (web.role != "" or net_role != "") and not wcfg.is_empty():
+		race.dev = (wcfg["dev"] as Dictionary).duplicate(true) if wcfg.get("dev") is Dictionary else {}
+		race.dev_all = true
+	elif not bg and cfg.is_empty():
+		race.dev = dev_race().duplicate(true)
+	race.dev_local = dev_here().duplicate(true) if (not bg and cfg.is_empty()) else {}
 	# Sandbox: only when it was asked for by a real start (never for the menu's background race), off line
 	race.sb_want = sb_next and cfg.is_empty() and net_role == "" and (web.role == "" or web.sbx)   # (web.sbx: a friends' room's Sandbox, web patch 46)
 	sb_next = false
@@ -2811,7 +2929,8 @@ func _progress_finish() -> void:
 	# the world leaderboard (scripts/lb.gd): every race counts, on line or off; alone = no other kart on the grid; no items = race.noitm
 	if lb != null and not test_drive and race.mode == "":
 		var bd: Dictionary = KartBuilder.info["bodies"][int(_my_build()["b"])] if KartBuilder.ready() else {}
-		lb.run(map_id, cls, kart.finish_time, kart.racer_name, String(bd.get("name", "Kart")), race.karts.size() == 1, race.noitm)
+		lb.run(map_id, cls, kart.finish_time, kart.racer_name, String(bd.get("name", "Kart")), race.karts.size() == 1, race.noitm or not race.itm_used)   # (web patch 64: no item used counts too)
+	_race_pay()
 	Ach.n_tracks = maxi(1, _n_tracks())   # (the tracks there are to race on: the Balloon Battle arena is not one)
 	Ach.race_done(kart.place, was_last, cls, kart.ri, map_id, gp)
 	_ach_toasts()
@@ -3428,6 +3547,8 @@ func _show_results() -> void:
 		else:
 			pbt = "Personal best %s · +%.2fs" % [_fmt(float(lr["old"])), float(lr["t"]) - float(lr["old"])]
 		v.add_child(menu.label(pbt, menu.f_bold, 15.0, Color("#7fe07a") if bool(lr["pb"]) else Color("#c2a58c")))
+	if race_pay > 0:
+		v.add_child(menu.label("+%d coins" % race_pay, menu.f_bold, 15.0, Color("#7fe07a")))   # (web patch 65)
 	var cols := menu.hbox(14)
 	v.add_child(cols)
 	var c1 := menu.vbox(5)
@@ -3683,7 +3804,8 @@ func _input_state() -> Dictionary:
 	# "look": the special goes behind you too (race.gd reads it for use_ability: Pepperoni Storm, School of Fish). It was never
 	# set here, so on the PC off line and when hosting every special went forward (the owner, 2026-11-16: "the pepperoni special
 	# ability needs to be able to go backwards as well"); the same as an item: looking back, or the left stick pulled back
-	var o := {"steer": clampf(steer, -1.0, 1.0), "brake": brake, "nb": nb, "mul": mul, "use": false, "back": false, "hold": false, "hold_sl": 1, "release": null, "look": aim_back}
+	var o := {"steer": clampf(steer, -1.0, 1.0), "brake": brake, "nb": nb, "mul": mul, "use": false, "back": false, "hold": false, "hold_sl": 1, "release": null, "look": aim_back,
+		"flyup": _dev_fly_axis() if kart != null and kart.fly else 0.0}
 	if race != null and race.sb != null:
 		# Sandbox: parked, or both brake pedals held on a touch screen: no throttle, and no brake either (held, it would
 		# reverse); sandbox.gd's tick takes the speed down to nothing (web playerInput: if(SBX&&sbStop()))
@@ -3865,6 +3987,9 @@ func _input(ev: InputEvent) -> void:
 					return
 				# Back to the track (web v212 patch 51: a key of its own, T by default): pauses and asks, as the pause menu's button does
 				# the headlights by hand (web patch 54: L by default)
+				if act == "fly" and racing:
+					_dev_fly_toggle()   # (web patch 68)
+					return
 				if act == "lights" and racing:
 					var now: bool = bool(hl_mode) if hl_mode != null else float(preload("res://scripts/sandbox_clock.gd").f(float(race.sb.save.get("t", 0.4)))["L"]) > 0.65
 					hl_mode = not now
@@ -3934,6 +4059,7 @@ func _zone(p: Vector2) -> String:
 func _process(dt: float) -> void:
 	if web != null:
 		web.poll()
+	_dev_frame()
 	_sbi_tick()
 	if fps_lbl != null:
 		fps_lbl.visible = fps_counter
@@ -4990,7 +5116,85 @@ func _settings_panel() -> Control:
 				menu.show_modal("set")
 			cb.pressed.connect(go)
 			ce.text_submitted.connect(go)
+			if dev_u:
+				_dev_rows(c, on_off)
 	return v
+
+
+## Settings > More: the developer rows (web devUI, the same table)
+func _dev_rows(c: Control, on_off: Array) -> void:
+	c.add_child(menu.section_label("Developer"))
+	# (sliders show their raw value: shares as percentages, the field of view in degrees)
+	var sl := func(lab: String, key: String, lo: float, hi: float, step: float, unit := "%") -> Array:
+		var v: float = float(dev[key])
+		if unit == "°":
+			return [lab, "", "dev_" + key, {"lo": lo, "hi": hi, "step": step, "fmt": "%d°", "mul": 1.0}, v]
+		return [lab, "", "dev_" + key, {"lo": lo * 100.0, "hi": hi * 100.0, "step": step * 100.0, "fmt": "%+d%%" if unit == "+" else "%d%%", "mul": 0.01}, v]
+	var tg := func(lab: String, key: String) -> Array:
+		var v: int = int(dev["hz"][key.substr(3)]) if key.begins_with("hz.") else int(dev[key])
+		return [lab, "", "dev_" + key, on_off, str(v)]
+	c.add_child(_set_rows([["Developer options", "Every setting below; off puts the game back to normal without losing them.", "dev_on", on_off, str(int(dev["on"]))]]))
+	c.add_child(menu.para("Race settings: yours off line (your vehicle only). In a room you host they go to everyone's karts at the start of each race; a guest's are not used there.", 13.0, Color("#c2a58c"), 720.0))
+	c.add_child(_set_rows([sl.call("Top speed", "spd", 0.5, 2.0, 0.05), sl.call("Acceleration", "acc", 0.25, 3.0, 0.05), sl.call("Handling", "hnd", 0.25, 3.0, 0.05),
+		sl.call("Weight", "wgt", 0.4, 2.5, 0.05), sl.call("Off-road grip", "off", -1.0, 2.0, 0.1, "+"), sl.call("Drift boost", "drift", 0.0, 3.0, 0.1), sl.call("Gravity", "grav", 0.2, 2.0, 0.05),
+		sl.call("Ability charge speed", "abil", 0.25, 10.0, 0.25), tg.call("Ability always ready", "abilReady"), sl.call("Rival skill", "cpu", 0.5, 1.5, 0.05)]))
+	c.add_child(menu.para("Mobs and obstacles: the moving hazards, on the tracks that have them. Also sent to everyone in a room you host.", 13.0, Color("#c2a58c"), 720.0))
+	c.add_child(_set_rows([tg.call("Traffic", "hz.traffic"), tg.call("Trains", "hz.train"), tg.call("Walkers", "hz.walk")]))
+	c.add_child(menu.para("This device (off line only).", 13.0, Color("#c2a58c"), 720.0))
+	c.add_child(_set_rows([sl.call("Game speed", "speed", 0.25, 2.0, 0.05), sl.call("Field of view", "fov", 40.0, 100.0, 1.0, "°"), tg.call("Show the HUD", "hud"),
+		tg.call("Flying (left stick press, or G)", "fly"), tg.call("Invincible", "inv"), tg.call("Unlimited pepperoni", "infPep")]))
+	var ir := menu.hbox(20)
+	var il := menu.label("Always this item", menu.f_bold, 16.0, Color("#fff4dc"))
+	il.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ir.add_child(il)
+	var ob := OptionButton.new()
+	ob.add_item("Normal boxes")
+	ob.set_item_metadata(0, "")
+	var its: Array = Race.ITEM_POWER.keys()
+	for i in its.size():
+		ob.add_item(String(ITEM_NAMES.get(its[i], Ach.ITEM_NAMES.get(its[i], its[i]))))
+		ob.set_item_metadata(i + 1, String(its[i]))
+		if String(its[i]) == String(dev["item"]):
+			ob.select(i + 1)
+	ob.item_selected.connect(func(ix):
+		dev["item"] = String(ob.get_item_metadata(ix))
+		_dev_save())
+	ir.add_child(ob)
+	c.add_child(ir)
+	var br := menu.hbox(10)
+	for b in [["+1000 coins", "coins"], ["Unlock the style shop", "shop"], ["Reset all", "reset"]]:
+		var bt := menu.button(String(b[0]), "ghost", 14.0, Vector4(14, 8, 14, 8))
+		var what := String(b[1])
+		bt.pressed.connect(func():
+			if what == "coins":
+				var sv := Sandbox.load_save()
+				sv["c"] = int(sv.get("c", 0)) + 1000
+				Sandbox.keep()
+				_toast("+1000 coins · %d now" % int(sv["c"]))
+			elif what == "shop":
+				preload("res://scripts/style.gd").own_all()
+				_toast("The whole style shop is yours")
+			else:
+				dev = DEV_DEF.duplicate(true)
+				_dev_save()
+				menu.show_modal("set"))
+		br.add_child(bt)
+	c.add_child(br)
+
+
+func _dev_set(key: String, val: String) -> void:
+	var v = float(val)
+	if key.begins_with("hz."):
+		(dev["hz"] as Dictionary)[key.substr(3)] = int(v)
+	elif key in ["on", "abilReady", "hud", "fly", "inv", "infPep"]:
+		dev[key] = int(v)
+	else:
+		dev[key] = v
+	_dev_save()
+	# racing alone: a vehicle setting at once (web devSet -> devKart)
+	if race != null and kart != null and state == "race" and net_role == "" and web.role == "":
+		race.dev = dev_race().duplicate(true)
+		race.dev_local = dev_here().duplicate(true)
 
 
 var cheat_msg := ""
@@ -5001,7 +5205,13 @@ var test_drive := false     # the TESTING code: your kart drives itself
 ## web applyCheat
 func _apply_cheat(code: String) -> void:
 	var c := code.strip_edges().to_upper()
-	if c == "UNLOCK":
+	if c == "DEVELOPER":
+		dev_u = not dev_u
+		_dev_save()
+		cheat_ok = true
+		cheat_msg = "Developer options unlocked: they are just below this box. Enter DEVELOPER again to hide them." if dev_u else "Developer options hidden."
+		sfx.play("lap", 0.8, 1.2)
+	elif c == "UNLOCK":
 		Ach.cheat = true
 		cheat_ok = true
 		cheat_msg = "Unlocked! Every achievement, livery, car, track and reward item is open until you close the game. Your real progress is untouched."
@@ -5259,6 +5469,9 @@ func _set_rows(rows: Array) -> Control:
 
 
 func _apply_setting(key: String, val: String) -> void:
+	if key.begins_with("dev_"):
+		_dev_set(key.substr(4), val)
+		return
 	match key:
 		"q":
 			quality = int(val)
@@ -5444,6 +5657,7 @@ var opt_kmh := false
 
 
 func _load_settings() -> void:
+	_dev_load()   # (web patch 68: the developer options keep their own file)
 	var cf := ConfigFile.new()
 	if cf.load("user://settings.cfg") != OK:
 		Keys.load_from(null)
