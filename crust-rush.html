@@ -614,6 +614,9 @@ body.sbshop #sbPark,body.sbshop #sbSpd,body.sbshop #sbHud,body.sbshop #sbMapBtn,
 .cheat-f input:focus{outline:2px solid var(--cheese);outline-offset:1px}
 .cheat-f .cta{flex:none;padding:10px 16px;font-size:14px}
 .cheat-msg{margin:4px 0 0;font-size:13px;min-height:1.2em}
+.dev .g-sub{margin:16px 2px 4px}.dev-note{margin:0 2px 6px;font-size:12px;color:var(--muted)}.dev select{padding:8px 10px;border-radius:10px;background:rgba(14,7,4,.55);color:var(--cream);border:1px solid rgba(255,244,220,.2);font:600 14px inherit}
+.dev-btns{display:flex;flex-wrap:wrap;gap:8px}.dev-btns .cta{padding:9px 14px;font-size:13px}
+body.devnohud .hud{display:none!important}
 .cheat-msg.ok{color:var(--cheese)}.cheat-msg.no{color:#ff9a8a}
 .cheat-tag{font-style:normal;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;border-radius:6px;background:var(--cheese);color:#2a1408;margin-left:6px}
 
@@ -1018,6 +1021,7 @@ body.pad .ph{display:grid}.ph.a{background:#3fa641}.ph.b{background:#d93a2f}.ph.
          <form id="cheatF" class="cheat-f" autocomplete="off"><input id="cheatIn" type="text" inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="24" placeholder="Code" aria-label="Cheat code"><button class="cta" type="submit">Enter</button></form></div>
        <p id="cheatMsg" class="cheat-msg" role="status" aria-live="polite"></p>
      </section>
+     <section class="set-group dev" data-cat="more" id="devSec" hidden><h3 class="label">Developer</h3><div id="devBody"></div></section>
   </div>
 </div>
 
@@ -4298,7 +4302,8 @@ function pondRespawn(k){const q=k.sinkP,j=(k.idx-5+N)%N,p=track[j],lat=q?-q.sd*1
 function pondTick(dt){for(const k of karts){if(k.sink!=null){k.sink-=dt;k.sinkT+=dt;k.speed*=Math.pow(.02,dt);if(k.sink<=0)pondRespawn(k);continue;}
     if(!PONDS.length||k.air||k.loop||k.glide||k.z>3)continue;const q=inPond(k.x,k.y,-5);if(q)pondFall(k,q);}}
 
-function buildHazards(def,R,ctx){HAZ={traffic:[],train:null,walk:[],pool:[],city:[]};const set=HZSET[def.id]||[];
+let HZBUILT='';function hzSig(){const D=devR();return D&&D.hz?JSON.stringify(D.hz):'';}
+function buildHazards(def,R,ctx){HZBUILT=hzSig();HAZ={traffic:[],train:null,walk:[],pool:[],city:[]};const set=(HZSET[def.id]||[]).filter(k=>{const D=devR();return !D||!D.hz||D.hz[k]!==0;});/* (patch 68: a hazard switched off in the developer options) */
   for(const k of set){try{({traffic:buildTraffic,train:buildTrain,walk:buildWalkers,pool:buildPonds,city:buildCity})[k](def,ctx);}catch(e){console.warn('hazard',k,e);}}}
 function resetHazards(){HZT0=simTime;NET.hz0=false;for(const c of HAZ.traffic){c.s=c.s0;c.lat=c.lat0;}if(HAZ.train)hzTrainAt(HAZ.train,0);}
 function hzBump(k,x,y,r,kind){const dx=k.x-x,dy=k.y-y,d=Math.hypot(dx,dy)||1;if(d>=r)return false;const ov=r-d;k.x+=dx/d*ov;k.y+=dy/d*ov;
@@ -7778,10 +7783,25 @@ function makeKart(ri,slot,isPlayer,diff,build){
   const k={r:RACERS[ri],ri,m,spec,col:PAINTS[build.p]||RACERS[ri].color,sm:statMods(build),glide:false,gRings:0,x:p.x+p.nx*lat,y:p.y+p.ny*lat,a:p.ang,ma:p.ang,speed:0,steer:0,drift:0,charge:0,boost:0,spin:0,inv:0,z:0,zv:0,pen:1,brake:0,acc:0,sf:2,
     gripT:0,dHold:0,item:null,item2:null,pend:[],roll:0,shield:0,mzH:0,rush:0,frozen:0,idx,prog:idx-N,finished:false,finishTime:0,place:0,isPlayer,auto:!isPlayer,wrongT:0,fx:0,air:false,onRamp:false,trick:false,trickT:0,pd:false,
     ai:{lane:lat,laneTarget:lat,laneT:1+Math.random()*3,skill:sk,itemDelay:0,inBend:false}};
+  try{devKart(k,isPlayer);const D=devR();if(D&&!isPlayer)k.ai.skill*=D.cpu;}catch(e){}/* (patch 68: developer options) */
   k.wy=k.lastG=kGround(k);k.pwy=k.wy;k.wvy=0;k.gRate=0;k.loop=null;k.loopTh=0;k.pth=0;k.px=k.x;k.py=k.y;k.pa=k.a;k.pma=k.ma;k.pz=0;k.rx=k.x;k.ry=k.y;k.rz=k.wy;k.rg=k.wy;k.rma=k.ma;return k;
 }
 /* races without items (patch 47): every item switched off in the guide; NOITM is this race's (set by resetRace) */
-let NOITM=false,ITMUSED=false,RPAY=0,RDEMO=false;/* (patch 65: coins paid for this race) *//* (patch 64: did the player use an item this race) */function itemsOff(){return !ITEM_LIST.some(itemOn);}
+let NOITM=false,ITMUSED=false,RPAY=0,RDEMO=false;
+/* (patch 68) developer options: DEVU unlocked (cheat DEVELOPER); DEV the settings */
+let DEVU=store.get('crust-dev-on')==='1';
+const DEVDEF={on:1,spd:1,acc:1,hnd:1,wgt:1,off:0,drift:1,grav:1,abil:1,abilReady:0,cpu:1,hz:{traffic:1,train:1,walk:1,pool:1,city:1},speed:1,fov:58,hud:1,fly:0,inv:0,item:'',infPep:0};
+let DEV=(()=>{let v={};try{v=JSON.parse(store.get('crust-dev')||'{}')||{};}catch(e){}const d=Object.assign({},DEVDEF,v);d.hz=Object.assign({},DEVDEF.hz,v.hz||{});return d;})();
+function devSave(){store.set('crust-dev',JSON.stringify(DEV));}
+/* the race settings in force: in a room the host's (cfg.dev), off line yours; null when off */
+function devR(){if(NET.cfg)return NET.cfg.dev||null;return DEVU&&DEV.on?DEV:null;}
+/* this device only: off line, never in a room */
+function devLocal(){return !NET.cfg&&!NET.role&&DEVU&&DEV.on?DEV:null;}
+/* a kart's race settings: in a room every kart's; off line only yours */
+function devFor(k){const D=devR();return D&&(NET.cfg||k===player)?D:null;}
+/* what the host sends: the race settings only */
+function devPack(){if(!(DEVU&&DEV.on))return null;const D=DEV;return {spd:D.spd,acc:D.acc,hnd:D.hnd,wgt:D.wgt,off:D.off,drift:D.drift,grav:D.grav,abil:D.abil,abilReady:D.abilReady?1:0,cpu:D.cpu,hz:Object.assign({},D.hz)};}
+function devKart(k,isP){const D0=devR(),D=D0&&(NET.cfg||isP||k===player)?D0:null;k.sm0=k.sm0||k.sm;k.sm=Object.assign({},k.sm0);if(!D)return;k.sm.spd*=D.spd;k.sm.acc*=D.acc;k.sm.hnd*=D.hnd;k.sm.wgt*=D.wgt;k.sm.off+=D.off;}/* (patch 65: coins paid for this race) *//* (patch 64: did the player use an item this race) */function itemsOff(){return !ITEM_LIST.some(itemOn);}
 function itmNote(){const e=$('itmNote'),sec=$('itmSec');if(!e)return;if(sec)sec.hidden=mode==='lss'||mode==='bb'||mode==='sb';document.querySelectorAll('#itmSeg button').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.i==='0')===itemsOff())));e.textContent=(NET.role==='guest'?'The host chooses. ':NET.role==='host'?'Your friends race with yours. ':'')+(itemsOff()?'No item boxes: just driving. Times go on the No items leaderboards':ITEM_LIST.every(k=>!itemUnlocked(k)||itemOn(k))?'Item boxes on the track':'Item boxes on the track (some items switched off in the guide)');}
 let CPUS=(()=>{const v=parseInt(store.get('crust-cpus'),10);return isNaN(v)?7:clamp(v,0,7);})();
 /* how many computer racers this race has (patch 35) */
@@ -7864,14 +7884,14 @@ function itemOdds(pos,n){const f=n>1?pos/(n-1):0,target=1+f*4,out={};
     const d=w-target;out[k]=Math.exp(-d*d/(2*.85*.85))*(k==='wheel'?.55:1);}
   return out;}
 let WHEEL_N=0,WHEEL_AT=-99;
-function rollItem(pos){if(BATTLE||SBX)return bbRoll();if(!ITEM_LIST.some(itemOn))return 'pepperoni';const t=itemOdds(pos,(typeof karts!=='undefined'&&karts.length)||8);let sum=0;for(const k in t)sum+=t[k];let r=Math.random()*sum;for(const k in t){r-=t[k];if(r<=0){if(k==='wheel'){WHEEL_N++;WHEEL_AT=raceTime;}return k;}}return 'pepperoni';}
+function rollItem(pos){{const D=devLocal();if(D&&D.item)return D.item;}/* (patch 68: always this item) */if(BATTLE||SBX)return bbRoll();if(!ITEM_LIST.some(itemOn))return 'pepperoni';const t=itemOdds(pos,(typeof karts!=='undefined'&&karts.length)||8);let sum=0;for(const k in t)sum+=t[k];let r=Math.random()*sum;for(const k in t){r-=t[k];if(r<=0){if(k==='wheel'){WHEEL_N++;WHEEL_AT=raceTime;}return k;}}return 'pepperoni';}
 
 /* ---------- input ---------- */
 const keys={left:false,right:false,drift:false,brake:false,look:false};let itemQueued=null;
 /* ---- keyboard keys: every racing action can be moved to any key (Settings, Controls). Up to three keys per action,
    saved on this device. Esc always pauses unless it has been given another job. */
-const KB_ACTS=[['left','Steer left'],['right','Steer right'],['brake','Drift / brake'],['item1','Use first item'],['item2','Use second item'],['hold','Keep item behind'],['ability','Special ability'],['look','Look back'],['pause','Pause'],['sbback','Back to the track (Sandbox)'],['lights','Headlights (Sandbox)']];/* (patch 51: sbback) */
-const KB_DEF={left:['ArrowLeft','KeyA'],right:['ArrowRight','KeyD'],brake:['Space','ArrowDown','KeyS'],item1:['KeyX','KeyE','Enter'],item2:['KeyZ','KeyQ','KeyV'],hold:['ShiftLeft','ShiftRight','KeyB'],ability:['KeyC','KeyR'],look:['KeyF'],pause:['KeyP'],sbback:['KeyT'],lights:['KeyL']};
+const KB_ACTS=[['left','Steer left'],['right','Steer right'],['brake','Drift / brake'],['item1','Use first item'],['item2','Use second item'],['hold','Keep item behind'],['ability','Special ability'],['look','Look back'],['pause','Pause'],['sbback','Back to the track (Sandbox)'],['lights','Headlights (Sandbox)'],['fly','Fly (developer)'],['flyup','Fly up (developer)'],['flydown','Fly down (developer)']];/* (patch 51: sbback) */
+const KB_DEF={left:['ArrowLeft','KeyA'],right:['ArrowRight','KeyD'],brake:['Space','ArrowDown','KeyS'],item1:['KeyX','KeyE','Enter'],item2:['KeyZ','KeyQ','KeyV'],hold:['ShiftLeft','ShiftRight','KeyB'],ability:['KeyC','KeyR'],look:['KeyF'],pause:['KeyP'],sbback:['KeyT'],lights:['KeyL'],fly:['KeyG'],flyup:['KeyI','PageUp'],flydown:['KeyK','PageDown']};
 let KEYB={},KEYC={};
 function kbLoad(){let v=null;try{v=JSON.parse(store.get('crust-keys')||'null');}catch(e){}KEYB={};for(const [a] of KB_ACTS){const l=v&&Array.isArray(v[a])?v[a].filter(c=>typeof c==='string'&&c).slice(0,3):null;KEYB[a]=l||KB_DEF[a].slice();}kbIndex();}
 function kbIndex(){KEYC={};for(const [a] of KB_ACTS)for(const c of KEYB[a])if(!KEYC[c])KEYC[c]=a;}
@@ -7881,14 +7901,14 @@ function kbName(c){if(!c)return '';const M={ArrowLeft:'\u2190',ArrowRight:'\u219
     Backquote:'`',Minus:'-',Equal:'=',BracketLeft:'[',BracketRight:']',Backslash:'\\',Semicolon:';',Quote:"'",Comma:',',Period:'.',Slash:'/',NumpadEnter:'Num Enter',PageUp:'Page Up',PageDown:'Page Down',Insert:'Insert',Delete:'Delete',Home:'Home',End:'End'};
   if(M[c])return M[c];if(/^Key[A-Z]$/.test(c))return c.slice(3);if(/^Digit\d$/.test(c))return c.slice(5);if(/^Numpad/.test(c))return 'Num '+c.slice(6);return c.replace(/([a-z])([A-Z])/g,'$1 $2');}
 function kbList(a){const l=KEYB[a].map(kbName);return l.length?(l.length>1?l.slice(0,-1).join(', ')+' or '+l[l.length-1]:l[0]):'not set';}
-const KB_HELD={left:1,right:1,brake:1,look:1};
+const KB_HELD={left:1,right:1,brake:1,look:1,flyup:1,flydown:1};
 addEventListener('keydown',e=>{if(e.target.closest&&e.target.closest('.overlay'))return;const a=KEYC[e.code];
   if(a==='look'){keys.lookKey=true;keys.look=true;e.preventDefault();}
   else if(a&&KB_HELD[a]){keys[a]=true;e.preventDefault();}
   else if(a==='item1'){if(!e.repeat)itemQueued='fwd';e.preventDefault();}
   else if(a==='item2'){if(!e.repeat)itemQueued='fwd2';e.preventDefault();}
   else if(a==='hold'){if(!e.repeat)itemQueued='hold';e.preventDefault();}
-  else if(a==='ability'){if(!e.repeat)abilQueued=true;e.preventDefault();}else if(a==='lights'){if(!e.repeat&&SBX){const now=SB.hl==null?(sbClockF().L>.65):SB.hl;SB.hl=!now;showBanner(SB.hl?'Headlights on':'Headlights off',1.1,'sm');}e.preventDefault();}/* (patch 54) */else if(a==='sbback'){if(!e.repeat&&SBX&&state==='race'&&!SB.trav){togglePause();sbBackAsk(true);}e.preventDefault();}/* (patch 51) */
+  else if(a==='ability'){if(!e.repeat)abilQueued=true;e.preventDefault();}else if(a==='fly'){if(!e.repeat)devFlyToggle();e.preventDefault();}else if(a==='lights'){if(!e.repeat&&SBX){const now=SB.hl==null?(sbClockF().L>.65):SB.hl;SB.hl=!now;showBanner(SB.hl?'Headlights on':'Headlights off',1.1,'sm');}e.preventDefault();}/* (patch 54) */else if(a==='sbback'){if(!e.repeat&&SBX&&state==='race'&&!SB.trav){togglePause();sbBackAsk(true);}e.preventDefault();}/* (patch 51) */
   else if(a==='pause'||(!a&&e.code==='Escape')){if(!e.repeat)togglePause();}});
 addEventListener('keyup',e=>{const a=KEYC[e.code];if(a==='look'){keys.lookKey=false;if(!document.getElementById('lookBtn')||!document.getElementById('lookBtn').classList.contains('on'))keys.look=false;}else if(a&&KB_HELD[a])keys[a]=false;});
 /* the remap list in Settings: tap a key box, then press the new key (Esc cancels, Backspace or Delete clears the box) */
@@ -8263,7 +8283,7 @@ function blockedCallout(p){const it=PROJ_ITEM[p.type];if(!it)return;if(!_hitEl){
   _hitEl.classList.remove('on');void _hitEl.offsetWidth;_hitEl.classList.add('on');clearTimeout(_hitT);_hitT=setTimeout(()=>_hitEl.classList.remove('on'),1400);}
 
 const OLIVE_T=2.6;const abInv=k=>k.pestoT>0||k.chiliT>0||k.megaT>0||k.oliveT>0;/* Mega Shroom is unstoppable too *//* Pesto Rush and Chili's Fire Trail: nothing can touch you */
-function spinOut(k,kind,world,force){/* force: the Spiky Shockwave: through ability boosts and Delivery Rush; a shield is popped instead (patch 37) */
+function spinOut(k,kind,world,force){if(k===player&&devLocal()&&devLocal().inv)return false;/* (patch 68: invincible) *//* force: the Spiky Shockwave: through ability boosts and Delivery Rush; a shield is popped instead (patch 37) */
   if(force){if(k.loop||k.air||k.glide||k.inv>0)return false;/* (patch 37) the Shockwave misses karts in the air and anyone blinking after a hit, and only pops a Mozz shield (patch 39: garlic no longer stops it) */if(k.shield>0&&k.mzH>0){k.shield=0;k.mzH=0;k.absT=.6;const gy=(k.wy||0)+7;burst(k.x,gy,k.y,30,['#fbf5e6','#fff2cf','#ffd23a'],90,2.8);spawnRing(k.x,gy,k.y,'#ffd23a',50,.45);if(k===player){SFX.clash(.7);shake(.3);}return false;}k.absT=0;}
   else{if(k.inv>0||k.rush>0||abInv(k)||k.ghostT>0||k.absT>0)return false;
   if(!world&&(k.air||k.glide||k.loop))return false;}/* items never hit a kart in the air */
@@ -8648,7 +8668,7 @@ function useAbility(k,back){if(BATTLE&&!SBX)return;const id=abilKey(k),A=ABIL[id
   else if(id==='shroom'){k.megaT=MEGA_T;k.boost=Math.max(k.boost,.55);k.speed=Math.max(k.speed,Math.min(k.speed+12,BASE_MAX*1.15));k.pBoost=k.boost;k.bAge=9;k.bPk=k.boost;/* a small surge, about a first-tier drift boost: enough to catch the kart just ahead and squash it */}
   else if(id==='pineapple'){blast(k.x,k.y,150,k,'pep','#ffd23a',true);/* a huge forced blast: the one hit that goes through every protection, and it reaches karts in the air */k.inv=Math.max(k.inv,.6);}
   else if(id==='anchovy'){for(let j=1;j<=2;j++){const tg=st[back?i+j:i-j];/* (patch 39: two, was three) looking back: the two behind you */const sp=360+Math.max(0,k.speed),an=k.a+(back?Math.PI:0)+(j-1.5)*.25;projectiles.push({type:'torp',custom:1,x:k.x+Math.cos(an)*12,y:k.y+Math.sin(an)*12,vx:Math.cos(an)*sp,vy:Math.sin(an)*sp,t:tg?600:8,sure:tg?1:0,owner:k,safe:.3,b:0,target:tg||null,mesh:itemMesh('torpedo')});}SFX.torpedo(v||.4);}}
-function abilityTick(dt){for(const k of karts){if(state==='race'&&!k.finished&&!(k.abC>=1)){k.abC=Math.min(1,(k.abC||0)+dt/ABIL_TIME);if(k===player&&k.abC>=1){SFX.ready();abilBtn&&abilBtn.classList.add('ready');}}
+function abilityTick(dt){for(const k of karts){if(state==='race'&&!k.finished&&!(k.abC>=1)){k.abC=Math.min(1,(k.abC||0)+dt/ABIL_TIME*(devFor(k)?(devFor(k).abilReady?1e6:devFor(k).abil):1));if(k===player&&k.abC>=1){SFX.ready();abilBtn&&abilBtn.classList.add('ready');}}
     if(k.abQ&&k.abQ.length){for(const q of k.abQ)q[0]-=dt;while(k.abQ.length&&k.abQ[0][0]<=0)k.abQ.shift()[1]();}
     if(k.fireT>0){k.fireT-=dt;k.fireAcc=(k.fireAcc||0)+dt;if(k.fireAcc>.12){k.fireAcc=0;hazards.push({x:k.x-Math.cos(k.ma)*16,y:k.y-Math.sin(k.ma)*16,t:2.2,born:0,owner:k,armed:false,kind:'fire',mesh:fireMesh()});}}
     if(k.megaT>0)k.megaT-=dt;if(k.flatT>0)k.flatT-=dt;if(k.flatImm>0)k.flatImm-=dt;if(k.pestoT>0)k.pestoT-=dt;if(k.chiliT>0)k.chiliT-=dt;if(k.oliveT>0)k.oliveT-=dt;if(k.abFx>0)k.abFx-=dt;
@@ -8699,7 +8719,7 @@ function introCam(dt){const t=introT,sh=Math.min(INTRO_N-1,Math.floor(t/INTRO_SH
   else{/* swing in from in front of your kart to the chase camera */
     const k=player||camT,fx=Math.cos(k.ma),fy=Math.sin(k.ma),gy=gl(k.x,k.y)+(player&&MULTI?kEy(player):0),a0=Math.PI*(1-e),d=34-e*6,h=7+e*4;const dx=Math.cos(k.ma+a0),dz=Math.sin(k.ma+a0);
     camera.position.set(k.x-dx*d,gy+h,k.y-dz*d);camera.lookAt(k.x+fx*8*e,gy+5,k.y+fy*8*e);}
-  camera.up.set(0,1,0);if(Math.abs(camera.fov-58)>.1){camera.fov=58;camera.updateProjectionMatrix();}snapSun(camera.position.x,gl(camera.position.x,camera.position.z),camera.position.z);}
+  camera.up.set(0,1,0);const devFov=devLocal()?devLocal().fov:58;if(Math.abs(camera.fov-devFov)>.1){camera.fov=devFov;camera.updateProjectionMatrix();}snapSun(camera.position.x,gl(camera.position.x,camera.position.z),camera.position.z);}
 
 /* ================= TRACK DRESSING: string lights over the road and chevron boards on the bends ================= */
 function chevronTex(dir,night){const c=cnv(256,96),g=c.getContext('2d');g.fillStyle=night?'#1a1030':'#c8261b';g.fillRect(0,0,256,96);g.strokeStyle='#ffffff';g.lineWidth=5;g.strokeRect(4,4,248,88);
@@ -8760,7 +8780,7 @@ function buildDressing(def,ctx){const {pick,straight,farFrom,used}=ctx,night=def
 const DROPS=['oil','forks','boxes'];
 /* ---- holding an item behind you: it trails right behind the kart, eats the next hit that reaches you, and keeps its slot taken until it is fired, dropped or destroyed ---- */
 const HOLDABLE={pepperoni:'pep',dough:'dough',flour:'flour'};/* things you leave on the road (oil, forks, boxes) are never held: a tap drops them */
-function holdItem(k){const it=k.item;if(!it||!HOLDABLE[it]||k.held)return false;k.held={it,sl:k._sl||1,t:0,mesh:itemMesh(HOLDABLE[it])};k.item=k.item2;k.item2=null;if(k===player){SFX.ready();slotPing('pop');}return true;}
+function holdItem(k){const it=k.item;if(!it||!HOLDABLE[it]||k.held)return false;if(k===player)ITMUSED=true;/* (patch 64: holding one is using it) */k.held={it,sl:k._sl||1,t:0,mesh:itemMesh(HOLDABLE[it])};k.item=k.item2;k.item2=null;if(k===player){SFX.ready();slotPing('pop');}return true;}
 function dropHeld(k){const h=k.held;if(!h)return null;k.held=null;if(h.mesh){scene.remove(h.mesh);}return h.it;}
 function releaseHeld(k,back){const it=dropHeld(k);if(it)fireItem(k,it,back);}
 /* the held item takes the hit instead of you */
@@ -8788,7 +8808,16 @@ function useItem(k,back){
 }
 /* a person drives this kart: the local player, or (on the host) a friend's kart. Their karts must get identical physics on every phone, or the host's copy drives a different line and corrections make the kart jump. */
 function isHuman(k){return (k.isPlayer||!!k.netId)&&!k.auto;}
-function stepKart(k,inp,dt){
+/* (patch 68) the developer options each step, and flying */
+function devFrame(dt){const D=devLocal();document.body.classList.toggle('devnohud',!!(D&&!D.hud));if(!D||!player||state!=='race')return;
+  if(D.infPep&&!player.finished&&!player.item&&!player.held)player.item='pepperoni';if(!D.fly&&player.fly)player.fly=false;
+  if(typeof PAD!=='undefined'){try{const gps=navigator.getGamepads?navigator.getGamepads():[];let gp=null;for(const g of gps||[])if(g&&g.connected)gp=g;PAD.ay=gp?(Math.abs(gp.axes[1]||0)<.2?0:gp.axes[1]):0;}catch(e){}}}
+function devFlyToggle(){const D=devLocal();if(!D||!D.fly||!player||state!=='race')return;player.fly=!player.fly;if(player.fly){player.wvy=0;player.spin=0;}showBanner(player.fly?'Flying':'Landing',1,'sm');}
+function devFly(k,inp,dt){k.air=true;k.loop=null;k.drift=0;k.spin=0;k.charge=0;
+  const thr=inp.brake?-.45:(inp.mul>0?1:0);k.speed+=(thr*300-k.speed)*Math.min(1,dt*1.5);k.steer=inp.steer;k.a+=inp.steer*2.1*dt;k.ma=k.a;
+  const up=(keys.flyup?1:0)-(keys.flydown?1:0)-(PAD.act?(PAD.ay||0):0);k.wvy=(k.wvy||0)+(Math.max(-1,Math.min(1,up))*150-(k.wvy||0))*Math.min(1,dt*4);
+  k.x+=Math.cos(k.a)*k.speed*dt;k.y+=Math.sin(k.a)*k.speed*dt;k.wy=(k.wy||0)+k.wvy*dt;let g=0;try{g=kGround(k);}catch(e){}if(k.wy<g+1){k.wy=g+1;if(k.wvy<0)k.wvy=0;}k.z=0;k.zv=0;}
+function stepKart(k,inp,dt){if(k===player&&k.fly&&devLocal()&&devLocal().fly)return devFly(k,inp,dt);
   k.inv=Math.max(0,k.inv-dt);if(k.trickT>0)k.trickT-=dt;
   const dPress=inp.brake&&!k.pd;k.pd=inp.brake;if(k.gripT>0)k.gripT-=dt;
   if(k.loop){loopStep(k,dt);return;}
@@ -8821,7 +8850,7 @@ function stepKart(k,inp,dt){
     if(k.drift&&!dRel){k.dTime+=dt;if(inp.brake)k.dHold=(k.dHold||0)+dt;const sl=Math.abs(angDiff(k.a,k.ma)),hu=isHuman(k),st=Math.abs(hu?inp.steer:k.steer),up=hu&&!inp.brake&&(k.dHold||0)>.35&&!k.air;/* humans read the stick itself, not the smoothed steer. Held the button through the drift and let go: the boost fires within two ticks once the stick is mostly straight. Otherwise only a truly centred stick counts as straight (a gentle or quick drift keeps going): 0.3 s centred ends a tap drift, 0.5 s while the button is still held. AI unchanged. */if(k.dTime>(up?0:hu?.3*DROUT:.45)&&st<(up?.6:hu?.15:.3)&&(hu||sl<.14)){k.sT+=dt;if(k.sT>(up?.016:hu?(inp.brake?.5:.3)*DROUT:.3))dRel=true;}else k.sT=0;}/* you can let go of the steering mid-drift for a moment: the drift only ends after 1.5 s straight */
     if(k.drift){
       if(dRel||sp<35){const tier=k.charge>2.6?3:k.charge>1.6?2:k.charge>.8?1:0;
-        if(tier){k.boost=Math.max(k.boost,[0,.55,.9,1.3][tier]);k.speed=Math.max(k.speed,Math.min(k.speed+[0,10,15,22][tier],BASE_MAX*sm.spd*1.45));/* a small instant surge so the boost is felt the moment the drift ends */k.pBoost=k.boost;k.bAge=9;k.bPk=k.boost;k.fTier=tier;if(k===player){SFX.boost(tier);if(tier===3&&achMe(k))achAdd('drift3');}if(k===camT)shake(.15+tier*.05);}k.drift=0;k.charge=0;k.gripT=.25*DROUT;}
+        if(tier){k.boost=Math.max(k.boost,[0,.55,.9,1.3][tier]*(devFor(k)?devFor(k).drift:1));k.speed=Math.max(k.speed,Math.min(k.speed+[0,10,15,22][tier],BASE_MAX*sm.spd*1.45));/* a small instant surge so the boost is felt the moment the drift ends */k.pBoost=k.boost;k.bAge=9;k.bPk=k.boost;k.fTier=tier;if(k===player){SFX.boost(tier);if(tier===3&&achMe(k))achAdd('drift3');}if(k===camT)shake(.15+tier*.05);}k.drift=0;k.charge=0;k.gripT=.25*DROUT;}
       else{k.dAmt=Math.min(1,(k.dAmt||0)+dt*DRIN);const da=k.dAmt*k.dAmt*(3-2*k.dAmt);k.a+=k.steer*TURN*(tfN+(tfD-tfN)*da)*dt*dir;k.speed-=3*dt;k.charge+=dt*(.5+1*Math.abs(k.steer))*(.35+.65*da)*(k.sT>0?0:1);
         const tr=k.charge>2.6?3:k.charge>1.6?2:k.charge>.8?1:0;if(tr>(k.tier||0)){k.tier=tr;if(k===player)SFX.tier(tr);}}
     }else k.a+=k.steer*TURN*tfN*dt*dir;
@@ -8844,7 +8873,7 @@ function stepKart(k,inp,dt){
   if(k.air&&!k.glide&&k.onGlide&&!gR&&k.speed>20){startGlide(k);k.wvy=Math.max(30,k.wvy);}
   /* leaving a ramp always launches, even mid drift-hop, so a trick is always possible off a ramp */
   if(k.onRamp&&!onR&&k.speed>20&&k.air&&!k.big&&!k.glide&&k.z<4){k.air=false;}
-  if(k.air){k.airT+=dt;if(k.glide){k.wvy-=70*dt;const sk=-(k.gsink||15);if(k.wvy<sk)k.wvy+=(sk-k.wvy)*Math.min(1,dt*4);if(GLIDE){const gyy=glideY(k.x,k.y);if(G<gyy-20&&k.wy<gyy+6&&k.wvy<0)k.wvy*=.8;}glideRings(k);k.gH=k.wy-Math.max(G,glideY(k.x,k.y));}else k.wvy-=(k.big?(k.wvy>0?80:110):260)*dt;
+  if(k.air){k.airT+=dt;if(k.glide){k.wvy-=70*dt;const sk=-(k.gsink||15);if(k.wvy<sk)k.wvy+=(sk-k.wvy)*Math.min(1,dt*4);if(GLIDE){const gyy=glideY(k.x,k.y);if(G<gyy-20&&k.wy<gyy+6&&k.wvy<0)k.wvy*=.8;}glideRings(k);k.gH=k.wy-Math.max(G,glideY(k.x,k.y));}else k.wvy-=(k.big?(k.wvy>0?80:110):260)*dt*(devFor(k)?devFor(k).grav:1);
     k.wy+=k.wvy*dt;if(k.wy<=G){k.wy=G;k.air=false;if(k.big||k.glide)land(k);k.big=false;k.glide=false;k.wvy=rate;k.gRate=rate;}}
   else if(k.onRamp&&!onR&&k.speed>20&&!(SBX&&k.rBk>0)){k.air=true;k.big=true;k.airT=0;k.wvy=32+Math.min(Math.max(0,k.speed),BASE_MAX*1.6)*.05+(trainRamp(k)?30:0);/* the train crossing sits ~130 units past its ramp: this launch peaks at ~28 units about there, well over the wagons' crust roofs */k.speed=Math.max(k.speed,BASE_MAX*.9);k.trick=false;k.drift=0;
     if(k.onGlide)startGlide(k);
@@ -8889,7 +8918,7 @@ function glideRings(k){steerGlideRings(k);const G=GLIDE;if(!G||!G.rings)return;f
 function respawn(k){const j=(GLIDE.rj-24+N)%N,p=track[j],bk=SBX&&Math.cos(k.ma)*track[k.idx].tx+Math.sin(k.ma)*track[k.idx].ty<0;let di=j-k.idx;if(di>N/2)di-=N;if(di<-N/2)di+=N;k.prog+=di;k.idx=j;
   k.x=k.px=p.x;k.y=k.py=p.y;k.a=k.ma=k.pa=k.pma=p.ang+(bk?Math.PI:0);k.speed=BASE_MAX*.5;k.wy=k.pwy=k.lastG=groundAt(p.x,p.y)+(p.ey||0);k.wvy=0;k.gRate=0;k.air=false;k.big=false;k.glide=false;k.onRamp=k.onGlide=false;
   k.drift=0;k.charge=0;k.boost=0;k.spin=0;k.inv=3;k.z=k.pz=0;if(k===camT){camSnap=true;shake(.4);}if(k===player){SFX.bump(1);edgeFx('#ffffff',1);}spawnRing(p.x,k.wy+.6,p.y,'#7fe8ff',40,.6);}
-function update(dt){NET.inUpd=NET.role==='host'&&!!NET.cfg;try{update0(dt);}finally{NET.inUpd=false;}netHostTick();}
+function update(dt){try{devFrame(dt);}catch(e){}NET.inUpd=NET.role==='host'&&!!NET.cfg;try{update0(dt);}finally{NET.inUpd=false;}netHostTick();}
 function update0(dt){
   standCache=standings();simTime+=dt;achTick(dt);
   for(const r of rollers){const p=track[r.j];r.lat=Math.sin(simTime*1.05+r.ph)*(RW+6);r.x=p.x+p.nx*r.lat;r.y=p.y+p.ny*r.lat;
@@ -9233,7 +9262,7 @@ async function goRace(mi){if(raceLoading)return;{const ov=document.getElementByI
     if(m.toy&&!NET.role&&typeof PROP_PACKS!=='undefined'&&(mi!==mapIdx||rev!==curRev||LATE_BUILD)){/* a toy room's models are built in Blender and arrive after the menu: hold the loading screen for them (10 s at most; never on line) */
       const late=()=>Object.keys(PROP_PACKS).some(k=>k.startsWith('toy_')&&k.endsWith('_hq')&&!(PROP_PACKS[k].b||PROP_PACKS[k].d)),t0=performance.now();
       while(late()&&performance.now()-t0<10000){await step(8+Math.min(34,(performance.now()-t0)/300),'Setting out the room…');await new Promise(r=>setTimeout(r,120));}}
-    if(mi!==mapIdx||rev!==curRev||LATE_BUILD){mapIdx=mi;loadMap(mi,rev);}await step(45,'Spreading the sauce…');
+    if(mi!==mapIdx||rev!==curRev||LATE_BUILD||hzSig()!==HZBUILT){mapIdx=mi;loadMap(mi,rev);}/* (patch 68: built with other hazards switched off: build it again) */await step(45,'Spreading the sauce…');
     /* wait for every sky and texture image to finish decoding */
     await Promise.all(Object.values(PROPT).map(t=>t.image&&t.image.decode&&!t.image.complete?t.image.decode().catch(()=>{}):null));await step(60,'Seating the racers…');
     BASE_MAX=BASE0*CLASSES[clsKey].mul;startRace();state='loading';await step(78,'Firing up the oven…');
@@ -9534,8 +9563,35 @@ function renderAch(){const got=ACH.filter(achOn).length;
           :'<div class="ach-bar"><i style="width:'+(100*v/need).toFixed(1)+'%"></i></div><p class="ach-n">'+fmtAch(a,v)+' / '+fmtAch(a,need)+'</p>')+'</div></li>';}).join('');
   $('achGrid').querySelectorAll('.ach-eq').forEach(b=>b.onclick=()=>{playerBuild.t=b.dataset.lv;saveBuild();renderAch();});
   renderAchThumbs();}
+/* (patch 68) the developer section: rows built from DEVS; a change is saved and, off line while racing, applied to your vehicle at once */
+const DEVS=[['Race settings',"Yours off line (your vehicle only). In a room you host they go to everyone's karts at the start of each race; a guest's are not used there.",[
+    ['spd','Top speed',.5,2,.05],['acc','Acceleration',.25,3,.05],['hnd','Handling',.25,3,.05],['wgt','Weight',.4,2.5,.05],['off','Off-road grip',-1,2,.1,'+'],
+    ['drift','Drift boost',0,3,.1],['grav','Gravity',.2,2,.05],['abil','Ability charge speed',.25,10,.25],['abilReady','Ability always ready','t'],['cpu','Rival skill',.5,1.5,.05]]],
+  ['Mobs and obstacles','The moving hazards, on the tracks that have them. Also sent to everyone in a room you host.',[['hz.traffic','Traffic','t'],['hz.train','Trains','t'],['hz.walk','Walkers','t']]],
+  ['This device','Off line only.',[['speed','Game speed',.25,2,.05],['fov','Field of view',40,100,1,'°'],['hud','Show the HUD','t'],['fly','Flying (left stick press, or '+kbList('fly')+')','t'],['inv','Invincible','t'],['infPep','Unlimited pepperoni','t'],['item','Always this item','i']]]];
+function devGet(k){return k.startsWith('hz.')?DEV.hz[k.slice(3)]:DEV[k];}
+function devSet(k,v){if(k.startsWith('hz.'))DEV.hz[k.slice(3)]=v;else DEV[k]=v;devSave();if(!NET.cfg&&player&&state==='race'){try{devKart(player,true);}catch(e){}}}
+function devUI(){const sec=$('devSec'),b=$('devBody');if(!sec||!b)return;sec.hidden=!DEVU;if(!DEVU)return;
+  const tog=(k,on)=>'<div class="seg seg2 mini" data-dt="'+k+'"><button type="button" data-v="1" aria-pressed="'+!!on+'">On</button><button type="button" data-v="0" aria-pressed="'+!on+'">Off</button></div>';
+  let h='<div class="set-row"><div class="set-t"><b>Developer options</b><small>Every setting below; off puts the game back to normal without losing them.</small></div>'+tog('on',DEV.on)+'</div>';
+  for(const [title,note,rows] of DEVS){h+='<p class="g-sub">'+title+'</p><p class="dev-note">'+note+'</p>';
+    for(const r of rows){const [k,label,a,bb,st,unit]=r,v=devGet(k);
+      if(a==='t')h+='<div class="set-row"><div class="set-t"><b>'+label+'</b></div>'+tog(k,v)+'</div>';
+      else if(a==='i')h+='<div class="set-row"><div class="set-t"><b>'+label+'</b></div><select data-ds="'+k+'"><option value="">Normal boxes</option>'+ITEM_LIST.map(it=>'<option value="'+it+'"'+(v===it?' selected':'')+'>'+(HELP[it]?HELP[it][0]:it)+'</option>').join('')+'</select></div>';
+      else h+='<div class="set-row"><div class="set-t"><b>'+label+'</b></div><div class="vol"><input type="range" data-dk="'+k+'" min="'+a+'" max="'+bb+'" step="'+st+'" value="'+v+'"><output>'+(unit==='°'?v+'°':unit==='+'?(v>0?'+':'')+v:'×'+v)+'</output></div></div>';}}
+  h+='<p class="g-sub">Cheats</p><div class="set-row dev-btns"><button type="button" class="cta" data-dc="coins">+1000 coins</button><button type="button" class="cta" data-dc="shop">Unlock the style shop</button><button type="button" class="cta" data-dc="reset">Reset all</button></div>';
+  b.innerHTML=h;
+  b.querySelectorAll('[data-dt]').forEach(sg=>sg.querySelectorAll('button').forEach(bt=>bt.onclick=()=>{devSet(sg.dataset.dt,+bt.dataset.v);devUI();}));
+  b.querySelectorAll('input[data-dk]').forEach(r=>r.oninput=()=>{const k=r.dataset.dk,v=+r.value,o=r.nextElementSibling,row=DEVS.flatMap(x=>x[2]).find(x=>x[0]===k)||[];devSet(k,v);o.textContent=row[5]==='°'?v+'°':row[5]==='+'?(v>0?'+':'')+v:'×'+v;});
+  b.querySelectorAll('select[data-ds]').forEach(sl=>sl.onchange=()=>devSet(sl.dataset.ds,sl.value));
+  b.querySelectorAll('[data-dc]').forEach(bt=>bt.onclick=()=>{const c=bt.dataset.dc;
+    if(c==='coins'){const sv=sbSave();sv.c=(sv.c||0)+1000;sbKeep();achToast(null,'<b>+1000 coins</b> · '+sv.c+' now');}
+    else if(c==='shop'){const o=ownedSet();for(const sl of ['tr','gl','hl','sm']){const [g,L]=STYLE[sl];L.forEach((_,i)=>o.add(g+i));}store.set('crust-own',JSON.stringify([...o]));achToast(null,'The whole style shop is yours');}
+    else if(c==='reset'){DEV=Object.assign({},DEVDEF,{hz:Object.assign({},DEVDEF.hz)});devSave();devUI();}try{refreshGarage(false);}catch(e){}});}
+setTimeout(()=>{try{devUI();}catch(e){}},0);
 function applyCheat(code){const c=String(code||'').trim().toUpperCase(),m=$('cheatMsg');
-  if(c==='UNLOCK'){CHEAT=true;m.textContent='Unlocked! Every achievement, livery, car, track and reward item is open until you close the game. Your real progress is untouched.';m.className='cheat-msg ok';try{SFX.ring();}catch(e){}try{refreshGarage(false);}catch(e){}try{renderItemSet();}catch(e){}}
+  if(c==='DEVELOPER'){DEVU=!DEVU;store.set('crust-dev-on',DEVU?'1':'0');m.textContent=DEVU?'Developer options unlocked: they are just below this box. Enter DEVELOPER again to hide them.':'Developer options hidden.';m.className='cheat-msg ok';try{SFX.ring();}catch(e){}devUI();}
+  else if(c==='UNLOCK'){CHEAT=true;m.textContent='Unlocked! Every achievement, livery, car, track and reward item is open until you close the game. Your real progress is untouched.';m.className='cheat-msg ok';try{SFX.ring();}catch(e){}try{refreshGarage(false);}catch(e){}try{renderItemSet();}catch(e){}}
   else if(c==='TESTING'){TD.on=!TD.on;m.textContent=TD.on?'Auto-drive on: your kart drives itself perfectly and steering is ignored. About 10 seconds before a shortcut you choose to take it or skip it. Enter TESTING again to turn it off.':'Auto-drive off.';m.className='cheat-msg ok';try{SFX.ring();}catch(e){}}
   else{m.textContent=c?'That code does nothing.':'Type a code first.';m.className='cheat-msg no';}}
 function openAch(){achDirty&&achSave();renderAch();menu.hidden=true;$('achOv').hidden=false;$('achOv').scrollTop=0;}
@@ -10462,7 +10518,7 @@ function musTick(){if(!ac||!master)return;musInit();if(!MUS.bus)return;
    Phones find each other through a short room code over a relay server; the race data uses a direct link when one opens. */
 const NET={role:null,code:'',peer:null,conns:[],me:0,pl:[],cfg:null,fromNet:false,loaded:new Set(),tick:0,seq:0,hist:[],outQ:[],inQ:{},inS:{},inLast:{},ack:{},
   snaps:[],mir:new Map(),mirH:new Map(),mirList:[],fxQ:[],nid:0,inUpd:false,finSeen:false,lastRecv:0,goT:0,waitTimer:0,replay:false,abQ:false,relay:null,lastFl:0,unack:[],ackRx:0};
-const NET_PROTO=119;/* (119: web v217, four new kart bodies) *//* (118: patch 60, what a stat point counts for) *//* (117: patch 52, a Sandbox race from a start line with invites) *//* (patch 47: cfg.ni, a race without items) *//* bump when race messages or kart physics change: friends on different versions would drive differently */
+const NET_PROTO=120;/* (120: patch 68, the host's developer options in cfg.dev) *//* (119: web v217, four new kart bodies) *//* (118: patch 60, what a stat point counts for) *//* (117: patch 52, a Sandbox race from a start line with invites) *//* (patch 47: cfg.ni, a race without items) *//* bump when race messages or kart physics change: friends on different versions would drive differently */
 const NET_SLOTS=[4,3,5,2],NET_ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const netId=c=>'crustrush-v1-'+c.toUpperCase();
 const NET_REM=['x','y','a','ma','z','wy','speed','steer','drift','charge','boost','spin','air','glide','loopTh','onRamp','rush','shL','shield','mzH','sink','sinkT','trickK','trickT','frozen','acc','brake','dAmt','fx','prog','finished','place','finishTime','inv','big','ghostT','shrinkT','absT','idx','gRings','trick','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT','est','oliveT','bal','bbL','bbS','bbOut','bbDead','bbPlace'];/* (patch 45: Balloon Battle on line) */
@@ -10656,7 +10712,7 @@ function netBuildCfg(mi){const pl=NET.pl.filter(p=>p.id===0||p.conn&&p.conn.open
   for(let i=others.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[others[i],others[j]]=[others[j],others[i]];}
   const ks=[];const taken=new Set();pl.forEach((p,i)=>{const slot=NET_SLOTS[i];taken.add(slot);ks.push({slot,ri:p.id===0?selected:p.ri,build:p.id===0?playerBuild:(p.build||randomBuild(p.ri)),who:p.id,name:p.name});});
   {let nc=cpuCount(false);/* the host's count of computer racers fills the seats the friends leave (patch 35) */for(const s of [3,5,2,6,1,7,0,4]){if(nc<=0)break;if(taken.has(s))continue;const ri=others.shift()??(s%RACERS.length);ks.push({slot:s,ri,build:cpuBuilds[ri]||randomBuild(ri),who:-1});taken.add(s);nc--;}}
-  ks.sort((a,b)=>a.slot-b.slot);return {mi,cls:clsKey,mode,gp:gp?JSON.parse(JSON.stringify(gp)):null,karts:ks,ni:itemsOff()};}
+  ks.sort((a,b)=>a.slot-b.slot);return {mi,cls:clsKey,mode,gp:gp?JSON.parse(JSON.stringify(gp)):null,karts:ks,ni:itemsOff(),dev:devPack()};}/* (patch 68: the host's race settings) */
 /* the host has chosen the track: wait in the lobby until every friend is ready (they finish in the garage at their own pace) */
 function netHostPrepare(mi){NET.pendMap=mi;NET.pendAt=performance.now();NET.pl[0].ri=selected;NET.pl[0].build=playerBuild;netLobbySync();netShowLobby();
   clearInterval(NET.pendTick);NET.pendTick=setInterval(()=>{if(NET.pendMap==null||!mpOv||mpOv.hidden){clearInterval(NET.pendTick);return;}netLobbyRender();},1000);}
@@ -11007,6 +11063,7 @@ function padPoll(){let gps;try{gps=navigator.getGamepads?navigator.getGamepads()
   for(const g of gps||[])if(g&&g.connected&&(!gp||g.timestamp>gp.timestamp))gp=g;
   if(!gp){if(PAD.act){PAD.act=false;PAD.steer=0;PAD.brake=false;PAD.look=false;PAD.back=false;document.body.classList.remove('padnav','pad');}padCurOff();return;}
   const M=padMap(gp),P=PAD.prev,now=performance.now(),pr=i=>i!=null&&i>=0&&padBtn(gp,i),edge=i=>pr(i)&&!P[i];
+  if(edge(10))devFlyToggle();/* (patch 68: the left stick's press toggles flying) */
   const ax=gp.axes[0]||0,ay=gp.axes[1]||0,dz=.2,sx=Math.abs(ax)<dz?0:Math.sign(ax)*(Math.abs(ax)-dz)/(1-dz);
   let any=gp.buttons.some(b=>b&&b.pressed)||Math.abs(ax)>.5||Math.abs(ay)>.5;if(any){PAD.lastUse=now;if(!PAD.act){PAD.act=true;}}if(document.body.classList.contains('pad')!==PAD.act)document.body.classList.toggle('pad',PAD.act);
   const racing=(state==='race'||state==='countdown')&&!document.querySelector('.overlay:not([hidden])')&&pauseOv.hidden;
@@ -11185,7 +11242,7 @@ function frame(now){
   if(SB.warp){/* Sandbox: driving the tunnel while the next place is built (sandbox.js) */try{sbWarpFrame(dt,time);}catch(e){console.warn('sandbox warp',e);SB.warp=null;state='race';}}
   /* finish-line punch: a beat of slow motion (offline only: online the race runs on the host's clock) and a wide-angle kick in the camera */
   if(finPunch>0){finPunch+=dt;if(finPunch>.8)finPunch=0;}if(slowT>0){slowT-=dt;const ts=slowT>.5?.38:.38+.62*(1-slowT/.5);dt*=Math.max(.38,Math.min(1,ts));}
-  if(state==='menu'||state==='race'){acc+=dt;let n=0;const gs=NET.role==='guest'&&NET.cfg&&state==='race';while(acc>=STEP&&n<12){if(gs)netGuestStep(STEP);else update(STEP);acc-=STEP;n++;}if(n>=12)acc=0;alpha=acc/STEP;netFlush();netQUpdate();NETLOG.frame();NETLOG.tick();if(gs&&NET.snaps.length){/* other karts on a guest are drawn exactly at this frame's moment of the host's race (not blended between simulation steps), so every frame on a 144 Hz screen shows their motion */if(n===0)netInterp(player.finished?null:player);for(const o of karts)if(o!==player){o.px=o.x;o.py=o.y;o.pa=o.a;o.pma=o.ma;o.pwy=o.wy;o.pth=o.loopTh||0;}}
+  if(state==='menu'||state==='race'){acc+=dt*(state==='race'&&devLocal()?devLocal().speed:1);/* (patch 68: game speed) */let n=0;const gs=NET.role==='guest'&&NET.cfg&&state==='race';while(acc>=STEP&&n<12){if(gs)netGuestStep(STEP);else update(STEP);acc-=STEP;n++;}if(n>=12)acc=0;alpha=acc/STEP;netFlush();netQUpdate();NETLOG.frame();NETLOG.tick();if(gs&&NET.snaps.length){/* other karts on a guest are drawn exactly at this frame's moment of the host's race (not blended between simulation steps), so every frame on a 144 Hz screen shows their motion */if(n===0)netInterp(player.finished?null:player);for(const o of karts)if(o!==player){o.px=o.x;o.py=o.y;o.pa=o.a;o.pma=o.ma;o.pwy=o.wy;o.pth=o.loopTh||0;}}
     if(state==='race'){if(resLive>0&&!results.hidden&&NET.cfg){resLive-=dt;if(resLive<=0)renderResultsNet();}if(resultsAt>0){resultsAt-=dt;if(resultsAt<=0){if(SPEC.on)specExit(false);/* the results own the screen: close the pause menu and any settings opened from it, so the controller can't get stuck behind them */if(!setOv.hidden&&setFrom===pauseOv){setOv.hidden=true;setFrom=null;}pauseOv.hidden=true;results.hidden=false;renderResults();PAD.focEl=null;if(NET.cfg)NETLOG.stop();}}}}
   else if(state==='netwait'){alpha=1;netQUpdate();if(NET.role==='host'){netMaybeGo();if(state==='netwait'&&performance.now()-NET.waitTimer>45000){netAll({t:'go'});netGo();}}else if(NET.conns[0]&&!NET.conns[0].direct&&NET.conns[0].rtcSt!=='failed'&&(!NET.linkMsgT||performance.now()-NET.linkMsgT>400)){NET.linkMsgT=performance.now();showBanner('Linking with the host…',1,'sm');}if(NET.role==='guest'){const gs=NET.snaps.length;if(gs)netInterp(null);}}
   else if(state==='intro'){alpha=1;introT+=dt;if(introSkip||introT>=INTRO_SHOT*INTRO_N)endIntro();}

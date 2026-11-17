@@ -145,6 +145,19 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-17 (web v219, ONLINE 120: the PC must follow before it can race the web): developer options (patch 68)
+Unlocked by the cheat code DEVELOPER (again hides it); Settings > More, under the cheat box (devUI from the table DEVS). Store 'crust-dev'.
+- RACE settings (devR: off line yours, for YOUR kart only; in a room the HOST's, sent as cfg.dev = devPack() in netBuildCfg and applied
+  to EVERY kart on every screen): vehicle spd/acc/hnd/wgt (multipliers on k.sm) and off (added), drift boost (the tier boost x), gravity
+  (the 260 fall x), ability charge (dt/ABIL_TIME x; always ready), rival skill (k.ai.skill x), the world's MOVING hazards (HZSET kinds
+  traffic, train, walk only: ponds and city blocks are ground and buildings, and a hidden pond still swallowed karts; filtered in buildHazards; a track built with other switches is built again: HZBUILT vs hzSig() in goRace).
+  devKart(k, isPlayer) at kart creation (`player` is not yet that kart there) keeps k.sm0.
+- THIS DEVICE (devLocal: off line, never in a room): game speed (acc in frame), field of view, HUD (body.devnohud), invincible (spinOut),
+  always this item (rollItem), unlimited pepperoni (devFrame refills), flying: devFly replaces the player's stepKart; G / the left stick
+  press toggles (KB 'fly'), I / Page Up and K / Page Down (KB 'flyup' 'flydown', held) or the stick climb and descend. Cheats: +1000
+  coins, the whole style shop, reset.
+- tools/neon/devtest.py checks it all (DEV TEST passed). THE PC must apply cfg.dev the same (race settings) for online: NET_PROTO 120.
+
 ### 2026-11-17 (web v218, online still 119; PC NOT YET level): clean races count as No items, the style shop, coins for races
 | What broke | Why | Fix | Keep it fixed |
 |---|---|---|---|
