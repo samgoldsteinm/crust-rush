@@ -18,6 +18,8 @@ def rep(f, a, b, n=1):
 rep('main.gd', """	hud.sb_bar = SandboxActs.bar() if state == "race" and not sb_trav else []
 """, """	hud.sb_bar = SandboxActs.bar() if state == "race" and not sb_trav else []
 	hud.sb_arrow = _sb_del_arrow(sb) if not hud.sb_bar.is_empty() else []   # (pc74, web patch 74)
+	if hud.sb_bar.is_empty():
+		_sb_arrow3d(false)
 """)
 rep('main.gd', """const SandboxMap := preload("res://scripts/sandbox_map.gd")
 """, """const SandboxMap := preload("res://scripts/sandbox_map.gd")
@@ -68,7 +70,8 @@ func _sb_next_hop(from: String, to: String) -> String:
 ## (pc74, web sbDelAim / sbDelArrow) the delivery's arrow: [angle on the screen, what it points at]
 func _sb_del_arrow(sb) -> Array:
 	var A: Dictionary = SandboxActs.act
-	if A.is_empty() or String(A["a"]["kind"]) != "deliver" or kart == null or cam == null:
+	if A.is_empty() or String(A["a"]["kind"]) != "deliver" or kart == null or cam == null or sb_trav:
+		_sb_arrow3d(false)
 		return []
 	var to := String(A["a"]["to"])
 	var tx := 0.0
@@ -76,6 +79,7 @@ func _sb_del_arrow(sb) -> Array:
 	var say := ""
 	if String(sb.id) == to:
 		if not sb.has_flag:
+			_sb_arrow3d(false)
 			return []
 		tx = float(sb.flag[0])
 		tz = float(sb.flag[2])
@@ -87,16 +91,57 @@ func _sb_del_arrow(sb) -> Array:
 			if String(g["to"]) == hop:
 				gate = g
 		if gate == null:
+			_sb_arrow3d(false)
 			return []
 		tx = float(gate["x"])
 		tz = float(gate["z"])
 		var m := _map_info(hop)
 		say = "To " + String(m.get("name", hop))
-	var f := -cam.global_transform.basis.z
 	var dx := tx - kart.x
 	var dz := tz - kart.y
-	var ang := atan2(f.x * dz - f.z * dx, f.x * dx + f.z * dz)
-	return [ang, "%s · %d m" % [say, int(round(Vector2(dx, dz).length() * 0.25))]]
+	_sb_arrow3d(true, atan2(-dz, dx))
+	return [0.0, "%s · %d m" % [say, int(round(Vector2(dx, dz).length() * 0.25))]]
+
+
+## (pc74, web sbDel3D; the owner: "make the arrow a 3d orange arrow that changes direction based on where you need to go and the
+## direction the car is facing") a 3D orange arrow floating above the kart, turned in the world toward where to drive; it bobs a little
+var _sb_a3: Node3D = null
+func _sb_arrow3d(on: bool, yaw := 0.0) -> void:
+	if not on or kart == null or cam == null:
+		if _sb_a3 != null:
+			_sb_a3.visible = false
+		return
+	if _sb_a3 == null or not is_instance_valid(_sb_a3):
+		_sb_a3 = Node3D.new()
+		var poly := CSGPolygon3D.new()
+		poly.polygon = PackedVector2Array([Vector2(9, 0), Vector2(1.5, 5.6), Vector2(1.5, 1.7), Vector2(-5, 1.7), Vector2(-5, -1.7), Vector2(1.5, -1.7), Vector2(1.5, -5.6)])
+		poly.depth = 1.0
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color("#ff7a12")
+		m.emission_enabled = true
+		m.emission = Color("#ff5a00")
+		m.emission_energy_multiplier = 0.12   # (lit and shaded by the scene: the owner asked for lighting and shadows)
+		m.roughness = 0.35
+		poly.material = m
+		poly.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		poly.rotation = Vector3(-PI / 2.0, 0, 0)   # (the outline lies flat, pointing +x)
+		poly.position = Vector3(0, 0.8, 0)
+		var tilt := Node3D.new()
+		tilt.rotation = Vector3(0, 0, -0.75)
+		tilt.add_child(poly)
+		_sb_a3.add_child(tilt)
+		_sb_a3.scale = Vector3.ONE * 0.8
+	var host: Node = (view.views[kart]["g"] as Node3D).get_parent() if view != null and view.views.has(kart) else null   # (beside the kart's own model: the same space)
+	if host == null:
+		return
+	if _sb_a3.get_parent() != host:
+		if _sb_a3.get_parent() != null:
+			_sb_a3.get_parent().remove_child(_sb_a3)
+		host.add_child(_sb_a3)
+	_sb_a3.visible = true
+	var tt := Time.get_ticks_msec() / 1000.0
+	_sb_a3.position = Vector3(kart.x, kart.wy + 19.0 + sin(tt * 2.4) * 0.5, kart.y)
+	_sb_a3.rotation.y += wrapf(yaw - _sb_a3.rotation.y, -PI, PI) * 0.2
 """)
 rep('hud.gd', """var sb_bar: Array = []    # Sandbox: the one under way, [title, line, fraction, hurry]
 """, """var sb_bar: Array = []    # Sandbox: the one under way, [title, line, fraction, hurry]
@@ -111,19 +156,11 @@ rep('hud.gd', """		var fr := clampf(float(sb_bar[2]), 0.0, 1.0)
 		if sb_arrow.size() == 2:
 			# (pc74) the arrow and what it points at, under the bar (web patch 74)
 			var lt := String(sb_arrow[1])
-			var aw := _str_w(f_bold, lt, 13.0) + 52.0
+			var aw := _str_w(f_bold, lt, 13.0) + 28.0
 			var ax := W / 2.0 - aw / 2.0
 			var ay := y + 64.0
-			_rbox(ax, ay, aw, 40.0, Color(18.0 / 255, 9.0 / 255, 6.0 / 255, 0.7), Color(1, 0.957, 0.863, 0.35), 2.0, 12.0)
-			var c := Vector2(ax + 22.0, ay + 20.0) * s
-			var a := float(sb_arrow[0])
-			var rot := func(p: Vector2) -> Vector2: return c + p.rotated(a) * s
-			var pts := PackedVector2Array([rot.call(Vector2(0, -14)), rot.call(Vector2(11, 7)), rot.call(Vector2(0, 2)), rot.call(Vector2(-11, 7))])
-			draw_colored_polygon(pts, Color("#ffd65a"))
-			var ol := pts.duplicate()
-			ol.append(pts[0])
-			draw_polyline(ol, Color("#3a1a08"), 1.5 * s, true)
-			_text(f_bold, lt, ax + 40.0, ay + 12.0, 13.0, CREAM)
+			_rbox(ax, ay, aw, 30.0, Color(18.0 / 255, 9.0 / 255, 6.0 / 255, 0.7), Color(1, 0.957, 0.863, 0.35), 2.0, 12.0)
+			_text(f_bold, lt, ax + 14.0, ay + 7.0, 13.0, CREAM)
 """)
 print('pc74 applied')
 
@@ -148,3 +185,17 @@ func _special_top(top: float) -> float:
 		return maxf(top, 64.0 + 76.0 + 12.0 - 12.0 + 10.0)
 	return top""")
 print('pc74 (Sandbox special) applied')
+
+# the owner: "when doing a mission fast travel should not be allowed": the map's fast travel is refused while a delivery or a challenge is
+# under way (a Retry still goes back by fast travel: SandboxActs.retry)
+rep('main.gd', """func _sb_map_travel(id: String) -> void:
+	if id == "shop":""", """func _sb_map_travel(id: String) -> void:
+	if not SandboxActs.act.is_empty() and SandboxActs.retry == "":
+		_toast("No fast travel during a mission: drive there")   # (pc74)
+		return
+	if id == "shop":""")
+rep('main.gd', """	if SandboxActs.retry == "" and not SandboxActs.act.is_empty() and String(SandboxActs.act["a"]["kind"]) == "deliver":
+		SandboxActs.finish("cancel")   # (fast travel cannot finish a delivery)""", """	if SandboxActs.retry == "" and not SandboxActs.act.is_empty():
+		_toast("No fast travel during a mission: drive there")   # (pc74: refused, not the mission ended)
+		return""")
+print('pc74 (no fast travel) applied')

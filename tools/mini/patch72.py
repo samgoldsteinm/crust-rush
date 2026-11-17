@@ -24,7 +24,7 @@ def rep(a, b, n=1):
 
 # the garage: the glow's lights on, the rainbow cycling
 rep("  gModel.gl.rotation.z=Math.sin(performance.now()/700)*.05;frameGarageCam(",
-    "  gModel.gl.rotation.z=Math.sin(performance.now()/700)*.05;{/* (patch 72) the underglow in the garage: its lights on, a rainbow cycling */const ug=gModel.g.userData.ug;if(ug&&ug.on){const rc=ug.rb?rainbowC(performance.now()/1000,0):null;for(const l of ug.lights){l.intensity=1.6;if(rc)l.color.copy(rc);}if(rc){if(ug.pl)ug.pl.material.color.copy(rc);if(ug.pl2)ug.pl2.material.color.copy(rc);}}}frameGarageCam(")
+    "  gModel.gl.rotation.z=Math.sin(performance.now()/700)*.05;{/* (patch 72) the underglow in the garage: its lights on, a rainbow cycling */const ug=gModel.g.userData.ug;if(ug&&ug.on){const rc=ug.rb?rainbowC(performance.now()/1000,0):null;for(const l of ug.lights){l.intensity=.6;if(rc)l.color.copy(rc);}if(rc){if(ug.pl)ug.pl.material.color.copy(rc);if(ug.pl2)ug.pl2.material.color.copy(rc);}}}frameGarageCam(")
 # interior metal: not a black mirror
 rep("uTM:{value:new THREE.Vector4(t.m?.9:.25,t.m?(t.r||.22):.4,n.m?.85:0,n.m?.25:.6)}};",
     "uTM:{value:new THREE.Vector4(t.m?.9:.25,t.m?(t.r||.22):.4,n.m?.45:0,n.m?.28:.6)}};/* (patch 72: interior metal .45, not a black mirror) */")

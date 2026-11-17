@@ -24,21 +24,47 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
-### OPEN (the owner's asks of 2026-11-17, in progress; web patches 71-72 and pc71 written, NOT released)
-- Underglow (patch 71 / pc71): from the reference photos: lit under the sills, cut by each tyre into front / back / side sections,
-  a bright short fall plus soft ambient blur, a little more saturated. The owner liked "1 soft pool" and "2 core + halo" best; the track
-  pictures looked "airy, floating up the sides of the car" (the lights under the car lighting its flanks + the additive haze). Race glow
-  only when it should (dark). PC: "some of the light is super bright" (the released build's OmniLights at energy 2 in daylight light a big
-  disc on pale ground) and the released PC garage has no underglow at all (pc71 adds it). Web garage: the two lights reflect as beams on
-  the new glossy floor: keep them low.
-- Garage floor (patch 72 web; PC menu.gd still brown): a dark showroom floor so the glow reads.
-- Chrome interior black (patch 72: interior metal .45), trim on interior trim (class metal 7 added), rainbow in the garage (patch 72).
-- Silver trim does not look silver; trim must NOT change the rims: a separate Rims colour row.
-- Colour combos in the Colour tab: presets to pick or buy with coins; a combo may hold colours you can't afford alone, cheaper, but only
-  for the piece it is assigned to in that combo.
-- PC: car paints and colours "super flat": better lighting and reflections; sharpen the car models (hard edges, better angles). Show the
-  owner BEFORE / AFTER pictures of the cars before publishing.
-- Sandbox pizza delivery: an arrow (top of the screen) pointing the way to go.
+### 2026-11-17 (web v222 / PC, NOT released yet: waiting for the owner's OK on the PC before/after pictures)
+Web patches 71-77, PC pc71-pc77 (godot changes uncommitted until release_pc). Each patch file's docstring has the detail.
+- UNDERGLOW REMADE AS LED STRIPS (77 / pc77; replaces 71's picture). The owner's brief: realistic LED strips under the car, the same on PC
+  and web; the PC's was a big blurry pool, the web's an over-bright cyan with spots and streaks. Why they differed: the web had two
+  point lights reaching 120 units (two bright pools and, on the glossy floor, two long streaks) plus additive sheets; the PC a 40-range
+  light and a different sheet; the floors' own colours differ about 40x (the PC floor is texture x 0.17), so any light added over the
+  floor could never match. Now one sum on both (web ugLs, PC shaders/underglow.gdshaderinc, line for line): four strips (sills between
+  the wheels, both bumpers) each summed as a continuous line source (closed form, no spots), facing down and out, blocked by the tyres
+  (soft ray-through-footprint test), plus a little light bounced out from under the body; smooth-limited (1 - e^-t, never clips to
+  white) and ended with a margin (no edges). The strips sit at the car's sill height (ugParams: low 5% of the body between the wheels),
+  so a low supercar's glow is tight and a monster truck's wide. The numbers per body come from the web (tools/neon/ugtable.py ->
+  build/ug_params.json -> pc77 pastes view.gd UG_P): rerun both when a body changes. Garage: the floor itself is lit (floor colour x
+  light / the floor's colour at the middle, web ugFloorMat via onBeforeCompile, PC garage_floor.gdshader EMISSION), so the floor keeps
+  its look and both versions show the same glow whatever their floor's colour. The lights under the car are short (2.4 x half-width,
+  decay 2) and only tint the low panels. Colour: ugSat in sRGB HSL on both, ugComp evens brightness (blue lifted, pale cyan down).
+  Keep: no long-reach lights under the car; any change to the sum goes in BOTH ugLs and underglow.gdshaderinc. Pictures:
+  scratch/ug/ugqa.py (web) and scratch/ug/pcqa.sh (PC): six bodies, six colours, three angles.
+- Underglow (71 / pc71, superseded by 77): ugTex / View.ug_tex from the body's footprint and its wheels: a bright fall past the sill plus a soft ambient one,
+  cut beside each tyre into sections (the owner's photos: "the light will shine behind the wheels but not on the ground"), colour a
+  little more saturated (ugSat), light colours (white) dimmed by luminance. Races: shows only in the dark (web lights 6 x L, haze .06 +
+  .4 L; PC lights 4.5 x dark, range 40, haze .1 + .6 dark): the released PC lit a big bright disc by day. The owner: the earlier pools were
+  "a massive glowing block", "a circle drawn around the car", "airy, floating up the sides"; then "a little blown out. the lights are too
+  powerful" (web garage lights now .6, additive .46). Keep the garage lights LOW: on a glossy floor they show as two long beams.
+- Garage (72 / pc71 / pc73): dark showroom floor (gFloorTex; no ring brushing: it made moire stripes). Web: lights lit and rainbow cycles
+  in the garage (only the race loop did it). PC garage: the underglow (it had none) and studio_neutral.gdshader (a dark neutral room with
+  strip lights) in place of the warm studio: chrome was bronze, black brown, colours pale. ACES white 8 (AgX washed colours out). The PC
+  floor must stay dull (roughness .62, specular .25): the strips make a shinier one pale grey.
+- Colours (72 / 73 / pc72): Rims row (rm, trim list; rimVC / car_vc_mat_pbr), trim no longer touches wheels (PC repainted every car_vc
+  mesh), PC metal trim gets metal PBR (silver was grey plastic), interior metal .45 (was a black mirror), trim includes class 7 (interior
+  metal). COMBOS (10, same order web / PC; 'cb<i>' in owned): a bought combo's pieces only in their own slots (comboAllows).
+  Test: tools/neon/combotest.py.
+- Delivery arrow (74 / pc74): a 3D orange arrow above the kart turned toward the next gate on the shortest way (sbNextHop over SB_LINKS +
+  house gates; PC SandboxMap.LINKS + HOUSE_GATES) or the destination's start line; the line under the bar says where and how far.
+  PC test tests/delarrow.tscn. On the PC the arrow lives beside the kart's model (view.views[kart].g's parent): the camera's parent is
+  another space. A flat arrow is edge-on to the chase camera: it is tilted nose down (-.75).
+- PC Sandbox: the Special / Rear buttons sit below the place's read-out (hud._special_top); they covered the coin box.
+- Road places' tunnel arches (75): no other part of the track within RW x 1.4 + 40 across, 20 below to 110 above (Sauce Spiral's arch to
+  Oven Rush stood in the spiral's next level). The PC follows from the export.
+- Local note: godot/assets/garage was stale (Nov 15, old paints); the CI's garage.zip has the current paints. Pictures for before/after
+  must use current assets (scratch/ug/pcshots.sh).
+- Still open: hard-edged car models on the PC (re-export with split normals) if the owner wants more than the lighting change.
 
 ### Space (the owner, 2026-11-13: "GitHub pages has a hard 1gb limit we also have to consider")
 - Measured 2026-11-13: the published site is 77 MB (models 25, textures 19, track pictures 17, code 2, three.js 5); GitHub
