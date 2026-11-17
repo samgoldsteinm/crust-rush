@@ -1155,6 +1155,22 @@ func _sb_race_here() -> void:
 
 
 ## the start line's race, off line (in a room too: the room is not asked)
+## Sandbox's D-pad up (the race or activity on offer; Join / Race with friends) and down (Park; No / Race alone)
+func _sb_dpad(up: bool) -> void:
+	if race == null or race.sb == null or state != "race" or paused:
+		return
+	if not sbi_ask.is_empty():
+		_sbi_pick("f" if up else "a")
+	elif not sbi_inv.is_empty() and sbi_inv.get("ans") == null:
+		_sbi_answer(up)
+	elif not up:
+		_sb_park()
+	elif race.sb.race_near:
+		_sb_race_here()
+	elif sb_act_ui == null and race.sb.acts != null and not race.sb.acts.near.is_empty():
+		_sb_act_take()
+
+
 func _sb_race_solo() -> void:
 	SandboxActs.finish("cancel")
 	sb_back = map_id
@@ -1171,6 +1187,9 @@ var sbi_inv := {}       # an invite on screen: {id, mi, t0, ans}
 var sbi_wait := {}      # asked, waiting for the answers: {mi, t0, n}
 var sbi_host := {}      # the host: the invite out: {id, mi, by, ans: {pid: bool}, t0}
 var sbi_pick_t := 0
+var hl_mode = null      # Sandbox's headlights by hand (web patch 54): null by themselves, true on, false off
+var sb_pdu := false     # the D-pad's up and down last frame, in Sandbox (read every frame)
+var sb_pdd := false
 var sbi_ui: Control = null
 var sbi_tl: Label = null    # the card's clock line
 
@@ -1936,6 +1955,18 @@ func _build_hud() -> void:
 	# the on-screen pedals and steering arrows are for touch screens: off on a PC until a real touch arrives
 	hud.show_touch = OS.has_feature("mobile")
 	hud_race.add_child(hud)
+	# the frame counter (Settings): on every screen, menus too, above everything (the owner: "frame counter should work for all modes")
+	var fl := CanvasLayer.new()
+	fl.layer = 120
+	add_child(fl)
+	fps_lbl = Label.new()
+	fps_lbl.position = Vector2(10, 5)
+	fps_lbl.add_theme_font_size_override("font_size", 13)
+	fps_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.8))
+	fps_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
+	fps_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fps_lbl.visible = false
+	fl.add_child(fps_lbl)
 	lbl_info = _label(13, Vector2(0, 0), HORIZONTAL_ALIGNMENT_CENTER)
 	_place(lbl_info, 0.5, 0, 0.5, 0, -300, 4, 300, 22)
 	lbl_info.modulate.a = 0.8
@@ -3532,6 +3563,17 @@ func _input_state() -> Dictionary:
 				if dr and not sb_pdr:
 					Sandbox.spd_step(1)
 			sb_pdl = dl
+			# D-pad up: the race or the activity on offer (or Join / Race with friends); down: Park (or No / Race alone). Read every
+			# frame from the pad itself, as the web's sbTick does (the owner: "d pad up is not working to start races on sandbox in pc")
+			var du := Input.is_joy_button_pressed(j, JOY_BUTTON_DPAD_UP)
+			var dd := Input.is_joy_button_pressed(j, JOY_BUTTON_DPAD_DOWN)
+			if state == "race" and not paused and not (menu != null and menu.visible):
+				if du and not sb_pdu:
+					_sb_dpad.call_deferred(true)
+				elif dd and not sb_pdd:
+					_sb_dpad.call_deferred(false)
+			sb_pdu = du
+			sb_pdd = dd
 			sb_pdr = dr
 		else:
 			steer += clampf(sx + (1.0 if dr else 0.0) - (1.0 if dl else 0.0), -1.0, 1.0)
@@ -3569,7 +3611,7 @@ func _input_state() -> Dictionary:
 				if holding_this:
 					item_queued = "fwd" + suf
 					pad_hold[sl] = 0
-				elif it != "" and it in Race.HOLDABLE:
+				elif it != "" and it in Race.HOLDABLE and race.mode != "bb":   # (a battle throws on the press: web patch 56)
 					item_queued = "hold" + suf
 					pad_hold[sl] = 1
 				else:
@@ -3633,6 +3675,8 @@ func _input_state() -> Dictionary:
 			race.item_intent(kart, it2, o)
 	if bool(o["use"]) and kart.item != "" and aim_back and not kart.item in Race.NOBACK:
 		o["back"] = true
+	if kart != null and kart.tun != null:
+		o["steer"] = 0.0   # (in Sandbox's tunnels the kart goes straight: web v210 patch 48)
 	# the TESTING cheat: the kart drives itself; your items are still yours
 	if test_drive and kart != null and race != null and state == "race" and not kart.finished and race.mode != "bb" and race.mode != "sb":   # (it follows the road: there is none in a battle; Sandbox is driven by hand)
 		race.td_drive(kart, o)
@@ -3775,6 +3819,12 @@ func _input(ev: InputEvent) -> void:
 					_sb_map(sb_map_ui == null)
 					return
 				# Back to the track (web v212 patch 51: a key of its own, T by default): pauses and asks, as the pause menu's button does
+				# the headlights by hand (web patch 54: L by default)
+				if act == "lights" and racing:
+					var now: bool = bool(hl_mode) if hl_mode != null else float(preload("res://scripts/sandbox_clock.gd").f(float(race.sb.save.get("t", 0.4)))["L"]) > 0.65
+					hl_mode = not now
+					_toast("Headlights on" if hl_mode else "Headlights off")
+					return
 				if act == "sbback" and racing and state == "race" and sb_go.is_empty():
 					_toggle_pause()
 					_sb_back_ask()
@@ -3808,20 +3858,16 @@ func _input(ev: InputEvent) -> void:
 				if jb.button_index == JOY_BUTTON_BACK:
 					_sb_map(sb_map_ui == null)
 					return
-				if not sbi_ask.is_empty() and (jb.button_index == JOY_BUTTON_DPAD_UP or jb.button_index == JOY_BUTTON_DPAD_DOWN):
-					_sbi_pick("f" if jb.button_index == JOY_BUTTON_DPAD_UP else "a")
-					return
-				if not sbi_inv.is_empty() and sbi_inv.get("ans") == null and (jb.button_index == JOY_BUTTON_DPAD_UP or jb.button_index == JOY_BUTTON_DPAD_DOWN):
-					_sbi_answer(jb.button_index == JOY_BUTTON_DPAD_UP)
-					return
-				if jb.button_index == JOY_BUTTON_DPAD_DOWN and not paused:
-					_sb_park()
-					return
-				if jb.button_index == JOY_BUTTON_DPAD_UP and not paused and race.sb.race_near:
-					_sb_race_here()
-					return
-				if jb.button_index == JOY_BUTTON_DPAD_UP and not paused and sb_act_ui == null and race.sb.acts != null and not race.sb.acts.near.is_empty():
-					_sb_act_take()
+				# D-pad up and down: here on the press, and read every frame in _read_input as well (as the web does), in case the press
+				# was taken by something else first; sb_pdu / sb_pdd keep the two from both acting on the same press
+				if (jb.button_index == JOY_BUTTON_DPAD_UP and not sb_pdu) or (jb.button_index == JOY_BUTTON_DPAD_DOWN and not sb_pdd):
+					var up_ := jb.button_index == JOY_BUTTON_DPAD_UP
+					if up_:
+						sb_pdu = true
+					else:
+						sb_pdd = true
+					if not paused:
+						_sb_dpad(up_)
 					return
 			if jb.button_index == JOY_BUTTON_Y and state == "race" and not paused:
 				item_queued = "ability"
@@ -3844,6 +3890,12 @@ func _process(dt: float) -> void:
 	if web != null:
 		web.poll()
 	_sbi_tick()
+	if fps_lbl != null:
+		fps_lbl.visible = fps_counter
+		_fps_t -= dt
+		if fps_counter and _fps_t <= 0.0:
+			_fps_t = 0.25
+			fps_lbl.text = "%d fps" % Engine.get_frames_per_second()
 	if music != null and not auto_drive:
 		music.want(map_id, "loading" if (loading != null and loading.visible) else state, paused, dt)
 	if not (menu != null and menu.visible):
@@ -4750,7 +4802,7 @@ func _settings_panel() -> Control:
 				["Frame rate", "Auto runs as fast as your monitor shows (with G-SYNC or FreeSync, up to its refresh rate), so the graphics card works flat out. A cap lets it rest between frames: 90 still feels smooth and takes a good share of the load off.", "fps", [["0", "Auto"], ["60", "60"], ["90", "90"], ["120", "120"], ["144", "144"]], str(fps_cap)],
 				["Resolution", "Draw the 3D view smaller and scale it up for a higher frame rate. On most graphics cards AMD FSR 2 rebuilds the full-size picture (it does the anti-aliasing too): 85% looks close to full size and eases the load a lot.", "res", {"lo": 50, "hi": 100, "step": 5, "fmt": "%d%%", "mul": 0.01}, res_scale],
 				["Full screen", "F11 switches too.", "fs", on_off, "1" if DisplayServer.window_get_mode() in [DisplayServer.WINDOW_MODE_FULLSCREEN, DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN] else "0"],
-				["Frame counter", "Show frames per second during a race.", "fpsc", on_off, "1" if fps_counter else "0"],
+				["Frame counter", "Show frames per second in the corner, on every screen.", "fpsc", on_off, "1" if fps_counter else "0"],
 			]))
 		"sound":
 			c.add_child(menu.section_label("Sound"))
@@ -5116,6 +5168,8 @@ var dof_on := true      # Settings > Background blur (toy tracks, Ultra)
 var mb_fx := 0.0
 var scenery := 1          # 0 near, 1 normal, 2 far
 var fps_counter := false
+var fps_lbl: Label = null
+var _fps_t := 0.0
 var snd_level := 1.0
 var cam_far := false
 var cam_fp := false       # first person: from the driver's seat (Settings > Camera)

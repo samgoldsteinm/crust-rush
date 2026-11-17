@@ -24,7 +24,7 @@ func _ready() -> void:
 		bad += 1
 	var c: Dictionary = main.web._build_cfg(0)
 	print("NOITEMS room settings ni = %s, PROTO %d" % [c.get("ni"), WebNet.PROTO])
-	if c.get("ni") != true or WebNet.PROTO != 116:
+	if c.get("ni") != true or WebNet.PROTO < 116:
 		bad += 1
 	main._to_menu("")
 	for i in 10:

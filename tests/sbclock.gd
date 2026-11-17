@@ -42,8 +42,6 @@ func _process(_dt: float) -> void:
 		k.x = main.T.px[j] + main.T.nx[j] * off
 		k.y = main.T.py[j] + main.T.ny[j] * off
 		k.wy = main.race.sb.ground(k.x, k.y, k.wy + 40.0) if main.race.sb.has_method("ground") else main.T.ground(k.x, k.y)
-		k.px = k.x
-		k.py = k.y
 		main.cam_snap = true
 	if si >= steps.size():
 		print("SBCLOCK done")

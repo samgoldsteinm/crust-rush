@@ -169,6 +169,15 @@ class Tun extends RefCounted:
 
 	## one step of a kart in the corridor, in place of everything the track would do to it (Kart.step)
 	func step(k: Kart, dt: float) -> void:
+		# straight through (web v210 patch 48: "lock the player into driving straight"): the kart points down the tube and is eased
+		# to its middle, so the camera behind it never looks out of the tube's side
+		var want := atan2(dz, dx)
+		k.a = lerp_angle(k.a, want, minf(1.0, dt * 8.0))
+		k.ma = lerp_angle(k.ma, want, minf(1.0, dt * 8.0))
+		var lo := across(k.x, k.y) * minf(1.0, dt * 3.0)
+		k.x -= -dz * lo
+		k.y -= dx * lo
+		k.drift = 0
 		hw = move_toward(hw, hw_to, 24.0 * dt)
 		rx = move_toward(rx, rx_to, 24.0 * dt)
 		ry = move_toward(ry, ry_to, 24.0 * dt)

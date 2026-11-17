@@ -62,7 +62,7 @@ func arm(main_: Node, T_: TrackData, id_: String, kind_: String) -> void:
 	spot.spot_angle_attenuation = 0.6
 	spot.spot_attenuation = 1.15
 	spot.light_energy = 0.0
-	spot.shadow_enabled = not lite
+	spot.shadow_enabled = false   # (the kart's own body would shadow its headlights: web patch 53)
 	spot.light_projector = _cookie()
 	add_child(spot)
 	if LAMPS.has(id) and kind == "out":
@@ -201,7 +201,10 @@ func frame(dt: float, L: float, k: Kart) -> void:
 		var j := clampi(k.idx, 0, T.N - 1)
 		on_t = absf((k.x - T.px[j]) * T.nx[j] + (k.y - T.py[j]) * T.ny[j]) < T.RW + 10.0 and (k.x - T.px[j]) ** 2 + (k.y - T.py[j]) ** 2 < (T.RW + 40.0) ** 2
 	hf += ((0.0 if on_t else 1.0) - hf) * minf(1.0, dt * 3.6)
-	spot.light_energy = 9.0 * L * hf
+	# by themselves only when it is properly dark (L .5 to .8); or on / off by hand (main.hl_mode, the L key: web patch 54)
+	var hm = main.get("hl_mode")
+	var hon := clampf((L - 0.5) / 0.3, 0.0, 1.0) if hm == null else (1.0 if hm else 0.0)
+	spot.light_energy = 9.0 * maxf(L, 0.45) * hon * (1.0 if hm == true else hf)
 	var from := kp + fwd * 7.0 + Vector3(0, 4, 0)
 	var to := kp + fwd * 120.0 + Vector3(0, -10, 0)
 	spot.global_position = from

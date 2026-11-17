@@ -9,6 +9,7 @@ extends Node
 
 const PROTO := 117   # (117: web v213, a Sandbox race from a start line with invites; 116: web v209, cfg.ni; 115: web v208)
 const RACE_T := {"s": 1, "hit": 1, "tst": 1, "go": 1, "load": 1, "menu": 1, "elim": 1, "sbend": 1}   # race messages: a Sandbox race's racers only
+var _last_poll := 0
 var sb_race := {}   # the host, a room's Sandbox race (web NET.sbRace): {pid: true} of the guests in it; empty otherwise
 # (113: web v202, the abilities evened out; 112: web v200, a grid may have fewer than eight)
 const TOP := "crustrush/v2/"
@@ -202,6 +203,15 @@ func poll() -> void:
 	for q in mqs:
 		(q as Mqtt).poll()
 	var now := _now()
+	# time this game did not run (a load, a stall) is no one's silence (web patch 57): every link's last-heard time moves on by the gap
+	if _last_poll > 0 and now - _last_poll > 3000:
+		var gap := now - _last_poll - 1000
+		for f in chans.keys():
+			var ch0: Dictionary = chans[f]
+			ch0["last_in"] = int(ch0.get("last_in", now)) + gap
+		if not chan.is_empty():
+			chan["last_in"] = int(chan.get("last_in", now)) + gap
+	_last_poll = now
 	_rtc_poll(now)
 	if sbx and now - _sb_t >= 80:
 		_sb_t = now

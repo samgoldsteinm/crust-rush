@@ -20,6 +20,8 @@ var clock_ok := false
 var saw_peer := false
 var sbr_step := 0
 var sbr_ok := false
+var sbr_a := false
+var sbr_t := 0.0
 
 
 func _ready() -> void:
@@ -78,7 +80,9 @@ func _process(dt: float) -> void:
 			get_tree().quit(0 if ok else 1)
 			return
 	if mode == "sbr" and race != null:
-		# (web patch 52) the PC asks to race at its start line; the web host joins; both race; the host goes back, the PC is back in Sandbox
+		# (web patch 52) 1. the PC asks at its start line, the web host joins, both race; the PC goes back FIRST, the host still racing:
+		# the PC must still be in the room (and in Sandbox) 30 s later. 2. the host asks, the PC says no, the host races 30 s: the PC must
+		# still be in the room (the owner: guests were thrown out of the room in both cases)
 		if sbr_step == 0 and race.sb != null and main.state == "race" and t > 25.0 and web.sb_peers.size() > 0 and main.sb_peer_nodes.size() > 0:
 			main.sbi_ask = {"mi": int(main._map_info(main.map_id).get("mi", -1))}
 			main._sbi_pick("f")
@@ -87,12 +91,31 @@ func _process(dt: float) -> void:
 		elif sbr_step == 1 and race.sb == null and main.state == "race" and not web.cfg.is_empty():
 			sbr_step = 2
 			sbr_ok = web.cfg.get("sbr") != null
+			sbr_t = t
 			print("XMODES pc: racing, a Sandbox race %s, karts %d" % [sbr_ok, race.karts.size()])
-		elif sbr_step == 2 and race.sb != null and web.cfg.is_empty():
+		elif sbr_step == 2 and t - sbr_t > 6.0:
+			main._to_menu("")
+			sbr_step = 3
+			print("XMODES pc: went back first")
+		elif sbr_step == 3 and race.sb != null and web.cfg.is_empty():
+			sbr_step = 4
+			sbr_t = t
+		elif sbr_step == 4 and t - sbr_t > 30.0:
+			sbr_a = web.role == "guest" and race.sb != null
+			print("XMODES pc: 30 s after going back first: role '%s', in Sandbox %s" % [web.role, race.sb != null])
+			sbr_step = 5
+		elif sbr_step == 5 and not main.sbi_inv.is_empty():
+			main._sbi_answer(false)
+			sbr_step = 6
+			sbr_t = t
+			print("XMODES pc: said no to the host's invite")
+		elif sbr_step == 6 and t - sbr_t > 35.0:
 			done = true
-			print("XMODES PC %s sandbox race: raced (a Sandbox race %s) and back in Sandbox at %s" % ["PASS" if sbr_ok else "FAIL", sbr_ok, main.map_id])
+			var b: bool = web.role == "guest" and race.sb != null
+			var ok2: bool = sbr_ok and sbr_a and b
+			print("XMODES PC %s sandbox race: raced %s; went back first and stayed %s; said no and stayed %s (role '%s')" % ["PASS" if ok2 else "FAIL", sbr_ok, sbr_a, b, web.role])
 			await _linger(web)
-			get_tree().quit(0 if sbr_ok else 1)
+			get_tree().quit(0 if ok2 else 1)
 			return
 	if t > 1500.0:
 		done = true

@@ -75,16 +75,21 @@ async def main():
                 if ended and s['res']:
                     ok = s['bb'] and s['ack'] > 300; print('XMODES WEB %s battle: PC controls played %d, results shown' % ('PASS' if ok else 'FAIL', s['ack']), flush=True); break
             elif MODE == 'sbr':
-                s = json.loads(await pg.evaluate("__ev(`JSON.stringify({sbx:SBX,st:state,map:MAPS[mapIdx].id,inv:!!SBI.inv,cfg:NET.cfg?{sbr:NET.cfg.sbr,n:NET.cfg.karts.filter(k=>k.who!=null&&k.who>=0).length}:null})`)"))
+                s = json.loads(await pg.evaluate("__ev(`JSON.stringify({sbx:SBX,st:state,map:MAPS[mapIdx].id,inv:!!SBI.inv,n:NET.conns.filter(c=>c.open).length,cfg:NET.cfg?{sbr:NET.cfg.sbr,n:NET.cfg.karts.filter(k=>k.who!=null&&k.who>=0).length}:null})`)"))
                 if time.time() - last > 5: last = time.time(); print('XMODES web', json.dumps(s), flush=True)
-                if s['inv'] and not getattr(main, 'joined', False):
-                    await pg.evaluate("__ev(`sbInvAnswer(true)`)"); main.joined = True; print('XMODES web: joined the PC invite', flush=True)
-                if s['cfg'] and s['st'] == 'race' and not s['sbx'] and not getattr(main, 'raced', False):
-                    main.raced = s['cfg']; main.raceT = time.time(); print('XMODES web: racing', json.dumps(s), flush=True)
-                if getattr(main, 'raced', False) and not getattr(main, 'back', False) and time.time() - main.raceT > 8:
-                    await pg.evaluate("__ev(`toMenu()`)"); main.back = True; print('XMODES web: back to Sandbox', flush=True)
-                if getattr(main, 'back', False) and s['sbx'] and not s['cfg']:
-                    ok = main.raced['sbr'] == 1 and main.raced['n'] == 2; print('XMODES WEB %s sandbox race: raced with the PC (%s), back in Sandbox' % ('PASS' if ok else 'FAIL', json.dumps(main.raced)), flush=True); break
+                st = main.__dict__.setdefault('st', {'step': 0})
+                if st['step'] == 0 and s['inv']:
+                    await pg.evaluate("__ev(`sbInvAnswer(true)`)"); st['step'] = 1; print('XMODES web: joined the PC invite', flush=True)
+                elif st['step'] == 1 and s['cfg'] and s['st'] == 'race' and not s['sbx']:
+                    st['step'] = 2; st['raced'] = s['cfg']; st['t'] = time.time(); print('XMODES web: racing', json.dumps(s), flush=True)
+                elif st['step'] == 2 and time.time() - st['t'] > 46:
+                    st['n1'] = s['n']; await pg.evaluate("__ev(`toMenu()`)"); st['step'] = 3; print('XMODES web: back to Sandbox, guests connected', s['n'], flush=True)
+                elif st['step'] == 3 and s['sbx'] and not s['cfg']:
+                    await asyncio.sleep(4); await pg.evaluate("__ev(`SBI.ask={mi:mapIdx};sbRaceAskPick('f')`)"); st['step'] = 4; st['t'] = time.time(); print('XMODES web: asked the PC', flush=True)
+                elif st['step'] == 4 and s['cfg'] and s['st'] == 'race' and not s['sbx'] and time.time() - st['t'] > 38:
+                    ok = st['raced'].get('sbr') == 1 and st['raced'].get('n') == 2 and st['n1'] == 1 and s['n'] == 1
+                    print('XMODES WEB %s sandbox race: raced with the PC (%s); PC still connected after it went back first (%s) and while I raced without it (%s)' % ('PASS' if ok else 'FAIL', json.dumps(st['raced']), st['n1'], s['n']), flush=True)
+                    await pg.evaluate("__ev(`toMenu()`)"); break
             else:
                 s = json.loads(await pg.evaluate("__ev(`JSON.stringify({sbx:SBX,st:state,map:MAPS[mapIdx].id,peers:[...SBN.peers.values()].map(P=>({nm:P.nm,reg:P.reg,drawn:!!(P.m&&P.m.g.visible)}))})`)"))
                 if time.time() - last > 5: last = time.time(); print('XMODES web', json.dumps(s), flush=True)

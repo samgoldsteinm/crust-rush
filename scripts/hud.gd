@@ -485,8 +485,7 @@ func _draw() -> void:
 		_draw_sauce()
 	if bool(td.get("on", false)):
 		_draw_td()
-	if fps_on:
-		_text(f_bold, "%d fps" % Engine.get_frames_per_second(), 10.0, 5.0, 12.0, Color(1, 1, 1, 0.72), HORIZONTAL_ALIGNMENT_LEFT, -1.0, Color(0, 0, 0, 0.45), Vector2(0, 1), 1.0)
+	# (the frame counter is main.gd's fps_lbl now: on every screen, not only in a race)
 	if heat_t > 0.0:
 		var hv := get_viewport_rect().size
 		var ha := clampf(heat_t / 0.9, 0.0, 1.0)
