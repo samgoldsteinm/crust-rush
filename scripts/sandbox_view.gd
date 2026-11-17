@@ -361,7 +361,56 @@ DELIVERY", "drift": "DRIFT", "air": "JUMP"}[kind]
 
 ## the mechanic's shop: a toy garage playset (web sbShopBuild): base, red walls with a yellow band, blue roof, the sign, tyres, a
 ## toolbox and a lift inside
+## the mechanic's shop: the web's Blender-built workshop (web v205 patch 41, exported by tools/shopexport.py to assets/shop/mshop.glb:
+## the building, and the roll-up door at its hinge), a light inside, and the door rolling up as the kart comes at it (_shop_frame).
+## Without the file, the old code-built shop (_build_shop_old). Its walls for the kart are sandbox.gd's either way.
+var shop_door: Node3D = null
+var shop_open := 0.0
+var shop_lamp: OmniLight3D = null
+var shop_meta := {}
+
+
 func _build_shop() -> void:
+	var S: Dictionary = sb.SHOP
+	var ps = load("res://assets/shop/mshop.glb") if ResourceLoader.exists("res://assets/shop/mshop.glb") else null
+	if ps == null:
+		_build_shop_old()
+		return
+	var f := FileAccess.open("res://assets/shop/mshop.json", FileAccess.READ)
+	shop_meta = JSON.parse_string(f.get_as_text()) if f != null else {}
+	var root: Node3D = (ps as PackedScene).instantiate()
+	root.position = Vector3(float(S["x"]), 0.0, float(S["z"]))
+	add_child(root)
+	shop_door = root.find_child("door", true, false) as Node3D
+	if shop_door != null:
+		var dp: Array = shop_meta.get("door", [0.0, 0.8, 44.0])
+		shop_door.position = Vector3(float(dp[0]), float(dp[1]), float(dp[2]))
+	shop_lamp = OmniLight3D.new()
+	shop_lamp.light_color = Color("#ffe2b8")
+	shop_lamp.omni_range = 90.0
+	shop_lamp.light_energy = 0.0
+	shop_lamp.position = Vector3(float(S["x"]), 34.0, float(S["z"]))
+	add_child(shop_lamp)
+
+
+## each frame: the door rolls up while the kart is at it (or inside), and down once it is away; the light inside comes on with it
+func _shop_frame(dt: float, k) -> void:
+	if shop_door == null or k == null:
+		return
+	var S: Dictionary = sb.SHOP
+	var fx: float = float(S["x"])
+	var fz: float = float(S["z"]) + float(S["d"]) / 2.0
+	var near: bool = absf(k.x - fx) < 60.0 and k.y > float(S["z"]) - float(S["d"]) / 2.0 and k.y < fz + 80.0
+	shop_open = move_toward(shop_open, 1.0 if near else 0.0, dt / 0.9)
+	var e := shop_open * shop_open * (3.0 - 2.0 * shop_open)
+	var dh: float = float(shop_meta.get("dh", 30.0))
+	var dp: Array = shop_meta.get("door", [0.0, 0.8, 44.0])
+	shop_door.position.y = float(dp[1]) + e * dh * 0.92
+	shop_door.scale = Vector3(1.0, maxf(0.08, 1.0 - e * 0.92), 1.0)
+	shop_lamp.light_energy = 2.2 * e
+
+
+func _build_shop_old() -> void:
 	var S: Dictionary = sb.SHOP
 	var G := Node3D.new()
 	add_child(G)
@@ -666,6 +715,8 @@ func _process(dt: float) -> void:
 	# the night's lights follow the kart every frame (the clock sets their level)
 	if night != null and mn != null:
 		night.frame(dt, float(SandboxClock.f(float(sb.save.get("t", 0.4)))["L"]), mn.get("kart"))
+	if shop_door != null and mn != null:
+		_shop_frame(dt, mn.get("kart"))
 	# the egg hops when found
 	if _egg != null and sb.acts != null and not sb.acts.egg.is_empty():
 		var hop := float(sb.acts.egg["hop"])

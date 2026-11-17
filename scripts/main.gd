@@ -601,7 +601,7 @@ func _sb_tick() -> void:
 		_sb_act_end(SandboxActs.ended)
 	if sb.shop_want:
 		sb.shop_want = false
-		_sb_shop_open.call_deferred()
+		_sb_cine_start()   # (pulling in: web v205 patch 41; then the driver screen)
 
 
 # ---------------------------------------------------------------- Sandbox: travelling without a stop
@@ -2456,6 +2456,47 @@ func _cpu_count() -> int:
 	return maxi(1, n) if (md == "lss" or md == "bb") else n
 
 
+## ---- pulling into the mechanic's shop (web v205 patch 41: sbShopTick / sbShopFrame) ----
+## Through the door the shop takes over: the kart rolls slowly onto the lift bay and stops, the camera cuts to a low shot inside
+## behind the lift, the kart's name comes up, and after a moment (or at any key or button) the driver screen opens as before.
+var sb_cine := {}
+
+
+func _sb_cine_start() -> void:
+	if race == null or race.sb == null or kart == null or not sb_cine.is_empty():
+		return
+	var S: Dictionary = Sandbox.SHOP
+	var bay := float(sb_view.shop_meta.get("bay", -4.1)) if sb_view != null and sb_view.get("shop_meta") is Dictionary else -4.1
+	sb_cine = {"t": 0.0, "fx": kart.x, "fy": kart.y, "tx": float(S["x"]), "ty": float(S["z"]) + bay}
+	var bd: Dictionary = KartBuilder.info["bodies"][int(_my_build()["b"])] if KartBuilder.ready() else {}
+	_show_center(String(bd.get("name", "Your kart")), 2.4)
+
+
+func _sb_cine_tick(dt: float) -> void:
+	if sb_cine.is_empty() or kart == null or race == null or race.sb == null:
+		sb_cine = {}
+		return
+	var t: float = float(sb_cine["t"]) + dt
+	sb_cine["t"] = t
+	var S: Dictionary = Sandbox.SHOP
+	var u := clampf(t / 1.5, 0.0, 1.0)
+	var e := 1.0 - (1.0 - u) * (1.0 - u)
+	kart.x = lerpf(float(sb_cine["fx"]), float(sb_cine["tx"]), e)
+	kart.y = lerpf(float(sb_cine["fy"]), float(sb_cine["ty"]), e)
+	kart.a = lerp_angle(kart.a, -PI / 2.0, minf(1.0, dt * 6.0))
+	kart.ma = kart.a
+	kart.speed = 0.0
+	kart.wy = race.sb.ground(kart.x, kart.y, 2.0)
+	kart._save_prev()
+	# inside, low, behind the lift and to one side, looking at the kart as it rolls on
+	var cp := Vector3(float(S["x"]) + 26.0, 11.0, float(S["z"]) - float(S["d"]) / 2.0 + 14.0)
+	cam.global_position = cp.lerp(cp + Vector3(-4.0, 1.5, 3.0), clampf(t / 2.6, 0.0, 1.0))
+	cam.look_at(Vector3(kart.x, kart.wy + 5.0, kart.y), Vector3.UP)
+	if t > 2.6:
+		sb_cine = {}
+		_sb_shop_open()
+
+
 ## ---- the mechanic's shop (web v200 sbShopOpen / sbShopDone) ----
 var sb_shop_put := false
 func _sb_shop_open() -> void:
@@ -3684,6 +3725,10 @@ func _input_state() -> Dictionary:
 
 
 func _input(ev: InputEvent) -> void:
+	if not sb_cine.is_empty() and float(sb_cine["t"]) > 0.4 and ((ev is InputEventKey and ev.pressed) or (ev is InputEventJoypadButton and ev.pressed) or (ev is InputEventMouseButton and ev.pressed)):
+		sb_cine["t"] = 99.0   # (skip the pull-in)
+		get_viewport().set_input_as_handled()
+		return
 	if spec_on and _spec_input(ev):
 		get_viewport().set_input_as_handled()
 		return
@@ -3935,6 +3980,7 @@ func _process(dt: float) -> void:
 	var ck: Kart = _cam_kart()
 	var v: Dictionary = view.views[ck]
 	_camera(dt, float(v["rx"]), float(v["ry"]), float(v["rz"]), float(v["rma"]))
+	_sb_cine_tick(dt)
 	if ghost != null:
 		if state == "race" and not paused:
 			ghost.record(race.race_time, (view.views[kart]["tilt"] as Node3D).global_transform, kart.finished)
@@ -4320,8 +4366,8 @@ func _to_menu(note: String) -> void:
 	_net_close()
 	if web.racing():
 		web.quit_race()
-	elif web.hosting():
-		web.host_menu()
+	elif web.hosting() and not web.cfg.is_empty():
+		web.host_menu()   # (a room race only: in a room's Sandbox the others stay where they are, as on the web)
 	gp = {}
 	_start_race({}, true)
 	state = "menu"
