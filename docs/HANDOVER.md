@@ -148,8 +148,13 @@ against the landmarks' coordinates before the real generator closed the lap; the
 ### 2026-11-17 (web v220): the restart key (patch 69)
 KB action 'restart' (default Backspace): in a race off line (not a room, Sandbox or battle) the first press pauses and shows #rstOv
 (the pause menu hidden under it); the same key again restarts (the pause menu's Restart, startRace); Esc / Keep racing goes on. The key
-works while the box holds the focus (checked before keydown's overlay early return). tools/neon/rsttest.py. PC: still to do (after the
-PC build for v219 that is running: release_pc commits every change in godot).
+works while the box holds the focus (checked before keydown's overlay early return). tools/neon/rsttest.py.
+PC: tools/mini/pc69.py: keys.gd "restart" [KEY_BACKSPACE]; main.gd rst_ui / _rst_ok / _rst_key / _rst_go / _rst_no (the confirm sheet
+replaces the pause menu's contents in panel_pause; _toggle_pause answers Keep racing first, so Esc / P / Start resume). Not a kart
+change: online stays 120. Test: CR_MODE=single CR_MAP=margherita tests/rstkey.tscn (RSTKEY PASS; real key events). Note: in Settings >
+Controls Backspace CLEARS a box (Keys.capture), so it can't be typed in as a binding; Reset gives it back.
+
+### 2026-11-17: the PC build for web v219 IS OUT: 785b5167 (online 120: web and PC play together again).
 
 ### 2026-11-17 (PC build for web v219, online 120): the PC level with web v218-v219
 tools/mini/pc68.py (patch 64's no-items rule, patch 65's coins, patch 68's developer options, PROTO 120, scripts/style.gd) and
