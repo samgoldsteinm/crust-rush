@@ -145,6 +145,18 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-17 (source for web v217, NOT YET PUBLISHED): Sandbox coins with detail and shadows (patch 61)
+The owner: "make the coins look better in sandbox right now they look basic with very little detail maybe add a shadow for them too".
+- Web: sbCoinGeo builds the coin (sunken field, raised rim, bevelled reeded edge, a raised pizza slice with crust and pepperoni on both
+  faces; vertex coloured; 1336 triangles, still ONE instanced draw); glow down from .9 to .45 so the relief shows. sbCoinShadows: a soft
+  ellipse on the ground under each coin, turning with it (one more instanced draw). A coin's ground is c.gy (plain 5.4 below it, hidden 8;
+  none for the one hanging off a bend), also exported to the PC as the coin's 6th field.
+- PC: sandbox_view.gd _coin_mesh reads assets/sandbox/coin.json, the web's own triangles (tools/neon/coinexport.py; Godot winds the other
+  way, so each triangle's corners are swapped on load; a plain disc if the file is missing); _build_coin_shadows the same shadows;
+  sandbox.gd coin_gy (an older export without the field: y - 5.4 / 8). Test tests/sbcoin.tscn (NOT headless: it opens a window, takes
+  build/menu/sbcoin.png and closes itself; CR_MODE=sb CR_MAP=margherita) -> SBCOIN PASS.
+- If sbCoinGeo changes: run coinexport.py again, or the PC's coin goes out of step.
+
 ### 2026-11-17 (source for web v217, NOT YET PUBLISHED; ONLINE 119 ON BOTH): four new karts built in Blender
 The owner: "Let's work on new kart designs and really make them unique and try using blender for some of them". Each has a
 silhouette no other kart has from the chase camera: Rolling Pin (retro open-wheeler, a pizza-peel wing), Grater (chunky utility kart,

@@ -5590,7 +5590,7 @@ function bbRoll(){if(SBX)return sbRoll();const L=BB_ITEMS.filter(q=>q[0]==='meat
    the few of its own in patch22.py.
    Regions: SB_REG, one per track world. Only the back garden has its things listed so far (web v188). */
 let SBX=false,SBF=false;/* SBX: Sandbox is on. SBF: and the driving is free (the house, the pizza tracks); it is off where you keep to the road */
-const SB={loops:[],shapes:[],gates:[],hash:null,col:null,coins:[],rare:[],im:null,grp:null,el:null,save:null,hudT:0,reg:null,S:[],msgT:0},SB_STEP=5.5,SB_R=6.5,SB_HEAD=9,SB_C=48,SB_RAIL=4.2,SB_K=6,SB_Q=8/* heights are kept in eighths of a unit */;
+/* (patch 61: detailed coins, their shadows) */const SB={loops:[],shapes:[],gates:[],hash:null,col:null,coins:[],rare:[],im:null,grp:null,el:null,save:null,hudT:0,reg:null,S:[],msgT:0},SB_STEP=5.5,SB_R=6.5,SB_HEAD=9,SB_C=48,SB_RAIL=4.2,SB_K=6,SB_Q=8/* heights are kept in eighths of a unit */;
 /* ---- the room's own geometry as columns ----
    What is left out, and why: what is not drawn (hidden pieces, the far-detail stand-ins); what you can see through or brush past (glass, nets,
    leaves, grass, cloth: anything transparent, cut out by its picture, or named in SB_SOFT); the track's own surface, edges and undersides
@@ -5941,17 +5941,46 @@ function sbCoins(){const R=SB.reg,sv=sbSave(),C=SB.coins=[],put=(x,y,z,rare,id)=
   for(const L of R.lines||[])for(let i=0;i+1<L.length;i++){const a=L[i],b=L[i+1],d=Math.hypot(b[0]-a[0],b[1]-a[1]),n=Math.max(1,Math.round(d/STEPL));for(let q=i?1:0;q<=n;q++){const x=sbGX(a[0]+(b[0]-a[0])*q/n),z=sbGZ(a[1]+(b[1]-a[1])*q/n);if(!sbBlocked(x,z,0))put(x,sbG(x,z,0)+5.4,z);}}
   for(const [gx,gy,r,n] of R.rings||[])for(let q=0;q<n;q++){const a=q/n*6.28318,x=sbGX(gx+Math.cos(a)*r),z=sbGZ(gy+Math.sin(a)*r);put(x,sbG(x,z,0)+5.4,z);}
   for(const [gx,gy,h,id] of R.rare||[]){const x=sbGX(gx),z=sbGZ(gy);put(x,(h<0?sbG(x,z,1e9):h*HM)+8,z,true,SB.regId+':'+id);}
+  const nAir=C.length;/* (patch 61: coins from here on hang in the air: no shadow) */
   if(R.air==='auto'){/* the highest part of the track that is on a bend: the coin hangs 40 units beyond its outer edge, 20 below it */let bj=-1,bs=0;for(let j=0;j<N;j+=2){const p=track[j],q=track[(j+14)%N],turn=Math.abs((q.x-p.x)*p.nx+(q.y-p.y)*p.ny),e=p.ey||0;if(turn>6&&e>40&&e*Math.min(turn,20)>bs&&!LOOPS.some(L=>{let d=j-L.j;if(d>N/2)d-=N;if(d<-N/2)d+=N;return Math.abs(d)*sl<300;})){bs=e*Math.min(turn,20);bj=j;}}
     if(bj>=0){const p=track[bj],q=track[(bj+14)%N],sd=((q.x-p.x)*p.nx+(q.y-p.y)*p.ny)>0?-1:1,o=TOYW()+40,x=p.x+p.nx*o*sd,z=p.y+p.ny*o*sd;if(!sbBlocked(x,z,(p.ey||0)-20))put(x,(p.ey||0)-20,z,true,SB.regId+':high');}}
   else if(R.air){const j=Math.round(R.air[0]*N)%N,p=track[j],q=track[(j+14)%N],sd=((q.x-p.x)*p.nx+(q.y-p.y)*p.ny)>0?-1:1/* the outside of the bend */,o=TOYW()+R.air[1]*SB_M;put(p.x+p.nx*o*sd,(p.ey||0)-R.air[2]*SB_M,p.y+p.ny*o*sd,true,SB.regId+':'+R.air[3]);}
+  C.forEach((c,i)=>{c.gy=i>=nAir&&c.rare?null:c.y-(c.rare?8:5.4);});/* where its shadow lies (patch 61) */
   for(const c of C)if(c.rare&&sv.r[c.id])c.t=-1;/* found for good */
   /* drawn: the plain ones as one batch of gold discs, the rare ones bigger with a pepperoni face */
   if(SB.grp)scene.remove(SB.grp);SB.grp=new THREE.Group();scene.add(SB.grp);
-  const g=new THREE.CylinderGeometry(4.2,4.2,.9,22);g.rotateX(Math.PI/2);const plain=C.filter(c=>!c.rare),im=SB.im=new THREE.InstancedMesh(g,new THREE.MeshStandardMaterial({color:'#ffc93a',roughness:.28,metalness:.85,emissive:'#a86a00',emissiveIntensity:.9}),Math.max(1,plain.length));
-  im.frustumCulled=false;im.castShadow=false;im.userData.sunlit=true;SB.grp.add(im);plain.forEach((c,i)=>c.i=i);
+  const g=sbCoinGeo();const plain=C.filter(c=>!c.rare),im=SB.im=new THREE.InstancedMesh(g,new THREE.MeshStandardMaterial({color:'#ffffff',vertexColors:true,roughness:.3,metalness:.85,emissive:'#8a5800',emissiveIntensity:.45}),Math.max(1,plain.length));/* (patch 61: the detailed coin) */
+  im.frustumCulled=false;im.castShadow=false;im.userData.sunlit=true;SB.grp.add(im);plain.forEach((c,i)=>c.i=i);sbCoinShadows(C);
   const rg=new THREE.CylinderGeometry(6.4,6.4,1.2,28);rg.rotateX(Math.PI/2);const rm=new THREE.MeshStandardMaterial({color:'#d8402a',roughness:.35,metalness:.35,emissive:'#6a1408',emissiveIntensity:.7}),dg=new THREE.CylinderGeometry(1,1,1.1,12);dg.rotateX(Math.PI/2);const dm=new THREE.MeshStandardMaterial({color:'#8f1d10',roughness:.5}),
     eg=new THREE.TorusGeometry(6.4,.7,8,28),em=new THREE.MeshStandardMaterial({color:'#ffd65a',roughness:.25,metalness:.9,emissive:'#7a4a00',emissiveIntensity:.6});
   for(const c of C)if(c.rare){const G=new THREE.Group();G.add(new THREE.Mesh(rg,rm));G.add(new THREE.Mesh(eg,em));for(const [x,y] of [[-2.0,1.7],[2.2,1.2],[0,-2.3],[-2.4,-1.5],[2.4,-1.8],[.3,3.0]]){const d=new THREE.Mesh(dg,dm);d.scale.set(1.5,1.5,1.3);d.position.set(x,y,0);G.add(d);}try{const sp=new THREE.Sprite(glowMat('#ffb030'));sp.scale.setScalar(34);G.add(sp);}catch(e){}G.position.set(c.x,c.y,c.z);G.traverse(o=>{o.userData.sunlit=true;});c.m=G;G.visible=c.t>=0;SB.grp.add(G);}}
+/* (patch 61) the Sandbox coin: turned like a real coin, its face along z, 8.5 across, about 1 thick. A profile (radius, z) from the
+   back's centre round the edge to the front's centre is spun round z (each profile step keeps its own normal: crisp steps, round
+   the other way); the edge band is reeded; a raised pizza slice (cheese, crust, three pepperoni) sits on each face. One geometry,
+   vertex coloured, not indexed. The PC reads the same triangles (tools/neon/coinexport.py -> godot/assets/sandbox/coin.json). */
+function sbCoinGeo(){if(SB.coinGeo)return SB.coinGeo;const P=[],N=[],Cl=[],col=h=>{const c=new THREE.Color(h);return [c.r,c.g,c.b];};
+  const SEG=40,H=[[0,-.3,'#e8aa2a'],[2.85,-.3,'#e8aa2a'],[3.05,-.46,'#ffcf45'],[3.5,-.54,'#ffcf45'],[3.95,-.5,'#ffcf45'],[4.25,-.3,'#d99a20'],[4.25,.3,'#d99a20'],[3.95,.5,'#ffcf45'],[3.5,.54,'#ffcf45'],[3.05,.46,'#ffcf45'],[2.85,.3,'#e8aa2a'],[0,.3,'#e8aa2a']];
+  for(let e=0;e+1<H.length;e++){const [r0,z0,c0]=H[e],[r1,z1]=H[e+1],dr=r1-r0,dz=z1-z0,L=Math.hypot(dr,dz),nr=dz/L,nz=-dr/L,reed=e===5,k=col(c0);
+    const at=(i,r,z)=>{const t=i/SEG*Math.PI*2,rr=reed?r+(i%2?.07:-.03):r;return [Math.cos(t)*rr,Math.sin(t)*rr,z];},nAt=i=>{const t=i/SEG*Math.PI*2,tw=reed?(i%2?1:-1)*.35:0;
+      /* a reed's flanks tilt its normal round the rim, so the ribs catch light */const x=Math.cos(t)*nr-Math.sin(t)*tw,y=Math.sin(t)*nr+Math.cos(t)*tw,l=Math.hypot(x,y,nz);return [x/l,y/l,nz/l];};
+    for(let i=0;i<SEG;i++){const a0=at(i,r0,z0),a1=at(i+1,r0,z0),b0=at(i,r1,z1),b1=at(i+1,r1,z1),n0=nAt(i),n1=nAt(i+1),mid=[(n0[0]+n1[0])/2,(n0[1]+n1[1])/2,nz];
+      const T=(a,b,c,na,nb,nc)=>{const u=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],v=[c[0]-a[0],c[1]-a[1],c[2]-a[2]],f=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+        if(f[0]*mid[0]+f[1]*mid[1]+f[2]*mid[2]<0){P.push(...a,...c,...b);N.push(...na,...nc,...nb);}else{P.push(...a,...b,...c);N.push(...na,...nb,...nc);}Cl.push(...k,...k,...k);};
+      if(r0>0)T(a0,a1,b1,n0,n1,n1);if(r1>0)T(a0,b1,b0,n0,n1,n0);}}
+  /* the emblem: extruded flat shapes, set into the field of each face */
+  const sh=[],slice=new THREE.Shape();slice.moveTo(0,-2.2);slice.lineTo(1.7,1.0);slice.lineTo(-1.7,1.0);slice.closePath();sh.push([slice,.16,'#ffe27a']);
+  const crust=new THREE.Shape();crust.moveTo(-2.0,.88);crust.quadraticCurveTo(0,2.3,2.0,.88);crust.lineTo(1.62,1.02);crust.quadraticCurveTo(0,1.8,-1.62,1.02);crust.closePath();sh.push([crust,.27,'#f0a52c']);
+  for(const [x,y] of [[0,-.95],[-.62,.28],[.62,.3]]){const c=new THREE.Shape();c.absarc(x,y,.42,0,Math.PI*2,false);sh.push([c,.24,'#c4452a']);}
+  for(const [S,d,h] of sh){const eg=new THREE.ExtrudeGeometry(S,{depth:d,bevelEnabled:false,curveSegments:8}),g=eg.index?eg.toNonIndexed():eg;g.computeVertexNormals();const p=g.attributes.position.array,n=g.attributes.normal.array,k=col(h);
+    for(const side of [1,-1])for(let i=0;i<p.length;i+=9){const v=[0,3,6].map(o=>[p[i+o],p[i+o+1],side*(p[i+o+2]+.28)]),w=[0,3,6].map(o=>[n[i+o],n[i+o+1],side*n[i+o+2]]);
+      const ord=side>0?[0,1,2]:[0,2,1];/* (the back's copy is mirrored: its triangles turned round to face out) */for(const o of ord){P.push(...v[o]);N.push(...w[o]);Cl.push(...k);}}
+    eg.dispose();}
+  const G=new THREE.BufferGeometry();G.setAttribute('position',new THREE.Float32BufferAttribute(P,3));G.setAttribute('normal',new THREE.Float32BufferAttribute(N,3));G.setAttribute('color',new THREE.Float32BufferAttribute(Cl,3));G.computeBoundingSphere();return SB.coinGeo=G;}
+/* (patch 61) a soft shadow flat on the ground under each coin: a dark ellipse turning with the coin; one instanced draw */
+let _sbShT=null;function sbShadowTex(){if(_sbShT)return _sbShT;const c=cnv(64,64),g=c.getContext('2d'),gr=g.createRadialGradient(32,32,1,32,32,31);gr.addColorStop(0,'rgba(0,0,0,.85)');gr.addColorStop(.55,'rgba(0,0,0,.55)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(0,0,64,64);return _sbShT=new THREE.CanvasTexture(c);}
+function sbCoinShadows(C){const L=C.filter(c=>c.gy!=null);SB.shIm=null;if(!L.length)return;const pg=new THREE.PlaneGeometry(1,1);pg.rotateX(-Math.PI/2);
+  const m=new THREE.MeshBasicMaterial({map:sbShadowTex(),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4,fog:true}),im=SB.shIm=new THREE.InstancedMesh(pg,m,L.length);
+  im.frustumCulled=false;im.castShadow=false;im.receiveShadow=false;im.renderOrder=1;L.forEach((c,i)=>{c.si=i;});SB.grp.add(im);}
 function sbFound(){let n=0,t=0;for(const c of SB.coins)if(c.rare){t++;if(c.t<0)n++;}return [n,t];}
 /* ---- on and off ---- */
 function sbArm(){const def=MAPS[mapIdx],R=def&&sbRegOf(def.id),on=mode==='sb'&&!NET.cfg&&!!R;if(!on){if(SBX)sbOff();return;}
@@ -5990,9 +6019,9 @@ function sbCam(){const k=camT;if(!k||state==='menu'||!SBF)return;if(k.loop||k.rt
   for(let i=1;i<=16;i++){const f=i/16,g=Math.min(1.06,f+.06);if(sbSolid(tx+(cx-tx)*g,tz+(cz-tz)*g,ty+(cy-ty)*g)){ok=(i-1)/16;break;}}
   const was=SB.camF==null?1:SB.camF;SB.camF=ok<was?ok:Math.min(ok,was+.02);const f=Math.max(.16,SB.camF);if(f>=.999)return;
   camera.position.set(tx+(cx-tx)*f,ty+(cy-ty)*f+(1-f)*9,tz+(cz-tz)*f);{/* pulled in close, it looks more and more at the kart itself, so the kart stays in the picture */const w=Math.min(1,(1-f)*1.6);camera.lookAt(cam.look.x+(tx-cam.look.x)*w,cam.look.y+cam.oy*.45+(ty-2-cam.look.y-cam.oy*.45)*w,cam.look.z+(tz-cam.look.z)*w);}}
-function sbRender(time){sbSpdUi();{const dt=Math.min(.1,Math.max(0,time-(SB.wT==null?time:SB.wT)));SB.wT=time;sbWarpTick(dt);}if(SBC.stars)SBC.stars.position.copy(camera.position);if(!SB.grp)return;sbCam();if(SB.flag){SB.flag.F.rotation.y=time*1.6;SB.flag.F.position.y=12+Math.sin(time*2.2)*1.2;}const im=SB.im;for(const c of SB.coins){const a=time*2.6+c.ph;if(c.rare){if(c.m&&c.m.visible){c.m.rotation.y=a;c.m.position.y=c.y+Math.sin(time*2+c.ph)*.8;}continue;}
+function sbRender(time){sbSpdUi();{const dt=Math.min(.1,Math.max(0,time-(SB.wT==null?time:SB.wT)));SB.wT=time;sbWarpTick(dt);}if(SBC.stars)SBC.stars.position.copy(camera.position);if(!SB.grp)return;sbCam();if(SB.flag){SB.flag.F.rotation.y=time*1.6;SB.flag.F.position.y=12+Math.sin(time*2.2)*1.2;}const im=SB.im,sh=SB.shIm;for(const c of SB.coins){const a=time*2.6+c.ph;if(sh&&c.si!=null){/* its shadow (patch 61) */const on=c.t===0,big=c.rare?1.5:1,bob=c.rare?1-Math.sin(time*2+c.ph)*.04:1;_sbE.set(0,a,0);_sbQ.setFromEuler(_sbE);_sbP.set(c.x,c.gy+.3,c.z);_sbS.set(on?9.5*big*bob:0,1,on?3.8*big*bob:0);_sbM.compose(_sbP,_sbQ,_sbS);sh.setMatrixAt(c.si,_sbM);}if(c.rare){if(c.m&&c.m.visible){c.m.rotation.y=a;c.m.position.y=c.y+Math.sin(time*2+c.ph)*.8;}continue;}
     _sbE.set(0,a,0);_sbQ.setFromEuler(_sbE);_sbP.set(c.x,c.y,c.z);const s=c.t>0?0:1;_sbS.set(s,s,s);_sbM.compose(_sbP,_sbQ,_sbS);im.setMatrixAt(c.i,_sbM);}
-  if(im)im.instanceMatrix.needsUpdate=true;try{sbNightFrame(time);}catch(e){console.warn('night',e);}try{sbnRender(time);}catch(e){console.warn('sbnet',e);}try{sbShopFrame(time);}catch(e){console.warn('shop',e);}/* (patch 41) last: it owns the camera while pulling in */}
+  if(im)im.instanceMatrix.needsUpdate=true;if(sh)sh.instanceMatrix.needsUpdate=true;try{sbNightFrame(time);}catch(e){console.warn('night',e);}try{sbnRender(time);}catch(e){console.warn('sbnet',e);}try{sbShopFrame(time);}catch(e){console.warn('shop',e);}/* (patch 41) last: it owns the camera while pulling in */}
 function sbHud(){let e=SB.el;if(!e){e=SB.el=document.createElement('div');e.id='sbHud';e.style.cssText='position:absolute;left:max(10px,env(safe-area-inset-left));top:64px;z-index:6;font:700 13px/1.3 system-ui,sans-serif;color:#fff4dc;background:rgba(18,9,6,.62);border-radius:12px;padding:8px 12px;pointer-events:none;text-shadow:0 1px 2px #000';stage.appendChild(e);}
   e.hidden=!SBX||state==='menu';if(BB.el)BB.el.hidden=true;if(e.hidden)return;const sv=sbSave(),f=sbFound(),dot=(c,r)=>'<span style="display:inline-block;width:'+r+'px;height:'+r+'px;border-radius:50%;background:'+c+';box-shadow:inset 0 0 0 2px rgba(0,0,0,.25);vertical-align:-2px;margin-right:6px"></span>';
   e.innerHTML='<div style="font-size:11px;letter-spacing:.6px;opacity:.85;text-transform:uppercase">'+SB.reg.name+'</div><div style="font-size:20px;margin-top:2px">'+dot('#ffc93a',15)+sv.c+'</div><div style="margin-top:2px">'+dot('#d8402a',13)+f[0]+' / '+f[1]+'</div>'+(SB_CLOCK?'<div style="margin-top:3px;font-size:12px;opacity:.9">'+sbClockIcon()+sbClockStr()+'</div>':'');}
@@ -6007,7 +6036,7 @@ function sbExport(){if(!SBX)return null;const b64=a=>{const u=new Uint8Array(a.b
   const o={v:1,id:SB.regId,kind:SB.kind,free:SBF,name:SB.reg.name,rim:SB.rim||0,step:SB_STEP,r:SB_R,head:SB_HEAD,rail:SB_RAIL,q:SB_Q,k:SB_K,glen:SB_GLEN,lvl:sbLvl(),toyw:SB.kind==='toy'?TOYW():0,
     loops:SB.loops.map(L=>({x:L.p.x,y:L.p.y,tx:L.p.tx,ty:L.p.ty,nx:L.p.nx,ny:L.p.ny,g0:L.g0,r:L.r,a:L.a,b:L.b})),
     gates:SB.gates.map(g=>({id:g.id,to:g.to,at:g.at,label:g.label,x:g.x,y:g.y,z:g.z,nx:g.nx,nz:g.nz,hw:g.hw,road:g.road?1:0,plain:g.plain?1:0,j:g.j==null?-1:g.j})),
-    coins:SB.coins.map(c=>[+c.x.toFixed(2),+c.y.toFixed(2),+c.z.toFixed(2),c.rare?1:0,c.id||'']),flag:SB.flag?[SB.flag.x,SB.flag.y,SB.flag.z]:null,shapes:SB.shapes,
+    coins:SB.coins.map(c=>[+c.x.toFixed(2),+c.y.toFixed(2),+c.z.toFixed(2),c.rare?1:0,c.id||'',c.gy==null?null:+c.gy.toFixed(2)])/* (patch 61: [5] the ground under it, for its shadow; null: it hangs in the air) */,flag:SB.flag?[SB.flag.x,SB.flag.y,SB.flag.z]:null,shapes:SB.shapes,
     /* (web v199: the activities' markers and the place's Easter egg, activities.js; the PC keeps the same table of activities and eggs and takes the spots from here) */
     acts:(typeof SBA!=='undefined'?SBA.marks:[]).map(m=>({id:m.a.id,x:+m.x.toFixed(2),y:+m.y.toFixed(2),z:+m.z.toFixed(2),j:m.j})),egg:typeof SBA!=='undefined'&&SBA.egg?{id:SBA.egg.E.id,x:+SBA.egg.x.toFixed(2),y:+SBA.egg.y.toFixed(2),z:+SBA.egg.z.toFixed(2),ry:+SBA.egg.G.rotation.y.toFixed(3)}:null};
   const c=SB.col;if(c){const n=c.nx*c.nz;let m=0,tot=0;for(let q=0;q<n;q++)if(c.cnt[q]){m++;tot+=c.cnt[q];}const cells=new Int32Array(m),cnt=new Uint8Array(m),thin=new Uint8Array(m),sp=new Int16Array(tot*2);let i=0,w=0;
