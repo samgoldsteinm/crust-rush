@@ -145,6 +145,17 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-17 (web v217): real car paint, pepperoni coin and mission medallion, PC night lights
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| Solid paints looked dull next to the owner's photos (a Verde Mantis roadster, a Rosso Corsa coupe) | Mid-tone swatches washed toward pastel by the ACES tone curve (red read orange), and a part-metal finish (.14 karts, .32 car bodies) greyed the colour and flattened its light-to-dark range | patch 62: deep car swatches (PAINTS), solid finish = non-metal base, roughness .36, clear coat .02, envMapIntensity 1.75 (a livery keeps its own); PC kart_builder.gd the same (paints come with the garage export) | cartest.py PAINT=1 / PAINT=4 against the photos |
+| PC: no headlights, street lights "super dim" at night | Godot dims lights as distance^-attenuation in world units; a kart is 12 units long, so attenuation 1.15 left 8% of the headlights 60 ahead and 1.6 left 1% of a lamp 30 away | sandbox_night.gd: spot attenuation .3 (energy 3.2), lamps .4 (energy 4.5) | tests/sbnight.tscn with a window takes build/menu/night_on.png / night_off.png (its LED check needs CR_MAP=backyard) |
+- patch 63: sbCoinGeo(kind) also makes the hidden pepperoni coin (gold rim, red face, raised pepperoni and cheese flecks; drawn after its glow
+  sprite, which otherwise covered the far half of its face) and the mission medallion (gold, the icon on both faces, turning, bobbing, a
+  shadow). coinexport.py writes coin_pep.json, coin_act.json and act_<kind>.png for the PC (sandbox_view.gd uses them when present).
+- The start-line duplicate the owner asked about again: fixed since web v214 (above); sbrace.py rerun on v217: no ghost during the race.
+- tests/sbcoin.gd needs main.auto_drive = true, or it waits at the menu (the owner saw the window "stuck on the menu").
+
 ### 2026-11-17 (source for web v217, NOT YET PUBLISHED): Sandbox coins with detail and shadows (patch 61)
 The owner: "make the coins look better in sandbox right now they look basic with very little detail maybe add a shadow for them too".
 - Web: sbCoinGeo builds the coin (sunken field, raised rim, bevelled reeded edge, a raised pizza slice with crust and pepperoni on both
