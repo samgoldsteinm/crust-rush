@@ -145,6 +145,18 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-17 (PC build for web v219, online 120): the PC level with web v218-v219
+tools/mini/pc68.py (patch 64's no-items rule, patch 65's coins, patch 68's developer options, PROTO 120, scripts/style.gd) and
+tools/mini/pc65.py (the style shop: garage rows, trim/accent repaint, underglow lights, coloured smoke, headlight colour). Notes:
+- New scripts are loaded by path (preload("res://scripts/style.gd")): a new class_name is unknown until the editor rebuilds its cache.
+- Car bodies' trim on the PC: _style_vc repaints a COPY of the mesh's vertex colours by class (uv.x * 32), cached per mesh + colours.
+- The underglow on the PC: two OmniLight3D under every glowing kart (Godot's lights light the toy tracks, unlike the web's
+  ShaderMaterial track), the haze kept very faint (alpha .05-.12): with it stronger it read as a flat patch again.
+- Tests: tests/dev.tscn (DEVTEST), tests/style.tscn (STYLE; with a window build/menu/style_night.png; CR_MODE=sb CR_MAP=backyard).
+  tests/cpus.gd now sets the mode (a Sandbox test saves "sb" as the last mode). tests/lbtest.tscn: run WITHOUT --fixed-fps (its waits
+  count frames; at fixed 120 the board's answer comes after them).
+- Only the moving hazards are switchable (traffic, train, walk): race.gd _setup_haz; the local PC copy has no track with traffic.
+
 ### 2026-11-17 (web v219, ONLINE 120: the PC must follow before it can race the web): developer options (patch 68)
 Unlocked by the cheat code DEVELOPER (again hides it); Settings > More, under the cheat box (devUI from the table DEVS). Store 'crust-dev'.
 - RACE settings (devR: off line yours, for YOUR kart only; in a room the HOST's, sent as cfg.dev = devPack() in netBuildCfg and applied
