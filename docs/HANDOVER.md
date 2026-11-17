@@ -145,6 +145,12 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-17 (web v220): the restart key (patch 69)
+KB action 'restart' (default Backspace): in a race off line (not a room, Sandbox or battle) the first press pauses and shows #rstOv
+(the pause menu hidden under it); the same key again restarts (the pause menu's Restart, startRace); Esc / Keep racing goes on. The key
+works while the box holds the focus (checked before keydown's overlay early return). tools/neon/rsttest.py. PC: still to do (after the
+PC build for v219 that is running: release_pc commits every change in godot).
+
 ### 2026-11-17 (PC build for web v219, online 120): the PC level with web v218-v219
 tools/mini/pc68.py (patch 64's no-items rule, patch 65's coins, patch 68's developer options, PROTO 120, scripts/style.gd) and
 tools/mini/pc65.py (the style shop: garage rows, trim/accent repaint, underglow lights, coloured smoke, headlight colour). Notes:

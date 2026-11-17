@@ -614,6 +614,7 @@ body.sbshop #sbPark,body.sbshop #sbSpd,body.sbshop #sbHud,body.sbshop #sbMapBtn,
 .cheat-f input:focus{outline:2px solid var(--cheese);outline-offset:1px}
 .cheat-f .cta{flex:none;padding:10px 16px;font-size:14px}
 .cheat-msg{margin:4px 0 0;font-size:13px;min-height:1.2em}
+#rstOv{z-index:60}.rst-txt{margin:6px 0 14px;color:var(--muted)}
 .dev .g-sub{margin:16px 2px 4px}.dev-note{margin:0 2px 6px;font-size:12px;color:var(--muted)}.dev select{padding:8px 10px;border-radius:10px;background:rgba(14,7,4,.55);color:var(--cream);border:1px solid rgba(255,244,220,.2);font:600 14px inherit}
 .dev-btns{display:flex;flex-wrap:wrap;gap:8px}.dev-btns .cta{padding:9px 14px;font-size:13px}
 body.devnohud .hud{display:none!important}
@@ -1041,6 +1042,11 @@ body.pad .ph{display:grid}.ph.a{background:#3fa641}.ph.b{background:#d93a2f}.ph.
 
 <div id="mpOv" class="overlay" hidden>
   <div class="panel mp-panel"><div class="mp-head"><h2 class="res-title">Play with friends</h2><button id="mpClose" class="ghost" type="button" aria-label="Close">✕</button></div><div id="mpBody"></div></div>
+</div>
+
+<div id="rstOv" class="overlay" hidden>
+  <div class="panel rst-panel"><h2 class="res-title">Restart the race?</h2><p id="rstTxt" class="rst-txt"></p>
+    <div class="row"><button id="rstGo" class="cta" type="button">Restart</button><button id="rstNo" class="ghost" type="button">Keep racing</button></div></div>
 </div>
 
 <div id="pauseOv" class="overlay" hidden>
@@ -7890,8 +7896,8 @@ function rollItem(pos){{const D=devLocal();if(D&&D.item)return D.item;}/* (patch
 const keys={left:false,right:false,drift:false,brake:false,look:false};let itemQueued=null;
 /* ---- keyboard keys: every racing action can be moved to any key (Settings, Controls). Up to three keys per action,
    saved on this device. Esc always pauses unless it has been given another job. */
-const KB_ACTS=[['left','Steer left'],['right','Steer right'],['brake','Drift / brake'],['item1','Use first item'],['item2','Use second item'],['hold','Keep item behind'],['ability','Special ability'],['look','Look back'],['pause','Pause'],['sbback','Back to the track (Sandbox)'],['lights','Headlights (Sandbox)'],['fly','Fly (developer)'],['flyup','Fly up (developer)'],['flydown','Fly down (developer)']];/* (patch 51: sbback) */
-const KB_DEF={left:['ArrowLeft','KeyA'],right:['ArrowRight','KeyD'],brake:['Space','ArrowDown','KeyS'],item1:['KeyX','KeyE','Enter'],item2:['KeyZ','KeyQ','KeyV'],hold:['ShiftLeft','ShiftRight','KeyB'],ability:['KeyC','KeyR'],look:['KeyF'],pause:['KeyP'],sbback:['KeyT'],lights:['KeyL'],fly:['KeyG'],flyup:['KeyI','PageUp'],flydown:['KeyK','PageDown']};
+const KB_ACTS=[['left','Steer left'],['right','Steer right'],['brake','Drift / brake'],['item1','Use first item'],['item2','Use second item'],['hold','Keep item behind'],['ability','Special ability'],['look','Look back'],['pause','Pause'],['sbback','Back to the track (Sandbox)'],['lights','Headlights (Sandbox)'],['fly','Fly (developer)'],['flyup','Fly up (developer)'],['flydown','Fly down (developer)'],['restart','Restart the race (press twice)']];/* (patch 51: sbback) */
+const KB_DEF={left:['ArrowLeft','KeyA'],right:['ArrowRight','KeyD'],brake:['Space','ArrowDown','KeyS'],item1:['KeyX','KeyE','Enter'],item2:['KeyZ','KeyQ','KeyV'],hold:['ShiftLeft','ShiftRight','KeyB'],ability:['KeyC','KeyR'],look:['KeyF'],pause:['KeyP'],sbback:['KeyT'],lights:['KeyL'],fly:['KeyG'],flyup:['KeyI','PageUp'],flydown:['KeyK','PageDown'],restart:['Backspace']};
 let KEYB={},KEYC={};
 function kbLoad(){let v=null;try{v=JSON.parse(store.get('crust-keys')||'null');}catch(e){}KEYB={};for(const [a] of KB_ACTS){const l=v&&Array.isArray(v[a])?v[a].filter(c=>typeof c==='string'&&c).slice(0,3):null;KEYB[a]=l||KB_DEF[a].slice();}kbIndex();}
 function kbIndex(){KEYC={};for(const [a] of KB_ACTS)for(const c of KEYB[a])if(!KEYC[c])KEYC[c]=a;}
@@ -7902,13 +7908,13 @@ function kbName(c){if(!c)return '';const M={ArrowLeft:'\u2190',ArrowRight:'\u219
   if(M[c])return M[c];if(/^Key[A-Z]$/.test(c))return c.slice(3);if(/^Digit\d$/.test(c))return c.slice(5);if(/^Numpad/.test(c))return 'Num '+c.slice(6);return c.replace(/([a-z])([A-Z])/g,'$1 $2');}
 function kbList(a){const l=KEYB[a].map(kbName);return l.length?(l.length>1?l.slice(0,-1).join(', ')+' or '+l[l.length-1]:l[0]):'not set';}
 const KB_HELD={left:1,right:1,brake:1,look:1,flyup:1,flydown:1};
-addEventListener('keydown',e=>{if(e.target.closest&&e.target.closest('.overlay'))return;const a=KEYC[e.code];
+addEventListener('keydown',e=>{if(KEYC[e.code]==='restart'&&!$('rstOv').hidden&&!e.repeat){e.preventDefault();rstGo();return;}if(e.target.closest&&e.target.closest('.overlay'))return;const a=KEYC[e.code];
   if(a==='look'){keys.lookKey=true;keys.look=true;e.preventDefault();}
   else if(a&&KB_HELD[a]){keys[a]=true;e.preventDefault();}
   else if(a==='item1'){if(!e.repeat)itemQueued='fwd';e.preventDefault();}
   else if(a==='item2'){if(!e.repeat)itemQueued='fwd2';e.preventDefault();}
   else if(a==='hold'){if(!e.repeat)itemQueued='hold';e.preventDefault();}
-  else if(a==='ability'){if(!e.repeat)abilQueued=true;e.preventDefault();}else if(a==='fly'){if(!e.repeat)devFlyToggle();e.preventDefault();}else if(a==='lights'){if(!e.repeat&&SBX){const now=SB.hl==null?(sbClockF().L>.65):SB.hl;SB.hl=!now;showBanner(SB.hl?'Headlights on':'Headlights off',1.1,'sm');}e.preventDefault();}/* (patch 54) */else if(a==='sbback'){if(!e.repeat&&SBX&&state==='race'&&!SB.trav){togglePause();sbBackAsk(true);}e.preventDefault();}/* (patch 51) */
+  else if(a==='ability'){if(!e.repeat)abilQueued=true;e.preventDefault();}else if(a==='fly'){if(!e.repeat)devFlyToggle();e.preventDefault();}else if(a==='restart'){if(!e.repeat)rstKey();e.preventDefault();}else if(a==='lights'){if(!e.repeat&&SBX){const now=SB.hl==null?(sbClockF().L>.65):SB.hl;SB.hl=!now;showBanner(SB.hl?'Headlights on':'Headlights off',1.1,'sm');}e.preventDefault();}/* (patch 54) */else if(a==='sbback'){if(!e.repeat&&SBX&&state==='race'&&!SB.trav){togglePause();sbBackAsk(true);}e.preventDefault();}/* (patch 51) */
   else if(a==='pause'||(!a&&e.code==='Escape')){if(!e.repeat)togglePause();}});
 addEventListener('keyup',e=>{const a=KEYC[e.code];if(a==='look'){keys.lookKey=false;if(!document.getElementById('lookBtn')||!document.getElementById('lookBtn').classList.contains('on'))keys.look=false;}else if(a&&KB_HELD[a])keys[a]=false;});
 /* the remap list in Settings: tap a key box, then press the new key (Esc cancels, Backspace or Delete clears the box) */
@@ -9714,6 +9720,12 @@ function togglePause(){try{setTimeout(()=>{if(typeof sbSpdUi==='function')sbSpdU
   else if(state==='paused'){state=pauseOv._prev;pauseOv.hidden=true;last=performance.now();}}
 $('startBtn').onclick=startFromMenu;$('againBtn').onclick=()=>{if(gp&&NET.cfg&&NET.role==='host'){/* on line: the points of the race just run are added now, once; a second press (back from the lobby) asks for the same race again */if(gp.pend){goRace(CUP_TRACKS[gp.cup][gp.race]);return;}const G=netGpNow();gp.pts=G.pts;gp.np=G.np;if(gp.race>=3){startGP();return;}gp.race++;gp.pend=1;goRace(CUP_TRACKS[gp.cup][gp.race]);return;}
   if(gp){if(gp.race>=3)startGP();else{gp.race++;goRace(CUP_TRACKS[gp.cup][gp.race]);}}else goRace(mapIdx);};$('restartBtn').onclick=()=>{if(gp)gp.pts.forEach((v,i)=>gp.pts[i]=v);startRace();};
+/* (patch 69) the restart key: once asks (and pauses), again restarts; off line races only */
+function rstOk(){return (state==='race'||state==='countdown'||state==='paused')&&!NET.cfg&&!NET.role&&!SBX&&!BATTLE;}
+function rstKey(){const o=$('rstOv');if(!o)return;if(!o.hidden){rstGo();return;}if(!rstOk())return;if(state==='race'||state==='countdown')togglePause();$('pauseOv').hidden=true;/* (the question alone, not the pause menu under it) */$('rstTxt').textContent='Press '+kbList('restart')+' again to start over, or Esc to keep racing.';o.hidden=false;try{$('rstGo').focus();}catch(e){}}
+function rstGo(){$('rstOv').hidden=true;$('pauseOv').hidden=true;$('restartBtn').onclick();}
+function rstNo(){$('rstOv').hidden=true;if(state==='paused')togglePause();}
+$('rstGo').onclick=rstGo;$('rstNo').onclick=rstNo;
 $('toMenuBtn').onclick=toMenu;$('trackBtn').onclick=()=>{toMenu();goStep('track');};/* straight to the track list, keeping driver, kart, class and mode */$('mpBtn').onclick=()=>netShowLobby();$('mpBadge').onclick=()=>netShowLobby();$('mpClose').onclick=()=>netHideLobby();$('quitBtn').onclick=toMenu;$('resumeBtn').onclick=togglePause;$('pauseBtn').addEventListener('pointerup',e=>{e.preventDefault();togglePause();});
 const setOv=$('setOv'),howOv=$('howOv'),fpsEl=$('fpsEl');let setFrom=null;
 const BOOLK=['shadows','sharpen','ao','saver','showfps','shake','mblur','dof','mini','ghost','music','fullscr'];
@@ -9757,7 +9769,7 @@ $('howBtn').onclick=()=>{menu.hidden=true;howOv.hidden=false;howOv.scrollTop=0;}
   try{if(!store.get('crust-tips'))$('tipsDot').hidden=false;}catch(e){}
   $('tipsBtn').onclick=()=>{menu.hidden=true;$('tipsOv').hidden=false;$('tipsOv').scrollTop=0;$('tipsDot').hidden=true;try{store.set('crust-tips','1');}catch(e){}};
   $('tipsDone').onclick=()=>{$('tipsOv').hidden=true;menu.hidden=false;};}$('recBtn').onclick=()=>{recCls=clsKey;renderRecords();menu.hidden=true;$('recOv').hidden=false;$('recOv').scrollTop=0;};$('recDone').onclick=()=>{$('recOv').hidden=true;menu.hidden=false;};$('achBtn').onclick=openAch;$('cheatF').onsubmit=e=>{e.preventDefault();applyCheat($('cheatIn').value);$('cheatIn').value='';$('cheatIn').blur();};$('achDone').onclick=closeAch;$('howDone').onclick=()=>{howOv.hidden=true;menu.hidden=false;};
-addEventListener('keydown',e=>{if(e.code!=='Escape')return;if(!setOv.hidden)closeSettings();else if(!howOv.hidden)$('howDone').onclick();else if(!$('tipsOv').hidden)$('tipsDone').onclick();else if(!$('recOv').hidden)$('recDone').onclick();else if(!$('achOv').hidden)closeAch();else if(garageOpen)closeGarage();else if(state==='race'||state==='countdown'||state==='paused')togglePause();});
+addEventListener('keydown',e=>{if(e.code!=='Escape')return;if(!$('rstOv').hidden){rstNo();return;}/* (patch 69) */if(!setOv.hidden)closeSettings();else if(!howOv.hidden)$('howDone').onclick();else if(!$('tipsOv').hidden)$('tipsDone').onclick();else if(!$('recOv').hidden)$('recDone').onclick();else if(!$('achOv').hidden)closeAch();else if(garageOpen)closeGarage();else if(state==='race'||state==='countdown'||state==='paused')togglePause();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&(state==='race'||state==='countdown'))togglePause();});
 document.querySelectorAll('#clsSeg button').forEach(b=>b.onclick=()=>{clsKey=b.dataset.c;store.set('crust-cls',clsKey);refreshMenu();});document.querySelectorAll('#cpuSeg button').forEach(b=>b.onclick=()=>{CPUS=clamp(CPUS+(+b.dataset.d),0,7);store.set('crust-cpus',String(CPUS));refreshMenu();});document.querySelectorAll('#itmSeg button').forEach(b=>b.onclick=()=>{if(b.dataset.i==='0'){for(const k of ITEM_LIST)ITEMSET[k]=false;}else if(itemsOff())ITEMSET={};saveItemSet();if(typeof renderItemSet==='function')renderItemSet();refreshMenu();});
 document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{mode=b.dataset.m;store.set('crust-mode',mode);{const bi=MAPS.findIndex(m=>m.battle),si=sbRegOf(MAPS[mapIdx].id)?mapIdx:MAPS.findIndex(m=>m.id==='backyard'),want=mode==='bb'?bi:mode==='sb'?si:mapIdx===bi?0:mapIdx;if(want!==mapIdx&&mode!=='gp'){mapIdx=want;loadMap(want,false);resetRace(true);}}if(mode==='gp'){const t=CUP_TRACKS[cupIdx][0];if(t!==mapIdx){mapIdx=t;loadMap(t,false);resetRace(true);}}refreshMenu();});
