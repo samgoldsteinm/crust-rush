@@ -145,6 +145,23 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-17 (source for web v217, NOT YET PUBLISHED; ONLINE 119 ON BOTH): four new karts built in Blender
+The owner: "Let's work on new kart designs and really make them unique and try using blender for some of them". Each has a
+silhouette no other kart has from the chase camera: Rolling Pin (retro open-wheeler, a pizza-peel wing), Grater (chunky utility kart,
+a giant box grater), Calzone Comet (crimped-dough streamliner, bubble canopy), Oil Can (dragster: spout nose, huge slicks, wheelie bar).
+- Made from scratch, no downloaded model: tools/blender/karts_new.py writes scratch/cars_in/karts/<id>.glb with materials named K_*;
+  car_rules.py's K_RULES map them; then the car pipeline as usual (car_all.sh, car_pack.py). tools/cars/patch_karts.py adds them to
+  BODIES (after every other body: builds hold the index) and BODY_FN, between /*karts4*/ marks (rerun it after any change). Seat, flames,
+  number and top are given in the model's metres there and turned into game units from each pack's measured wheels.
+- They are karts because they are left out of CAR_BODIES (the garage's Karts tab), with the driver in full view (drvS, noCockpit).
+- Their ids: the Calzone Comet is `comet`, NOT `calzone` (that is a track's id: patch_karts.py asserts against any clash).
+- Two new trims, steel and wood, appended to the class list on all three (car_convert.py CLS/PBR, the web's CAR_CLS/CAR_PBR,
+  kart_builder.gd CAR_CLS/CAR_PBR): chrome and metal mirror the dim garage and read nearly black over large surfaces. Keep the
+  three lists in the same order; append new classes only at the end (packs store the index).
+- Engine voices: oilcan v8, grater chug, comet race (web ENG_BODY and sfx.gd). Checked: tools/neon/cartest.py (now dismisses the
+  username prompt; ZOOM=1 PITCH=.3 frames a kart), scratch/statlap_k4.py: all four finish Margherita within the Classic's band (165-170 s).
+- The PC build of web v216 IS OUT: build 4ddd3cdf (online 118); pc.html updated.
+
 ### 2026-11-17 (web v216 and the PC build after it; ONLINE 118 ON BOTH): what a stat point counts for
 The owner: "it's hard for the karts to compete with the cars"; then, keeping Classic all zeros: "re assign the quantity that a point in a
 category counts for". tools/mini/patch60.py; PC kart_builder.gd stat_mods, kart.gd (the kerb), webnet.gd PROTO 118, main.gd's texts.

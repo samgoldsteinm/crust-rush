@@ -30,7 +30,15 @@ def by_texture(path, thresh, below, above):
     return f
 
 
+# (2026-11-17) the four new karts built in karts_new.py: every material named for what it becomes
+K_RULES = [(r'^K_PAINT', 'paint'), (r'^K_DARK', 'dark'), (r'^K_STRIPE', 'stripe'), (r'^K_CHROME', 'chrome'), (r'^K_METAL', 'steel'),
+           (r'^K_GLASS', 'glass'), (r'^K_LIGHT', 'light'), (r'^K_TAIL', 'tail'), (r'^K_SEAT', 'seat'), (r'^K_WOOD', 'wood'),
+           (r'^K_RED', 'red'), (r'^K_WHITE', 'white'), (r'^K_TYRE', 'wheel:rubber'), (r'^K_RIM', 'wheel:steel')]
 CARS = {
+    'rollpin': dict(src='karts/rollpin.glb', front=-1, rules=K_RULES, tub=False, len=0.62),
+    'grater': dict(src='karts/grater.glb', front=-1, rules=K_RULES, tub=False),
+    'comet': dict(src='karts/comet.glb', front=-1, rules=K_RULES, tub=False),
+    'oilcan': dict(src='karts/oilcan.glb', front=-1, rules=K_RULES, tub=False, len=0.88),
     # a widebody endurance GT racer
     'endur': dict(src='c3/source/mclaren_650s_gt3.glb', front=-1, rules=[
         (r'^Carpaint', 'paint'), (r'^INT_Glass|^Glass_Wind_noTrasp|^DAMAGE_GLASS|DISPLAY|LEDS', 'drop'), (r'^Glass_Windows', 'glass'),

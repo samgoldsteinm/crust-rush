@@ -15,6 +15,7 @@ async def main():
         await pg.wait_for_function("document.getElementById('menu')&&!document.getElementById('menu').hidden", timeout=600000)
         await pg.evaluate("__ev(`qKey='" + os.environ.get('Q', 'ultra') + "';applyQuality();1`)")
         await pg.wait_for_timeout(6000)                                # the late high-quality packs
+        await pg.evaluate("()=>{for(const b of document.querySelectorAll('button'))if(/^not now$/i.test(b.textContent.trim())&&b.offsetParent)b.click();}")   # the username prompt
         for cid in IDS:
             r = await pg.evaluate("(a)=>__ev(`(()=>{const i=BODIES.findIndex(b=>b.id==='${a[0]}');if(i<0)return 'no such body';playerBuild.b=i;playerBuild.w=0;" +
                                   "if('${a[1]}')playerBuild.p=+'${a[1]}';playerBuild.t='${a[2]}';" +

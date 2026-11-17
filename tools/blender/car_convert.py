@@ -36,11 +36,12 @@ from car_rules import CARS
 
 IN = 'D:/crust-rush/scratch/cars_in'; OUT = 'D:/crust-rush/blender/cars'
 LEN = 12.2
-CLS = ['paint', 'dark', 'stripe', 'tail', 'light', 'glass', 'carbon', 'metal', 'rubber', 'seat', 'chrome', 'rim', 'disc', 'caliper', 'blue', 'gunmetal', 'green', 'red', 'bluem', 'bronze', 'white']
+CLS = ['paint', 'dark', 'stripe', 'tail', 'light', 'glass', 'carbon', 'metal', 'rubber', 'seat', 'chrome', 'rim', 'disc', 'caliper', 'blue', 'gunmetal', 'green', 'red', 'bluem', 'bronze', 'white', 'steel', 'wood']
 # colour, roughness, metalness of each class, as CAR_PBR in the game (the paint is shown red in the check pictures)
 PBR = dict(paint=('#c8261b', .3, .5), dark=('#161618', .36, .25), stripe=('#ffffff', .36, .5), tail=('#ff2a1a', .4, 0), light=('#ffffff', .2, 0), glass=('#0b0d10', .05, 0),
            carbon=('#161618', .36, .25), metal=('#76777d', .32, .9), rubber=('#121212', .9, 0), seat=('#1c1918', .8, 0), chrome=('#e9e9ee', .1, 1), rim=('#b5b7be', .24, .95), disc=('#58595d', .45, .85),
-           caliper=('#c8321e', .35, .2), blue=('#2a5bff', .3, 0), gunmetal=('#3b3e44', .26, .9), green=('#3f9a1a', .34, .6), red=('#c0180c', .3, .5), bluem=('#1d7fe6', .22, .85), bronze=('#8a6232', .3, .95), white=('#eeeeee', .3, 0))
+           caliper=('#c8321e', .35, .2), blue=('#2a5bff', .3, 0), gunmetal=('#3b3e44', .26, .9), green=('#3f9a1a', .34, .6), red=('#c0180c', .3, .5), bluem=('#1d7fe6', .22, .85), bronze=('#8a6232', .3, .95), white=('#eeeeee', .3, 0),
+           steel=('#c4c7cd', .42, .45), wood=('#c38f58', .55, 0))   # (2026-11-17, the Blender karts: a steel that stays light in a dim room, a varnished wood)
 BASE = dict(paint=9000, vc=6000, int=900, glass=400, tail=300, light=450, wheel=1700)
 HQ = dict(paint=22500, vc=15000, int=2600, glass=1000, tail=800, light=1100)
 LOD = dict(paint=880, vc=600, glass=50, tail=30, light=40)
