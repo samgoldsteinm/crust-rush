@@ -145,6 +145,13 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-17 (web v221): UNLOCK opens the style shop too (patch 70)
+styleOwned() is true for everything while CHEAT is on (styleCheat(): CHEAT is declared further down the file, so read it in a try).
+styleBuy() then sees it owned and charges nothing and records nothing: crust-own and the coins stay real. CHEAT lasts one session, so at
+start-up (just after STYLE) any style in the saved build that is paid and not in crust-own goes back to 0 and the build is saved.
+Never filter OTHER players' st (online builds are theirs). Karts and cars are not sold for coins (Awards, which CHEAT already opened).
+Test: tools/neon/unlocktest.py (UNLOCK TEST passed). PC: tools/mini/pc70.py (style.gd owned(): main.cheat; start-up reset).
+
 ### 2026-11-17 (web v220): the restart key (patch 69)
 KB action 'restart' (default Backspace): in a race off line (not a room, Sandbox or battle) the first press pauses and shows #rstOv
 (the pause menu hidden under it); the same key again restarts (the pause menu's Restart, startRace); Esc / Keep racing goes on. The key
