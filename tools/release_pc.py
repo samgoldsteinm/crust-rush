@@ -50,7 +50,11 @@ s = open(my, encoding='utf-8', newline='').read()
 s = re.sub(r'# \(Last run for: [^\n]*\)', f'# (Last run for: web {web}, {title}.)', s, count=1)
 open(my, 'w', encoding='utf-8', newline='').write(s)
 git('add', '.github/workflows/maps.yml', 'tools/glbexport.js', 'tools/ciexport.py', 'tools/cigarage.py')
-git('commit', '-q', '-m', f'Re-export the tracks for web {web} [quick]{TAIL}')
+# (a run stopped after its export was pushed, run again: the export is already there, nothing new to commit; carry on from it)
+if git('log', '-1', '--format=%s').startswith(f'Re-export the tracks for web {web} ') and not git('diff', '--cached', '--name-only'):
+    print('the export for', web, 'was already pushed: waiting for it', flush=True)
+else:
+    git('commit', '-q', '-m', f'Re-export the tracks for web {web} [quick]{TAIL}')
 git('fetch', '-q', 'origin'); git('merge-base', '--is-ancestor', 'origin/godot', 'HEAD'); git('push', '-q', 'origin', 'HEAD:godot')
 ex = git('log', '--format=%H', '-1'); print('export started', ex[:7], flush=True)
 time.sleep(40); wait('Export tracks', ex[:7], extra_idle=True, minutes=170); print('export done', flush=True)   # (with Sandbox each track is read twice)

@@ -68,7 +68,7 @@ async def main():
               and R['off']['noitm'] and R['off']['got'] == 0 and R['off']['taken'] == 0 and R['off']['prog'] > 0
               and R['onAgain'] and not R['on']['noitm'] and R['on']['got'] > 0
               and R['menuOff'] and ni_url and rv_url and len(sent) == 2 and sent[0].get('p_noitems') is True and 'p_noitems' not in sent[1]
-              and R['proto'] == 116 and not errs)
+              and R['proto'] >= 116 and not errs)   # (the online version moves on: 116 brought cfg.ni)
         print('errors', errs[:3]); print('NO ITEMS TEST', 'passed' if ok else 'FAILED')
         await b.close()
 asyncio.run(main())

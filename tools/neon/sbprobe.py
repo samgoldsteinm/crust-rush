@@ -1,8 +1,8 @@
 """Sandbox, a look at anything:   py.cmd tools/neon/sbprobe.py <map> <file.js> [shots]
 Starts Sandbox on <map> (Fast quality), then runs each block of <file.js> in the game and prints what it returns. Blocks are separated by a
 line holding only ----; each is one expression (wrap statements as (()=>{...})()). A block that starts with //shot <name> takes a picture
-scratch/probe_<name>.png one second after it ran; //wait <ms> waits first. The helper window.__sb (put, line, lap: see sbtest.py) is loaded."""
-import asyncio, json, re, sys
+scratch/probe_<name>.png one second after it ran; //wait <ms> waits first. The helper window.__sb (put, line, lap: see sbtest.py) is loaded. INIT=<js> runs in the page before the game loads (e.g. setting localStorage)."""
+import asyncio, json, os, re, sys
 from playwright.async_api import async_playwright
 REG = sys.argv[1]; SRC = open(sys.argv[2], encoding='utf-8').read(); SP = 'D:/crust-rush/scratch'
 HELP = re.search(r'JS = r"""(.*?)"""', open('D:/crust-rush/source/tools/neon/sbtest.py', encoding='utf-8').read(), re.S)
@@ -10,7 +10,7 @@ async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(channel='chromium', args=['--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist', '--enable-webgl'])
         ctx = await b.new_context(viewport={'width': 1280, 'height': 720}, service_workers='block'); pg = await ctx.new_page(); errs = []
-        pg.on('pageerror', lambda e: errs.append(str(e)[:300])); pg.on('console', lambda m: errs.append('console: ' + m.text[:200]) if m.type == 'error' else None)
+        (await ctx.add_init_script(os.environ['INIT'])) if os.environ.get('INIT') else None; pg.on('pageerror', lambda e: errs.append(str(e)[:300])); pg.on('console', lambda m: errs.append('console: ' + m.text[:200]) if m.type == 'error' else None)
         await pg.goto('http://localhost:8771/webcopy6/index.html')
         await pg.wait_for_function("document.getElementById('menu')&&!document.getElementById('menu').hidden", timeout=600000)
         q = sys.argv[3] if len(sys.argv) > 3 else 'fast'

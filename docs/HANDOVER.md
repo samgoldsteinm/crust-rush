@@ -145,6 +145,23 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-17 (web v218, online still 119; PC NOT YET level): clean races count as No items, the style shop, coins for races
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| A race with items on but none used was filed with items (the owner, Basil Boulevard) | lbRun filed NOITM only (every item switched off) | patch 64: ITMUSED, set when the PLAYER uses an item (useItem without fireItem's third argument: a special ability does not count); lbRun files ni = NOITM or not ITMUSED | noitemtest.py (its online-version check now >= 116) |
+| The underglow looked like a flat coloured patch, "not light" | An additive picture adds the same colour whatever it lies on; and the toy tracks' surface is a ShaderMaterial that ignores scene lights (a ray down in Sandbox: lights false) | patch 66: two real point lights under the kart you drive (the player model and the garage preview always have them, dark when no glow: the light count never changes); patch 67: a second layer with blending ground x colour + ground (DstColor, One), premultiplied picture: the ground keeps its texture and is lit in the colour | sbprobe.py with INIT (localStorage build) and SB.clock=.95 then a wait, then freeze: scratch/coin/glow.js |
+- patch 65, the style shop (garage > Colour, under the paints): TRIMS (one list for trim, accent and interior; Stock/Black/White/Silver free,
+  colours 60-120, neon 150, gunmetal 150, bronze 250, gold 400, chrome 600), GLOWS (Off and Ice blue free; 200-250; Rainbow 800), LIGHTS
+  (Halogen, Xenon free; 150-300), SMOKES (White free; 300-400; Rainbow 900). Owned: store 'crust-own'; wallet = Sandbox coins (sbSave().c).
+  playerBuild.st = {tr, ac, in, gl, hl, sm}; travels with the build online; in the model cache key. Car bodies: styleVC (SH.carVC
+  cloned, shader recolours classes dark/carbon/gunmetal, stripe/caliper/red, seat by the uv's class, keeping the baked shading; SHSET so
+  never disposed); code karts: M.dark / M.stripe / SH.seat swapped. Tyre smoke: smokeC(k), thicker, plus launch smoke; FXN 420.
+  Sandbox's headlight beam takes the headlight colour (sbNightFrame). CPU karts sometimes wear a glow/smoke.
+- Coins for a finished race (racePay in onPlayerFinish; not the menu's demo race: RDEMO): 8 + 3 a kart beaten + 10/5/2 podium, x 1 / 1.2 /
+  1.5 by class; 6 alone. "+N coins" under the results. (A bench that steps karts itself never calls onPlayerFinish: call racePay.)
+- The PC build of web v217 IS OUT: 116c2fe6. release_pc.py now carries on when its export was already pushed (a run stopped part way).
+- STILL TO DO on the PC: patches 64-67 (no-items rule, style shop, coins, glow, smoke). Then the developer options (asked for: below).
+
 ### 2026-11-17 (web v217): real car paint, pepperoni coin and mission medallion, PC night lights
 | What broke | Why | Fix | Keep it fixed |
 |---|---|---|---|
