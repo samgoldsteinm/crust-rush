@@ -174,7 +174,8 @@ static func stat_e(spec: Dictionary) -> Array:
 
 static func stat_mods(spec: Dictionary) -> Dictionary:
 	var e: Array = stat_e(spec) if stats_on else [0.0, 0.0, 0.0, 0.0, 0.0]
-	return {"spd": 1.0 + 0.014 * e[0], "acc": maxf(0.62, 1.0 + 0.09 * e[1]), "hnd": 1.0 + 0.05 * e[2], "wgt": 1.0 + 0.12 * e[3], "off": e[4] * 0.9}
+	# (web v216 patch 60: a point is worth about the same in a race in every stat; speed .014 -> .0035, weight .12 -> .234 held to .4..1.6, off-road .9 -> 2.88)
+	return {"spd": 1.0 + 0.0035 * e[0], "acc": maxf(0.62, 1.0 + 0.09 * e[1]), "hnd": 1.0 + 0.05 * e[2], "wgt": clampf(1.0 + 0.234 * e[3], 0.4, 1.6), "off": e[4] * 2.88}
 
 
 ## the 0..12 bars the garage shows (web STAT_MID 6): the vehicle's own, plus one for every point on the wheels' and the glider's cards

@@ -271,7 +271,7 @@ func step(inp: Dictionary, dt: float) -> void:
 	if lat < T.RW:
 		tp = 1.0
 	elif lat < T.CURB:
-		tp = 0.86 + 0.03 * sm_off   # (web patch 38: off-road counts for more)
+		tp = clampf(0.86 + 0.03 * sm_off, 0.7, 1.0)   # (web patch 38: off-road counts for more; held to .7..1: web patch 60)
 	else:
 		tp = clampf(0.58 + 0.08 * sm_off, 0.36, 0.86)
 	if glide:
