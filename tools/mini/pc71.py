@@ -170,9 +170,10 @@ rep('menu.gd', """	var fm := StandardMaterial3D.new()
 	fm.roughness = 0.85
 """, """	var fm := StandardMaterial3D.new()
 	fm.albedo_texture = _floor_tex()   # (pc71: a dark showroom floor, web patch 72)
-	fm.albedo_color = Color(0.42, 0.42, 0.44)   # (darker under the showroom's lights)
-	fm.roughness = 0.42
-	fm.metallic = 0.15
+	fm.albedo_color = Color(0.17, 0.17, 0.18)   # (darker under the showroom's lights)
+	fm.roughness = 0.62
+	fm.metallic = 0.0
+	fm.metallic_specular = 0.25   # (pc73: the showroom's lights would make a shinier floor pale grey)
 """)
 rep('menu.gd', """## a node's transform relative to an ancestor""", """## web gFloorTex: dark polished charcoal, a lighter spot under the car, fine circular brushing, darker to the edge
 static var _floor_t: ImageTexture = null
