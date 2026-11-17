@@ -145,6 +145,22 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-17 (web v216 and the PC build after it; ONLINE 118 ON BOTH): what a stat point counts for
+The owner: "it's hard for the karts to compete with the cars"; then, keeping Classic all zeros: "re assign the quantity that a point in a
+category counts for". tools/mini/patch60.py; PC kart_builder.gd stat_mods, kart.gd (the kerb), webnet.gd PROTO 118, main.gd's texts.
+- Measured, not guessed: scratch/statlap3.py races every vehicle alone (the computer driving, standard wheels and glider) three times on
+  Margherita and Basil with FIXED SEEDS (Math.random replaced per run: one race alone varies by up to 12 s); scratch/fitstats.py fits
+  race time to the five effective stats (r2 .91): a point of speed was worth 2.45 s a race, acceleration .76, handling .60, weight .34,
+  off-road .23. Cars spent their minus points on the cheap stats, karts on the dear ones: karts 3.3 s a race behind cars.
+- scratch/reweight.py chose speed x.25, weight x1.95, off-road x3.2 (acceleration, handling as they were): statMods spd 1+.0035e,
+  wgt 1+.234e held to .4..1.6, off 2.88e; the kerb's share held to .70..1. No vehicle's numbers changed (Classic stays all zeros).
+- Checked by racing again (statlap4.json): against Classic, karts went from +1.8 s to -0.4 s a race, cars from -1.6 to -1.2, bikes
+  -0.8 to -1.1; the gap karts-cars 3.4 s -> 0.8 s (inside the noise); best to worst 13.5 s -> 8.3 s.
+- statstest.py and the PC's tests/stats.tscn agree (every body x wheel x glider). If the stat values change again: both, and the
+  texts in the web's Settings and main.gd's.
+- The owner's brief still has one item not built: 6, coin-based kart and car unlocks (new kart models, two of the newer cars at a coin
+  price, preview / buy / equip in the garage).
+
 ### 2026-11-17 (web v215; online 117): the shop in a room's Sandbox; no scenery in shortcut lanes
 | What broke | Why | Fix | Keep it fixed |
 |---|---|---|---|

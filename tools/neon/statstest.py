@@ -10,7 +10,7 @@ JS = r"""(()=>{const bad=[],tab={};let n=0;const was=statsOn;statsOn=true;
 for(let b=0;b<BODIES.length;b++)for(let w=0;w<WHEELS.length;w++)for(let g=0;g<GLIDERS.length;g++){const B={b,w,g,p:0},bd=BODIES[b],wh=wheelOf(B),gl=GLIDERS[g],base=statBarsOf(B,false),tot=statBarsOf(B,true),m=statMods(B);n++;
   for(let i=0;i<5;i++){const own=Math.round(6+1.5*4*Math.tanh(1.5*bd.st[i]/4)),bike=!!(bd.bike&&bd.bw),wantBase=Math.max(0,Math.min(12,own+(bike?wh.st[i]:0))),want=Math.max(0,Math.min(12,own+wh.st[i]+gl.st[i]));
     if(base[i]!==wantBase||tot[i]!==want)bad.push([bd.id,WHEELS[w].id,gl.id,i,base[i],wantBase,tot[i],want]);
-    const e=Math.max(-4,Math.min(4,4*Math.tanh(1.5*bd.st[i]/4)+(wh.st[i]+gl.st[i])/1.5)),v=[1+.014*e,/* (patch 38: was .022) */Math.max(.62,1+.09*e),1+.05*e,1+.12*e,.9*e][i],got=[m.spd,m.acc,m.hnd,m.wgt,m.off][i];if(Math.abs(v-got)>1e-9)bad.push(['mods',bd.id,WHEELS[w].id,gl.id,i,got,v]);}
+    const e=Math.max(-4,Math.min(4,4*Math.tanh(1.5*bd.st[i]/4)+(wh.st[i]+gl.st[i])/1.5)),v=[1+.0035*e,/* (patch 60: was .014) */Math.max(.62,1+.09*e),1+.05*e,Math.min(1.6,Math.max(.4,1+.234*e)),2.88*e][i],got=[m.spd,m.acc,m.hnd,m.wgt,m.off][i];if(Math.abs(v-got)>1e-9)bad.push(['mods',bd.id,WHEELS[w].id,gl.id,i,got,v]);}
   tab[b+','+w+','+g]=[m.spd,m.acc,m.hnd,m.wgt,m.off].map(x=>+x.toFixed(6));}
 statsOn=false;const off=statMods({b:1,w:1,g:1,p:0});statsOn=was;
 return {n,bad:bad.slice(0,12),nbad:bad.length,off,proto:NET_PROTO,tab,neutral:BODIES.findIndex(q=>q.st[0]===0&&!q.bike),slick:WHEELS.findIndex(q=>q.id==='slick'),wing:GLIDERS.findIndex(q=>q.id==='wing')};})()"""
