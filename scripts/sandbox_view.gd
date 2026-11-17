@@ -258,26 +258,33 @@ func _build_coins() -> void:
 	var rm := _std("#d8402a", 0.35, 0.35, "#6a1408", 0.7)
 	var em := _std("#ffd65a", 0.25, 0.9, "#7a4a00", 0.6)
 	var dm := _std("#8f1d10", 0.5)
+	var pep_mesh: Mesh = _coin_mesh("coin_pep") if FileAccess.file_exists("res://assets/sandbox/coin_pep.json") else null
+	var pep_mat := _std("#ffffff", 0.3, 0.45, "#5a1206", 0.35)
+	pep_mat.vertex_color_use_as_albedo = true
 	for i in sb.coin_n:
 		if sb.coin_rare[i] == 0:
 			continue
 		var g := Node3D.new()
-		# (the meshes lie flat; `tip` stands them on edge, so the coin's face looks along its own z)
-		var tip := Node3D.new()
-		tip.rotation.x = PI / 2.0
-		g.add_child(tip)
-		_mesh(tip, rg, rm)
-		_mesh(tip, rim, em)
-		for p in [[-2.0, 1.7], [2.2, 1.2], [0.0, -2.3], [-2.4, -1.5], [2.4, -1.8], [0.3, 3.0]]:
-			_mesh(tip, dot, dm, Vector3(float(p[0]), 0.0, -float(p[1])))
+		# the web's pepperoni coin (patch 63: a gold rim round a pepperoni face, raised slices); the old parts if the file is missing
+		if pep_mesh != null:
+			_mesh(g, pep_mesh, pep_mat)
+		else:
+			# (the meshes lie flat; `tip` stands them on edge, so the coin's face looks along its own z)
+			var tip := Node3D.new()
+			tip.rotation.x = PI / 2.0
+			g.add_child(tip)
+			_mesh(tip, rg, rm)
+			_mesh(tip, rim, em)
+			for p in [[-2.0, 1.7], [2.2, 1.2], [0.0, -2.3], [-2.4, -1.5], [2.4, -1.8], [0.3, 3.0]]:
+				_mesh(tip, dot, dm, Vector3(float(p[0]), 0.0, -float(p[1])))
 		g.position = Vector3(sb.coin_x[i], sb.coin_y[i], sb.coin_z[i])
 		add_child(g)
 		_rare.append([i, g])
 
 
 ## the coin's shape, the web's own triangles (tools/neon/coinexport.py from sbCoinGeo); a plain disc if the file is missing
-func _coin_mesh() -> Mesh:
-	var f := FileAccess.open("res://assets/sandbox/coin.json", FileAccess.READ)
+func _coin_mesh(file := "coin") -> Mesh:
+	var f := FileAccess.open("res://assets/sandbox/%s.json" % file, FileAccess.READ)
 	if f == null:
 		var disc := CylinderMesh.new()
 		disc.top_radius = 4.2
@@ -331,6 +338,24 @@ var _shm: MultiMesh = null
 var _sh_of: PackedInt32Array = PackedInt32Array()    # coin number -> its shadow's number, or -1
 
 
+var _sh_tex: ImageTexture = null
+var _meds: Array = []      # [medallion, its shadow] of each mission marker
+
+
+## the coins' soft shadow (web sbShadowTex): .85 dark at the middle, .55 half way, nothing at the edge
+func _shadow_tex() -> ImageTexture:
+	if _sh_tex != null:
+		return _sh_tex
+	var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+	for y in 64:
+		for x in 64:
+			var r := Vector2(x - 31.5, y - 31.5).length() / 31.0
+			var a := 0.0 if r >= 1.0 else (lerpf(0.85, 0.55, r / 0.55) if r < 0.55 else lerpf(0.55, 0.0, (r - 0.55) / 0.45))
+			img.set_pixel(x, y, Color(0, 0, 0, a))
+	_sh_tex = ImageTexture.create_from_image(img)
+	return _sh_tex
+
+
 func _build_coin_shadows() -> void:
 	_sh_of.resize(sb.coin_n)
 	var cnt := 0
@@ -342,17 +367,10 @@ func _build_coin_shadows() -> void:
 			cnt += 1
 	if cnt == 0:
 		return
-	var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
-	for y in 64:
-		for x in 64:
-			var r := Vector2(x - 31.5, y - 31.5).length() / 31.0
-			# (the web's gradient: .85 at the middle, .55 at half way, nothing at the edge)
-			var a := 0.0 if r >= 1.0 else (lerpf(0.85, 0.55, r / 0.55) if r < 0.55 else lerpf(0.55, 0.0, (r - 0.55) / 0.45))
-			img.set_pixel(x, y, Color(0, 0, 0, a))
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.albedo_texture = ImageTexture.create_from_image(img)
+	m.albedo_texture = _shadow_tex()
 	m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
 	m.render_priority = 1
 	var q := PlaneMesh.new()
@@ -428,6 +446,43 @@ func _build_acts() -> void:
 		tm.rings = 40
 		var ring := _mesh(g, tm, _flat(col), Vector3(0, 0.6, 0))
 		ring.scale = Vector3(1, 0.08, 1)
+		# the gold medallion with the mission's icon on both faces, turning and bobbing, with a shadow (web patch 63)
+		if FileAccess.file_exists("res://assets/sandbox/coin_act.json"):
+			var med := Node3D.new()
+			med.position = Vector3(0, 17, 0)
+			g.add_child(med)
+			var mm := _std("#ffffff", 0.3, 0.85, "#8a5800", 0.4)
+			mm.vertex_color_use_as_albedo = true
+			_mesh(med, _coin_mesh("coin_act"), mm)
+			var ip := "res://assets/sandbox/act_%s.png" % kind
+			if FileAccess.file_exists(ip):
+				var im := StandardMaterial3D.new()
+				im.albedo_texture = ImageTexture.create_from_image(Image.load_from_file(ProjectSettings.globalize_path(ip)))
+				im.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+				im.alpha_scissor_threshold = 0.5
+				im.roughness = 0.45
+				im.metallic = 0.05
+				im.emission_enabled = true
+				im.emission_texture = im.albedo_texture
+				im.emission_energy_multiplier = 0.3
+				var q := QuadMesh.new()
+				q.size = Vector2(9.6, 9.6)
+				for sd in [1.0, -1.0]:
+					var d := _mesh(med, q, im, Vector3(0, 0, sd * (0.3 * 1.25 + 0.03)))
+					if sd < 0.0:
+						d.rotation.y = PI
+			var sh := QuadMesh.new()
+			sh.size = Vector2(1, 1)
+			sh.orientation = PlaneMesh.FACE_Y
+			var sm := StandardMaterial3D.new()
+			sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			sm.albedo_texture = _shadow_tex()
+			sm.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+			sm.render_priority = 1
+			var shm := _mesh(g, sh, sm, Vector3(0, 0.8, 0))
+			shm.scale = Vector3(15, 1, 6)
+			_meds.append([med, shm])
 		var l := Label3D.new()
 		l.text = {"deliver": "PIZZA
 DELIVERY", "drift": "DRIFT", "air": "JUMP"}[kind]
@@ -437,7 +492,7 @@ DELIVERY", "drift": "DRIFT", "air": "JUMP"}[kind]
 		l.modulate = Color("#fff4dc")
 		l.outline_modulate = col.darkened(0.35)
 		l.pixel_size = 0.05
-		l.position = Vector3(0, 17, 0)
+		l.position = Vector3(0, 27 if FileAccess.file_exists("res://assets/sandbox/coin_act.json") else 17, 0)   # (over the medallion)
 		l.no_depth_test = false
 		g.add_child(l)
 		_signs.append(l)
@@ -775,6 +830,11 @@ func _process(dt: float) -> void:
 		# (the coin stands on edge as made, its face along z: turned about the upright)
 		var b := Basis(Vector3.UP, a)
 		_mm.set_instance_transform(q, Transform3D(b.scaled(Vector3(s, s, s)), Vector3(cx[i], cy[i], cz[i])))
+	# the mission medallions turn and bob, their shadows with them (web patch 63)
+	for md in _meds:
+		(md[0] as Node3D).rotation.y = time * 1.4
+		(md[0] as Node3D).position.y = 17.0 + sin(time * 2.0) * 0.8
+		(md[1] as Node3D).rotation.y = time * 1.4
 	# the shadows turn with their coins; gone while the coin is (web patch 61)
 	if _shm != null:
 		var gy: PackedFloat32Array = sb.coin_gy

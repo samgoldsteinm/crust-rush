@@ -553,11 +553,12 @@ static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false) -> v
 					pcol.a = 1.0
 					pm.albedo_color = pcol
 					pm.vertex_color_use_as_albedo = true
-					pm.roughness = float(lv.get("r", 0.2)) if not lv.is_empty() else 0.2   # (glossier: web v210 patch49c, "the colors look pretty flat")
-					pm.metallic = minf(float(lv.get("m", 0.14)), 0.62) if not lv.is_empty() else 0.14
+					# (a solid colour: a non-metal base under a sharp clear coat, as real paint: web v217 patch 62)
+					pm.roughness = float(lv.get("r", 0.2)) if not lv.is_empty() else 0.36
+					pm.metallic = minf(float(lv.get("m", 0.14)), 0.62) if not lv.is_empty() else 0.0
 					pm.clearcoat_enabled = true
 					pm.clearcoat = 1.0
-					pm.clearcoat_roughness = 0.03
+					pm.clearcoat_roughness = 0.03 if not lv.is_empty() else 0.02
 					m3.set_surface_override_material(si, pm)
 			elif nm.begins_with("g_dark") or nm.begins_with("g_stripe"):
 				var dm := StandardMaterial3D.new()
@@ -577,7 +578,8 @@ static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false) -> v
 ## read as fully metal and fully rough everywhere: dark, flat metal all over. The table is the web's CAR_PBR.
 const CAR_CLS := ["paint", "dark", "stripe", "tail", "light", "glass", "carbon", "metal", "rubber", "seat", "chrome", "rim",
 	"disc", "caliper", "blue", "gunmetal", "green", "red", "bluem", "bronze", "white", "steel", "wood"]
-const CAR_PBR := {"paint": [0.2, 0.32, 1.0], "dark": [0.36, 0.25, 1.0], "stripe": [0.2, 0.32, 1.0],   # (paint and stripe glossier, less metal: web v210 patch49c)
+const CAR_PBR := {"paint": [0.36, 0.0, 1.0],   # (web v217 patch 62: the solid finish)
+	 "dark": [0.36, 0.25, 1.0], "stripe": [0.2, 0.32, 1.0],   # (paint and stripe glossier, less metal: web v210 patch49c)
 	 "tail": [0.4, 0.0, 0.0],
 	"light": [0.2, 0.0, 0.0], "glass": [0.05, 0.0, 1.0], "carbon": [0.36, 0.25, 1.0], "metal": [0.32, 0.9, 0.0],
 	"rubber": [0.9, 0.0, 0.0], "seat": [0.8, 0.0, 0.0], "chrome": [0.1, 1.0, 0.0], "rim": [0.24, 0.95, 0.0],

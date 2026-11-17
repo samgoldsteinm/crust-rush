@@ -60,7 +60,9 @@ func arm(main_: Node, T_: TrackData, id_: String, kind_: String) -> void:
 	spot.spot_range = 420.0
 	spot.spot_angle = 35.5
 	spot.spot_angle_attenuation = 0.6
-	spot.spot_attenuation = 1.15
+	# (Godot dims a light as distance^-attenuation, in world units: a kart is 12 long, so 1.15 left 8% of it 60 ahead and the
+	# owner saw no headlights at all. A gentle curve instead, the range window doing the rest: web v217)
+	spot.spot_attenuation = 0.3
 	spot.light_energy = 0.0
 	spot.shadow_enabled = false   # (the kart's own body would shadow its headlights: web patch 53)
 	spot.light_projector = _cookie()
@@ -154,7 +156,7 @@ func _build_lamps() -> void:
 		var l := OmniLight3D.new()
 		l.light_color = Color("#ffcf95")
 		l.omni_range = 170.0
-		l.omni_attenuation = 1.6
+		l.omni_attenuation = 0.4   # (1.6 left 1% of the light 30 units away: "the street lights are super dim"; web v217)
 		l.light_energy = 0.0
 		l.shadow_enabled = false
 		add_child(l)
@@ -204,7 +206,7 @@ func frame(dt: float, L: float, k: Kart) -> void:
 	# by themselves only when it is properly dark (L .5 to .8); or on / off by hand (main.hl_mode, the L key: web patch 54)
 	var hm = main.get("hl_mode")
 	var hon := clampf((L - 0.5) / 0.3, 0.0, 1.0) if hm == null else (1.0 if hm else 0.0)
-	spot.light_energy = 9.0 * maxf(L, 0.45) * hon * (1.0 if hm == true else hf)
+	spot.light_energy = 3.2 * maxf(L, 0.45) * hon * (1.0 if hm == true else hf)
 	var from := kp + fwd * 7.0 + Vector3(0, 4, 0)
 	var to := kp + fwd * 120.0 + Vector3(0, -10, 0)
 	spot.global_position = from
@@ -221,7 +223,7 @@ func frame(dt: float, L: float, k: Kart) -> void:
 			if i < order.size():
 				l.position = order[i]
 	for l in pool:
-		(l as OmniLight3D).light_energy = 2.2 * L
+		(l as OmniLight3D).light_energy = 4.5 * L
 
 
 func off() -> void:
