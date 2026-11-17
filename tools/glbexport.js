@@ -295,6 +295,17 @@ window.__exportRoster=function(seed){let s=seed||20261110;const rnd=()=>{s=(Math
   const R0=Math.random;Math.random=rnd;let builds;try{builds=RACERS.map(randomBuild);}finally{Math.random=R0;}
   return RACERS.map((r,ri)=>{const b=builds[ri];return {ri,name:r.name,color:r.color,stripe:r.stripe,build:b,body:BODIES[b.b].id,bodyName:BODIES[b.b].name,sm:statMods(b),glider:{id:GLIDERS[b.g].id,sink:GLIDERS[b.g].sink,air:GLIDERS[b.g].air}};});};
 window.__statsFor=function(b){return {sm:statMods(b),glider:{id:GLIDERS[b.g].id,sink:GLIDERS[b.g].sink,air:GLIDERS[b.g].air}};};
+/* the mechanic's shop of Sandbox (web v205 patch 41) for the PC: run in a Sandbox place where SB.shopG is built (the packs loaded).
+   Two nodes, both in the shop's own frame (its middle on the ground at 0): "shop" (the building, everything but the door) and
+   "door" (the roll-up door, at its hinge: the PC moves it up and down). Also the numbers the PC needs: K, the floor, the bay. */
+window.__exportShop=function(){if(!SB||!SB.shopG||!SB.shopDoorG)return {err:'no shop here'};const G=new GLB();G.extDir='shop_tex';const S=SB_SHOP;
+  const sp=new THREE.Matrix4().makeTranslation(S.x,0,S.z),door=SB.shopDoorG,vis=door.visible;
+  const one=(name,root,stop)=>{const b=collect(G,root,sp,{visStop:stop||null});const pr=[];for(const [k,bk] of b){const p=G.primitive(bk.parts,bk.mi,bk.useUV,bk.useC);if(p)pr.push(p);}return pr.length?G.node(name,pr):null;};
+  door.visible=false;const nb=one('shop',SB.shopG);door.visible=vis;
+  const dp=new THREE.Vector3();door.getWorldPosition(dp);const dm=new THREE.Matrix4().makeTranslation(dp.x,dp.y,dp.z);
+  const b2=collect(G,door,dm,{});const pr2=[];for(const [k,bk] of b2){const p=G.primitive(bk.parts,bk.mi,bk.useUV,bk.useC);if(p)pr2.push(p);}const nd=pr2.length?G.node('door',pr2):null;
+  const top=[nb,nd].filter(Boolean);const root=G.node('mshop',null,{children:top});G.j.scenes[0].nodes.push(root);const bytes=G.glb();
+  return {b64:u8ToB64(bytes),stats:Object.assign(G.stats,{bytes:bytes.length}),K:SHOP_K,fl:SHOP_FL,bay:SHOP_BAY,dw:SHOP_DW,dh:SHOP_DH,door:[dp.x-S.x,dp.y,dp.z-S.z],shop:{x:S.x,z:S.z,w:S.w,d:S.d,h:S.h}};};
 window.__exportItems=function(){const G=new GLB();const top=[],names=[];
   const add=(name,o)=>{o.position.set(0,0,0);o.rotation.set(0,0,0);o.scale.set(1,1,1);o.updateMatrixWorld(true);const b=collect(G,o,new THREE.Matrix4(),{visStop:null});const pr=[];for(const [k,bk] of b){const p=G.primitive(bk.parts,bk.mi,bk.useUV,bk.useC);if(p)pr.push(p);}if(pr.length){top.push(G.node(name,pr));names.push(name);}};
   for(const k of Object.keys(ITEM_BUILD)){try{const o=itemProto(k).clone();o.traverse(m=>{if(m.isMesh&&m.material&&(m.material.blending===THREE.AdditiveBlending))m.visible=false;});add(k,o);}catch(e){console.warn('item',k,e);}}
