@@ -151,6 +151,20 @@ against the landmarks' coordinates before the real generator closed the lap; the
 | A guest in a room's Sandbox who changed something in the mechanic's shop landed on the room screen with no way back into the game (owner's picture) | The garage's last button asked "a room's guest?" (ready up, the room screen) before "came from the shop?"; and toMenu put the room screen up for leaving a room's Sandbox, over the garage, also for the shop | gDone asks sbShopDone first; toMenu leaves the room screen down for the shop (SB.shopBack); the room screen in a room's Sandbox has "Back to Sandbox" (sbRoomBack: a guest to the host's last place) | tools/neon/sbshopnet.py (guest: shop, garage, change, back out; then the room screen's button) |
 | A street lamp on Midnight Mozzarella's paved fast lane (shortcut audit) | The scenery's own check measured from the plain shortcut width, not the wide paved route's | scClear() as a race or place is set up: any instanced scenery detail (cullOK) standing in a shortcut's lane is shrunk away | scratch/scvert.js per place (sbprobe.py <map>); done for 13 of 23 places, all clean but Margherita (patch 55) and Mozzarella (this) |
 Patches tools/mini/patch58.py, patch59.py.
+- PC: THE MECHANIC'S SHOP of web v205 is on the PC now. godot/tools/shopexport.py starts the local test copy in Sandbox in the
+  garage, runs glbexport.js's __exportShop and writes godot/assets/shop/mshop.glb (nodes "shop" and "door", textures inside, ~16 MB;
+  Godot's import pulls the textures out next to it) and mshop.json (K, the floor, the bay, the door's place, its height). Run it again
+  only when the web shop changes. sandbox_view.gd _build_shop loads it (the old code-built shop stays as _build_shop_old if the file
+  is missing); the door rolls up as the kart comes at it (_shop_frame) with a light inside; main.gd _sb_cine_start/_sb_cine_tick: through
+  the door the kart rolls onto the bay, the camera cuts inside, the kart's name comes up, 2.6 s (any key skips), then the driver screen.
+  tests/sbshop.tscn (CR_MODE=sb CR_MAP=garage; CR_SHOT=1 windowed for pictures build/sbshop_*.png).
+  Two faults on the way: the exporter dropped the building because it is node 0 and the list was .filter(Boolean); and the shop is
+  hidden while the kart is far from it, so the export shows the whole group while it collects.
+- PC: a host who opened the shop in a room's Sandbox sent every guest back to the room screen (_to_menu called web.host_menu, a
+  "menu" to all). Now only after a room race (web.cfg set), as the web's toMenu.
+- PC: relay heartbeats count no time the game did not run (webnet.gd poll, _last_poll), as web patch 57.
+- Shortcut audit finished (scratch/scvert_all*.log): all 23 places clean after patches 55 and 58 (a few vertices of big merged road
+  meshes show at some junctions: markings, not objects).
 
 ### 2026-11-16 (web v214; online 117): headlights, the second host, shortcuts; PC catch-up (night, D-pad, frame counter, tunnels)
 Web: tools/mini/patch53.py, 54, 55.
