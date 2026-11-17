@@ -170,6 +170,7 @@ rep('menu.gd', """	var fm := StandardMaterial3D.new()
 	fm.roughness = 0.85
 """, """	var fm := StandardMaterial3D.new()
 	fm.albedo_texture = _floor_tex()   # (pc71: a dark showroom floor, web patch 72)
+	fm.albedo_color = Color(0.42, 0.42, 0.44)   # (darker under the showroom's lights)
 	fm.roughness = 0.42
 	fm.metallic = 0.15
 """)
