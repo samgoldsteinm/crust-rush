@@ -145,6 +145,39 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-16 (web v214; online 117): headlights, the second host, shortcuts; PC catch-up (night, D-pad, frame counter, tunnels)
+Web: tools/mini/patch53.py, 54, 55.
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| A dark V in front of the kart, light only at its edges (owner's picture) | The headlight spot sits at the bumper, inside the kart's own shape, and cast shadows | Headlights cast no shadows (web and PC sandbox_night.gd) | A light that sits on or in the kart must not cast shadows |
+| In a room's Sandbox race the guest saw the host twice: one frozen at the start line | Sandbox's friend cars (SBN.peers) were left in the scene when the race loaded | netBeginLoad drops every friend car and tag; Sandbox draws them again from the next list | sbrace.py checks no friend car is drawn during the race ("ghosts") |
+| Posts and lamps standing in Margherita's shortcut where it rejoins the raised road | The causeway's posts, poles and lamps (CAUSE) had no shortcut check | nearSC(x,z,SCW+4) skips them | A row of things along the road edge checks nearSC; scratch/scvert.js lists anything standing in a shortcut's lane (per Sandbox place) |
+- BALLOON BATTLE, a controller's item button (patch 56; owner: "throwing items is slow and also a copy of the item gets dropped behind
+  you on the ground"): a holdable item (pepperoni, dough, flour) was held trailing behind on the press and thrown on letting go; in a
+  battle the press throws it now (web: mode==='bb', NOT the BATTLE flag, which is the free-driving physics and is off in a real
+  battle; PC: race.mode != "bb"). Races keep holding behind. scratch/bbpress.py (pretend pad): fired on the press, nothing held.
+- THROWN OUT OF A ROOM'S SANDBOX (patch 57; owner, three players on the web app, the friend hosting: the guest who went Back to
+  Sandbox, and a third player who had not joined the race the moment it started). The relay drops a link after 20 s of silence in
+  state race/countdown, and Sandbox driving is state 'race'; a load (the host loading the race, the guest loading Sandbox again)
+  stops the game entirely. Now the 20 s is for a room race only (NET.cfg), and a gap of over 3 s between two of this game's own
+  heartbeats is not counted as anyone's silence. sbrace.py waits 30 s in both situations (passes, but loads here are short: the
+  fault itself was not reproduced). PC: the same two rules due in webnet.gd.
+- Headlights come on by themselves only when it is properly dark (L .5 to .8), still off on a lit track; keyboard 'lights'
+  "Headlights (Sandbox)", L by default, switches them on or off by hand (web SB.hl, PC main.hl_mode).
+- PC (D:/crust-rush/godot), not yet in a build:
+  - SANDBOX AT NIGHT: scripts/sandbox_night.gd (made by sandbox_view.gd beside the clock): the toy dashes ("toy_toydash..."
+    materials) glow, street lamps on spiral/basil/napoli/tour with three moving real lights, the headlight (SpotLight3D with a
+    projector picture, the on-track rule, the darkness threshold, the L key). tests/sbnight.tscn (CR_MODE=sb CR_MAP=backyard) checks
+    the numbers; tests/sbclock.tscn takes pictures (CR_OFF=<units> puts the kart off the track; it unpauses a window that lost focus).
+  - D-PAD UP did not start races in Sandbox (owner, on the PC exe). Not reproduced (tests/sbpad.tscn passes with the press event),
+    but the press only worked as an event, which the menus' controller cursor can take first. Now also read every frame
+    (_read_input: sb_pdu / sb_pdd, _sb_dpad), as the web's sbTick does; the two never both act on one press.
+  - FRAME COUNTER on every screen (own CanvasLayer 120, main.fps_lbl), not only in a race (owner: "should work for all modes").
+  - TUNNELS: the kart points down the tube and is eased to its middle, steering does nothing there (sandbox.gd Tun.step; main.gd
+    _read_input), as web v210 patch 48.
+  - STILL NOT ON THE PC: the mechanic's shop of web v205 (Blender models, door, pull-in). Plan: a __exportShop in
+    godot/tools/glbexport.js (building and door as two nodes, from a running Sandbox), loaded by sandbox_view.gd's _build_shop.
+
 ### 2026-11-16 (web v213 and the PC build after it; ONLINE 117 ON BOTH): a room's Sandbox race from a start line, with invites
 The owner: anyone (guest or host) at a start line can start a race and "send out like an invite to the other person and they can just be
 teleported to the race and when the race is over they just stay at the track when they go back into sandbox"; agreed rule: "the host would

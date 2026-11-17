@@ -6206,7 +6206,7 @@ function sbNightArm(){const R=SBC.rec,def=MAPS[mapIdx];SBC.night=null;if(!R||!SB
   if(halos.length){/* the glow round each dash: the same strips again, drawn adding light, a little proud of the wall */const hm=new THREE.MeshBasicMaterial({color:'#6fc2ff',transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-6});
     for(const o of halos){const h=new THREE.Mesh(o.geometry,hm);h.position.copy(o.position);h.scale.setScalar(1.0);h.renderOrder=3;SB.grp.add(h);}Nt.halo=hm;}
   const lite=!QUAL[qKey]||QUAL[qKey].lite||qKey==='fast';
-  if(true){/* headlights (patch 49: every place; a cookie shapes the light: two lobes and a low-beam cut-off) */const sp=new THREE.SpotLight('#eef3ff',0,420,.62,.45,1.15);sp.map=sbHeadCookie();sp.castShadow=!lite;
+  if(true){/* headlights (patch 49: every place; a cookie shapes the light: two lobes and a low-beam cut-off) */const sp=new THREE.SpotLight('#eef3ff',0,420,.62,.45,1.15);sp.map=sbHeadCookie();sp.castShadow=false;/* (patch 53: the kart's own body shadowed its headlights) */
     if(sp.castShadow){sp.shadow.mapSize.set(1024,1024);sp.shadow.camera.near=3;sp.shadow.camera.far=560;sp.shadow.bias=-.0005;}SB.grp.add(sp);SB.grp.add(sp.target);Nt.spot=sp;
     /* the beam on the ground: a cone 18 wide at the kart and 90 wide 174 ahead, its light in the vertices (brightest close in, fading to the edges and the far end) */
     const bg=new THREE.PlaneGeometry(1,1,16,24),bp=bg.attributes.position,base=new Float32Array(bp.count*2),col=new Float32Array(bp.count*3);for(let i=0;i<bp.count;i++){const f=bp.getY(i)+.5,ac=bp.getX(i)*2,u=6+f*240,v=ac*(6+f*59);base[i*2]=u;base[i*2+1]=v;/* (patch 47c) */
@@ -6231,7 +6231,7 @@ function sbNightArm(){const R=SBC.rec,def=MAPS[mapIdx];SBC.night=null;if(!R||!SB
 /* each frame: the night's lights follow the hour (the clock's L: 0 by day, 1 at night) and the kart */
 function sbNightFrame(time){const Nn=SBC.night;if(!Nn||!SBC.rec||!SBX)return;const L=sbClockF().L,on=L>.02;
   for(const m of Nn.led)m.emissiveIntensity=2.4*L;if(Nn.halo)Nn.halo.opacity=.85*L;
-  const k=camT||player;if(Nn.spot&&k){const sp=Nn.spot;{const def=MAPS[mapIdx],lit=SB_LAMPS.has(def.id)||!!def.toy||Nn.led.length>0,onT=lit&&nearTrack(k.rx!=null?k.rx:k.x,k.ry!=null?k.ry:k.y,RW+10),h0=Nn.hf==null?(onT?0:1):Nn.hf;Nn.hf=h0+((onT?0:1)-h0)*.06;}sp.intensity=on?24*L*Nn.hf:0;sp.visible=true;/* (patch 49: off on a lit track; never hidden) */if(on){const a=k.rma!=null?k.rma:k.ma,x=k.rx!=null?k.rx:k.x,z=k.ry!=null?k.ry:k.y,y=(k.rz!=null?k.rz:k.wy)||0;
+  const k=camT||player;if(Nn.spot&&k){const sp=Nn.spot;{const def=MAPS[mapIdx],lit=SB_LAMPS.has(def.id)||!!def.toy||Nn.led.length>0,onT=lit&&nearTrack(k.rx!=null?k.rx:k.x,k.ry!=null?k.ry:k.y,RW+10),h0=Nn.hf==null?(onT?0:1):Nn.hf;Nn.hf=h0+((onT?0:1)-h0)*.06;}{const hon=SB.hl==null?Math.min(1,Math.max(0,(L-.5)/.3)):(SB.hl?1:0),hf=SB.hl===true?1:Nn.hf;sp.intensity=24*Math.max(L,.45)*hon*hf;}sp.visible=true;/* (patch 54: dark enough, or by hand) *//* (patch 49: off on a lit track; never hidden) */if(on){const a=k.rma!=null?k.rma:k.ma,x=k.rx!=null?k.rx:k.x,z=k.ry!=null?k.ry:k.y,y=(k.rz!=null?k.rz:k.wy)||0;
       sp.position.set(x+Math.cos(a)*7,y+4,z+Math.sin(a)*7);sp.target.position.set(x+Math.cos(a)*120,y-10,z+Math.sin(a)*120);sp.target.updateMatrixWorld();}}
   if(Nn.beam&&k){const b=Nn.beam;b.visible=L>.02;b.material.opacity=.9*L;if(b.visible){const a=k.rma!=null?k.rma:k.ma,x=k.rx!=null?k.rx:k.x,z=k.ry!=null?k.ry:k.y,gnd=(px,pz)=>sbG(px,pz,((k.rz!=null?k.rz:k.wy)||0)+8);
       /* lying on the ground from the front of the kart to 120 ahead: each row of the strip set down on the ground under it */const P=b.geometry.attributes.position,ca=Math.cos(a),sa=Math.sin(a);
@@ -6825,7 +6825,7 @@ function buildWater(def){if(WATER_Y==null)return;const R=def.R,th=def.theme;
   animators.push((tt,dt)=>{t.offset.x+=dt*.004;t.offset.y+=dt*.003;m.emissiveIntensity=.3+.06*Math.sin(tt*1.3);});
   /* causeway: stone posts and lamps along both edges so it reads as a road built out over the water */
   if(CAUSE){const postM=wm(th==='night'?'#3b3550':th==='freezer'?'#dceeff':'#d8cbb2',{roughness:.6}),lampM=new THREE.MeshBasicMaterial({color:th==='night'?'#ff5ad8':'#ffe6a0',toneMapped:false});
-    const PO=[],PL=[],LA=[];for(let a=CAUSE.j0;a<=CAUSE.j1;a+=4){const p=track[a%N];for(const sd of [-1,1]){const x=p.x+p.nx*(WALLD+5)*sd,z=p.y+p.ny*(WALLD+5)*sd,gy=groundAt(p.x,p.y);
+    const PO=[],PL=[],LA=[];for(let a=CAUSE.j0;a<=CAUSE.j1;a+=4){const p=track[a%N];for(const sd of [-1,1]){const x=p.x+p.nx*(WALLD+5)*sd,z=p.y+p.ny*(WALLD+5)*sd,gy=groundAt(p.x,p.y);if(nearSC(x,z,SCW+4))continue;/* (patch 55: not in a shortcut's lane) */
       PO.push({x,y:gy+4.5,z});if(a%8===0){PL.push({x,y:gy+17,z});LA.push({x,y:gy+25.5,z});}}}
     instBatch(new THREE.BoxGeometry(3.4,9,3.4),postM,PO,true);instBatch(new THREE.CylinderGeometry(.35,.35,16,8),postM,PL,false);instBatch(new THREE.SphereGeometry(1.4,12,8),lampM,LA,false);}}
 
@@ -7784,8 +7784,8 @@ function rollItem(pos){if(BATTLE||SBX)return bbRoll();if(!ITEM_LIST.some(itemOn)
 const keys={left:false,right:false,drift:false,brake:false,look:false};let itemQueued=null;
 /* ---- keyboard keys: every racing action can be moved to any key (Settings, Controls). Up to three keys per action,
    saved on this device. Esc always pauses unless it has been given another job. */
-const KB_ACTS=[['left','Steer left'],['right','Steer right'],['brake','Drift / brake'],['item1','Use first item'],['item2','Use second item'],['hold','Keep item behind'],['ability','Special ability'],['look','Look back'],['pause','Pause'],['sbback','Back to the track (Sandbox)']];/* (patch 51: sbback) */
-const KB_DEF={left:['ArrowLeft','KeyA'],right:['ArrowRight','KeyD'],brake:['Space','ArrowDown','KeyS'],item1:['KeyX','KeyE','Enter'],item2:['KeyZ','KeyQ','KeyV'],hold:['ShiftLeft','ShiftRight','KeyB'],ability:['KeyC','KeyR'],look:['KeyF'],pause:['KeyP'],sbback:['KeyT']};
+const KB_ACTS=[['left','Steer left'],['right','Steer right'],['brake','Drift / brake'],['item1','Use first item'],['item2','Use second item'],['hold','Keep item behind'],['ability','Special ability'],['look','Look back'],['pause','Pause'],['sbback','Back to the track (Sandbox)'],['lights','Headlights (Sandbox)']];/* (patch 51: sbback) */
+const KB_DEF={left:['ArrowLeft','KeyA'],right:['ArrowRight','KeyD'],brake:['Space','ArrowDown','KeyS'],item1:['KeyX','KeyE','Enter'],item2:['KeyZ','KeyQ','KeyV'],hold:['ShiftLeft','ShiftRight','KeyB'],ability:['KeyC','KeyR'],look:['KeyF'],pause:['KeyP'],sbback:['KeyT'],lights:['KeyL']};
 let KEYB={},KEYC={};
 function kbLoad(){let v=null;try{v=JSON.parse(store.get('crust-keys')||'null');}catch(e){}KEYB={};for(const [a] of KB_ACTS){const l=v&&Array.isArray(v[a])?v[a].filter(c=>typeof c==='string'&&c).slice(0,3):null;KEYB[a]=l||KB_DEF[a].slice();}kbIndex();}
 function kbIndex(){KEYC={};for(const [a] of KB_ACTS)for(const c of KEYB[a])if(!KEYC[c])KEYC[c]=a;}
@@ -7802,7 +7802,7 @@ addEventListener('keydown',e=>{if(e.target.closest&&e.target.closest('.overlay')
   else if(a==='item1'){if(!e.repeat)itemQueued='fwd';e.preventDefault();}
   else if(a==='item2'){if(!e.repeat)itemQueued='fwd2';e.preventDefault();}
   else if(a==='hold'){if(!e.repeat)itemQueued='hold';e.preventDefault();}
-  else if(a==='ability'){if(!e.repeat)abilQueued=true;e.preventDefault();}else if(a==='sbback'){if(!e.repeat&&SBX&&state==='race'&&!SB.trav){togglePause();sbBackAsk(true);}e.preventDefault();}/* (patch 51) */
+  else if(a==='ability'){if(!e.repeat)abilQueued=true;e.preventDefault();}else if(a==='lights'){if(!e.repeat&&SBX){const now=SB.hl==null?(sbClockF().L>.65):SB.hl;SB.hl=!now;showBanner(SB.hl?'Headlights on':'Headlights off',1.1,'sm');}e.preventDefault();}/* (patch 54) */else if(a==='sbback'){if(!e.repeat&&SBX&&state==='race'&&!SB.trav){togglePause();sbBackAsk(true);}e.preventDefault();}/* (patch 51) */
   else if(a==='pause'||(!a&&e.code==='Escape')){if(!e.repeat)togglePause();}});
 addEventListener('keyup',e=>{const a=KEYC[e.code];if(a==='look'){keys.lookKey=false;if(!document.getElementById('lookBtn')||!document.getElementById('lookBtn').classList.contains('on'))keys.look=false;}else if(a&&KB_HELD[a])keys[a]=false;});
 /* the remap list in Settings: tap a key box, then press the new key (Esc cancels, Backspace or Delete clears the box) */
@@ -10446,8 +10446,8 @@ class NetRelay{constructor(){this.id=netRid();this.chans=new Map();this.gone=new
         if(!this.wait){clearInterval(iv);return;}if(performance.now()-t0>ms){clearInterval(iv);this.wait=null;rej(new Error('notfound'));return;}
         const s=JSON.stringify({f:this.id,c:'knock'});for(const m of this.mq)m.pub(room,s);};
       this.wait=ch=>{clearInterval(iv);res(ch);};const iv=setInterval(tick,1000);tick();});return pend;}
-  beat(){const now=performance.now();for(const m of this.mq)if(now-m.lastIn>10000)m.ping();
-    const lim=(state==='race'||state==='countdown')&&!NET.hostAway?20000:180000;
+  beat(){const now=performance.now();{const gap=now-(this.lastBeat||now);this.lastBeat=now;if(gap>3000)for(const ch of this.chans.values())ch.lastIn+=gap-1000;}/* (patch 57: time this game did not run is no one's silence) */for(const m of this.mq)if(now-m.lastIn>10000)m.ping();
+    const lim=NET.cfg&&(state==='race'||state==='countdown')&&!NET.hostAway?20000:180000;/* (patch 57: the short limit in a room race only, not Sandbox) */
     for(const ch of [...this.chans.values()]){if(now-ch.lastOut>1500)ch.send({t:'hb'});if(now-ch.lastIn>lim)ch.lost('Lost the connection. Check that everyone is online with the game open.');}}
   /* back from the background: reconnect right away and don't count the time away against anyone */
   wake(){const now=performance.now();for(const m of this.mq)m.kick();for(const ch of this.chans.values())ch.lastIn=now;}
@@ -10595,7 +10595,7 @@ function netLeave(){if(NET.role==='guest')netSend(NET.conns[0],{t:'bye'});else i
 /* every race gets a small tag: late messages from the previous race (still in flight on a slow relay) are ignored instead of
    confusing the new race's input numbering, which could leave a friend frozen at the start */
 function netRk(id){let h=7;for(const ch of String(id||''))h=(h*31+ch.charCodeAt(0))%997;return h+1;}
-function netBeginLoad(cfg){NET.cfg=cfg;NET.rk=netRk(cfg.id);NET.finSeen=false;NET.snaps=[];NET.sn=0;NET.lastSn=0;NET.off=null;NET.jit=0;NET.hist=[];NET.outQ=[];NET.unack=[];NET.ackRx=0;NET.fixN=0;NET.seq=0;NET.inQ={};NET.inS={};NET.inLast={};NET.ack={};NET.loaded=new Set();NET.claims={};NET.claimed=new Set();for(const c of NET.conns){c.win=null;c.snAt=null;c.lsSeen=0;c.art=null;c.snDiv=1;c.snUp=0;}netClearMirrors();
+function netBeginLoad(cfg){try{for(const P of SBN.peers.values())sbnDrop(P);SBN.peers.clear();if(SBN.el)SBN.el.hidden=true;}catch(e){}/* (patch 53: no friend left standing in Sandbox's place) */NET.cfg=cfg;NET.rk=netRk(cfg.id);NET.finSeen=false;NET.snaps=[];NET.sn=0;NET.lastSn=0;NET.off=null;NET.jit=0;NET.hist=[];NET.outQ=[];NET.unack=[];NET.ackRx=0;NET.fixN=0;NET.seq=0;NET.inQ={};NET.inS={};NET.inLast={};NET.ack={};NET.loaded=new Set();NET.claims={};NET.claimed=new Set();for(const c of NET.conns){c.win=null;c.snAt=null;c.lsSeen=0;c.art=null;c.snDiv=1;c.snUp=0;}netClearMirrors();
   clsKey=cfg.cls;mode=cfg.mode;gp=cfg.gp?JSON.parse(JSON.stringify(cfg.gp)):null;if(gp)delete gp.pend;if(NET.role==='guest'){cpuBuilds=RACERS.map(randomBuild);for(const k of cfg.karts)cpuBuilds[k.ri]=k.build;}
   netHideLobby();if(garageOpen)closeGarage();results.hidden=true;pauseOv.hidden=true;NET.fromNet=true;goRace(cfg.mi);}
 function netLoaded(){state='netwait';showBanner('Waiting for racers…',30,'sm');NET.waitTimer=performance.now();NET.allLoadedAt=0;
@@ -10912,7 +10912,7 @@ function padPoll(){let gps;try{gps=navigator.getGamepads?navigator.getGamepads()
     /* items: slot 1 and slot 2 */
     [[M.I1,1],[M.I2,2]].forEach(([btns,sl])=>{const down=btns.some(pr),was=PAD.held[sl];if(down===was)return;PAD.held[sl]=down;const k=player;if(!k||(SPEC&&SPEC.on))return;
       const it=sl===1?k.item:k.item2,suf=sl===2?'2':'';
-      if(down){if(k.held&&k.held.sl===sl){itemQueued='fwd'+suf;PAD.hold[sl]=0;}else if(it&&HOLDABLE[it]){itemQueued='hold'+suf;PAD.hold[sl]=1;}else{itemQueued='fwd'+suf;PAD.hold[sl]=0;}}
+      if(down){if(k.held&&k.held.sl===sl){itemQueued='fwd'+suf;PAD.hold[sl]=0;}else if(it&&HOLDABLE[it]&&mode!=='bb'){itemQueued='hold'+suf;PAD.hold[sl]=1;}/* (patch 56: a battle throws on the press) */else{itemQueued='fwd'+suf;PAD.hold[sl]=0;}}
       else if(PAD.hold[sl]){PAD.hold[sl]=0;if(k.held&&k.held.sl===sl)itemQueued=(ay>.6?'hold':'fwd')+suf;}});}
   else{PAD.steer=0;PAD.brake=false;PAD.look=false;PAD.gas=true;PAD.held=[false,false,false];
     /* menus: move between buttons, A selects, B goes back */
