@@ -163,6 +163,7 @@ Controls Backspace CLEARS a box (Keys.capture), so it can't be typed in as a bin
 
 ### 2026-11-17: the PC build for web v219 IS OUT: 785b5167 (online 120: web and PC play together again).
 The PC build for web v220 (the restart key) IS OUT: 45bc0216.
+The PC build for web v221 (UNLOCK opens the style shop) IS OUT: e6b26bcb.
 
 ### 2026-11-17 (PC build for web v219, online 120): the PC level with web v218-v219
 tools/mini/pc68.py (patch 64's no-items rule, patch 65's coins, patch 68's developer options, PROTO 120, scripts/style.gd) and
