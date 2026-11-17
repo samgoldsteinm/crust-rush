@@ -220,26 +220,23 @@ func _build_coins() -> void:
 	for i in sb.coin_n:
 		if sb.coin_rare[i] == 0:
 			_plain.append(i)
-	# the plain ones: one batch of gold discs standing on edge
-	var disc := CylinderMesh.new()
-	disc.top_radius = 4.2
-	disc.bottom_radius = 4.2
-	disc.height = 0.9
-	disc.radial_segments = 22
-	disc.rings = 1
+	# the plain ones: one batch of the detailed coin (web patch 61: rim, reeded edge, a pizza slice on each face), its face along z
 	_mm = MultiMesh.new()
 	_mm.transform_format = MultiMesh.TRANSFORM_3D
-	_mm.mesh = disc
+	_mm.mesh = _coin_mesh()
 	_mm.instance_count = maxi(1, _plain.size())
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = _mm
-	mmi.material_override = _std("#ffc93a", 0.28, 0.85, "#a86a00", 0.9)
+	var cm := _std("#ffffff", 0.3, 0.85, "#8a5800", 0.45)
+	cm.vertex_color_use_as_albedo = true
+	mmi.material_override = cm
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# (the batch is spread over the whole place: never culled as one box round the first coin)
 	mmi.custom_aabb = AABB(Vector3(-20000, -2000, -20000), Vector3(40000, 6000, 40000))
 	add_child(mmi)
 	if _plain.is_empty():
 		_mm.set_instance_transform(0, Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO))
+	_build_coin_shadows()
 	# the hidden ones: bigger, a pepperoni face, a gold rim
 	var rg := CylinderMesh.new()
 	rg.top_radius = 6.4
@@ -276,6 +273,100 @@ func _build_coins() -> void:
 		g.position = Vector3(sb.coin_x[i], sb.coin_y[i], sb.coin_z[i])
 		add_child(g)
 		_rare.append([i, g])
+
+
+## the coin's shape, the web's own triangles (tools/neon/coinexport.py from sbCoinGeo); a plain disc if the file is missing
+func _coin_mesh() -> Mesh:
+	var f := FileAccess.open("res://assets/sandbox/coin.json", FileAccess.READ)
+	if f == null:
+		var disc := CylinderMesh.new()
+		disc.top_radius = 4.2
+		disc.bottom_radius = 4.2
+		disc.height = 0.9
+		disc.radial_segments = 22
+		var am0 := ArrayMesh.new()
+		var a0 := disc.get_mesh_arrays()
+		# (stood on edge, the face along z, as the file's coin)
+		var pv: PackedVector3Array = a0[Mesh.ARRAY_VERTEX]
+		var nv: PackedVector3Array = a0[Mesh.ARRAY_NORMAL]
+		var tip := Basis(Vector3.RIGHT, PI / 2.0)
+		for i in pv.size():
+			pv[i] = tip * pv[i]
+			nv[i] = tip * nv[i]
+		a0[Mesh.ARRAY_VERTEX] = pv
+		a0[Mesh.ARRAY_NORMAL] = nv
+		var cv := PackedColorArray()
+		cv.resize(pv.size())
+		cv.fill(Color("#ffc93a"))
+		a0[Mesh.ARRAY_COLOR] = cv
+		am0.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a0)
+		return am0
+	var d: Dictionary = JSON.parse_string(f.get_as_text())
+	var p: Array = d["p"]
+	var n: Array = d["n"]
+	var c: Array = d["c"]
+	var pv2 := PackedVector3Array()
+	var nv2 := PackedVector3Array()
+	var cv2 := PackedColorArray()
+	var k := 0
+	while k < p.size():
+		# (the web winds counter-clockwise from outside, Godot clockwise: each triangle's last two corners swap)
+		for o in [0, 6, 3]:
+			pv2.append(Vector3(p[k + o], p[k + o + 1], p[k + o + 2]))
+			nv2.append(Vector3(n[k + o], n[k + o + 1], n[k + o + 2]))
+			cv2.append(Color(c[k + o], c[k + o + 1], c[k + o + 2]))
+		k += 9
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = pv2
+	arr[Mesh.ARRAY_NORMAL] = nv2
+	arr[Mesh.ARRAY_COLOR] = cv2
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return am
+
+
+## a soft shadow flat on the ground under each coin, turning with it (web sbCoinShadows): one batch
+var _shm: MultiMesh = null
+var _sh_of: PackedInt32Array = PackedInt32Array()    # coin number -> its shadow's number, or -1
+
+
+func _build_coin_shadows() -> void:
+	_sh_of.resize(sb.coin_n)
+	var cnt := 0
+	for i in sb.coin_n:
+		if is_nan(sb.coin_gy[i]):
+			_sh_of[i] = -1
+		else:
+			_sh_of[i] = cnt
+			cnt += 1
+	if cnt == 0:
+		return
+	var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+	for y in 64:
+		for x in 64:
+			var r := Vector2(x - 31.5, y - 31.5).length() / 31.0
+			# (the web's gradient: .85 at the middle, .55 at half way, nothing at the edge)
+			var a := 0.0 if r >= 1.0 else (lerpf(0.85, 0.55, r / 0.55) if r < 0.55 else lerpf(0.55, 0.0, (r - 0.55) / 0.45))
+			img.set_pixel(x, y, Color(0, 0, 0, a))
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_texture = ImageTexture.create_from_image(img)
+	m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	m.render_priority = 1
+	var q := PlaneMesh.new()
+	q.size = Vector2(1, 1)
+	_shm = MultiMesh.new()
+	_shm.transform_format = MultiMesh.TRANSFORM_3D
+	_shm.mesh = q
+	_shm.instance_count = cnt
+	var mi := MultiMeshInstance3D.new()
+	mi.multimesh = _shm
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.custom_aabb = AABB(Vector3(-20000, -2000, -20000), Vector3(40000, 6000, 40000))
+	add_child(mi)
 
 
 # ---------------------------------------------------------------- the start line's marker (web sbFlag)
@@ -681,9 +772,23 @@ func _process(dt: float) -> void:
 		var i := _plain[q]
 		var a := time * 2.6 + float(i) * 0.37
 		var s := 0.0 if ct[i] > 0.0 else 1.0
-		# (the disc lies flat as made: stood on edge, then turned about the upright)
-		var b := Basis(Vector3.UP, a) * Basis(Vector3.RIGHT, PI / 2.0)
+		# (the coin stands on edge as made, its face along z: turned about the upright)
+		var b := Basis(Vector3.UP, a)
 		_mm.set_instance_transform(q, Transform3D(b.scaled(Vector3(s, s, s)), Vector3(cx[i], cy[i], cz[i])))
+	# the shadows turn with their coins; gone while the coin is (web patch 61)
+	if _shm != null:
+		var gy: PackedFloat32Array = sb.coin_gy
+		for i3 in sb.coin_n:
+			var si := _sh_of[i3]
+			if si < 0:
+				continue
+			var a3 := time * 2.6 + float(i3) * 0.37
+			var big := 1.5 if sb.coin_rare[i3] != 0 else 1.0
+			var bob := 1.0 - sin(time * 2.0 + float(i3) * 0.37) * 0.04 if sb.coin_rare[i3] != 0 else 1.0
+			var on := 1.0 if ct[i3] == 0.0 else 0.0
+			# (scaled in its own frame, long across the coin's face, so it turns with the coin)
+			var sb3 := Basis(Vector3.UP, a3) * Basis.from_scale(Vector3(9.5 * big * bob * on, 1.0, 3.8 * big * bob * on))
+			_shm.set_instance_transform(si, Transform3D(sb3, Vector3(cx[i3], gy[i3] + 0.3, cz[i3])))
 	for r in _rare:
 		var i2: int = r[0]
 		var n: Node3D = r[1]

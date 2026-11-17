@@ -69,6 +69,7 @@ var coin_x := PackedFloat32Array()
 var coin_y := PackedFloat32Array()     # height
 var coin_z := PackedFloat32Array()
 var coin_rare := PackedByteArray()
+var coin_gy := PackedFloat32Array()    # the ground under it, for its shadow; NAN: it hangs in the air (web patch 61, c.gy)
 var coin_t := PackedFloat32Array()     # 0 there; > 0 seconds until it is back; < 0 found for good
 var coin_id: Array = []
 var coins_dirty := true                # for the drawing: something was taken or came back
@@ -394,6 +395,11 @@ func setup(race_, track: TrackData, defer_save := false) -> void:
 		var rare := int(ca[3]) != 0
 		coin_rare.append(1 if rare else 0)
 		coin_id.append(String(ca[4]))
+		# (an older export has no [5]: the ground is under it by as much as the web puts it up)
+		if ca.size() > 5:
+			coin_gy.append(NAN if ca[5] == null else float(ca[5]))
+		else:
+			coin_gy.append(float(ca[1]) - (8.0 if rare else 5.4))
 		coin_t.append(-1.0 if (rare and found.has(String(ca[4]))) else 0.0)
 	coin_n = coin_x.size()
 	if d.get("flag") is Array and (d["flag"] as Array).size() >= 3:
