@@ -164,7 +164,7 @@ Web: tools/mini/patch53.py, 54, 55.
   fault itself was not reproduced). PC: the same two rules due in webnet.gd.
 - Headlights come on by themselves only when it is properly dark (L .5 to .8), still off on a lit track; keyboard 'lights'
   "Headlights (Sandbox)", L by default, switches them on or off by hand (web SB.hl, PC main.hl_mode).
-- PC (D:/crust-rush/godot), not yet in a build:
+- PC: PUBLISHED as build b18a9192 (export c4a76f8, cross-play check passed) with everything below except the mechanic's shop:
   - SANDBOX AT NIGHT: scripts/sandbox_night.gd (made by sandbox_view.gd beside the clock): the toy dashes ("toy_toydash..."
     materials) glow, street lamps on spiral/basil/napoli/tour with three moving real lights, the headlight (SpotLight3D with a
     projector picture, the on-track rule, the darkness threshold, the L key). tests/sbnight.tscn (CR_MODE=sb CR_MAP=backyard) checks
