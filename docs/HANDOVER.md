@@ -145,6 +145,13 @@ against the landmarks' coordinates before the real generator closed the lap; the
 7. Last Slice Standing still counts laps by the count of lap points (`lssTick`, `_lss_tick`): the count is set right at every
    line crossing now, so it is at most a few points early within a lap. Give it the line test of `finAt` if anyone notices.
 
+### 2026-11-17 (web v215; online 117): the shop in a room's Sandbox; no scenery in shortcut lanes
+| What broke | Why | Fix | Keep it fixed |
+|---|---|---|---|
+| A guest in a room's Sandbox who changed something in the mechanic's shop landed on the room screen with no way back into the game (owner's picture) | The garage's last button asked "a room's guest?" (ready up, the room screen) before "came from the shop?"; and toMenu put the room screen up for leaving a room's Sandbox, over the garage, also for the shop | gDone asks sbShopDone first; toMenu leaves the room screen down for the shop (SB.shopBack); the room screen in a room's Sandbox has "Back to Sandbox" (sbRoomBack: a guest to the host's last place) | tools/neon/sbshopnet.py (guest: shop, garage, change, back out; then the room screen's button) |
+| A street lamp on Midnight Mozzarella's paved fast lane (shortcut audit) | The scenery's own check measured from the plain shortcut width, not the wide paved route's | scClear() as a race or place is set up: any instanced scenery detail (cullOK) standing in a shortcut's lane is shrunk away | scratch/scvert.js per place (sbprobe.py <map>); done for 13 of 23 places, all clean but Margherita (patch 55) and Mozzarella (this) |
+Patches tools/mini/patch58.py, patch59.py.
+
 ### 2026-11-16 (web v214; online 117): headlights, the second host, shortcuts; PC catch-up (night, D-pad, frame counter, tunnels)
 Web: tools/mini/patch53.py, 54, 55.
 | What broke | Why | Fix | Keep it fixed |

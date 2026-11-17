@@ -7721,8 +7721,13 @@ function resetRace(demo){
   boxes.forEach(b=>b.r=0);resetHazards();raceTime=0;WHEEL_N=0;WHEEL_AT=-99;BUMPT.clear();POPS.forEach(q=>scene.remove(q.m));POPS.length=0;finishCount=0;lapShown=1;resultsAt=0;cam.a=camT.ma;camSnap=true;acc=0;camera.up.set(0,1,0);standCache=standings();
   if(ladPending!=null){applyLad(ladPending,true);ladPending=null;}if(ssPending!=null){applySS(ssPending);ssPending=null;fit();}
   NOITM=!demo&&mode!=='lss'&&mode!=='bb'&&mode!=='sb'&&(NET.cfg?!!NET.cfg.ni:!NET.role&&itemsOff());/* (patch 47) */
+  try{scClear();}catch(e){console.warn('scClear',e);}/* (patch 58) */
   warmScene();
 }
+/* (patch 58) no scenery detail standing in a shortcut's lane */
+function scClear(){if(!SHORTS||!SHORTS.length||!world)return;const M=new THREE.Matrix4(),P=new THREE.Vector3(),Z=new THREE.Matrix4().makeScale(0,0,0);
+  world.traverse(o=>{if(!o.isInstancedMesh||!o.userData||!o.userData.cullOK||o.userData.scClr)return;o.userData.scClr=1;o.updateWorldMatrix(true,false);let ch=false;
+    for(let i=0;i<o.count;i++){o.getMatrixAt(i,M);P.setFromMatrixPosition(M).applyMatrix4(o.matrixWorld);if(nearSC(P.x,P.z,SCW-3)){o.setMatrixAt(i,Z);ch=true;}}if(ch)o.instanceMatrix.needsUpdate=true;});}
 /* upload every texture and buffer and compile every shader before the lights go green, so nothing hitches the first time it scrolls into view */
 let _warmG=null;
 /* Ultra reflection probe: once per race load, render the real map around an open stretch of road into a small cube map,
@@ -9171,7 +9176,7 @@ function startGP(){gp={cup:cupIdx,race:0,pts:new Array(8).fill(0),last:new Array
 function startFromMenu(){cpuBuilds=RACERS.map(randomBuild);if(mode==='gp')startGP();else{gp=null;goRace(mapIdx);}}
 function finalizeRace(){if(raceDone)return;raceDone=true;if(NET.role==='guest')return;/* online the host decides; a guest only shows it */const st=standings();for(const k of st){if(NET.cfg&&k.netName&&k!==player)continue;/* a friend still racing keeps racing */if(!k.finished){k.finished=true;k.place=++finishCount;k.est=true;k.finishTime=raceTime+Math.max(0,LAPS*N-k.prog)*8/Math.max(60,BASE_MAX*.85);}}
   if(gp&&!NET.cfg){/* (on line the cup is scored from the results table, when the host goes on: netGpNow) */gp.last.fill(0);for(const k of karts){const pt=PTS[k.place-1]||0;gp.pts[k.ri]+=pt;gp.last[k.ri]=pt;}}}
-function toMenu(){if(sbBack())return;const wasSb=SBX&&NET.sbx&&NET.role;sbOff();if(wasSb)setTimeout(()=>{if(NET.role&&state==='menu')netShowLobby();},60);LAPS=3;if(NET.cfg){NETLOG.stop();if(NET.role==='host')netAll({t:'menu'});else if(NET.role==='guest')netSend(NET.conns[0],{t:'quit'});NET.cfg=null;netClearMirrors();setTimeout(()=>{if(NET.role)netShowLobby();},50);}gp=null;menuStep='home';document.querySelectorAll('#menu .step').forEach(e=>e.hidden=e.dataset.step!=='home');BASE_MAX=BASE0;if(curRev)loadMap(mapIdx,false);state='menu';results.hidden=true;pauseOv.hidden=true;menu.hidden=false;resetRace(true);stage.classList.add('demo');wrong.hidden=true;banner.textContent='';speedfx.classList.remove('on');refreshMenu();}
+function toMenu(){if(sbBack())return;const wasSb=SBX&&NET.sbx&&NET.role&&!SB.shopBack;/* (patch 59: not for the shop) */sbOff();if(wasSb)setTimeout(()=>{if(NET.role&&state==='menu')netShowLobby();},60);LAPS=3;if(NET.cfg){NETLOG.stop();if(NET.role==='host')netAll({t:'menu'});else if(NET.role==='guest')netSend(NET.conns[0],{t:'quit'});NET.cfg=null;netClearMirrors();setTimeout(()=>{if(NET.role)netShowLobby();},50);}gp=null;menuStep='home';document.querySelectorAll('#menu .step').forEach(e=>e.hidden=e.dataset.step!=='home');BASE_MAX=BASE0;if(curRev)loadMap(mapIdx,false);state='menu';results.hidden=true;pauseOv.hidden=true;menu.hidden=false;resetRace(true);stage.classList.add('demo');wrong.hidden=true;banner.textContent='';speedfx.classList.remove('on');refreshMenu();}
 /* ================= RECORDS: race history, personal bests and a ghost of your best run ================= */
 const REC_HZ=10,REC_MAX=6000;let recBuf=null,recT=0,recLaps=[],ghost=null,ghostRun=null,lastRun=null;
 const recKey=()=>MAPS[mapIdx].id+(MAPS[mapIdx].recv?'@'+MAPS[mapIdx].recv:'')+'|'+clsKey;
@@ -9718,7 +9723,7 @@ function buildGarage(){
     b.onclick=()=>{playerBuild.p=i;playerBuild.t='';saveBuild();refreshGarage(true);};$('pPaint').appendChild(b);});
   $('gStats').innerHTML=STAT_NAMES.map(n=>'<div class="st-row"><span>'+n+'</span><span class="st-bar">'+'<i></i>'.repeat(STAT_BARS)+'</span><span class="st-d"></span></div>').join('');
   document.querySelectorAll('#statSeg button').forEach(b=>b.onclick=()=>{statsOn=b.dataset.s==='1';store.set('crust-stats',statsOn?'1':'0');refreshGarage(false);});
-  $('gDone').onclick=()=>{if(gBig){setBig(false);return;}closeGarage();if(NET.role==='guest'){netSendPick(true);goStep('home');netShowLobby();return;}if(typeof sbShopDone==='function'&&sbShopDone())return;goStep('track');};$('garageBtn').onclick=()=>goStep('kart');$('gBack').onclick=()=>{if(gBig){setBig(false);return;}closeGarage();goStep('driver');};
+  $('gDone').onclick=()=>{if(gBig){setBig(false);return;}closeGarage();if(typeof sbShopDone==='function'&&sbShopDone())return;/* (patch 59: the shop's way out first, a room's guest too) */if(NET.role==='guest'){netSendPick(true);goStep('home');netShowLobby();return;}goStep('track');};$('garageBtn').onclick=()=>goStep('kart');$('gBack').onclick=()=>{if(gBig){setBig(false);return;}closeGarage();goStep('driver');};
   $('toDriver').onclick=()=>goStep('driver');document.querySelectorAll('#menu .st-back').forEach(b=>b.onclick=()=>{if(b.dataset.back==='home'&&typeof sbShopDone==='function'&&sbShopDone())return;goStep(b.dataset.back);});
   document.querySelectorAll('.g-tabs button').forEach(t=>t.onclick=()=>{gTab=t.dataset.tab;if(gTab==='glider')gGlT=3.2;refreshGarage(false);});
   const cv=$('gCan'),PT=new Map();let pinch0=0,zoom0=1,tap=null;
@@ -10812,7 +10817,11 @@ function netLobbyRender(msg){if(!mpOv)mpOv=$('mpOv');if(!mpOv)return;const box=$
   else{box.innerHTML=err+'<p class="mp-code">Joined room<b>'+esc(NET.code)+'</b></p>'+list+'<p class="mp-lead mp-q">During the race a badge shows your connection: <b style="color:#2fbf5f">Best</b> straight between devices · <b style="color:#8fbf2f">Good</b> through the TURN server · <b style="color:#d99a12">Fair</b> backup relay · <b style="color:#e0412f">Poor</b> high lag.</p>'+
       (NET.ready?'<p class="mp-lead">You are ready. '+(NET.hostTk?'Track: <b>'+esc(NET.hostTk)+'</b>. The race starts when everyone is ready and the host taps Start.':'Waiting for the host to pick the track…')+'</p><div class="mp-choices"><button id="mpChange" class="ghost">Change driver or kart</button><button id="mpLeave" class="ghost">Leave room</button></div>'
         :'<p class="mp-lead">Choose your driver and kart, then tap <b>Ready</b> in the garage. '+(NET.hostTk?'The host has picked <b>'+esc(NET.hostTk)+'</b> and is waiting for you.':'The host picks the track.')+'</p><div class="mp-choices"><button id="mpGo" class="cta">Choose driver ›</button><button id="mpLeave" class="ghost">Leave room</button></div>');
-    if($('mpGo'))$('mpGo').onclick=()=>{netHideLobby();goStep('driver');};if($('mpChange'))$('mpChange').onclick=()=>{netSendPick(false);netHideLobby();goStep('driver');};$('mpLeave').onclick=()=>{netLeave();netLobbyRender();};}}
+    if($('mpGo'))$('mpGo').onclick=()=>{netHideLobby();goStep('driver');};if($('mpChange'))$('mpChange').onclick=()=>{netSendPick(false);netHideLobby();goStep('driver');};$('mpLeave').onclick=()=>{netLeave();netLobbyRender();};}
+  if(NET.sbx&&state==='menu'){const ch=box.querySelector('.mp-choices');if(ch&&!$('mpSb')){const b=document.createElement('button');b.id='mpSb';b.className='cta';b.type='button';b.textContent='Back to Sandbox';b.onclick=sbRoomBack;ch.prepend(b);}}/* (patch 59) */}
+/* (patch 59) from the room's screen back into the room's Sandbox: where the host is (a guest), or the host's own last place */
+function sbRoomBack(){if(!NET.role||!NET.sbx)return;let id=null;const hp=NET.role==='guest'&&SBN.peers.get(0);if(hp&&hp.reg)id=hp.reg;if(!id||!sbRegOf(id))id=SB.regId;if(!id||!sbRegOf(id))id=MAPS[mapIdx]&&MAPS[mapIdx].id;
+  if(!id||!sbRegOf(id))id='backyard';const mi=MAPS.findIndex(m=>m.id===id);if(mi<0)return;netHideLobby();try{if(garageOpen)closeGarage();}catch(e){}SB.shopBack=false;mode='sb';NET.fromNet=true;introSkip=true;menu.hidden=true;goRace(mi);}
 /* the phone itself holding the game at 30 fps: frames arrive every 33 ms like clockwork while the game needs far less time than that per
    frame. On iPhone that is Low Power Mode (Safari halves the frame rate of every web page) or the phone running hot. Say so once. */
 const CAPW={d:[],t:0,shown:false,capped:false};
