@@ -57,7 +57,8 @@ rep('view.gd', """	var q := MeshInstance3D.new()
 
 ## (web patch 71) the underglow's style: 1 soft pool, 2 core and halo, 3 side strips, 4 wide and faint (0: the old pool)
 static var UGV := int(OS.get_environment("CR_UGV")) if OS.get_environment("CR_UGV") != "" else 1
-const UG_M := [0.0, 0.8, 0.9, 0.7, 1.1]
+const UG_M := [0.0, 0.4, 0.55, 0.45, 0.7]
+const UG_D := [0.0, 0.085, 0.13, 0.1, 0.2]
 static var _ugv_t := {}
 
 
@@ -84,8 +85,8 @@ static func _body_box(g: Node3D, src: Node3D) -> AABB:
 ## an additive plane under g with the style's picture; returns its material (alpha set each frame by _style_frame)
 static func ug_plane(g: Node3D, col: Color, alpha := 0.6, src: Node3D = null) -> StandardMaterial3D:
 	var bb := _body_box(g, src if src != null else g)
-	var bL := maxf(1.0, bb.size.x * 0.94)
-	var bW := maxf(1.0, bb.size.z * 0.94)
+	var bL := maxf(1.0, bb.size.x * 0.9)
+	var bW := maxf(1.0, bb.size.z * 0.9)
 	var m: float = UG_M[UGV]
 	var q := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
@@ -134,22 +135,17 @@ static func ug_tex(v: int, lr: float) -> ImageTexture:
 			var r := pow(pow(X / bx, 4.0) + pow(Z / bz, 4.0), 0.25)
 			var k := maxf(0.0, 1.0 - r * r)
 			var side := 0.4 + 0.6 * clampf(1.0 - (X - bx) / 0.5, 0.0, 1.0)
-			var a: float
-			if v == 2:
-				a = (0.6 + 0.4 * k * k) if sd <= 0.0 else 0.6 * (0.55 / (1.0 + (o / 0.1) * (o / 0.1)) + 0.45 * exp(-(o / 0.45) * (o / 0.45))) * fz
-			elif v == 3:
-				a = 0.8 if sd <= 0.0 else 0.8 / (1.0 + (o / 0.14) * (o / 0.14)) * side * fz
-			elif v == 4:
-				a = (0.45 + 0.15 * k) if sd <= 0.0 else 0.45 / (1.0 + (o / 0.35) * (o / 0.35)) * fz
-			else:
-				a = (0.75 + 0.25 * k) if sd <= 0.0 else 0.75 / (1.0 + (o / 0.16) * (o / 0.16)) * fz
+			var a := 0.72
+			if sd > 0.0:
+				var e: float = 0.72 * exp(-o / float(UG_D[v])) * fz
+				a = e * side if v == 3 else (0.6 * e if v == 4 else e)
 			img.set_pixel(x, z, Color(1, 1, 1, clampf(a, 0.0, 1.0)))
 	var tex := ImageTexture.create_from_image(img)
 	_ugv_t[key] = tex
 	return tex
 """)
 rep('view.gd', """		hm.albedo_color = Color(c.r, c.g, c.b, 0.05 + 0.07 * dark)   # (a faint haze only: the lights do the work)""",
-    """		hm.albedo_color = Color(c.r, c.g, c.b, (0.55 + 0.2 * dark) if UGV > 0 else 0.05 + 0.07 * dark)   # (web patch 71: with a style the picture is the glow; the old pool a faint haze only)""")
+    """		hm.albedo_color = Color(c.r, c.g, c.b, (0.85 + 0.15 * dark) if UGV > 0 else 0.05 + 0.07 * dark)   # (web patch 71: with a style the picture is the glow; the old pool a faint haze only)""")
 # the garage's preview
 rep('menu.gd', """			_grad = bb.size.length() * 0.5
 			_gcy = bb.position.y + bb.size.y * 0.5
@@ -161,7 +157,7 @@ rep('menu.gd', """			_grad = bb.size.length() * 0.5
 		var gl: Dictionary = S.pick(build, "gl")
 		if gl["h"] != null:
 			var gc := Color("#ff3030") if String(gl["h"]) == "rainbow" else Color(String(gl["h"]))
-			View.ug_plane(_gkart, gc, 0.95)
+			View.ug_plane(_gkart, gc, 1.0)
 			var L := OmniLight3D.new()
 			L.light_color = gc
 			L.omni_range = 14.0
