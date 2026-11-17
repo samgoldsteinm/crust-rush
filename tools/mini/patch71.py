@@ -44,6 +44,8 @@ rep("if(gi&&GLOWS[gi]&&GLOWS[gi].h&&!cfg.hover){const hg=cfg.car?ugTexFor(cfg.ca
 rep("gm=new THREE.MeshBasicMaterial({map:hg?hg.t:ugGenericT(),color:GLOWS[gi].h==='rainbow'?'#ff3030':GLOWS[gi].h,",
     "gm=new THREE.MeshBasicMaterial({map:ugT,color:ugSat(GLOWS[gi].h==='rainbow'?'#ff3030':GLOWS[gi].h),/* (patch 71) */")
 rep("transparent:true,opacity:.8,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}),pl=",
-    "transparent:true,opacity:.62,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}),pl=")
+    "transparent:true,opacity:(c=>.62*(1-.45*(.3*c.r+.59*c.g+.11*c.b)))(ugSat(GLOWS[gi].h==='rainbow'?'#ff3030':GLOWS[gi].h)),depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}),pl=")
+rep("lm=new THREE.MeshBasicMaterial({map:ugPM(gm.map),color:gm.color.clone(),", "lm=new THREE.MeshBasicMaterial({map:ugPM(gm.map),color:gm.color.clone().multiplyScalar(gm.opacity/.62),")
+rep("g.userData.ug={pl,pl2,base:gm.color.clone(),", "g.userData.ug={pl,pl2,base:gm.color.clone().multiplyScalar(gm.opacity/.62),")
 open(p, 'w', encoding='utf-8', newline='').write(s)
 print('patch 71 applied')
