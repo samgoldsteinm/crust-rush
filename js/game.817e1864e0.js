@@ -864,7 +864,7 @@ let statsOn=store.get('crust-stats')!=='0';
 const STAT_W=[1.5,1,.5],STAT_MID=6,STAT_BARS=12;
 const statSoft=r=>4*Math.tanh(r/4),statBody=(b,i)=>statSoft(BODIES[b.b].st[i]*STAT_W[0]);
 function statE(b){const w=wheelOf(b),g=GLIDERS[b.g],o=[];for(let i=0;i<5;i++)o.push(clamp(statBody(b,i)+(w.st[i]+g.st[i])/1.5,-4,4));return o;}
-/* patch 38: speed counts for less, handling/weight/off-road for more */function statMods(b){const e=statsOn?statE(b):[0,0,0,0,0];return {spd:1+.014*e[0],acc:Math.max(.62,1+.09*e[1]),hnd:1+.05*e[2],wgt:1+.12*e[3],off:e[4]*.9};}
+/* patch 38: speed counts for less, handling/weight/off-road for more */function statMods(b){const e=statsOn?statE(b):[0,0,0,0,0];return {spd:1+.0035*e[0],acc:Math.max(.62,1+.09*e[1]),hnd:1+.05*e[2],wgt:clamp(1+.234*e[3],.4,1.6),off:e[4]*2.88};}/* (patch 60: a point is worth about the same in a race in every stat) */
 /* (patch 38) weight in a wall hit: a heavy kart keeps more of its speed (0.81x the loss at the heaviest, 1.19x at the lightest) */
 const wallK=k=>k&&k.sm&&isFinite(k.sm.wgt)?1-.4*(k.sm.wgt-1):1;
 function validBuild(b){return b&&BODIES[b.b]&&WHEELS[b.w]&&GLIDERS[b.g]&&b.p>=0&&b.p<PAINTS.length;}
@@ -7671,7 +7671,7 @@ function stepKart(k,inp,dt){
   let trickNow=false;/* gliding: every press while there is room below is a trick; each one stacks the landing boost. Near the landing a press arms the drift instead */
   if(k.glide&&dPress&&k.airT>.25&&!(k.trickT>0)&&(k.gH||0)>16){k.bLock=true;k.trick=true;k.gTr=(k.gTr||0)+1;k.trickT=TRICK_T;const st=inp.steer||0;k.trickN=(k.trickN||0)+1;const n=st<-.4?3:st>.4?4:[1,0,2][k.trickN%3];k.trickK=n;trickNow=true;if(k===player&&!NET.replay){SFX.trick();showBanner(TRICKS[n].n+(k.gTr>1?' x'+k.gTr:'')+'!',.6,'sm');}}
   else if(k.air&&(k.big||(k.airT>.12&&k.z>5))&&!k.glide&&dPress&&!k.trick){k.bLock=true;k.trick=true;k.trickT=TRICK_T;const st=inp.steer||0;k.trickN=(k.trickN||0)+1;const n=st<-.4?3:st>.4?4:(k.trickN%3);k.trickK=n;trickNow=true;if(k===player&&!NET.replay){SFX.trick();showBanner(TRICKS[n].n+'!',.6,'sm');}}
-  const lat=Math.abs(lateral(k)),sm=k.sm;let tp=lat<RW?1:lat<CURB?.86+.03*sm.off:clamp(.58+.08*sm.off,.36,.86);/* (patch 38) off-road counts for more */if(k.glide)tp=1;if(k.sc)tp=k.sc.route?1:.96;if(k.boost>0)tp=Math.max(tp,.93);if(BATTLE)tp=1;k.sf=k.sc?1:lat<RW?2:lat<CURB?1:0;
+  const lat=Math.abs(lateral(k)),sm=k.sm;let tp=lat<RW?1:lat<CURB?clamp(.86+.03*sm.off,.7,1):clamp(.58+.08*sm.off,.36,.86);/* (patch 38) off-road counts for more */if(k.glide)tp=1;if(k.sc)tp=k.sc.route?1:.96;if(k.boost>0)tp=Math.max(tp,.93);if(BATTLE)tp=1;k.sf=k.sc?1:lat<RW?2:lat<CURB?1:0;
   k.pen+=(tp-k.pen)*Math.min(1,dt*(tp<k.pen?3.5:6));
   let max=BASE_MAX*inp.mul*k.pen*sm.spd*(k.glide?k.gair||1:1);if(k.boost>(k.pBoost||0)+1e-4){k.bPk=k.boost;k.fTier=0;}/* visual only: which boost is burning (flame size and colour) */if(k.boost>0){k.bAge=(k.pBoost>0?(k.bAge||0)+dt:0);max*=1.58;k.boost-=dt;}else k.bAge=9;k.pBoost=k.boost;if(k.dWant>0)k.dWant-=dt;if(k.shield>0){k.shield-=dt;max*=1.08;}if(k.absT>0)k.absT-=dt;if(k.rush>0){k.rush-=dt;if(!(k.pestoT>0))max*=1.12;k.pen=Math.max(k.pen,.95);}/* Pesto Rush: the same speed as any boost */if(k.cannonT>0)max*=1.22;if(k.shrinkT>0)max*=.78;if(k.oilT>0)k.oilT-=dt;if(k.flatT>0)max=Math.min(max*.6,BASE_MAX*inp.mul*k.pen*sm.spd*.6);/* squashed flat by a Mega Shroom: crawls along at 60% (boosts don't help) until it pops back up */if(k.sauceT>0)max*=.93;if(k.frozen>0){k.frozen-=dt;max*=.55;}
   const v0=k.speed;
@@ -9318,7 +9318,7 @@ function musTick(){if(!ac||!master)return;musInit();if(!MUS.bus)return;
    Phones find each other through a short room code over a relay server; the race data uses a direct link when one opens. */
 const NET={role:null,code:'',peer:null,conns:[],me:0,pl:[],cfg:null,fromNet:false,loaded:new Set(),tick:0,seq:0,hist:[],outQ:[],inQ:{},inS:{},inLast:{},ack:{},
   snaps:[],mir:new Map(),mirH:new Map(),mirList:[],fxQ:[],nid:0,inUpd:false,finSeen:false,lastRecv:0,goT:0,waitTimer:0,replay:false,abQ:false,relay:null,lastFl:0,unack:[],ackRx:0};
-const NET_PROTO=117;/* (117: patch 52, a Sandbox race from a start line with invites) *//* (patch 47: cfg.ni, a race without items) *//* bump when race messages or kart physics change: friends on different versions would drive differently */
+const NET_PROTO=118;/* (118: patch 60, what a stat point counts for) *//* (117: patch 52, a Sandbox race from a start line with invites) *//* (patch 47: cfg.ni, a race without items) *//* bump when race messages or kart physics change: friends on different versions would drive differently */
 const NET_SLOTS=[4,3,5,2],NET_ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const netId=c=>'crustrush-v1-'+c.toUpperCase();
 const NET_REM=['x','y','a','ma','z','wy','speed','steer','drift','charge','boost','spin','air','glide','loopTh','onRamp','rush','shL','shield','mzH','sink','sinkT','trickK','trickT','frozen','acc','brake','dAmt','fx','prog','finished','place','finishTime','inv','big','ghostT','shrinkT','absT','idx','gRings','trick','bPk','fTier','megaT','pestoT','flatT','chiliT','oilT','burnT','est','oliveT','bal','bbL','bbS','bbOut','bbDead','bbPlace'];/* (patch 45: Balloon Battle on line) */
