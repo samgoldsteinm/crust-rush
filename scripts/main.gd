@@ -5275,7 +5275,7 @@ func _apply_cheat(code: String) -> void:
 	elif c == "UNLOCK":
 		Ach.cheat = true
 		cheat_ok = true
-		cheat_msg = "Unlocked! Every achievement, livery, car, track and reward item is open until you close the game. Your real progress is untouched."
+		cheat_msg = "Unlocked! Every achievement, livery, car, track, reward item and everything in the style shop is open until you close the game. No coins are spent and your real progress is untouched."
 		sfx.play("lap", 0.8, 1.2)
 	elif c == "TESTING":
 		test_drive = not test_drive
@@ -5743,6 +5743,13 @@ func _load_settings() -> void:
 		sel["favs"] = fv
 	var bb = cf.get_value("menu", "build", {})
 	if bb is Dictionary:
+		# (web patch 70) the UNLOCK code lasts one session: a style picked only under it goes back to the free default
+		var stv = bb.get("st")
+		if stv is Dictionary and not Ach.cheat:
+			var S := preload("res://scripts/style.gd")
+			for sl in (stv as Dictionary).keys():
+				if S.SLOTS.has(sl) and not S.is_owned(String(sl), int(stv[sl])):
+					stv[sl] = 0
 		sel["build"] = bb
 	var mid := String(cf.get_value("menu", "map", ""))
 	if mid != "" and map_id == "" and OS.get_environment("CR_MAP") == "":

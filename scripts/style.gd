@@ -36,6 +36,8 @@ static func _put(o: Dictionary) -> void:
 
 
 static func is_owned(slot: String, i: int) -> bool:
+	if Ach.cheat:
+		return true   # (web patch 70: the UNLOCK code; nothing is bought or written down)
 	var L: Array = SLOTS[slot][1]
 	if i < 0 or i >= L.size() or int(L[i]["p"]) == 0:
 		return true
