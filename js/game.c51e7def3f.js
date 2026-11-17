@@ -881,7 +881,10 @@ const SMOKES=[{n:'White',h:'#f2ebe0',$:0},{n:'Black',h:'#2a2a2e',$:300},{n:'Blue
   {n:'Yellow',h:'#ffd22a',$:350},{n:'Pink',h:'#ff4fb8',$:400},{n:'Rainbow',h:'rainbow',$:900}];
 const STYLE={tr:['tr',TRIMS],ac:['tr',TRIMS],in:['tr',TRIMS],gl:['gl',GLOWS],hl:['hl',LIGHTS],sm:['sm',SMOKES]};
 function ownedSet(){try{return new Set(JSON.parse(store.get('crust-own')||'[]'));}catch(e){return new Set();}}
-function styleOwned(slot,i){const [g,L]=STYLE[slot];return !L[i]||!L[i].$||ownedSet().has(g+i);}
+function styleOwned(slot,i){const [g,L]=STYLE[slot];if(styleCheat())return true;/* (patch 70: UNLOCK) */return !L[i]||!L[i].$||ownedSet().has(g+i);}
+function styleCheat(){try{return CHEAT;}catch(e){return false;}}/* (CHEAT is declared further down) */
+/* (patch 70) the UNLOCK code lasts one session: a saved style that was only picked under it goes back to the free default */
+{const st=playerBuild&&playerBuild.st;if(st&&typeof st==='object'){const o=ownedSet();let ch=false;for(const sl in STYLE){const i=st[sl]|0,[g,L]=STYLE[sl];if(i&&L[i]&&L[i].$&&!o.has(g+i)){st[sl]=0;ch=true;}}if(ch)try{store.set('crust-build',JSON.stringify(playerBuild));}catch(e){}}}
 function styleBuy(slot,i){const [g,L]=STYLE[slot],it=L[i],sv=sbSave();if(!it||styleOwned(slot,i))return true;if(sv.c<it.$)return false;sv.c-=it.$;sbKeep();const o=ownedSet();o.add(g+i);store.set('crust-own',JSON.stringify([...o]));return true;}
 function stOf(sp){return (sp&&sp.st)||{};}
 function rainbowC(t,o){return new THREE.Color().setHSL(((t*.12+(o||0))%1+1)%1,1,.55);}
@@ -8538,7 +8541,7 @@ function devUI(){const sec=$('devSec'),b=$('devBody');if(!sec||!b)return;sec.hid
 setTimeout(()=>{try{devUI();}catch(e){}},0);
 function applyCheat(code){const c=String(code||'').trim().toUpperCase(),m=$('cheatMsg');
   if(c==='DEVELOPER'){DEVU=!DEVU;store.set('crust-dev-on',DEVU?'1':'0');m.textContent=DEVU?'Developer options unlocked: they are just below this box. Enter DEVELOPER again to hide them.':'Developer options hidden.';m.className='cheat-msg ok';try{SFX.ring();}catch(e){}devUI();}
-  else if(c==='UNLOCK'){CHEAT=true;m.textContent='Unlocked! Every achievement, livery, car, track and reward item is open until you close the game. Your real progress is untouched.';m.className='cheat-msg ok';try{SFX.ring();}catch(e){}try{refreshGarage(false);}catch(e){}try{renderItemSet();}catch(e){}}
+  else if(c==='UNLOCK'){CHEAT=true;m.textContent='Unlocked! Every achievement, livery, car, track, reward item and everything in the style shop is open until you close the game. No coins are spent and your real progress is untouched.';m.className='cheat-msg ok';try{SFX.ring();}catch(e){}try{refreshGarage(false);}catch(e){}try{renderItemSet();}catch(e){}}
   else if(c==='TESTING'){TD.on=!TD.on;m.textContent=TD.on?'Auto-drive on: your kart drives itself perfectly and steering is ignored. About 10 seconds before a shortcut you choose to take it or skip it. Enter TESTING again to turn it off.':'Auto-drive off.';m.className='cheat-msg ok';try{SFX.ring();}catch(e){}}
   else{m.textContent=c?'That code does nothing.':'Type a code first.';m.className='cheat-msg no';}}
 function openAch(){achDirty&&achSave();renderAch();menu.hidden=true;$('achOv').hidden=false;$('achOv').scrollTop=0;}
