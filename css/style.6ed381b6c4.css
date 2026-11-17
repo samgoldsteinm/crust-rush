@@ -609,6 +609,9 @@ body.sbshop #sbPark,body.sbshop #sbSpd,body.sbshop #sbHud,body.sbshop #sbMapBtn,
 .cheat-f input:focus{outline:2px solid var(--cheese);outline-offset:1px}
 .cheat-f .cta{flex:none;padding:10px 16px;font-size:14px}
 .cheat-msg{margin:4px 0 0;font-size:13px;min-height:1.2em}
+.dev .g-sub{margin:16px 2px 4px}.dev-note{margin:0 2px 6px;font-size:12px;color:var(--muted)}.dev select{padding:8px 10px;border-radius:10px;background:rgba(14,7,4,.55);color:var(--cream);border:1px solid rgba(255,244,220,.2);font:600 14px inherit}
+.dev-btns{display:flex;flex-wrap:wrap;gap:8px}.dev-btns .cta{padding:9px 14px;font-size:13px}
+body.devnohud .hud{display:none!important}
 .cheat-msg.ok{color:var(--cheese)}.cheat-msg.no{color:#ff9a8a}
 .cheat-tag{font-style:normal;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;border-radius:6px;background:var(--cheese);color:#2a1408;margin-left:6px}
 
