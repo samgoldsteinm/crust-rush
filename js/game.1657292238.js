@@ -869,6 +869,24 @@ function statE(b){const w=wheelOf(b),g=GLIDERS[b.g],o=[];for(let i=0;i<5;i++)o.p
 const wallK=k=>k&&k.sm&&isFinite(k.sm.wgt)?1-.4*(k.sm.wgt-1):1;
 function validBuild(b){return b&&BODIES[b.b]&&WHEELS[b.w]&&GLIDERS[b.g]&&b.p>=0&&b.p<PAINTS.length;}
 let playerBuild=(()=>{try{const b=JSON.parse(store.get('crust-build')||'null');if(validBuild(b))return b;}catch(e){}return {b:0,w:0,g:0,p:0};})();
+/* (patch 65) CPU karts sometimes wear a glow or coloured smoke, for show (they need not own it) */setTimeout(()=>{const rb=randomBuild;randomBuild=function(){const b=rb();if(Math.random()<.3)b.st={gl:Math.floor(Math.random()*GLOWS.length),sm:Math.random()<.5?Math.floor(Math.random()*SMOKES.length):0};return b;};},0);
+/* (patch 65) the style shop: trim / accent / interior colours (one list), underglow, headlight colours, tyre smoke */
+const TRIMS=[{n:'Stock',h:null,$:0},{n:'Black',h:'#111214',$:0},{n:'White',h:'#f2f2f0',$:0},{n:'Silver',h:'#b8bcc4',$:0,m:1},{n:'Red',h:'#c40c0c',$:60},{n:'Orange',h:'#ff5a00',$:60},
+  {n:'Yellow',h:'#ffc400',$:60},{n:'Green',h:'#2fae0c',$:60},{n:'Blue',h:'#0b49c9',$:60},{n:'Purple',h:'#5317ad',$:80},{n:'Pink',h:'#ff2c84',$:80},{n:'Tan leather',h:'#a8703e',$:120},
+  {n:'Neon green',h:'#7dff2a',$:150},{n:'Neon blue',h:'#2ae8ff',$:150},{n:'Gunmetal',h:'#3b3e44',$:150,m:1},{n:'Bronze',h:'#8a6232',$:250,m:1},{n:'Gold',h:'#d4a838',$:400,m:1},{n:'Chrome',h:'#e9e9ee',$:600,m:1,r:.08}];
+const GLOWS=[{n:'Off',h:null,$:0},{n:'Ice blue',h:'#3fc8ff',$:0},{n:'Purple',h:'#a040ff',$:200},{n:'Red',h:'#ff2a2a',$:200},{n:'Green',h:'#3dff6a',$:200},{n:'Pink',h:'#ff3fb4',$:250},
+  {n:'Amber',h:'#ffa020',$:250},{n:'White',h:'#e8f0ff',$:250},{n:'Rainbow',h:'rainbow',$:800}];
+const LIGHTS=[{n:'Halogen',h:'#fff2d6',$:0},{n:'Xenon white',h:'#eef3ff',$:0},{n:'Ice blue',h:'#9fd8ff',$:150},{n:'Yellow',h:'#ffd75a',$:150},{n:'Purple',h:'#c49bff',$:300},{n:'Green',h:'#9dffb0',$:300},{n:'Red',h:'#ff7a6a',$:300}];
+const SMOKES=[{n:'White',h:'#f2ebe0',$:0},{n:'Black',h:'#2a2a2e',$:300},{n:'Blue',h:'#2a6cff',$:350},{n:'Red',h:'#ff3020',$:350},{n:'Purple',h:'#9a40ff',$:350},{n:'Green',h:'#3ad84a',$:350},
+  {n:'Yellow',h:'#ffd22a',$:350},{n:'Pink',h:'#ff4fb8',$:400},{n:'Rainbow',h:'rainbow',$:900}];
+const STYLE={tr:['tr',TRIMS],ac:['tr',TRIMS],in:['tr',TRIMS],gl:['gl',GLOWS],hl:['hl',LIGHTS],sm:['sm',SMOKES]};
+function ownedSet(){try{return new Set(JSON.parse(store.get('crust-own')||'[]'));}catch(e){return new Set();}}
+function styleOwned(slot,i){const [g,L]=STYLE[slot];return !L[i]||!L[i].$||ownedSet().has(g+i);}
+function styleBuy(slot,i){const [g,L]=STYLE[slot],it=L[i],sv=sbSave();if(!it||styleOwned(slot,i))return true;if(sv.c<it.$)return false;sv.c-=it.$;sbKeep();const o=ownedSet();o.add(g+i);store.set('crust-own',JSON.stringify([...o]));return true;}
+function stOf(sp){return (sp&&sp.st)||{};}
+function rainbowC(t,o){return new THREE.Color().setHSL(((t*.12+(o||0))%1+1)%1,1,.55);}
+function styleHL(sp){const i=stOf(sp).hl|0;return (LIGHTS[i]||LIGHTS[0]).h;}
+function smokeC(k){const it=SMOKES[stOf(k.spec).sm|0]||SMOKES[0];return it.h==='rainbow'?'#'+rainbowC(performance.now()/1000,k.ri*.13).getHexString():it.h;}
 function randomBuild(){const r=n=>Math.floor(Math.random()*n),b=r(BODIES.length),lv=liveriesFor(BODIES[b].id).filter(l=>!l.lock);return {b,w:Math.random()<.35?0:r(WHEELS.length),g:r(GLIDERS.length),p:Math.random()<.65?0:1+r(PAINTS.length-1),t:Math.random()<.45?lv[r(lv.length)].id:''};}
 let cpuBuilds=null;
 
@@ -1480,6 +1498,30 @@ const CARGEO=new Set();SH.carVC=new THREE.MeshPhysicalMaterial({vertexColors:tru
 let _hgT=null;function hoverGlowT(){if(_hgT)return _hgT;const c=cnv(128,64),g=c.getContext('2d'),gr=g.createRadialGradient(64,32,2,64,32,62);gr.addColorStop(0,'rgba(200,245,255,1)');gr.addColorStop(.35,'rgba(90,200,255,.65)');gr.addColorStop(1,'rgba(40,120,255,0)');g.fillStyle=gr;g.save();g.scale(1,.5);g.beginPath();g.arc(64,64,62,0,7);g.restore();g.fillRect(0,0,128,64);return _hgT=new THREE.CanvasTexture(c);}
 /* hover-bike underglow shaped to the bike: the body's top-down silhouette is rasterised into a grid, softened with a few blur passes
    and coloured from a white-cyan core to a blue fringe, so the light pools under the bike instead of showing a rectangle */
+/* (patch 65) the underglow's shapes: a car body's silhouette glow (hoverGlowFor) recoloured white so the glow takes any colour, and a soft
+   rounded pool for the code-built karts: a bright line just inside the edge (the LED strips) fading out across the ground */
+/* (patch 67) a premultiplied copy of a glow picture (colour fading with the shape), for the light layer */
+const _ugPM=new Map();function ugPM(t){if(_ugPM.has(t))return _ugPM.get(t);const src=t.image,c=cnv(src.width,src.height),x=c.getContext('2d');x.drawImage(src,0,0);const im=x.getImageData(0,0,c.width,c.height),D=im.data;for(let i=0;i<D.length;i+=4){const a=D[i+3];D[i]=D[i]*a/255;D[i+1]=D[i+1]*a/255;D[i+2]=D[i+2]*a/255;D[i+3]=255;}x.putImageData(im,0,0);const r=new THREE.CanvasTexture(c);_ugPM.set(t,r);return r;}
+const _ugF={};function ugTexFor(id){if(_ugF[id]!==undefined)return _ugF[id];const h=hoverGlowFor(id);if(!h)return _ugF[id]=null;try{const src=h.t.image,c=cnv(src.width,src.height),x=c.getContext('2d');x.drawImage(src,0,0);
+  const im=x.getImageData(0,0,c.width,c.height),D=im.data;for(let i=0;i<D.length;i+=4){const a=D[i+3]/255;D[i]=D[i+1]=D[i+2]=255;D[i+3]=Math.round(255*Math.min(1,a*1.15));}x.putImageData(im,0,0);
+  const t=new THREE.CanvasTexture(c);return _ugF[id]={t,w:h.w,h:h.h,cx:h.cx,cz:h.cz};}catch(e){return _ugF[id]=null;}}
+let _ugG=null;function ugGenericT(){if(_ugG)return _ugG;const W=128,H=64,c=cnv(W,H),x=c.getContext('2d'),im=x.createImageData(W,H),D=im.data;
+  for(let z=0;z<H;z++)for(let q=0;q<W;q++){const u=Math.abs(q+.5-W/2)/(W/2),v=Math.abs(z+.5-H/2)/(H/2),d=Math.max(0,Math.pow(Math.pow(u,6)+Math.pow(v,6),1/6)),
+    ring=Math.exp(-Math.pow((d-.72)/.13,2)),fill=d<.72?.55:Math.max(0,1-(d-.72)/.28)*.55,a=Math.min(1,ring*.9+fill)*(d<1?1:0);const i=(z*W+q)*4;D[i]=D[i+1]=D[i+2]=255;D[i+3]=Math.round(255*a);}
+  x.putImageData(im,0,0);return _ugG=new THREE.CanvasTexture(c);}
+/* (patch 65) a car body's styled copy of the shared part material: its trim classes (dark, carbon, gunmetal), accent classes (stripe,
+   caliper, red) and seats repainted in the chosen colours; the baked shading kept (the vertex colour over the class's own colour) */
+const _svc={};function styleVC(st){const t=TRIMS[st.tr|0],a=TRIMS[st.ac|0],n=TRIMS[st.in|0];if(!(t&&t.h)&&!(a&&a.h)&&!(n&&n.h))return null;const key=[st.tr|0,st.ac|0,st.in|0].join('.');if(_svc[key])return _svc[key];
+  const m=SH.carVC.clone(),C=h=>new THREE.Color(h||'#000000'),base=c=>{const x=new THREE.Color(CAR_COL[c]);return Math.max(.004,x.r,x.g,x.b);},
+    U={uT:{value:C(t.h)},uA:{value:C(a.h)},uI:{value:C(n.h)},uOn:{value:new THREE.Vector3(t.h?1:0,a.h?1:0,n.h?1:0)},uB:{value:new THREE.Vector3(base('dark'),base('stripe'),base('seat'))},
+      uTM:{value:new THREE.Vector4(t.m?.9:.25,t.m?(t.r||.22):.4,n.m?.85:0,n.m?.25:.6)}};
+  m.onBeforeCompile=sh=>{Object.assign(sh.uniforms,U);sh.fragmentShader='uniform vec3 uT,uA,uI,uOn,uB;uniform vec4 uTM;\n'+sh.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n'
+    +'float sCi=floor(vUv.x*32.);float sMx=max(vColor.r,max(vColor.g,vColor.b));float sG=0.;\n'
+    +'if(uOn.x>.5&&(abs(sCi-1.)<.1||abs(sCi-6.)<.1||abs(sCi-15.)<.1)){diffuseColor.rgb=uT*clamp(sMx/uB.x,.3,1.2);sG=1.;}\n'
+    +'else if(uOn.y>.5&&(abs(sCi-2.)<.1||abs(sCi-13.)<.1||abs(sCi-17.)<.1)){diffuseColor.rgb=uA*clamp(sMx/uB.y,.3,1.2);sG=2.;}\n'
+    +'else if(uOn.z>.5&&abs(sCi-9.)<.1){diffuseColor.rgb=uI*clamp(sMx/uB.z,.3,1.2);sG=3.;}').replace('#include <metalnessmap_fragment>','#include <metalnessmap_fragment>\n'
+    +'if(sG==1.){metalnessFactor=uTM.x;roughnessFactor=uTM.y;}else if(sG==3.){metalnessFactor=uTM.z;roughnessFactor=uTM.w;}');};
+  m.customProgramCacheKey=()=>'carvc-style';SHSET.add(m);return _svc[key]=m;}
 const _hgF={};function hoverGlowFor(id){if(!id||!CAR_PACKS[id])return null;if(_hgF[id]!==undefined)return _hgF[id];try{const g=carGeos(id);let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
   for(const k in g){if(!k.startsWith('b_'))continue;const a=g[k].attributes.position.array;for(let i=0;i<a.length;i+=3){x0=Math.min(x0,a[i]);x1=Math.max(x1,a[i]);z0=Math.min(z0,a[i+2]);z1=Math.max(z1,a[i+2]);}}
   if(!(x1>x0))return _hgF[id]=null;const M=1.7,W=128,H=64,w=x1-x0+M*2,h=z1-z0+M*2,ox=x0-M,oz=z0-M,sx=W/w,sz=H/h,O=new Float32Array(W*H);
@@ -1503,7 +1545,7 @@ function carGeos(id){const p=CAR_PACKS[id];if(p.g)return p.g;const bin=p.b?new U
   p.d=null;p.b=null;p.g=g;return g;}
 let HQB=false;let LODM=0,LODF=120;
 function carBody(id,M,B){const g=carGeos(HQB&&hqReady(id)?id+'_hq':id);M.carPaint=new THREE.MeshPhysicalMaterial(M.paint.userData.solid?{color:M.paint.color.clone(),vertexColors:true,metalness:0,roughness:.36,clearcoat:1,clearcoatRoughness:.02,envMapIntensity:1.75}:{color:M.paint.color.clone(),vertexColors:true,metalness:.32,roughness:.2,clearcoat:1,clearcoatRoughness:.02,envMapIntensity:1.5});/* (patch 62: the solid finish) *//* (patch 49c: glossier) */
-  M.blue=new THREE.MeshStandardMaterial({color:'#2a5bff',emissive:'#2a5bff',emissiveIntensity:2});const mats={paint:M.carPaint,tail:M.tailM,light:SH.carLight,glass:SH.carGlass,vc:SH.carVC,blue:M.blue};
+  M.blue=new THREE.MeshStandardMaterial({color:'#2a5bff',emissive:'#2a5bff',emissiveIntensity:2});const mats={paint:M.carPaint,tail:M.tailM,light:M.lightM||SH.carLight,glass:SH.carGlass,vc:M.vcM||SH.carVC,blue:M.blue};/* (patch 65: styled copies) */
   for(const k in g){if(!k.startsWith('b_'))continue;const me=new THREE.Mesh(g[k],mats[k.slice(2)]);me.castShadow=k!=='b_glass';me.receiveShadow=true;B.add(me);if(k==='b_paint')M.paintMesh=me;}}
 /* bikes: the model's own two wheels (or none on a hover bike), a rider astride the seat */
 function bikeCfg(id,o){return Object.assign({car:id,bike:1,noCockpit:1,belt:2.6,numPos:[0,3.2],drvS:.5,lean:.22,bubS:1.3},o);}
@@ -2029,6 +2071,7 @@ function buildKart(spec){HQB=spec.hq!==0;
   const paint=new THREE.MeshPhysicalMaterial(lv?{color:col,roughness:.2,metalness:.14,clearcoat:1,clearcoatRoughness:.03,envMapIntensity:1.45}:{color:col,roughness:.36,metalness:0,clearcoat:1,clearcoatRoughness:.02,envMapIntensity:1.75})/* (patch 62: a solid colour is a non-metal base under a sharp clear coat, as real paint; a livery keeps its finish) */;paint.userData.solid=!lv;
   const M={paint,dark:new THREE.MeshStandardMaterial({color:lv?lv.C:shade(col,-.45),roughness:.4,metalness:.3}),stripe:new THREE.MeshStandardMaterial({color:lv?lv.B:(rc.stripe===col?rc.top:rc.stripe),roughness:.3,metalness:.1}),
     tailM:new THREE.MeshStandardMaterial({color:'#ff2a1a',emissive:'#ff1a0a',emissiveIntensity:.8})};
+  {/* (patch 65) the style: trim and accent on the kart's own materials; the car bodies' shared parts get styled copies */const st=stOf(spec),t=TRIMS[st.tr|0],a=TRIMS[st.ac|0],hl=st.hl|0;if(t&&t.h){M.dark.color.set(t.h);M.dark.metalness=t.m?.9:.3;M.dark.roughness=t.r||(t.m?.22:.4);}if(a&&a.h){M.stripe.color.set(a.h);if(a.m){M.stripe.metalness=.9;M.stripe.roughness=a.r||.22;}}M.vcM=styleVC(st);if(hl){M.lightM=SH.carLight.clone();M.lightM.emissive.set(LIGHTS[hl].h);M.lightM.emissiveIntensity=.7;M.lightM.color.set(LIGHTS[hl].h);}}
   if(body.id==='oven'){M.brick=new THREE.MeshStandardMaterial({map:brickT,color:new THREE.Color('#ffffff').lerp(new THREE.Color(col),.3),roughness:.85});}
   const topM=new THREE.MeshStandardMaterial({color:rc.top,roughness:.42}),irisM=new THREE.MeshStandardMaterial({color:rc.iris,roughness:.2});
   const g=new THREE.Group(),tilt=new THREE.Group();g.add(tilt);const B=new THREE.Group();tilt.add(B);const S=new THREE.Group();B.add(S);
@@ -2042,6 +2085,8 @@ function buildKart(spec){HQB=spec.hq!==0;
   /* big tyres on a car body: lift the body an extra ~1.2x the radius gain, like a lift kit, so the wheels sit under the arches instead of in them */
   const L=cfg.hover||cfg.rw[2]*(wt.r-1)*(cfg.car&&wt.r>1.15?2.2:1),wz=(cfg.wz||1)*wt.wz;B.position.y=L;
   if(cfg.hover){const hg=hoverGlowFor(cfg.car),gm=new THREE.MeshBasicMaterial({map:hg?hg.t:hoverGlowT(),color:'#7fd8ff',transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}),pl=new THREE.Mesh(new THREE.PlaneGeometry(hg?hg.w:14,hg?hg.h:5.5),gm);pl.rotation.x=-Math.PI/2;pl.position.set(hg?hg.cx:0,.25,hg?hg.cz:0);pl.renderOrder=2;g.add(pl);cfg.glow=pl;}
+  {/* (patch 65) underglow: a pool of light on the ground shaped like the body; and the interior colour on a code-built kart's seats */const st=stOf(spec),gi=st.gl|0,ii=st.in|0;if(ii&&TRIMS[ii]&&TRIMS[ii].h){const im=new THREE.MeshStandardMaterial({color:TRIMS[ii].h,roughness:TRIMS[ii].m?.25:.6,metalness:TRIMS[ii].m?.8:0});g.traverse(o=>{if(o.isMesh&&o.material===SH.seat)o.material=im;});}const ugLs=[];if(spec.ugL&&!cfg.hover){/* (patch 66) real light under the kart you drive: front and rear, low, a soft falloff */for(const ax of [cfg.fw[0]*.55,cfg.rw[0]*.55]){const L=new THREE.PointLight(GLOWS[gi]&&GLOWS[gi].h&&GLOWS[gi].h!=='rainbow'?GLOWS[gi].h:'#ff3030',0,120,1.3);L.position.set(ax,.3,0);L.castShadow=false;g.add(L);ugLs.push(L);}g.userData.ug={pl:null,lights:ugLs,rb:GLOWS[gi]&&GLOWS[gi].h==='rainbow',on:!!(gi&&GLOWS[gi]&&GLOWS[gi].h)};}
+if(gi&&GLOWS[gi]&&GLOWS[gi].h&&!cfg.hover){const hg=cfg.car?ugTexFor(cfg.car):null,W=hg?hg.w*1.5:(cfg.fw[0]-cfg.rw[0]+2*Math.max(cfg.rw[2],cfg.fw[2])+3)*1.45,H=hg?hg.h*2:(2*Math.max(cfg.fw[1],cfg.rw[1])+2.6)*1.9,/* (wider than the body: the pool spreads past the sills, as in the photos) */gm=new THREE.MeshBasicMaterial({map:hg?hg.t:ugGenericT(),color:GLOWS[gi].h==='rainbow'?'#ff3030':GLOWS[gi].h,transparent:true,opacity:.8,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}),pl=new THREE.Mesh(new THREE.PlaneGeometry(W,H),gm);pl.rotation.x=-Math.PI/2;pl.position.set(hg?hg.cx:(cfg.fw[0]+cfg.rw[0])/2,.22,hg?hg.cz:0);pl.renderOrder=2;g.add(pl);const lm=new THREE.MeshBasicMaterial({map:ugPM(gm.map),color:gm.color.clone(),transparent:true,depthWrite:false,toneMapped:false,blending:THREE.CustomBlending,blendEquation:THREE.AddEquation,blendSrc:THREE.DstColorFactor,blendDst:THREE.OneFactor}),pl2=new THREE.Mesh(pl.geometry,lm);pl2.rotation.copy(pl.rotation);pl2.position.copy(pl.position);pl2.position.y+=.02;pl2.renderOrder=2;g.add(pl2);/* (patch 67: light on the ground: ground x colour + ground) */g.userData.ug={pl,pl2,base:gm.color.clone(),lights:ugLs,rb:GLOWS[gi].h==='rainbow',on:true};}}
   /* oversized or wider wheels are pushed out past the bodywork so they never cut into it */
   const bodyPts=[];B.traverse(o=>{if(o.isMesh&&o.geometry&&o.material!==SH.carGlass)bodyPts.push(o.geometry.attributes.position.array);});
   /* slide the wheel outwards only until no bodywork sits inside the tyre's swept disc (the hub area is allowed, that's where it bolts on) */
@@ -2115,7 +2160,7 @@ function mergeRigid(root,skip){const inv=new THREE.Matrix4().copy(root.matrixWor
 function disposeModel(m){m.g.traverse(o=>{if(o.userData.sprox)SPROX.delete(o);if(o.geometry&&!KGSET.has(o.geometry)&&!CARGEO.has(o.geometry))o.geometry.dispose();if(o.material){const ms=Array.isArray(o.material)?o.material:[o.material];
   for(const mt of ms){if(SHSET.has(mt)||mt.userData.shared||mt===bubbleMat||mt===bubRushMat||mt===flameMat||mt===flameInMat)continue;if(mt.map&&mt.map.userData.kart)mt.map.dispose();mt.dispose();}}});}
 const modelCache=new Map();
-const specKey=s=>[s.ri,s.b,s.w,s.g,s.p,s.t||'',s.hq===0?0:1,s.u||0].join('.');
+const specKey=s=>[s.ri,s.b,s.w,s.g,s.p,s.t||'',s.hq===0?0:1,s.u||0,s.st?JSON.stringify(s.st):'',s.ugL?1:0].join('.');/* (patch 65: the style) */
 function getModel(spec){const key=specKey(spec);let m=modelCache.get(key);if(!m){m=buildKart(spec);m.g.rotation.order='YZX';m.g.scale.setScalar(KS*m.sf);if(!spec.hq){m.g.updateMatrixWorld(true);const ws=new THREE.Vector3();m.g.traverse(o=>{if(!o.isMesh||!o.castShadow)return;const g=o.geometry;if(!g.boundingSphere)g.computeBoundingSphere();o.getWorldScale(ws);if(g.boundingSphere.radius*Math.max(ws.x,ws.y,ws.z)<9)o.castShadow=false;});}if(!spec.hq){try{buildMid(m);}catch(e){console.warn('mid',e);}}m.g.visible=false;scene.add(m.g);modelCache.set(key,m);}return m;}
 
 /* merge meshes for the mid-distance kart: plain materials collapse into a few shared vertex-coloured ones (colour moves into the vertices) */
@@ -2171,7 +2216,7 @@ function particleSystem(max,blending,tex){particleSystem.sk=particleSystem.sk||0
       const f=Math.max(0,p.l/p.ml);pos[i*3]=p.x;pos[i*3+1]=p.y;pos[i*3+2]=p.z;col[i*3]=p.r;col[i*3+1]=p.g;col[i*3+2]=p.b;size[i]=p.s1+(p.s0-p.s1)*f;alpha[i]=Math.min(1,f*1.6);}
       geo.attributes.position.needsUpdate=geo.attributes.pcolor.needsUpdate=geo.attributes.psize.needsUpdate=geo.attributes.palpha.needsUpdate=true;}};
 }
-const FXA=particleSystem(560,THREE.AdditiveBlending,TX.spark),FXN=particleSystem(260,THREE.NormalBlending,TX.smoke);
+const FXA=particleSystem(560,THREE.AdditiveBlending,TX.spark),FXN=particleSystem(420,THREE.NormalBlending,TX.smoke)/* (patch 65: thicker tyre smoke) */;
 const SPARKC=['#fff1c8','#ffc62e','#ff1f12','#8fe0ff'];/* drift charge: yellow-orange, then a true red, then light blue at full charge */
 /* boost flames take the colour of the spark tier the drift was released in (outer, inner); other boosts keep the classic orange */
 const FLAMEC=[['#ff7a1a','#fff0a0'],['#ffb51a','#fff6b8'],['#ff0c06','#ff5a3c'],['#2f8cff','#d2f4ff']];
@@ -5216,7 +5261,7 @@ function sbNightArm(){const R=SBC.rec,def=MAPS[mapIdx];SBC.night=null;if(!R||!SB
       for(const m of [pole,arm,head]){m.castShadow=true;m.receiveShadow=true;SB.grp.add(m);}glow.renderOrder=2;SB.grp.add(glow);
       Nt.lamps=pts;Nt.head=hm;Nt.glow=gm;for(let i=0;i<(lite?2:3);i++){const l=new THREE.PointLight('#ffcf95',0,170,1.6);l.position.set(pts[0].hx,pts[0].ly,pts[0].hz);SB.grp.add(l);Nt.pool.push(l);}}}try{sbLightPad();}catch(e){}/* (patch 50) */}
 /* each frame: the night's lights follow the hour (the clock's L: 0 by day, 1 at night) and the kart */
-function sbNightFrame(time){const Nn=SBC.night;if(!Nn||!SBC.rec||!SBX)return;const L=sbClockF().L,on=L>.02;
+function sbNightFrame(time){const Nn=SBC.night;if(!Nn||!SBC.rec||!SBX)return;const L=sbClockF().L,on=L>.02;try{const hc=styleHL(player&&player.spec);if(Nn.spot&&Nn._hc!==hc){Nn._hc=hc;Nn.spot.color.set(hc==='#fff2d6'?'#eef3ff':hc);}}catch(e){}/* (patch 65: the headlight colour) */
   for(const m of Nn.led)m.emissiveIntensity=2.4*L;if(Nn.halo)Nn.halo.opacity=.85*L;
   const k=camT||player;if(Nn.spot&&k){const sp=Nn.spot;{const def=MAPS[mapIdx],lit=SB_LAMPS.has(def.id)||!!def.toy||Nn.led.length>0,onT=lit&&nearTrack(k.rx!=null?k.rx:k.x,k.ry!=null?k.ry:k.y,RW+10),h0=Nn.hf==null?(onT?0:1):Nn.hf;Nn.hf=h0+((onT?0:1)-h0)*.06;}{const hon=SB.hl==null?Math.min(1,Math.max(0,(L-.5)/.3)):(SB.hl?1:0),hf=SB.hl===true?1:Nn.hf;sp.intensity=24*Math.max(L,.45)*hon*hf;}sp.visible=true;/* (patch 54: dark enough, or by hand) *//* (patch 49: off on a lit track; never hidden) */if(on){const a=k.rma!=null?k.rma:k.ma,x=k.rx!=null?k.rx:k.x,z=k.ry!=null?k.ry:k.y,y=(k.rz!=null?k.rz:k.wy)||0;
       sp.position.set(x+Math.cos(a)*7,y+4,z+Math.sin(a)*7);sp.target.position.set(x+Math.cos(a)*120,y-10,z+Math.sin(a)*120);sp.target.updateMatrixWorld();}}
@@ -6680,14 +6725,14 @@ function makeKart(ri,slot,isPlayer,diff,build){
   /* staggered grid across four lanes: every kart has its own row, and the kart directly ahead in your lane starts four rows up */
   const toyG=!!MAPS[mapIdx].toy,back=toyG?5+slot*2:5+slot*3,idx=(N-back)%N,p=track[idx],lat=toyG?(slot%2?1:-1)*RW*.42:[-30,-10,10,30][slot%4]*LS;/* a toy track is two karts wide on the grid */
   const sk=diff.skill[0]+Math.random()*(diff.skill[1]-diff.skill[0]);
-  const spec={ri,b:build.b,w:build.w,g:build.g,p:build.p,t:build.t||'',hq:(isPlayer||slot===4&&!NET.cfg||QUAL[qKey].hqAll&&!QUAL[qKey].mob)?1:0,u:build.u||0},m=getModel(spec);m.ga=0;m.gl.visible=false;
+  const spec={ri,b:build.b,w:build.w,g:build.g,p:build.p,t:build.t||'',hq:(isPlayer||slot===4&&!NET.cfg||QUAL[qKey].hqAll&&!QUAL[qKey].mob)?1:0,u:build.u||0,st:build.st||null,ugL:isPlayer?1:0},m=getModel(spec);m.ga=0;m.gl.visible=false;
   const k={r:RACERS[ri],ri,m,spec,col:PAINTS[build.p]||RACERS[ri].color,sm:statMods(build),glide:false,gRings:0,x:p.x+p.nx*lat,y:p.y+p.ny*lat,a:p.ang,ma:p.ang,speed:0,steer:0,drift:0,charge:0,boost:0,spin:0,inv:0,z:0,zv:0,pen:1,brake:0,acc:0,sf:2,
     gripT:0,dHold:0,item:null,item2:null,pend:[],roll:0,shield:0,mzH:0,rush:0,frozen:0,idx,prog:idx-N,finished:false,finishTime:0,place:0,isPlayer,auto:!isPlayer,wrongT:0,fx:0,air:false,onRamp:false,trick:false,trickT:0,pd:false,
     ai:{lane:lat,laneTarget:lat,laneT:1+Math.random()*3,skill:sk,itemDelay:0,inBend:false}};
   k.wy=k.lastG=kGround(k);k.pwy=k.wy;k.wvy=0;k.gRate=0;k.loop=null;k.loopTh=0;k.pth=0;k.px=k.x;k.py=k.y;k.pa=k.a;k.pma=k.ma;k.pz=0;k.rx=k.x;k.ry=k.y;k.rz=k.wy;k.rg=k.wy;k.rma=k.ma;return k;
 }
 /* races without items (patch 47): every item switched off in the guide; NOITM is this race's (set by resetRace) */
-let NOITM=false;function itemsOff(){return !ITEM_LIST.some(itemOn);}
+let NOITM=false,ITMUSED=false,RPAY=0,RDEMO=false;/* (patch 65: coins paid for this race) *//* (patch 64: did the player use an item this race) */function itemsOff(){return !ITEM_LIST.some(itemOn);}
 function itmNote(){const e=$('itmNote'),sec=$('itmSec');if(!e)return;if(sec)sec.hidden=mode==='lss'||mode==='bb'||mode==='sb';document.querySelectorAll('#itmSeg button').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.i==='0')===itemsOff())));e.textContent=(NET.role==='guest'?'The host chooses. ':NET.role==='host'?'Your friends race with yours. ':'')+(itemsOff()?'No item boxes: just driving. Times go on the No items leaderboards':ITEM_LIST.every(k=>!itemUnlocked(k)||itemOn(k))?'Item boxes on the track':'Item boxes on the track (some items switched off in the guide)');}
 let CPUS=(()=>{const v=parseInt(store.get('crust-cpus'),10);return isNaN(v)?7:clamp(v,0,7);})();
 /* how many computer racers this race has (patch 35) */
@@ -6707,7 +6752,7 @@ function resetRace(demo){
   if(typeof sauceFx==='function'&&_sauceEl)sauceFx(false);projectiles.forEach(p=>scene.remove(p.mesh));hazards.forEach(h=>scene.remove(h.mesh));projectiles=[];hazards=[];
   boxes.forEach(b=>b.r=0);resetHazards();raceTime=0;WHEEL_N=0;WHEEL_AT=-99;BUMPT.clear();POPS.forEach(q=>scene.remove(q.m));POPS.length=0;finishCount=0;lapShown=1;resultsAt=0;cam.a=camT.ma;camSnap=true;acc=0;camera.up.set(0,1,0);standCache=standings();
   if(ladPending!=null){applyLad(ladPending,true);ladPending=null;}if(ssPending!=null){applySS(ssPending);ssPending=null;fit();}
-  NOITM=!demo&&mode!=='lss'&&mode!=='bb'&&mode!=='sb'&&(NET.cfg?!!NET.cfg.ni:!NET.role&&itemsOff());/* (patch 47) */
+  NOITM=!demo&&mode!=='lss'&&mode!=='bb'&&mode!=='sb'&&(NET.cfg?!!NET.cfg.ni:!NET.role&&itemsOff());/* (patch 47) */ITMUSED=false;RPAY=0;RDEMO=!!demo;
   try{scClear();}catch(e){console.warn('scClear',e);}/* (patch 58) */
   warmScene();
 }
@@ -7672,6 +7717,7 @@ function releaseHeld(k,back){const it=dropHeld(k);if(it)fireItem(k,it,back);}
 /* the held item takes the hit instead of you */
 function absorbHeld(k){if(!k.held)return false;const p=k.held.mesh?k.held.mesh.position:null;dropHeld(k);k.inv=Math.max(k.inv||0,.5);if(p)burst(p.x,p.y+2,p.z,14,['#ffe066','#fff4dc','#e0452c'],50,2);if(k===player){shake(.4);SFX.clash(.6);edgeFx('#ffe066',true);}return true;}
 function useItem(k,back){
+  if(k===player&&k.item&&arguments[2]!==true)ITMUSED=true;/* (patch 64: an item the player used; an ability's fireItem does not count) */
   if(k.item&&achMe(k))achAdd('items');
   back=DROPS.includes(k.item)||(!!back&&!NOBACK.includes(k.item));/* traps always drop behind; thrown items go backwards only when asked (the rear-view mirror, or a CPU's choice) */const it=k.item;if(it==='garlic'||it==='garlic2'){k.item=k.item2;k.item2=null;addShield(k,it==='garlic2'?2:1);return;}k.item=k.item2;k.item2=null;{const col=ITEM_COL[it]||'#ffe066',gy=(k.wy||0)+7;if(k===player)shake(.18);
     FXA.spawn(k.x,gy,k.y,0,0,0,col,30,8,.18,0,0);spawnRing(k.x,(k.wy||0)+.6,k.y,col,26,.35);for(let n=0;n<10;n++){const a=Math.random()*6.28;FXA.spawn(k.x,gy,k.y,Math.cos(a)*40,15+Math.random()*25,Math.sin(a)*40,col,2.2,.4,.3,40,1);}}if(k.item)k.ai.itemDelay=.6+Math.random()*1.6;if(NEWITEMS[it]){useItem2(k,it,back);return;}const ca=Math.cos(k.a),sa=Math.sin(k.a),st=standCache,i=st.indexOf(k);
@@ -7941,6 +7987,7 @@ function syncKart(k,dt,time){
   {const bl=k.inv>0&&k.spin<=0&&!(k.flatT>0)&&!(k.frozen>0)&&state==='race'&&Math.floor(time*12)%2===1;if(m.tilt.visible===bl)m.tilt.visible=!bl;}
   const f=Math.min(1,8*dt);if(k.trickT>0){const u=clamp(1-k.trickT/TRICK_T,0,1),e=u*u*u*(u*(u*6-15)+10),T=TRICKS[k.trickK|0]||TRICKS[0];_tq.setFromAxisAngle(T.ax,T.d*e*Math.PI*2);m.tilt.quaternion.copy(_tq);_tc.set(0,(m.top||7)*.42,0);_tv.copy(_tc).applyQuaternion(_tq);m.tilt.position.set(_tc.x-_tv.x,_tc.y-_tv.y,_tc.z-_tv.z);m.trickPy=m.tilt.position.y;m.trickOn=true;}else{if(m.trickOn){m.tilt.rotation.set(0,0,0);m.tilt.position.set(0,0,0);m.trickPy=0;m.trickOn=false;}m.tilt.rotation.x+=((m.bike?-(k.steer*(.26+.1*Math.min(1,Math.abs(k.speed)/BASE_MAX))+(k.drift?k.steer*.12*(k.dAmt||0):0)):((k.drift?k.steer*.08*(k.dAmt||0):0)+k.steer*.04))-m.tilt.rotation.x)*f;}
   if(m.hover){m.tilt.position.y=(m.trickOn?m.trickPy:0)+Math.sin(time*2.4+k.ri*1.7)*.22;if(m.hglow)m.hglow.material.opacity=.55+Math.sin(time*9+k.ri)*.12+(k.boost>0?.3:0);}
+  {const ug=m.g.userData.ug;if(ug){/* (patch 65) the underglow: brighter in the dark; (patch 66) the light does the work, the picture is a haze over it */const L=SBX&&typeof sbClockF==='function'?sbClockF().L:(MAPS[mapIdx]&&MAPS[mapIdx].theme==='night'?1:0),rc=ug.rb?rainbowC(time,k.ri*.13):null;if(ug.pl){ug.pl.material.opacity=.14+.2*L;if(rc)ug.pl.material.color.copy(rc);}if(ug.pl2){ug.pl2.material.color.copy(rc||ug.base).multiplyScalar(.75+.25*L+(k.boost>0?.15:0));}for(const l of ug.lights){l.intensity=ug.on?(2.4+7*L)*(k.boost>0?1.2:1):0;if(rc)l.color.copy(rc);}}}
   m.tilt.rotation.z+=(clamp(k.acc*.0006,-.07,.05)-m.tilt.rotation.z)*f;
   for(const w of m.wheels)w.spin.rotation.z-=k.speed*dt/(w.r*KS);if(k.oilT>0&&!m.isFar)oilDrip(k,m);
   for(const fw of m.front)fw.rotation.y=-k.steer*.42;
@@ -7964,7 +8011,8 @@ function syncKart(k,dt,time){
       /* a fan of sparks in the tier colour, plus a soft glow at the tyre so the tier reads at a glance */
       for(let n=0;n<(tier?2:1);n++)FXA.spawn(tv.x,tv.y+.3,tv.z,(Math.random()-.5)*30-Math.cos(k.ma)*(22+tier*6),10+Math.random()*30,(Math.random()-.5)*30-Math.sin(k.ma)*(22+tier*6),SPARKC[tier],sz,.3,.3+tier*.03,80,1);
       if(tier&&i%2===0)FXA.spawn(tv.x,tv.y+.7,tv.z,-Math.cos(k.ma)*8,2,-Math.sin(k.ma)*8,SPARKC[tier],4.5+tier,2,.14,0,0);}
-      if(i%3===0){tv.copy(m.fxL[Math.random()<.5?0:1]);m.g.localToWorld(tv);FXN.spawn(tv.x,tv.y+.6,tv.z,(Math.random()-.5)*6,4+Math.random()*4,(Math.random()-.5)*6,'#f2ebe0',2.5,8,.8,-2,1.5);}}
+      if(i%2===0){/* (patch 65) tyre smoke in the chosen colour: thick, rolling up and out, hanging a while */const sc=smokeC(k);for(const v of m.fxL){tv.copy(v);m.g.localToWorld(tv);FXN.spawn(tv.x,tv.y+.8,tv.z,(Math.random()-.5)*9-Math.cos(k.ma)*6,5+Math.random()*6,(Math.random()-.5)*9-Math.sin(k.ma)*6,sc,3.6,15,1.25,-1.5,1.2);}}}
+    if(!k.air&&!k.drift&&k.speed>3&&k.speed<48&&(k.acc||0)>30&&i%2===0&&(k===camT||Math.random()<.4)){/* (patch 65) a hard launch from slow: smoke off the rear tyres */const sc=smokeC(k);for(const v of m.fxL){tv.copy(v);m.g.localToWorld(tv);FXN.spawn(tv.x,tv.y+.6,tv.z,(Math.random()-.5)*8-Math.cos(k.ma)*12,3+Math.random()*5,(Math.random()-.5)*8-Math.sin(k.ma)*12,sc,3,13,1.1,-1.5,1.4);}}
     if(on&&(k===camT?i%3===0:(i===0&&Math.random()<.5&&(x-camera.position.x)**2+(y-camera.position.z)**2<160*160))){for(const v of m.fxP){tv.copy(v);m.g.localToWorld(tv);const bv=Math.max(0,k.speed)*.9-30;/* the sparks leave the pipes backwards at 30 relative to the kart: thrown out at 30 over the ground they were left standing in the air, a trail of dots between you and your kart */FXA.spawn(tv.x,tv.y,tv.z,Math.cos(k.ma)*bv+(Math.random()-.5)*6,(Math.random()-.2)*6,Math.sin(k.ma)*bv+(Math.random()-.5)*6,Math.random()<.5?'#ff7a1a':'#ffd36b',1.5,.3,.22,0,.5);}}
     if(m.smoke&&i===0&&Math.random()<.3){tv.copy(m.smoke);m.g.localToWorld(tv);FXN.spawn(tv.x,tv.y,tv.z,(Math.random()-.5)*4,8+Math.random()*6,(Math.random()-.5)*4,'#9a918a',2.5,9,1.4,-1,1.5);}
     if(k.glide&&i%2===0){FXA.spawn(x+(Math.random()-.5)*14,z+(m.top-1)*KS*Math.random(),y+(Math.random()-.5)*14,-Math.cos(k.ma)*70,0,-Math.sin(k.ma)*70,'#e8f8ff',1.4,.35,.25,0,0);}
@@ -8195,6 +8243,9 @@ function saveRun(){if(!player||!recBuf)return;const t=player.finishTime,key=recK
     let s=JSON.stringify(recs);/* keep storage in check: drop the oldest ghosts if it ever gets large */
     if(s.length>3e6){const ks=Object.keys(recs).filter(k=>k!==key&&recs[k].g).sort((a,b)=>recs[a].d-recs[b].d);while(s.length>3e6&&ks.length){delete recs[ks.shift()].g;s=JSON.stringify(recs);}}store.set('crust-recs',s);}
   try{lbRun(t);}catch(e){console.warn('leaderboard',e);}/* (patch 44) */const h=loadHist();h.unshift({m:MAPS[mapIdx].id,c:clsKey,t,p:player.place,d:Date.now(),dr:selected,pb});store.set('crust-hist',JSON.stringify(h.slice(0,60)));recBuf=null;}
+/* (patch 65) coins for a finished race: 8, 3 more for each kart beaten, a podium bonus, times the class; 6 for a run alone */
+function racePay(){if(!player||player.est||RDEMO||RPAY)return;const n=karts.length,p=player.place||n,cm={small:1,medium:1.2,large:1.5,reverse:1.5}[clsKey]||1;const amt=n>1?Math.round((8+Math.max(0,n-p)*3+(p===1?10:p===2?5:p===3?2:0))*cm):6;const sv=sbSave();sv.c=(sv.c||0)+amt;sbKeep();RPAY=amt;}
+function payLine(){return RPAY?'<span class="pbn">+'+RPAY+' coins</span>':'';}
 function pbLine(){if(!lastRun)return '';if(lastRun.pb)return lastRun.old==null?'<span class="pbn">First time logged · '+fmt(lastRun.t)+'</span>':'<span class="pbn">New personal best! '+fmt(lastRun.t)+' (−'+(lastRun.old-lastRun.t).toFixed(2)+'s)</span>';
   return '<span class="pbo">Personal best '+fmt(lastRun.old)+' · +'+(lastRun.t-lastRun.old).toFixed(2)+'s</span>';}
 const fmtDate=d=>{const x=new Date(d);return x.toLocaleDateString(undefined,{month:'short',day:'numeric'});};
@@ -8317,7 +8368,7 @@ function lbQueue(){try{return JSON.parse(store.get('crust-lb-q')||'[]')||[];}cat
 function lbSaveQ(q){try{store.set('crust-lb-q',JSON.stringify(q.slice(-40)));}catch(e){}}
 /* a finished race: on the queue, then sent */
 function lbRun(t){const m=MAPS[mapIdx];if(!player||!player.finished||player.est||player.auto||BATTLE||SBX||mode==='lss'||!(t>0)||!LB_CLS[clsKey]||m.battle)return;
-  const q=lbQueue();q.push({map:lbMapKey(m),cls:LB_CLS[clsKey],ms:Math.round(t*1000),drv:RACERS[selected].name.slice(0,16),kart:(BODIES[playerBuild.b]||BODIES[0]).name.slice(0,32),solo:karts.length===1,ni:NOITM,at:Date.now()});lbSaveQ(q);lbFlush();}
+  const q=lbQueue();q.push({map:lbMapKey(m),cls:LB_CLS[clsKey],ms:Math.round(t*1000),drv:RACERS[selected].name.slice(0,16),kart:(BODIES[playerBuild.b]||BODIES[0]).name.slice(0,32),solo:karts.length===1,ni:NOITM||!ITMUSED/* (patch 64: no item used counts too) */,at:Date.now()});lbSaveQ(q);lbFlush();}
 let lbBusy=false;async function lbFlush(){if(lbBusy||!lbName())return;lbBusy=true;try{const ver=await lbVer();let q=lbQueue();while(q.length){const r=q[0];
       try{await lbRpc('submit_run',{p_token:lbToken(),p_map:r.map,p_cls:r.cls,p_time_ms:r.ms,p_driver:r.drv,p_kart:r.kart,p_platform:'web',p_ver:ver||'web',p_solo:!!r.solo,...(r.ni?{p_noitems:true}:{})});q.shift();lbSaveQ(q);}
       catch(e){if(e.server&&!/no player/.test(e.message)){q.shift();lbSaveQ(q);continue;}/* (a run the board refuses is dropped; a missing player or no connection waits) */break;}}}finally{lbBusy=false;}}
@@ -8464,7 +8515,7 @@ function lssElim(k,place,loud){if(k.finished)return;k.finished=true;k.elim=true;
 function lssWin(k){SFX.finish();if(k===player){showBanner('Last Slice Standing!',2.6,'md');try{achFinish();}catch(e){}}else showBanner((k.netName||k.r.name)+' wins!',2.4,'md');player.auto=true;resultsAt=2.6;}
 function onPlayerElim(){player.auto=true;setTimeout(()=>{if(state==='race'&&mode==='lss'&&player.elim&&!raceDone)specEnter();},1600);}
 function lssGuestElim(d){const k=karts.find(q=>q.idx===d.idx);if(!k)return;if(d.win){k.finished=true;k.place=1;k.finishTime=raceTime;lssWin(k);return;}lssElim(k,d.place,true);}
-function onPlayerFinish(){if(BATTLE&&!SBX){/* (patch 45) a battle on a friend's screen: no race time to log, the end of the round has its own banner */player.auto=true;resultsAt=2.4;return;}if(mode!=='lss')saveRun();try{achFinish();}catch(e){}player.auto=true;showBanner('Finish!',2.4,'md');SFX.finish();try{finishPunch();}catch(e){}resultsAt=2.4;}
+function onPlayerFinish(){if(BATTLE&&!SBX){/* (patch 45) a battle on a friend's screen: no race time to log, the end of the round has its own banner */player.auto=true;resultsAt=2.4;return;}if(mode!=='lss')saveRun();try{racePay();}catch(e){console.warn('pay',e);}try{achFinish();}catch(e){}player.auto=true;showBanner('Finish!',2.4,'md');SFX.finish();try{finishPunch();}catch(e){}resultsAt=2.4;}
 const TROPHY=c=>'<svg class="trophy" viewBox="0 0 24 24"><path d="M7 3h10v4.5a5 5 0 0 1-10 0z" fill="'+c+'"/><path d="M7 5H4a3 3 0 0 0 3 4.2M17 5h3a3 3 0 0 1-3 4.2" stroke="'+c+'" stroke-width="1.6" fill="none"/><rect x="10.5" y="12" width="3" height="5" fill="'+c+'"/><rect x="7" y="17" width="10" height="3.4" rx="1" fill="#8a5f42"/></svg>';
 /* online: after the host's own finish the computer racers get estimated times; a friend who finishes later slots in by time */
 function netRerank(){const f=karts.filter(k=>k.finished).sort((a,b)=>a.finishTime-b.finishTime);f.forEach((k,i)=>k.place=i+1);}
@@ -8543,7 +8594,7 @@ $('netLogBtn').onclick=netLogOpen;$('netLogDone').onclick=()=>{$('netLogOv').hid
 addEventListener('keydown',e=>{if(!SPEC.on||e.repeat)return;const c=e.code;let h=true;
   if(c==='ArrowLeft'||c==='KeyA')specNext(-1);else if(c==='ArrowRight'||c==='KeyD')specNext(1);else if(c==='KeyC'||c==='KeyV'||c==='Tab')specCam();else if(c==='Escape'||c==='Backspace')specExit(true);else h=false;
   if(h){e.preventDefault();e.stopImmediatePropagation();}},true);
-function renderResults(){try{$('trackBtn').hidden=!!(gp||NET.cfg||NET.role);}catch(e){}if(NET.cfg){finalizeRace();renderResultsNet();const pl=pbLine();if(pl)resSub.innerHTML=resSub.textContent.replace(/[<>&]/g,'')+'<br>'+pl;return;}renderResults0();const pl=pbLine();if(pl)resSub.innerHTML=resSub.textContent.replace(/[<>&]/g,'')+'<br>'+pl;}
+function renderResults(){try{$('trackBtn').hidden=!!(gp||NET.cfg||NET.role);}catch(e){}if(NET.cfg){finalizeRace();renderResultsNet();const pl=[pbLine(),payLine()].filter(Boolean).join('<br>');if(pl)resSub.innerHTML=resSub.textContent.replace(/[<>&]/g,'')+'<br>'+pl;return;}renderResults0();const pl=[pbLine(),payLine()].filter(Boolean).join('<br>');if(pl)resSub.innerHTML=resSub.textContent.replace(/[<>&]/g,'')+'<br>'+pl;}
 function renderResults0(){finalizeRace();$('specBtn').hidden=true;$('resNetLog').hidden=true;const st=standings();const me=player.place||st.indexOf(player)+1,cl=CLASSES[clsKey].label;
   const row=(k,i,right,extra)=>'<li class="'+(k===player?'me':'')+'"><span class="pl">'+(i+1)+'</span><span class="sw" style="background:'+k.r.color+'"></span><span>'+k.r.name+(k===player?' (you)':'')+'</span><span class="tm">'+(extra||'')+right+'</span></li>';
   resList.innerHTML=st.map((k,i)=>row(k,i,BATTLE?bbResRow(k):mode==='lss'?(k.elim?'out on lap '+k.elimLap:k.place===1?'last slice':fmt(k.finishTime)):(k.est?'~':'')+fmt(k.finishTime))).join('');
@@ -8727,6 +8778,17 @@ function buildGarage(){
 let gBig=false,gZoom=1,gPitch=0,gZc=1,gPc=0,gActT=0;
 function setBig(v){gBig=v;$('gView').classList.toggle('big',v);gW=gH=0;if(!v){gZoom=1;gPitch=0;}$('gZoomBtn').setAttribute('aria-label',v?'Close inspect view':'Inspect kart');}
 const CAR_BODIES=['onyx','hyper','roadster','formula','gt','tourer','concept','interceptor','muscle','monster','hatch','suv','coupe','scissor','skywing','megagt','megawatt','endur','slip','retrogt'];let gTab='kart';
+/* (patch 65) the style shop: a row of swatches per slot; a locked one shows its price; a first tap on it asks, a second buys */
+let styleAsk=null;function styleUI(){const w=$('pStyle');if(!w)return;const st=playerBuild.st||{},coins=sbSave().c||0;
+  const sw=(slot,it,i)=>{const own=styleOwned(slot,i),on=(st[slot]|0)===i,h=it.h;let bg=h==='rainbow'?'conic-gradient(#ff3030,#ffd22a,#3dff6a,#2ae8ff,#a040ff,#ff3030)':!h?'repeating-linear-gradient(45deg,#3a2a22 0 6px,#2a1c16 6px 12px)':it.m?'linear-gradient(135deg,#fff 0%,'+h+' 40%,'+h+' 60%,#222 100%)':h;
+    if(slot==='gl'&&h&&h!=='rainbow')bg='radial-gradient(circle at 50% 70%,'+h+' 0 30%,#1a1210 75%)';
+    return '<button type="button" class="pw sty'+(own?'':' buy')+'" data-s="'+slot+'" data-i="'+i+'" aria-pressed="'+on+'" title="'+it.n+(own?'':' · '+it.$+' coins')+'" aria-label="'+it.n+(own?'':', '+it.$+' coins')+'" style="background:'+bg+'">'+(own?'':'<span class="pr">'+it.$+'</span>')+'</button>';};
+  const row=(slot,title)=>'<p class="g-sub">'+title+'</p><div class="swatches">'+STYLE[slot][1].map((it,i)=>sw(slot,it,i)).join('')+'</div>';
+  w.innerHTML='<p class="g-sub style-coins">Style shop · <b>'+coins+'</b> coins</p>'+row('tr','Trim')+row('ac','Accent')+row('in','Interior')+row('gl','Underglow')+row('hl','Headlights')+row('sm','Tyre smoke');
+  w.querySelectorAll('button.sty').forEach(b=>b.onclick=()=>{const slot=b.dataset.s,i=+b.dataset.i,it=STYLE[slot][1][i];
+    if(!styleOwned(slot,i)){const have=sbSave().c||0;if(have<it.$){achToast(null,'<b>'+it.n+'</b> costs '+it.$+' coins. You have '+have+'. Earn coins by racing and in Sandbox.');return;}
+      if(styleAsk!==slot+i){styleAsk=slot+i;achToast(null,'Tap <b>'+it.n+'</b> again to buy it for '+it.$+' coins');return;}styleAsk=null;styleBuy(slot,i);try{SFX.ready();}catch(e){}}
+    playerBuild.st=Object.assign({},playerBuild.st||{},{[slot]:i});saveBuild();refreshGarage(true);});}
 function refreshGarage(rebuild){setTimeout(panelMore,0);
   {const isBike=!!BODIES[playerBuild.b].bike;const wt=document.querySelector('.g-tabs button[data-tab="wheel"]');if(wt)wt.hidden=isBike;if(isBike&&gTab==='wheel')gTab='bike';}
   document.querySelectorAll('.g-tabs button').forEach(t=>t.setAttribute('aria-selected',String(t.dataset.tab===gTab)));document.querySelectorAll('.g-panel').forEach(p=>p.hidden=p.dataset.panel!==gTab);
@@ -8734,7 +8796,7 @@ function refreshGarage(rebuild){setTimeout(panelMore,0);
    const bwN=(it&&it.bike&&it.bw)?(()=>{const w=wheelOf(playerBuild),L=['SPD','ACC','HND','WGT','OFF'];return ' Rides on its own '+w.name+' wheels ('+w.st.map((v,i)=>v?(v>0?'+':'\u2212')+Math.abs(v)+' '+L[i]:'').filter(Boolean).join(', ')+').';})():'';
    $('gDesc').innerHTML=it?'<b>'+it.name+'.</b> '+it.desc+bwN:lv?'<b>'+lv.name+'.</b> '+(lv.only?'A signature theme made for the '+BODIES[playerBuild.b].name+'.':'A multi-colour livery.')+' Pick a solid colour to go back to plain paint.':gTab==='theme'?'Multi-colour liveries. Themes marked ★ are made for the '+BODIES[playerBuild.b].name+'.':'<b>'+PAINT_NAMES[playerBuild.p]+'.</b> Solid paint. The Theme tab has full multi-colour liveries.';}
   [['pKart','b'],['pCar','b'],['pBike','b'],['pWheel','w'],['pGlider','g']].forEach(([id,k])=>$(id).querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.i===playerBuild[k]))));
-  $('pPaint').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(!playerBuild.t&&+b.dataset.i===playerBuild.p)));
+  $('pPaint').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(!playerBuild.t&&+b.dataset.i===playerBuild.p)));try{styleUI();}catch(e){console.warn('style',e);}
   const bid=BODIES[playerBuild.b].id,tw=$('pTheme');tw.innerHTML='';
   const fc=$('pThemeCats');if(fc&&!fc.childElementCount)LIV_CATS.forEach(([k,n])=>{const b=document.createElement('button');b.type='button';b.dataset.c=k;b.textContent=n;b.onclick=()=>{livCat=k;refreshGarage(false);};fc.appendChild(b);});
   if(fc)fc.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.c===livCat)));
@@ -8755,7 +8817,7 @@ function refreshGarage(rebuild){setTimeout(panelMore,0);
   $('buildSum').textContent=buildSummary();
   if(rebuild&&garageOpen)setPreview();}
 function setPreview(){if(!gR)return;if(gModel){gS.remove(gModel.g);disposeModel(gModel);gModel=null;}
-  gModel=buildKart(Object.assign({ri:selected},playerBuild));gModel.g.scale.setScalar(gModel.sf);gModel.g.traverse(o=>{if(o.isMesh){o.castShadow=true;}});gS.add(gModel.g);gModel.pga=gGlT>0?1:0;
+  gModel=buildKart(Object.assign({ri:selected,ugL:1},playerBuild));/* (patch 66: the underglow's lights in the preview) */gModel.g.scale.setScalar(gModel.sf);gModel.g.traverse(o=>{if(o.isMesh){o.castShadow=true;}});gS.add(gModel.g);gModel.pga=gGlT>0?1:0;
   {gModel.gl.visible=false;gModel.g.rotation.y=0;gModel.g.updateMatrixWorld(true);const bb=new THREE.Box3(),tb=new THREE.Box3();gModel.g.traverseVisible(o=>{if(o.isMesh&&o.geometry){if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();tb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);bb.union(tb);}});gModel.rad=bb.getSize(new THREE.Vector3()).length()*.5;gModel.cy=(bb.min.y+bb.max.y)/2;}}
 let gGlT=0;
 function frameGarageCam(ga,dt){gZc+=(gZoom-gZc)*Math.min(1,(dt||.016)*10);gPc+=(gPitch-gPc)*Math.min(1,(dt||.016)*10);const rad=(gModel.rad||8)+ga*3,ty=(gModel.cy||3)+ga*3.5,vh=15*Math.PI/180,hh=Math.atan(Math.tan(vh)*(gC.aspect||1.6)),d=rad/Math.sin(Math.min(vh,hh))*(gBig?.95:.84+.12*ga)*gZc,_nf=(()=>{const nr=Math.max(.5,Math.min(d-rad*1.6,d*.25));if(Math.abs(gC.near-nr)>.05){gC.near=nr;gC.far=Math.max(200,d*8);gC.updateProjectionMatrix();}})(),el=.22+gPc,hz=Math.cos(el)*d,sh=gBig?0:rad*.34*Math.min(1,(gC.aspect||1)/1.3);
