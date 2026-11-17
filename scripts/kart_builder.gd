@@ -576,13 +576,14 @@ static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false) -> v
 ## one pixel per kind of part, picked by the vertex's u coordinate. That picture isn't in the exported models, which then
 ## read as fully metal and fully rough everywhere: dark, flat metal all over. The table is the web's CAR_PBR.
 const CAR_CLS := ["paint", "dark", "stripe", "tail", "light", "glass", "carbon", "metal", "rubber", "seat", "chrome", "rim",
-	"disc", "caliper", "blue", "gunmetal", "green", "red", "bluem", "bronze", "white"]
+	"disc", "caliper", "blue", "gunmetal", "green", "red", "bluem", "bronze", "white", "steel", "wood"]
 const CAR_PBR := {"paint": [0.2, 0.32, 1.0], "dark": [0.36, 0.25, 1.0], "stripe": [0.2, 0.32, 1.0],   # (paint and stripe glossier, less metal: web v210 patch49c)
 	 "tail": [0.4, 0.0, 0.0],
 	"light": [0.2, 0.0, 0.0], "glass": [0.05, 0.0, 1.0], "carbon": [0.36, 0.25, 1.0], "metal": [0.32, 0.9, 0.0],
 	"rubber": [0.9, 0.0, 0.0], "seat": [0.8, 0.0, 0.0], "chrome": [0.1, 1.0, 0.0], "rim": [0.24, 0.95, 0.0],
 	"disc": [0.45, 0.85, 0.0], "caliper": [0.35, 0.2, 0.8], "blue": [0.3, 0.0, 0.0], "gunmetal": [0.26, 0.9, 0.4],
-	"green": [0.34, 0.6, 0.8], "red": [0.3, 0.5, 0.9], "bluem": [0.22, 0.85, 0.6], "bronze": [0.3, 0.95, 0.3], "white": [0.3, 0.0, 0.9]}
+	"green": [0.34, 0.6, 0.8], "red": [0.3, 0.5, 0.9], "bluem": [0.22, 0.85, 0.6], "bronze": [0.3, 0.95, 0.3], "white": [0.3, 0.0, 0.9],
+	"steel": [0.42, 0.45, 0.3], "wood": [0.55, 0.0, 0.5]}   # (web v217: the Blender karts)
 static var _car_vc: StandardMaterial3D = null
 
 
