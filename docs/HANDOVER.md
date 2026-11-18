@@ -24,8 +24,19 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
-### 2026-11-17 (web v222 / PC, NOT released yet: waiting for the owner's OK on the PC before/after pictures)
-Web patches 71-78 (applied in order), PC pc71-pc78 (godot changes uncommitted until release_pc). Each patch file's docstring has the detail.
+### 2026-11-18 (web v223 / PC, not released yet)
+- CHEATS DON'T COUNT TOWARDS RECORDS (79 / pc79). The owner: "make any race using cheat codes not count towards records unless its the
+  unlock cheat code. using different colored cars shouldnt not make the race count but dev options alter the core function of the
+  game". Before, auto-drive (TESTING) and every developer option still wrote personal bests and world leaderboard runs (only the PC's
+  leaderboard skipped auto-drive). Now RTAINT (web) / race_taint (PC) is set for good when, during the countdown or race, auto-drive is
+  on or a developer setting in force differs from its default (devAlt / _dev_alt: race settings in force, yours or the room host's,
+  plus this device's; 'on', 'fov', 'hud' are looks and left out). A tainted race: no best, no recent-races line, no leaderboard run;
+  the results say "Not counted for records". A Sandbox mission with one on sets no best time. UNLOCK, colours, coins, achievements:
+  unchanged. Keep: a new developer setting changes the game unless it is added to the looks list in BOTH devAlt and _dev_alt.
+  Tests: web tools/neon/cheattest.py, PC tests/cheat.tscn.
+
+### 2026-11-17 (web v222, PC: released 2026-11-18)
+Web patches 71-78 (applied in order), PC pc71-pc78. Each patch file's docstring has the detail.
 - UNDERGLOW REMADE AS LED STRIPS (77 / pc77; replaces 71's picture). The owner's brief: realistic LED strips under the car, the same on PC
   and web; the PC's was a big blurry pool, the web's an over-bright cyan with spots and streaks. Why they differed: the web had two
   point lights reaching 120 units (two bright pools and, on the glossy floor, two long streaks) plus additive sheets; the PC a 40-range
