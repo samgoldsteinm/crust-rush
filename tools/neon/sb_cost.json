@@ -1,0 +1,164 @@
+{
+"backyard": {
+"kitchen>@flag": 1174
+},
+"basil": {
+"margherita>@flag": 3068,
+"margherita>mozz": 3359,
+"margherita>spiral": 3510,
+"mozz>@flag": 1600,
+"mozz>margherita": 3359,
+"mozz>spiral": 3643,
+"spiral>@flag": 2057,
+"spiral>margherita": 3510,
+"spiral>mozz": 3643
+},
+"bay": {
+"lagoon>@flag": 3700,
+"lagoon>margherita": 3744,
+"margherita>@flag": 2573,
+"margherita>lagoon": 3744
+},
+"bedroom": {
+"garage>@flag": 1195,
+"garage>kitchen": 1623,
+"kitchen>@flag": 1054,
+"kitchen>garage": 1623
+},
+"burn": {
+"frosty>@flag": 3009,
+"frosty>glacier": 4013,
+"glacier>@flag": 1928,
+"glacier>frosty": 4013
+},
+"calzone": {
+"lagoon>@flag": 1371,
+"lagoon>tour": 4272,
+"tour>@flag": 3398,
+"tour>lagoon": 4272
+},
+"frosty": {
+"burn>@flag": 2446,
+"burn>spiral": 3649,
+"spiral>@flag": 3101,
+"spiral>burn": 3649
+},
+"garage": {
+"bedroom>@flag": 1472,
+"bedroom>margherita": 1686,
+"margherita>@flag": 231,
+"margherita>bedroom": 1686
+},
+"glacier": {
+"burn>@flag": 3844,
+"burn>peak": 4241,
+"peak>@flag": 399,
+"peak>burn": 4241
+},
+"grid": {
+"holo>@flag": 3167,
+"holo>laser": 4766,
+"laser>@flag": 3167,
+"laser>holo": 4766
+},
+"holo": {
+"grid>@flag": 5056,
+"grid>napoli": 7633,
+"napoli>@flag": 5056,
+"napoli>grid": 7633
+},
+"kitchen": {
+"backyard>@flag": 1199,
+"backyard>bedroom": 650,
+"bedroom>@flag": 1525,
+"bedroom>backyard": 650
+},
+"lagoon": {
+"bay>@flag": 1982,
+"bay>calzone": 4127,
+"calzone>@flag": 2536,
+"calzone>bay": 4127
+},
+"laser": {
+"grid>@flag": 5385,
+"grid>synth": 7113,
+"synth>@flag": 5145,
+"synth>grid": 7113
+},
+"margherita": {
+"basil>@flag": 255,
+"basil>bay": 3490,
+"basil>garage": 3054,
+"basil>oven": 2080,
+"bay>@flag": 3281,
+"bay>basil": 3490,
+"bay>garage": 3345,
+"bay>oven": 2080,
+"garage>@flag": 2831,
+"garage>basil": 3054,
+"garage>bay": 3345,
+"garage>oven": 3813,
+"oven>@flag": 1992,
+"oven>basil": 2080,
+"oven>bay": 2080,
+"oven>garage": 3813
+},
+"moon": {
+"napoli>@flag": 1559,
+"napoli>peaks": 4272,
+"peaks>@flag": 3290,
+"peaks>napoli": 4272
+},
+"mozz": {
+"basil>@flag": 2683,
+"basil>napoli": 4030,
+"napoli>@flag": 1985,
+"napoli>basil": 4030
+},
+"napoli": {
+"holo>@flag": 552,
+"holo>moon": 3808,
+"holo>mozz": 3283,
+"moon>@flag": 3595,
+"moon>holo": 3808,
+"moon>mozz": 3680,
+"mozz>@flag": 2731,
+"mozz>holo": 3283,
+"mozz>moon": 3680
+},
+"oven": {
+"margherita>@flag": 3461,
+"margherita>spiral": 4189,
+"spiral>@flag": 2304,
+"spiral>margherita": 4189
+},
+"peak": {
+"glacier>@flag": 2046,
+"glacier>synth": 4330,
+"synth>@flag": 2675,
+"synth>glacier": 4330
+},
+"peaks": {
+"moon>@flag": 604
+},
+"spiral": {
+"basil>@flag": 4455,
+"basil>frosty": 2736,
+"basil>oven": 1824,
+"frosty>@flag": 1952,
+"frosty>basil": 2736,
+"frosty>oven": 4559,
+"oven>@flag": 2631,
+"oven>basil": 1824,
+"oven>frosty": 4559
+},
+"synth": {
+"laser>@flag": 4585,
+"laser>peak": 6914,
+"peak>@flag": 4585,
+"peak>laser": 6914
+},
+"tour": {
+"calzone>@flag": 1124
+}
+}

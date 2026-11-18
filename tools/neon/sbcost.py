@@ -2,7 +2,7 @@
 Opens each Sandbox place in turn (sbprobe.py) and runs sbcost.js there: the distance from each gate to each other gate and to the start
 line (a road place along the lap, the shorter way; elsewhere straight x1.15). Writes build/sb_cost.json {place: {"a>b": units}} where a, b
 are the places the gates lead to ('@flag' the start line). Run it again when a place, its gates or its links change; the table is pasted
-into the web (SB_COST, patch 76) and the PC (main.gd SB_COST)."""
+into the web (SB_COST, patch 76) and the PC (main.gd SB_COST) from the copy at tools/neon/sb_cost.json: copy it there after a run."""
 import json, re, subprocess, sys
 R = 'D:/crust-rush'
 html = open(f'{R}/source/crust-rush.html', encoding='utf-8').read()

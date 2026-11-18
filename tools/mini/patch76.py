@@ -11,7 +11,7 @@ import json
 p = 'D:/crust-rush/source/crust-rush.html'
 s = open(p, encoding='utf-8', newline='').read()
 assert 'patch 76' not in s, 'already patched'
-C = json.load(open('D:/crust-rush/source/build/sb_cost.json', encoding='utf-8'))
+C = json.load(open('D:/crust-rush/source/tools/neon/sb_cost.json', encoding='utf-8'))
 
 
 def rep(a, b, n=1):

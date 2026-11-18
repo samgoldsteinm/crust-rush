@@ -25,7 +25,7 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 ## Fix log
 
 ### 2026-11-17 (web v222 / PC, NOT released yet: waiting for the owner's OK on the PC before/after pictures)
-Web patches 71-77, PC pc71-pc77 (godot changes uncommitted until release_pc). Each patch file's docstring has the detail.
+Web patches 71-77 (applied in order), PC pc71-pc77 (godot changes uncommitted until release_pc). Each patch file's docstring has the detail.
 - UNDERGLOW REMADE AS LED STRIPS (77 / pc77; replaces 71's picture). The owner's brief: realistic LED strips under the car, the same on PC
   and web; the PC's was a big blurry pool, the web's an over-bright cyan with spots and streaks. Why they differed: the web had two
   point lights reaching 120 units (two bright pools and, on the glossy floor, two long streaks) plus additive sheets; the PC a 40-range
@@ -59,6 +59,15 @@ Web patches 71-77, PC pc71-pc77 (godot changes uncommitted until release_pc). Ea
   house gates; PC SandboxMap.LINKS + HOUSE_GATES) or the destination's start line; the line under the bar says where and how far.
   PC test tests/delarrow.tscn. On the PC the arrow lives beside the kart's model (view.views[kart].g's parent): the camera's parent is
   another space. A flat arrow is edge-on to the chase camera: it is tilted nose down (-.75).
+- Delivery arrow, quickest drivable way (76 / pc76). The owner: "make it point to the quickest route that is driveable ... if you have to
+  go through a tunnel first it will point to the tunnel". The fewest-places hop ignored distance. Now SB_COST (web) / main.gd SB_COST
+  (PC), from tools/neon/sbcost.py -> tools/neon/sb_cost.json (committed; both patches read it): each place's gate-to-gate and
+  gate-to-start-line distance (road places along the lap the shorter way, open places straight x1.15). sbRouteNext / _sb_route_next
+  search (place, gate came in by) from the kart's position, twice a second; the old hop is only the fallback. Measured: from Margherita's
+  start line Spiral is quicker by Basil (8220 vs 8812 by the Oven: the Oven's gate is far from the start, Spiral's Oven entrance is
+  closer to its line); from Margherita's Oven, Bay or Garage gates it points to the Oven. sbcost.py saves after each place and resumes
+  (it took 2 runs: one place loads slowly); delete build/sb_cost.json to measure afresh, then copy it to tools/neon/. Keep: rerun
+  sbcost.py and both patches' tables whenever a place, its gates or SB_LINKS change. Tests: PC delarrow (route basil), web sbprobe.
 - PC Sandbox: the Special / Rear buttons sit below the place's read-out (hud._special_top); they covered the coin box.
 - Road places' tunnel arches (75): no other part of the track within RW x 1.4 + 40 across, 20 below to 110 above (Sauce Spiral's arch to
   Oven Rush stood in the spiral's next level). The PC follows from the export.

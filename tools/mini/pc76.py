@@ -7,7 +7,7 @@ twice a second; _sb_next_hop (fewest places) only when the table has no entry.
 """
 import json
 G = 'D:/crust-rush/godot/scripts/'
-C = json.load(open('D:/crust-rush/source/build/sb_cost.json', encoding='utf-8'))
+C = json.load(open('D:/crust-rush/source/tools/neon/sb_cost.json', encoding='utf-8'))
 
 
 def rep(f, a, b, n=1):
