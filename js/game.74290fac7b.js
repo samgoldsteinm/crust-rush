@@ -1655,11 +1655,11 @@ const _svc={};function styleVC(st,id){const t=TRIMS[st.tr|0],a=TRIMS[st.ac|0],n=
   m.customProgramCacheKey=()=>'carvc-style';SHSET.add(m);return _svc[key]=m;}
 /* (patch 73) the rims' colour: a wheel's metal classes (metal 7, chrome 10, rim 11, gunmetal 15, bronze 19, steel 21) repainted, metal or satin */
 /* (patch 82) each wheel's spokes and calipers: its colour classes, measured (tools/mini/patch82.py); not listed: spokes 11, no caliper */
-const WHEEL_SPOKES={suv:[10],retrogt:[10,15],concept:[1,2],chariot:[1,6,2,0],tourer:[11,10,7],onyx:[11,6],skywing:[6],bike_mx:[10],bike_moto:[10],rollpin:[21,12],grater:[21,12],comet:[21,12],oilcan:[21,12],/* (patch 93: the toys' dish is their class 12) */
+const WHEEL_SPOKES={suv:[10],retrogt:[10,15],concept:[1],chariot:[1,6,2,0],tourer:[11,10,7],onyx:[11,6],skywing:[6],bike_mx:[10],bike_moto:[10],rollpin:[21,12],grater:[21,12],comet:[21,12],oilcan:[21,12],/* (patch 93: the toys' dish is their class 12) */
   redline:[1,6,17],emerald:[6,15,16,11],stealth:[6,15,16],turbo:[1,18,15],forged:[19]},/* (patch 91: measured on the rolling part; not the caliper's class) */
   WHEEL_CAL={forged:[17]};
 /* (patch 93) the spokes' limit at the tyre only where the rim class holds tread (the Monster wheel); the Chariot's wheel all over */
-const WHEEL_CUT={monster:1},WHEEL_ALL={chariot:1};
+const WHEEL_CUT={monster:1,concept:1}/* (patch 94: the Concept's lip stays) */,WHEEL_ALL={chariot:1};
 const _rvc={};function rimVC(st,ds,id,geo,held){const r=held?null:TRIMS[(st&&st.rm)|0],c=TRIMS[(st&&st.cl)|0],sp=held?[]:WHEEL_SPOKES[id]||[11],cl=held?[...new Set([13,...held,...(WHEEL_CAL[id]||[])])].slice(0,4):WHEEL_CAL[id]||[];/* (patch 88: a held part: its spoke classes are the caliper) */
   if(!(r&&r.h)&&!(c&&c.h&&cl.length))return null;const key=[st.rm|0,st.cl|0,ds?'d':'',id,geo?geo.uuid:'',held?'h'+held.join('.'):''].join('|');if(_rvc[key])return _rvc[key];const m=SH.carVC.clone();if(ds)m.side=THREE.DoubleSide;
   const v4=a=>new THREE.Vector4(...[0,1,2,3].map(i=>a[i]??-1));
@@ -1695,9 +1695,16 @@ function carGeos(id){const p=CAR_PACKS[id];if(p.g)return p.g;const bin=p.b?new U
     geo.setIndex(new THREE.BufferAttribute(new Uint16Array(idx),1));geo.computeBoundingSphere();CARGEO.add(geo);g[m.n]=geo;}
   {const bd=BODIES.find(b=>b.id===id.replace(/_hq$/,''));if(bd&&bd.bike)for(const k in g)if(/^w\d$/.test(k))wheelTrim(g[k]);}/* (patch 85) */
   {const hw=p.h.wheels||[],cid=id.replace(/_hq$/,'');if(cid!=='chariot')for(const k in g){const m=/^w(\d)$/.exec(k);if(m&&hw[+m[1]])rotorMark(g[k],Math.sign(hw[+m[1]].c[2])||1,WHEEL_SPOKES[cid]||[11]);}}/* (patch 91) */
+  if(id.replace(/_hq$/,'')==='concept')for(const k in g)if(/^w\d$/.test(k))barrelMark(g[k]);/* (patch 94) */
   p.d=null;p.b=null;p.g=g;return g;}
 /* (patch 91) a brake disc built in the spoke class: a piece of those classes lying well inboard (over 15% of the wheel's radius) of
    the spokes is labelled disc 12 (its uv only: it keeps its colour, the Rims colour leaves it) */
+/* (patch 94) the Concept's barrel (one piece with its spokes): its white ribs, and the dark surface in the outer half facing away from
+   the axle, are labelled 14 (uv only) */
+function barrelMark(geo){const P=geo.attributes.position,N=geo.attributes.normal,uv=geo.attributes.uv,I=geo.index&&geo.index.array;if(!uv||!N||!I)return;let R=0;for(let i=0;i<P.count;i++)R=Math.max(R,Math.hypot(P.getX(i),P.getY(i)));if(!(R>0))return;
+  const mk=[];for(let t=0;t<I.length;t+=3){const c=Math.floor(uv.getX(I[t])*32);if(c!==1&&c!==2)continue;let x=0,y=0,nx=0,ny=0;for(let j=0;j<3;j++){const v=I[t+j];x+=P.getX(v);y+=P.getY(v);nx+=N.getX(v);ny+=N.getY(v);}
+    const r=Math.hypot(x,y)/3,nr=Math.abs(nx*x+ny*y)/(Math.hypot(x,y)*3||1);if(c===2||(r>.5*R&&nr>.65))mk.push(t);}
+  for(const t of mk)for(let j=0;j<3;j++)uv.setX(I[t+j],(14+.5)/32);uv.needsUpdate=true;}
 function rotorMark(geo,os,sp){const P=geo.attributes.position,uv=geo.attributes.uv,I=geo.index&&geo.index.array;if(!uv||!I)return;let R=0;for(let i=0;i<P.count;i++)R=Math.max(R,Math.hypot(P.getX(i),P.getY(i)));if(!(R>0))return;
   const km=new Map(),par=new Int32Array(P.count);for(let i=0;i<P.count;i++){const k=Math.round(P.getX(i)*500)+','+Math.round(P.getY(i)*500)+','+Math.round(P.getZ(i)*500);const j=km.get(k);if(j!==undefined)par[i]=j;else{km.set(k,i);par[i]=i;}}
   const f=i=>{while(par[i]!==i){par[i]=par[par[i]];i=par[i];}return i;};for(let t=0;t<I.length;t+=3){const a=f(I[t]),b=f(I[t+1]);if(a!==b)par[a]=b;const b2=f(I[t+1]),c2=f(I[t+2]);if(b2!==c2)par[b2]=c2;}
