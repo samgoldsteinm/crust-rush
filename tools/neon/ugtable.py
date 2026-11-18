@@ -1,6 +1,6 @@
 """The underglow's body table for the PC (web patch 77 -> pc77):   py.cmd tools/neon/ugtable.py   (webtest.py serving a build with patch 77)
 Builds each body in the web build and reads its ugParams (the body's half-length and half-width, its centre, the strips' height, the
-axles, the wheels' radius and z, a tyre's width, in the kart's own units). Writes build/ug_params.json {body id: [a, b, cx, cz, h, wf,
+axles, the wheels' radius and z, a tyre's width, in the kart's own units). Writes tools/neon/ug_params.json (committed) {body id: [a, b, cx, cz, h, wf,
 wr, rf, rr, wz, tw]}; pc77 pastes it into view.gd UG_P, so both draw the glow from the same numbers. Run it again when a body changes."""
 import asyncio, json
 from playwright.async_api import async_playwright
@@ -20,7 +20,7 @@ async def main():
         await b.close()
     bad = {k: v for k, v in r.items() if not isinstance(v, list)}
     assert not bad, bad
-    json.dump(r, open('D:/crust-rush/source/build/ug_params.json', 'w'), indent=0, sort_keys=True)
+    json.dump(r, open('D:/crust-rush/source/tools/neon/ug_params.json', 'w'), indent=0, sort_keys=True)
     print('UG TABLE written', len(r), 'bodies')
 
 asyncio.run(main())

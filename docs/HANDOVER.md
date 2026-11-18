@@ -25,7 +25,7 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 ## Fix log
 
 ### 2026-11-17 (web v222 / PC, NOT released yet: waiting for the owner's OK on the PC before/after pictures)
-Web patches 71-77 (applied in order), PC pc71-pc77 (godot changes uncommitted until release_pc). Each patch file's docstring has the detail.
+Web patches 71-78 (applied in order), PC pc71-pc78 (godot changes uncommitted until release_pc). Each patch file's docstring has the detail.
 - UNDERGLOW REMADE AS LED STRIPS (77 / pc77; replaces 71's picture). The owner's brief: realistic LED strips under the car, the same on PC
   and web; the PC's was a big blurry pool, the web's an over-bright cyan with spots and streaks. Why they differed: the web had two
   point lights reaching 120 units (two bright pools and, on the glossy floor, two long streaks) plus additive sheets; the PC a 40-range
@@ -35,12 +35,22 @@ Web patches 71-77 (applied in order), PC pc71-pc77 (godot changes uncommitted un
   (soft ray-through-footprint test), plus a little light bounced out from under the body; smooth-limited (1 - e^-t, never clips to
   white) and ended with a margin (no edges). The strips sit at the car's sill height (ugParams: low 5% of the body between the wheels),
   so a low supercar's glow is tight and a monster truck's wide. The numbers per body come from the web (tools/neon/ugtable.py ->
-  build/ug_params.json -> pc77 pastes view.gd UG_P): rerun both when a body changes. Garage: the floor itself is lit (floor colour x
+  tools/neon/ug_params.json -> pc77 pastes view.gd UG_P): rerun both when a body changes. Garage: the floor itself is lit (floor colour x
   light / the floor's colour at the middle, web ugFloorMat via onBeforeCompile, PC garage_floor.gdshader EMISSION), so the floor keeps
   its look and both versions show the same glow whatever their floor's colour. The lights under the car are short (2.4 x half-width,
   decay 2) and only tint the low panels. Colour: ugSat in sRGB HSL on both, ugComp evens brightness (blue lifted, pale cyan down).
   Keep: no long-reach lights under the car; any change to the sum goes in BOTH ugLs and underglow.gdshaderinc. Pictures:
   scratch/ug/ugqa.py (web) and scratch/ug/pcqa.sh (PC): six bodies, six colours, three angles.
+- KARTS AND BIKES' UNDERGLOW (78 / pc78). The owner: on karts and bikes "it doesn't look good. Remove the under glow feature for bikes
+  and fix the size ... for the karts it's too big ... it doesn't look like LEDS coming from under the car". Why: 77 pushed the strips
+  out to the wheel track plus a tyre (right for a car's sills, wrong for an open-wheel kart, whose frame is far inside its wheels), and
+  a code-built kart's b was wheel track + 1.1. Now a kart (the garage's Kart tab: not a bike, not in CAR_BODIES) has b = the median
+  low half-width of its frame between the axles, h <= .45 x wheel radius; code-built karts b = .85 x wheel track, h = .4 x radius.
+  Bikes: no strips, no lights, no Underglow row (web styleUI, PC menu _style_shop); a saved colour is kept, unused. The web garage
+  camera no longer frames additive meshes (the glow made it zoom out with a bigger glow; the PC measures before adding the glow).
+  The per-body table is now committed: tools/neon/ug_params.json (ugtable.py writes it, pc77/pc78 read it). Keep: a new body goes in
+  CAR_BODIES if it is a car with sills, else it gets the kart glow. Local PC Grater / Oil Can show only wheels: stale local assets
+  (the same in the pictures from before 78), not this change.
 - Underglow (71 / pc71, superseded by 77): ugTex / View.ug_tex from the body's footprint and its wheels: a bright fall past the sill plus a soft ambient one,
   cut beside each tyre into sections (the owner's photos: "the light will shine behind the wheels but not on the ground"), colour a
   little more saturated (ugSat), light colours (white) dimmed by luminance. Races: shows only in the dark (web lights 6 x L, haze .06 +

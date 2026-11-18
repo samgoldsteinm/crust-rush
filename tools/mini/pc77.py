@@ -1,5 +1,5 @@
 """The PC side of web patch 77 (v222): the underglow as LED strips, the same light as the web's.
-    py.cmd tools/mini/pc77.py      (once, after pc71-pc76; edits D:/crust-rush/godot/scripts; reads source/build/ug_params.json,
+    py.cmd tools/mini/pc77.py      (once, after pc71-pc76; edits D:/crust-rush/godot/scripts; reads source/tools/neon/ug_params.json,
                                     made by tools/neon/ugtable.py from the web build)
 - shaders/underglow.gdshaderinc: the web's ugLs line for line (four strips under the sills and bumpers, each a continuous line of
   light, blocked by the tyres; a little light bounced out from under the body; smooth-limited, ending with the margin), worked out
@@ -14,7 +14,7 @@
 """
 import json
 G = 'D:/crust-rush/godot/scripts/'
-T = json.load(open('D:/crust-rush/source/build/ug_params.json', encoding='utf-8'))
+T = json.load(open('D:/crust-rush/source/tools/neon/ug_params.json', encoding='utf-8'))
 
 
 def rd(f):
