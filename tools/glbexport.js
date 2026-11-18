@@ -197,7 +197,7 @@ window.__garageInfo=function(){
 /* the patched bake: paint, dark trim and stripe (marker colours) keep their own named materials */
 window.__garageBake=function(S){const mk=new THREE.Color(GM.paint),st=new THREE.Color(GM.stripe),dk=new THREE.Color(shade(GM.paint,-.45));const near=(a,b)=>Math.abs(a.r-b.r)+Math.abs(a.g-b.g)+Math.abs(a.b-b.b)<.004;
   S.traverse(o=>{if(!o.isMesh)return;for(const m of (Array.isArray(o.material)?o.material:[o.material])){if(!m||!m.color||m.map)continue;
-    if(near(m.color,mk)){m.vertexColors=true;m.name='g_paint';}else if(near(m.color,dk)){m.vertexColors=true;m.name='g_dark';}else if(near(m.color,st)){m.vertexColors=true;m.name='g_stripe';}}});};
+    if(near(m.color,mk)){m.vertexColors=true;m.name='g_paint';}else if(near(m.color,dk)){m.vertexColors=true;m.name='g_dark';}else if(near(m.color,st)){m.vertexColors=true;m.name='g_stripe';}else if(m.name==='g_acc'){m.vertexColors=true;}/* (pc86: a kart's accent spot stays its own material) */}});};
 /* one body: its geometry without wheels, driver or glider, plus the pack wheels of cars and bikes */
 window.__exportBody=function(b){const G=new GLB();const pi=PAINTS.length-1;const m=buildKart({ri:0,b,w:0,g:0,p:pi,t:'',hq:1});reset(m);const g=m.g;
   const yaws=m.wheels.map(w=>w.spin.parent),front=new Set(m.front||[]);
@@ -212,13 +212,16 @@ window.__exportBody=function(b){const G=new GLB();const pi=PAINTS.length-1;const
     const car=!!cfg.car;liv={box:car?carDims(cfg.car):[x0,x1,zw,yt],belt:car?(cfg.belt||1.5):y0+(yt-y0)*.5,numPos:car?(cfg.numPos||[0,1]):[(x0+x1)/2,y0+(yt-y0)*.5],xf:rel(paintM,g).invert().toArray(),car};}
   /* cars on their standard wheels and bikes: their own wheel models */
   const pw=[];m.wheels.forEach((w,i)=>{const yaw=w.spin.parent,sp=w.spin;const ch=sp.children[0];const packed=ch&&ch.isMesh&&ch.geometry&&ch.material&&!(ch.scale.x!==1&&ch.scale.y!==1);
-    const pr=parts(G,sp,sp.matrixWorld,null);if(pr.length){const nm='pw'+i;top.push(G.node(nm,pr));pw.push(nm);}});
+    const pr=parts(G,sp,sp.matrixWorld,null);if(pr.length){const nm='pw'+i;top.push(G.node(nm,pr));pw.push(nm);}
+    /* (pc86, web patch 88) the wheel's held part (caliper, hub carrier): in the same space, its own node */
+    const ph=[];for(const h of yaw.children)if(h.userData.held)ph.push(...parts(G,h,sp.matrixWorld,null));if(ph.length)top.push(G.node('ph'+i,ph));});
   const root=G.node('kart',null,{children:top});G.j.scenes[0].nodes.push(root);const bytes=G.glb();
   return {b64:u8ToB64(bytes),liv,pw,stats:Object.assign(G.stats,{bytes:bytes.length})};};
 /* every wheel type, both sides, unscaled, in the wheel's own space */
 window.__exportWheel=function(w){const G=new GLB();const pi=PAINTS.length-1;const m=buildKart({ri:0,b:0,w,g:0,p:pi,t:'',hq:1});reset(m);const top=[];
   const done={};m.wheels.forEach(q=>{const sp=q.spin,yaw=sp.parent,side=yaw.position.z<0?'L':'R';if(done[side])return;done[side]=1;const wh=sp.children[0];if(!wh)return;
-    const pr=parts(G,wh,wh.matrixWorld,null);if(pr.length)top.push(G.node('wheel_'+side,pr));});
+    const pr=parts(G,wh,wh.matrixWorld,null);if(pr.length)top.push(G.node('wheel_'+side,pr));
+    const ph=[];for(const h of yaw.children)if(h.userData.held)ph.push(...parts(G,h,wh.matrixWorld,null));if(ph.length)top.push(G.node('hold_'+side,ph));/* (pc86) */});
   const root=G.node('wheels',null,{children:top});G.j.scenes[0].nodes.push(root);const bytes=G.glb();return {b64:u8ToB64(bytes),stats:Object.assign(G.stats,{bytes:bytes.length})};};
 window.__exportGlider=function(gi){const G=new GLB();const pi=PAINTS.length-1;const m=buildKart({ri:0,b:0,w:0,g:gi,p:pi,t:'',hq:1});reset(m);const gl=m.gl;gl.visible=true;gl.scale.setScalar(1);gl.updateMatrixWorld(true);
   const pr=parts(G,gl,gl.matrixWorld,null);const root=G.node('glider',pr);G.j.scenes[0].nodes.push(root);const bytes=G.glb();return {b64:u8ToB64(bytes),stats:Object.assign(G.stats,{bytes:bytes.length})};};
@@ -227,7 +230,7 @@ window.__exportDriver=function(ri){const G=new GLB();const m=buildKart({ri,b:0,w
 /* where things go for one body with one wheel type: wheels, lift, glider, bubble, effects */
 window.__placeBW=function(b,w){const m=buildKart({ri:0,b,w,g:0,p:0,t:'',hq:0});reset(m);const g=m.g,front=new Set(m.front||[]);const B=m.drv.parent.parent;
   const wl=m.wheels.map((q,i)=>{const sp=q.spin,yaw=sp.parent,wh=sp.children[0];const ys=yaw.getWorldPosition(new THREE.Vector3());
-    const ax=[];yaw.children.forEach(c=>{if(c!==sp&&c.isMesh)ax.push({p:c.position.toArray(),s:c.scale.toArray(),r:c.rotation.toArray().slice(0,3)});});
+    const ax=[];yaw.children.forEach(c=>{if(c!==sp&&c.isMesh&&!c.userData.held)ax.push({p:c.position.toArray(),s:c.scale.toArray(),r:c.rotation.toArray().slice(0,3)});});
     return {i,front:front.has(yaw),x:ys.x,y:ys.y,z:ys.z,r:q.r,s:wh?wh.scale.toArray():[1,1,1],axle:ax};});
   const v=a=>a?(a.isVector3?a.toArray():a):null;
   return {L:B.position.y,glY:m.gl?m.gl.position.y:0,bub:m.bub?{x:m.bub.position.x,y:m.bub.position.y,z:m.bub.position.z,s:m.bub.scale.x}:null,wheels:wl,top:m.top,axF:m.axF,axR:m.axR,axW:m.axW,sf:m.sf,hover:m.hover,bike:m.bike,
