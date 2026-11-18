@@ -284,20 +284,22 @@ static func colours(spec: Dictionary, ri: int) -> Dictionary:
 		accm = S.pick(spec, "ac")
 		if accm["h"] != null:
 			acc_c = Color(String(accm["h"]))
-	return {"acc": acc_c, "accm": accm, "paint": col, "dark": dark, "stripe": stripe, "lv": lv, "vcre": vcre, "vcpbr": vcpbr, "rimre": rimre, "rimpbr": rimpbr, "rimall": rimall, "rimallpbr": rimallpbr, "rimc": rimc, "rimm": S.pick(spec, "rm") if spec.get("st") is Dictionary else {},
-		"cut": WHEEL_SPOKES.get(String(info["bodies"][int(spec.get("b", 0))]["id"]), [11]), "cutw": WHEEL_SPOKES.get(String(wheel_of(spec).get("id", "")), [])}
+	return {"pmet": PAINT_MET.get(p, []) if lv.is_empty() else [], "acc": acc_c, "accm": accm, "paint": col, "dark": dark, "stripe": stripe, "lv": lv, "vcre": vcre, "vcpbr": vcpbr, "rimre": rimre, "rimpbr": rimpbr, "rimall": rimall, "rimallpbr": rimallpbr, "rimc": rimc, "rimm": S.pick(spec, "rm") if spec.get("st") is Dictionary else {},
+		"cut": WHEEL_SPOKES.get(String(info["bodies"][int(spec.get("b", 0))]["id"]), [11]) if ["monster", "concept"].has(String(info["bodies"][int(spec.get("b", 0))]["id"])) else [],   # (pc89: the Concept too)
+		"cutw": [11] if String(wheel_of(spec).get("id", "")) == "monster" else []}   # (pc88, web patch 93: the limit at the tyre only on the Monster wheel)
 
 
 ## (pc86, web patch 88) a held part's colours: its caliper classes (13, the pack's own HOLD_K, the wheel's calipers and spoke classes)
 ## take the Calipers colour; nothing else is repainted
-const HOLD_K := {"monster": [12, 11], "muscle": [12], "retrogt": [7], "hatch": [9]}
+const HOLD_K := {"monster": [12, 11], "muscle": [12], "retrogt": [7], "hatch": [9], "redline": [16, 17, 18], "emerald": [16, 17, 18], "stealth": [16, 17, 18],
+	"turbo": [16, 17, 18], "forged": [16, 17, 18]}   # (pc87: the wheel sets' calipers)
 static func hold_cols(cols: Dictionary, spec: Dictionary, hid: String) -> Dictionary:
 	var c := cols.duplicate()
 	var re := {}
 	var clc: Dictionary = preload("res://scripts/style.gd").pick(spec, "cl")
 	if spec.get("st") is Dictionary and clc["h"] != null:
 		var cl: Array = [13]
-		for ci in HOLD_K.get(hid, []) + WHEEL_CAL.get(hid, []) + WHEEL_SPOKES.get(hid, [11]):
+		for ci in HOLD_K.get(hid, []) + WHEEL_CAL.get(hid, []):   # (pc87: not the spoke classes)
 			if not cl.has(ci):
 				cl.append(ci)
 		for ci in cl.slice(0, 4):
@@ -312,13 +314,16 @@ static func hold_cols(cols: Dictionary, spec: Dictionary, hid: String) -> Dictio
 
 
 ## (pc86, web patch 89 ACC_X / ACC_NO6) a body's own extra accent class; the Slip's carbon is most of its body
-const ACC_X := {"bike_neutron": 7, "bike_mx": 7, "bike_rocket": 7, "retrogt": 7, "coupe": 1, "concept": 1, "muscle": 1, "slip": 1}
-const ACC_NO6 := ["slip"]
+const ACC_X := {"bike_neutron": 7, "bike_mx": 7, "bike_rocket": 7, "retrogt": 7, "coupe": 1, "muscle": 1}
+const ACC_NO6 := ["slip", "onyx"]
 
 
 ## (pc85, web patch 82 WHEEL_SPOKES / WHEEL_CAL) each wheel's spokes and calipers: its colour classes, measured; not listed: spokes 11
-const WHEEL_SPOKES := {"suv": [10], "retrogt": [10], "concept": [1], "chariot": [1], "skywing": [6], "bike_mx": [10], "bike_moto": [10],
-	"rollpin": [21], "grater": [21], "comet": [21], "oilcan": [21], "redline": [17], "emerald": [16], "stealth": [16], "turbo": [18], "forged": [19]}
+const WHEEL_SPOKES := {"suv": [10], "retrogt": [10, 15], "concept": [1], "chariot": [1, 6, 2, 0, 8, 7, 9, 10, 11], "tourer": [11, 10, 7], "onyx": [11, 6], "skywing": [6],
+	"bike_mx": [10], "bike_moto": [10], "rollpin": [21, 12], "grater": [21, 12], "comet": [21, 12], "oilcan": [21, 12],
+	"redline": [1, 6, 17], "emerald": [6, 15, 16, 11], "stealth": [6, 15, 16], "turbo": [1, 18, 15], "forged": [19]}   # (pc87, web patch 91: measured on the rolling part)
+## (pc87, web patch 91 PAINT_MET) the metal paints: [metalness, roughness]
+const PAINT_MET := {24: [0.85, 0.26], 25: [0.85, 0.22], 26: [0.85, 0.3]}
 const WHEEL_CAL := {"forged": [17]}
 
 
@@ -746,6 +751,11 @@ static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false, whee
 					# (a solid colour: a non-metal base under a sharp clear coat, as real paint: web v217 patch 62)
 					pm.roughness = float(lv.get("r", 0.2)) if not lv.is_empty() else 0.36
 					pm.metallic = minf(float(lv.get("m", 0.14)), 0.62) if not lv.is_empty() else 0.0
+					var pmet: Array = cols.get("pmet", [])
+					if not pmet.is_empty():
+						pm.metallic = float(pmet[0])   # (pc87, web patch 91: gold, silver, bronze)
+						pm.roughness = float(pmet[1])
+						pm.clearcoat_roughness = 0.04
 					pm.clearcoat_enabled = true
 					pm.clearcoat = 1.0
 					pm.clearcoat_roughness = 0.03 if not lv.is_empty() else 0.02

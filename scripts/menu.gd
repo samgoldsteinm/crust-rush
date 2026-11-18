@@ -1852,7 +1852,7 @@ func _garage() -> Control:
 				sw.set_meta("gkey", "p:%d" % i)
 				var col := Color(String(paints[i])) if paints[i] != null else Color(String(I["racers"][ri]["color"]))
 				var on := i == int(build["p"]) and String(build.get("t", "")) == ""
-				var st := box([col], 180.0, 32.0, CHEESE if on else Color(1, 0.957, 0.863, 0.3), 3.0 if on else 1.5)
+				var st := box([Color("#ffffff"), col, Color("#2a2420")] if KartBuilder.PAINT_MET.has(i) else [col], 135.0 if KartBuilder.PAINT_MET.has(i) else 180.0, 32.0, CHEESE if on else Color(1, 0.957, 0.863, 0.3), 3.0 if on else 1.5)   # (pc87: a metal sheen)
 				for s2 in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
 					sw.add_theme_stylebox_override(s2, st)
 				var pi2 := i
