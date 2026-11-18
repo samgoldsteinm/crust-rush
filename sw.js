@@ -1,6 +1,6 @@
 // Crust Rush service worker: installs the game as an app and keeps every file for offline play.
 // Game files have their content hash in the name, so a saved copy never goes stale; only the page itself is re-checked.
-const VERSION = 'crust-rush-v224';
+const VERSION = 'crust-rush-v225';
 const SHELL = [
   "./",
   "./index.html",
@@ -41,18 +41,6 @@ const SHELL = [
   "./assets/geo/bike_neutron.33a8caa28c.bin",
   "./assets/geo/bike_rocket.c1d0ba014a.bin",
   "./assets/geo/bike_june.a357af641e.bin",
-  "./assets/geo/skywing.fc799b5285.bin",
-  "./assets/geo/skywing_hq.ce774ee19d.bin",
-  "./assets/geo/megagt.5ce5bf9f42.bin",
-  "./assets/geo/megagt_hq.d6ca975aeb.bin",
-  "./assets/geo/megawatt.7433d7ab9f.bin",
-  "./assets/geo/megawatt_hq.5b20d0c58c.bin",
-  "./assets/geo/endur.058dbd0999.bin",
-  "./assets/geo/endur_hq.6f5c034a43.bin",
-  "./assets/geo/slip.2e6c423ad4.bin",
-  "./assets/geo/slip_hq.80bb72fde5.bin",
-  "./assets/geo/retrogt.e2dae34091.bin",
-  "./assets/geo/retrogt_hq.66b39089ab.bin",
   "./assets/geo/rollpin.5b9dacad6d.bin",
   "./assets/geo/rollpin_hq.f20aac029d.bin",
   "./assets/geo/grater.29e220df64.bin",
@@ -61,6 +49,18 @@ const SHELL = [
   "./assets/geo/comet_hq.6351a3523e.bin",
   "./assets/geo/oilcan.8aabffc806.bin",
   "./assets/geo/oilcan_hq.a7ef00870d.bin",
+  "./assets/geo/megawatt.25723a5b2e.bin",
+  "./assets/geo/megawatt_hq.ac66d8b934.bin",
+  "./assets/geo/skywing.3c2531e99a.bin",
+  "./assets/geo/skywing_hq.271cfd1e92.bin",
+  "./assets/geo/megagt.58a54241b5.bin",
+  "./assets/geo/megagt_hq.ae361f2901.bin",
+  "./assets/geo/endur.4cf8e9894d.bin",
+  "./assets/geo/endur_hq.2205cccf08.bin",
+  "./assets/geo/slip.4411d80dae.bin",
+  "./assets/geo/slip_hq.ca0087ddf3.bin",
+  "./assets/geo/retrogt.63d4648380.bin",
+  "./assets/geo/retrogt_hq.9aec1eca61.bin",
   "./assets/geo/tree_pine1.55f1df225a.bin",
   "./assets/geo/tree_pine2.51237a24e1.bin",
   "./assets/geo/tree_round1.cc883fdab7.bin",
@@ -272,8 +272,8 @@ const SHELL = [
   "./assets/shots/preptable-h.a85d788347.jpg",
   "./assets/shots/preptable-m.02ee47e84f.jpg",
   "./assets/shots/preptable-a.d7b3293702.jpg",
-  "./css/style.eefa0359bc.css",
-  "./js/game.eef7308c1b.js",
+  "./css/style.498adc41c0.css",
+  "./js/game.ffc94c1016.js",
   "./vendor/three-0.149.0.402de381c9.js"
 ];
 

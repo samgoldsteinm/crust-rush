@@ -548,7 +548,7 @@ body.sbshop #sbPark,body.sbshop #sbSpd,body.sbshop #sbHud,body.sbshop #sbMapBtn,
 .abtn{bottom:auto;top:var(--hudTop,66px);left:max(8px,calc(var(--btn)*.12));width:calc(var(--btn)*.95);height:calc(var(--btn)*.95)}
 .ihint{top:calc(var(--hudTop,66px) + var(--btn)*1.95 + 26px)!important;right:max(8px,calc(var(--btn)*.12))!important;bottom:auto!important}
 #stage{--hudTop:clamp(58px,15vh,96px)}
-body.sbx .abtn{top:172px!important}body.sbx .lookbtn{top:calc(172px + var(--btn)*.95 + 20px)!important}/* (patch 74: below Sandbox's read-out) */
+body.sbx .abtn{top:108px!important}body.sbx .lookbtn{top:calc(108px + var(--btn)*.95 + 20px)!important}/* (patch 86: up with the read-out) *//* (patch 74: below Sandbox's read-out) */
 .tbprog .tb-lap{position:absolute;top:50%;width:3px;height:16px;margin:-8px 0 0 -1.5px;border-radius:2px;background:#fff4dc;box-shadow:0 0 0 1.5px rgba(10,20,40,.7)}
 .tbprog .tb-lap b{position:absolute;top:13px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:800;letter-spacing:.04em;color:#fff4dc;text-shadow:0 1px 3px #000}
 
