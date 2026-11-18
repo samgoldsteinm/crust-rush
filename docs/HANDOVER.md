@@ -30,10 +30,16 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   units; TM.U is units per CENTIMETRE: scale K/(TM.U*100)) round the turntable, concrete and brick on new materials over the track's
   scanned pictures, LED panels and an LED strip (HDR); the car's reflections are made from that room (PMREMGenerator(gR).fromScene),
   rebuilt on opening until every scanned model has downloaded. Zoom out limited to 1.1 so the camera stays inside.
-- RIM COLOUR ON KART WHEELS (82 / pc82). The owner: the rim colour "only changes the brake drum". Cars were right; a kart's wheel set was
-  recoloured only on the metal classes (on those wheels just the hub), and the code-built wheels never took it (rim = trim colour,
-  spokes = body paint). Now a wheel set takes it on every class but tyre (8) and caliper (13) (rimVC uniform uAll; PC rimall), and a
-  code-built wheel's rim, spokes, cap and hub (M.rimS; PC g_dark / g_paint on a wheel).
+- RIM COLOUR = SPOKES + CALIPER (82 / pc82 + pc84). The owner: the rim colour "only changes the brake drum"; after a first take that
+  painted the whole kart wheel: "the entire wheel shouldnt change colors only the brake caliper and the wheel spokes". A kart's wheel
+  set has its spokes in their own colour class (redline red 17, emerald / stealth green 16, turbo bluem 18, forged bronze 19), so the
+  wheel-set copy of rimVC (uniform uAll) paints 16-19 + caliper 13 (it painted the metal classes: the hub); a car's own wheels their rim
+  classes + 13; a code-built wheel its spokes only (M.rimS); a car body's calipers (13, the accent colour before) the rim colour (styleVC
+  uRc). The Go-Kart's own wheel is a solid disc: its whole face is the "spokes". PC: pc82 (first take) went out in the v223 PC build;
+  pc84 brings it level. Keep: a new wheel set's spokes go in one of the classes 16-19.
+- FLYING CAMERA (83 / pc83 + pc84). The owner: flying, the camera "only moves up and down and it struggles to follow"; then "sit lower
+  behind the user". The chase camera aims between the kart and the ground under it: far below a flying kart. Flying: cy = rz - 8 (the
+  race camera low behind the kart, looking ahead).
 - INTERIOR COLOUR (open): the car models' cabins were imported on a tiny budget: on most cars the seats are a handful of points or are
   merged into dark trim / carbon, and the "seat" class (9, what the interior colour paints) holds roof lining and pillars on others
   (Scissor, Muscle). A real fix re-imports the cars with seats and console as their own class (car_rules.py, car_convert.py).
