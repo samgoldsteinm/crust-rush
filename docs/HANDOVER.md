@@ -34,6 +34,19 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   the results say "Not counted for records". A Sandbox mission with one on sets no best time. UNLOCK, colours, coins, achievements:
   unchanged. Keep: a new developer setting changes the game unless it is added to the looks list in BOTH devAlt and _dev_alt.
   Tests: web tools/neon/cheattest.py, PC tests/cheat.tscn.
+- GARAGE PAINT HAD NO REFLECTIONS (80 / pc80). The owner: the paint looks "flat or a little dull", "a very flat orange", the gold a dull
+  brown; wants clearer shine at least in the garage. Why: the web garage has its own renderer (gR, its own WebGL context) but its
+  environment map came from the GAME renderer's PMREM (envFrom -> pmrem). A render-target texture from one context is empty in another,
+  so every garage car reflected nothing (a mirror ball in the garage was black). Races were fine (their env is made by their renderer).
+  Fix: gStudioEnv(), an HDR studio (half-float equirect: full float is not filterable on every GPU and came out black too) turned into a
+  PMREM by a PMREMGenerator on gR: dark walls, a long narrow overhead soft-box, a tall strip each side, front and back panels. The garage
+  lights drop (hemisphere .75 -> .35, sun 2.4 -> 2.2; floor reflections .6 -> .25) as the soft-boxes now light the car too. The car models'
+  body paint (carBody M.carPaint, tagged userData.cp) gets garage-only values on the garage's model: reflection 1.75 -> .8 (a livery's
+  1.5 -> .75), solid base roughness .45, clear coat .04, so the colour stays rich under crisp highlights; races keep theirs. Gold
+  #e3b448 r .18, silver #c9ccd2 r .16, bronze #b5763f r .26 (web TRIMS and PC style.gd). 14 more solid paints after the first 9 (a saved
+  number keeps its colour; an older game falls back to the driver colour; the PC gets them from the export: glbexport.js copies PAINTS).
+  Keep: anything for the garage scene (env maps, PMREM, render targets) is made with gR, never the game renderer. Pictures:
+  scratch/paint/paintqa.py (web garage), raceqa.py (in a race); garage frame time unchanged (6.9 ms).
 
 ### 2026-11-17 (web v222, PC: released 2026-11-18)
 Web patches 71-78 (applied in order), PC pc71-pc78. Each patch file's docstring has the detail.
