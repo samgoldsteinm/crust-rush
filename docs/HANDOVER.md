@@ -55,6 +55,16 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   Left as they are: a stray flat panel or two that the sources tag as seat fabric (Megawatt, Skywing, Retro GT's door cards). The older
   cars (Scissor, Muscle, Hatch...) have no sources here and may be the owner's own uploads (never re-import those): their 'seat' class is
   the whole cabin shell on some (Scissor, Muscle). Pictures: scratch/paint/cabinqa.py (body and glass hidden, red interior).
+- SEATS ON THE OLDER CARS (web v226 data, PC via the export). The owner then uploaded the original models of ten older cars (Bentley =
+  coupe, Escalade = suv, Aventador = scissor, Camaro = muscle, Pontiac monster = monster, AMG One = onyx, Sprite = roadster, Veyron police
+  = interceptor, chariot, Neutron = bike_neutron; the Jesko upload is the Skywing's own source, already done). NOT re-imported: those
+  packs came from an older pipeline and are the owner's look. tools/blender/seats/ uses each source only as a map (fitted to the pack),
+  and changes only the CLASS of the pack's cabin triangles: seat 9 where the source has seats, dark 1 for the rest of the old class-9
+  shell (both near-black by default, so nothing looks different until an Interior colour is picked). chk.py: every triangle and the
+  wheels identical, so no NET_PROTO change. The Escalade's pack had no seats at all (hollow cabin): its own seats were added (decimated,
+  1326 triangles, HQ 1799, class 9). Left: the Neutron (its saddle is body paint in the pack), the Bentley's rear (none in the source).
+  How and which parts: tools/blender/seats/README.md. Keep it fixed: a new car goes through car_convert (its seat group); an old pack is
+  re-labelled with transfer.py, never rebuilt. Test pictures of the Chariot need the garage's default camera (gZoom .55 shows nothing).
 - BIKE WHEELS (85, web; PC via the export): the conversion cut fenders, a tail-light piece and seat trim into the bikes' wheel meshes,
   which spun round as a second set ("remove the ones that are spinning since the bike already has them"). wheelTrim in carGeos (bikes):
   the tyre whole, anything else only well inside it (within 90% of its radius) and never body paint, stripe, tail, glass or seat.
