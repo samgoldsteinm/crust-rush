@@ -119,6 +119,14 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   barrel". Its spokes and barrel are one piece of one class at the same depth (scratch/paint/concz.js). barrelMark labels the barrel
   14 (uv only): the white ribs (2) and the dark surface in the outer half facing away from the axle; WHEEL_CUT keeps its lip. Test:
   scratch/paint/rimc.js. Keep it fixed: another wheel whose barrel and spokes share a class needs the same (WHEEL_CUT + a mark).
+- OWNER'S NOTES ON v229 (95, web v230; PC pc90 + export). (1) The Slipstream's red crescent in its wheel model spun: held
+  (WHEEL_HOLD slip, class 17). (2) Accent "random spots ... that don't actually cover a part": the Slipstream's and the Concept's black
+  decal patches (class 1, from ACC_X): removed; the Onyx's carbon engine cover turned the accent colour ("spoiler is messed up"):
+  ACC_NO6 onyx. The Onyx, Concept and Slipstream now have little or no accent (their chrome only). Every vehicle checked:
+  scratch/paint/accall.py (accent neon green from the rear-top and front-top). (3) The Interceptor's roof slots were tail-lamp
+  material: TAIL_ROOF splits b_tail above y 2.2 into a Trim-coloured part; its lamps a deeper red (TAIL_DEEP). (4) GT driver fit.s
+  .4 -> .22. Not changed: the GT Racer is roofless by design; the "wheels backwards" on the Megawatt was the v227 bug fixed in v228
+  (scratch/paint/facing2.js: every body on every wheel set, spokes outboard of the caliper: 675 of 675).
 - ADDED CALIPERS (92, web v228; PC via the export's ph<i>). Wheels with none on show: the owner saw a prototype (scratch/paint/
   addcal3.js) and kept the cars, not the bikes ("dont worry about the calipers for bikes the rest look good"). WHEEL_ADDCAL: Grand
   Coupe, Megawatt, Luxury SUV. addCal builds a rounded block over the brake disc's rear top edge, kept behind the spokes, class 13, as
