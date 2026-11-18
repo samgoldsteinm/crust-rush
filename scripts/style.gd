@@ -2,11 +2,11 @@
 ## The style shop (web patch 65): one colour list for trim, accent and interior; underglow; headlight colours; tyre smoke.
 ## Each {n, h (null = stock, "rainbow" cycles), p price (0 free), m metallic, r roughness}. KEEP the web's order: a build's "st" holds
 ## indices and travels online. Owned ones in user://own.json as the web's ids ("tr5", "gl3"...); the purse is the Sandbox save's coins.
-const TRIMS := [{"n": "Stock", "h": null, "p": 0}, {"n": "Black", "h": "#111214", "p": 0}, {"n": "White", "h": "#f2f2f0", "p": 0}, {"n": "Silver", "h": "#b8bcc4", "p": 0, "m": 1},
+const TRIMS := [{"n": "Stock", "h": null, "p": 0}, {"n": "Black", "h": "#111214", "p": 0}, {"n": "White", "h": "#f2f2f0", "p": 0}, {"n": "Silver", "h": "#c9ccd2", "p": 0, "m": 1, "r": 0.16},
 	{"n": "Red", "h": "#c40c0c", "p": 60}, {"n": "Orange", "h": "#ff5a00", "p": 60}, {"n": "Yellow", "h": "#ffc400", "p": 60}, {"n": "Green", "h": "#2fae0c", "p": 60},
 	{"n": "Blue", "h": "#0b49c9", "p": 60}, {"n": "Purple", "h": "#5317ad", "p": 80}, {"n": "Pink", "h": "#ff2c84", "p": 80}, {"n": "Tan leather", "h": "#a8703e", "p": 120},
 	{"n": "Neon green", "h": "#7dff2a", "p": 150}, {"n": "Neon blue", "h": "#2ae8ff", "p": 150}, {"n": "Gunmetal", "h": "#3b3e44", "p": 150, "m": 1},
-	{"n": "Bronze", "h": "#8a6232", "p": 250, "m": 1}, {"n": "Gold", "h": "#d4a838", "p": 400, "m": 1}, {"n": "Chrome", "h": "#e9e9ee", "p": 600, "m": 1, "r": 0.08}]
+	{"n": "Bronze", "h": "#b5763f", "p": 250, "m": 1, "r": 0.26}, {"n": "Gold", "h": "#e3b448", "p": 400, "m": 1, "r": 0.18}, {"n": "Chrome", "h": "#e9e9ee", "p": 600, "m": 1, "r": 0.08}]
 const GLOWS := [{"n": "Off", "h": null, "p": 0}, {"n": "Ice blue", "h": "#3fc8ff", "p": 0}, {"n": "Purple", "h": "#a040ff", "p": 200}, {"n": "Red", "h": "#ff2a2a", "p": 200},
 	{"n": "Green", "h": "#3dff6a", "p": 200}, {"n": "Pink", "h": "#ff3fb4", "p": 250}, {"n": "Amber", "h": "#ffa020", "p": 250}, {"n": "White", "h": "#e8f0ff", "p": 250}, {"n": "Rainbow", "h": "rainbow", "p": 800}]
 const LIGHTS := [{"n": "Halogen", "h": "#fff2d6", "p": 0}, {"n": "Xenon white", "h": "#eef3ff", "p": 0}, {"n": "Ice blue", "h": "#9fd8ff", "p": 150}, {"n": "Yellow", "h": "#ffd75a", "p": 150},

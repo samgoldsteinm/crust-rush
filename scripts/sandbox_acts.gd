@@ -151,7 +151,7 @@ static func finish(why: String, quiet := false) -> void:
 		var r: Dictionary = all.get(String(A["id"]), {"n": 0})
 		pay = int(a["coins"]) if bool(A["first"]) else int(round(float(a["coins"]) / 2.0))
 		var sc := float(A["t"])
-		if not r.has("best") or sc < float(r["best"]):
+		if not bool(A.get("cheat", false)) and (not r.has("best") or sc < float(r["best"])):   # (pc79: no best with a cheat on)
 			best = int(r.get("n", 0)) > 0
 			r["best"] = snappedf(sc, 0.1)
 		r["n"] = int(r.get("n", 0)) + 1

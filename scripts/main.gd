@@ -1381,6 +1381,29 @@ var dev_u := false
 var dev := {}
 var _dev_l3 := false
 var race_pay := 0       # coins paid for this race (web patch 65 racePay)
+var race_taint := false   # (pc79, web RTAINT) this race used auto-drive or a developer setting: it does not count towards records
+
+
+## (pc79, web devAlt) a developer setting in force that changes the game (not its looks: field of view, the HUD)
+func _dev_alt() -> bool:
+	for D in [race.dev if race != null else {}, dev_here()]:
+		for k in DEV_DEF:
+			if k in ["on", "fov", "hud"] or not (D as Dictionary).has(k):
+				continue
+			if _dev_ne(D[k], DEV_DEF[k]):
+				return true
+	return false
+
+
+func _dev_ne(a, b) -> bool:
+	if b is Dictionary:
+		for k in b:
+			if a is Dictionary and (a as Dictionary).has(k) and _dev_ne(a[k], b[k]):
+				return true
+		return false
+	if b is String:
+		return String(a if a != null else "") != b
+	return absf(float(a) - float(b)) > 1e-6
 
 
 func _dev_load() -> void:
@@ -3012,6 +3035,7 @@ func _start_race(cfg: Dictionary, bg := false) -> void:
 	shown_finish = false
 	was_last = false
 	last_run = {}
+	race_taint = false
 	found_sc = {}
 	net_fresh = true
 	net_out.clear()
@@ -3069,6 +3093,11 @@ func _physics_process(dt: float) -> void:
 		return
 	if state == "menu":
 		return
+	if (state == "race" or state == "countdown") and (test_drive or _dev_alt()):   # (pc79)
+		race_taint = true
+		var SA = preload("res://scripts/sandbox_acts.gd")
+		if not SA.act.is_empty():
+			SA.act["cheat"] = true
 	bb_dt = dt
 	if web.racing():
 		_web_physics(dt)
@@ -3174,9 +3203,12 @@ func _progress_finish() -> void:
 		return
 	var cls := String(sel["cls"])
 	var run := ghost.finish() if ghost != null and race.mode != "lss" else {}
-	last_run = Ach.record(map_id, cls, kart.finish_time, kart.place, kart.ri, _my_build(), run)
+	if race_taint:
+		last_run = {"cheat": true}   # (pc79) not counted: no best, no recent race, no leaderboard run
+	else:
+		last_run = Ach.record(map_id, cls, kart.finish_time, kart.place, kart.ri, _my_build(), run)
 	# the world leaderboard (scripts/lb.gd): every race counts, on line or off; alone = no other kart on the grid; no items = race.noitm
-	if lb != null and not test_drive and race.mode == "":
+	if lb != null and not test_drive and not race_taint and race.mode == "":
 		var bd: Dictionary = KartBuilder.info["bodies"][int(_my_build()["b"])] if KartBuilder.ready() else {}
 		lb.run(map_id, cls, kart.finish_time, kart.racer_name, String(bd.get("name", "Kart")), race.karts.size() == 1, race.noitm or not race.itm_used)   # (web patch 64: no item used counts too)
 	_race_pay()
@@ -3791,11 +3823,13 @@ func _show_results() -> void:
 	if not last_run.is_empty():
 		var lr := last_run
 		var pbt := ""
-		if bool(lr["pb"]):
+		if lr.has("cheat"):
+			pbt = "Not counted for records: auto-drive or developer options were on"   # (pc79)
+		elif bool(lr["pb"]):
 			pbt = ("First time logged · " + _fmt(float(lr["t"]))) if float(lr["old"]) < 0.0 else ("New personal best! %s (−%.2fs)" % [_fmt(float(lr["t"])), float(lr["old"]) - float(lr["t"])])
 		else:
 			pbt = "Personal best %s · +%.2fs" % [_fmt(float(lr["old"])), float(lr["t"]) - float(lr["old"])]
-		v.add_child(menu.label(pbt, menu.f_bold, 15.0, Color("#7fe07a") if bool(lr["pb"]) else Color("#c2a58c")))
+		v.add_child(menu.label(pbt, menu.f_bold, 15.0, Color("#7fe07a") if bool(lr.get("pb", false)) else Color("#c2a58c")))
 	if race_pay > 0:
 		v.add_child(menu.label("+%d coins" % race_pay, menu.f_bold, 15.0, Color("#7fe07a")))   # (web patch 65)
 	var cols := menu.hbox(14)
@@ -4438,8 +4472,8 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 		var gyy := T.glide_y(rx, ry)
 		if rg < gyy - 20.0:
 			rg = minf(rz, gyy)
-	var cy := rz - 4.0 if k.glide else rg + (rz - rg) * 0.45
-	if (T.battle or sbf or k.tun != null) and not k.glide:
+	var cy := rz - 2.0 if k.fly else (rz - 4.0 if k.glide else rg + (rz - rg) * 0.45)   # (pc83: flying, at the kart's height)
+	if (T.battle or sbf or k.tun != null) and not k.glide and not k.fly:
 		# free driving: a kart can drop a long way, off the boxes or off the table. The race's rule aims between the kart
 		# and the ground under it, which then is far below: the kart left the picture. Here the camera keeps to the kart's
 		# own height, a little under it, all the way down (web: cy = rz - min(8, (rz - rg) * .55))

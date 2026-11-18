@@ -229,6 +229,9 @@ static func colours(spec: Dictionary, ri: int) -> Dictionary:
 	var vcpbr := {}
 	var rimre := {}
 	var rimpbr := {}
+	var rimall := {}
+	var rimallpbr := {}
+	var rimc = null
 	var S := preload("res://scripts/style.gd")
 	if spec.get("st") is Dictionary:
 		var t: Dictionary = S.pick(spec, "tr")
@@ -253,7 +256,12 @@ static func colours(spec: Dictionary, ri: int) -> Dictionary:
 			for ci in [7, 10, 11, 15, 19, 21]:   # (pc72: the rims, web rimVC)
 				rimre[ci] = Color(String(rmc["h"]))
 				rimpbr[ci] = [float(rmc.get("r", 0.2)), 0.95] if rmc.has("m") else [0.38, 0.3]
-	return {"paint": col, "dark": dark, "stripe": stripe, "lv": lv, "vcre": vcre, "vcpbr": vcpbr, "rimre": rimre, "rimpbr": rimpbr}
+			rimc = Color(String(rmc["h"]))
+			for ci in 23:   # (pc82, web patch 82: a kart's wheel set: all but the tyre and the caliper)
+				if ci != 8 and ci != 13:
+					rimall[ci] = rimc
+					rimallpbr[ci] = [float(rmc.get("r", 0.2)), 0.95] if rmc.has("m") else [0.38, 0.3]
+	return {"paint": col, "dark": dark, "stripe": stripe, "lv": lv, "vcre": vcre, "vcpbr": vcpbr, "rimre": rimre, "rimpbr": rimpbr, "rimall": rimall, "rimallpbr": rimallpbr, "rimc": rimc, "rimm": S.pick(spec, "rm") if spec.get("st") is Dictionary else {}}
 
 
 ## the classes' own colours, as the web's CAR_PBR (the baked vertex colour is this times the shading)
@@ -389,7 +397,7 @@ static func build(spec: Dictionary, ri: int) -> Dictionary:
 				wm.transform = Transform3D(Basis.from_scale(Vector3(sc[0], sc[1], sc[2])), Vector3.ZERO)
 		if wm != null:
 			yaw.add_child(wm)
-			_paint(wm, cols, null, ri, false, true)   # (pc72: a wheel takes the rims' colour, never the trim's)
+			_paint(wm, cols, null, ri, false, true, not own)   # (pc72: a wheel takes the rims' colour, never the trim's; pc82: a kart's wheel set all over)
 		meta_wheels.append({"name": nm, "front": bool(wq["front"]), "x": float(wq["x"]), "y": float(wq["y"]), "z": z, "r": float(wq["r"])})
 	# the driver in their seat
 	var dsrc := _scene("driver_%d.glb" % ri)
@@ -584,7 +592,7 @@ static func repaint(root: Node3D, spec: Dictionary, ri: int) -> void:
 
 
 ## recolour the exported marker materials: paint (or the livery), dark trim, stripe
-static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false, wheel := false) -> void:
+static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false, wheel := false, wset := false) -> void:
 	var lv: Dictionary = cols["lv"]
 	var meshes := n.find_children("*", "MeshInstance3D", true, false)
 	if n is MeshInstance3D:
@@ -601,8 +609,8 @@ static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false, whee
 			var nm := _marker(sm)
 			var fmt: int = mesh.surface_get_format(si)
 			if not nm.begins_with("g_") and _is_car_vc(sm, fmt):
-				var re: Dictionary = cols.get("rimre" if wheel else "vcre", {})
-				var pbr: Dictionary = cols.get("rimpbr" if wheel else "vcpbr", {})
+				var re: Dictionary = cols.get(("rimall" if wset else "rimre") if wheel else "vcre", {})
+				var pbr: Dictionary = cols.get(("rimallpbr" if wset else "rimpbr") if wheel else "vcpbr", {})
 				m3.set_surface_override_material(si, car_vc_mat_pbr(pbr) if not pbr.is_empty() else car_vc_mat())
 				if not re.is_empty():
 					_style_vc(m3, si, re)
@@ -611,7 +619,16 @@ static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false, whee
 				var c0 := sm.duplicate() as BaseMaterial3D
 				c0.vertex_color_use_as_albedo = true
 				m3.set_surface_override_material(si, c0)
-			if nm.begins_with("g_paint"):
+			if wheel and cols.get("rimc") != null and (nm.begins_with("g_dark") or nm.begins_with("g_paint")):
+				# (pc82, web patch 82) a code-built wheel: its rim and spokes take the rim colour
+				var rmm: Dictionary = cols.get("rimm", {})
+				var rw := StandardMaterial3D.new()
+				rw.albedo_color = cols["rimc"]
+				rw.vertex_color_use_as_albedo = true
+				rw.metallic = 0.95 if rmm.has("m") else 0.3
+				rw.roughness = float(rmm.get("r", 0.2)) if rmm.has("m") else 0.38
+				m3.set_surface_override_material(si, rw)
+			elif nm.begins_with("g_paint"):
 				var wrap: Texture2D = _texture("liv_%s.jpg" % String(lv["tex"])) if lv.has("tex") else null
 				if wrap != null:
 					# a wrap painted from a picture, on the body's own UVs (web liveryMaterial with lv.tex)
