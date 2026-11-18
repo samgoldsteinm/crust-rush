@@ -41,6 +41,7 @@ CARS = {
     'oilcan': dict(src='karts/oilcan.glb', front=-1, rules=K_RULES, tub=False, len=0.88),
     # a widebody endurance GT racer
     'endur': dict(src='c3/source/mclaren_650s_gt3.glb', front=-1, rules=[
+        (r'^INT_(VELLUTO|Cintura|Impugnatura|PROTEZIONI|Details_CINTURE)', 'int:dark'), (r'^INT_Sedile', 'int:seat'),   # (2026-11-18) the interior colour: seats and console only
         (r'^Carpaint', 'paint'), (r'^INT_Glass|^Glass_Wind_noTrasp|^DAMAGE_GLASS|DISPLAY|LEDS', 'drop'), (r'^Glass_Windows', 'glass'),
         (r'^Glass_Clear', lights), (r'^Front_Light', 'light'), (r'^Rear_Light', 'tail'),
         (r'^Rim', 'wheel:rim'), (r'^Tyre', 'wheel:rubber'), (r'^Brake_Disk', 'wheel:disc'), (r'^Brake_Caliper', 'caliper'),
@@ -49,6 +50,7 @@ CARS = {
     ]),
     # a track hypercar with a huge top-mounted wing
     'skywing': dict(src='c1/source/inner/Final_Model.fbx', front=-1, rules=[
+        (r'^Tela_Int@.*(DOOR|STEERING)', 'int:dark'), (r'^Tela_Int@.*INT_INTERIOR_mm_mat0[24]', 'int:seat'),   # (2026-11-18) the interior colour: seats and console only
         (r'badges|LOD_B|INT_GLASS|Glass_Blask@.*INT_BODY', 'drop'), (r'mm_ext1', 'paint'), (r'MIRROR_GLASS', 'chrome'), (r'BRAKE_CALIPER', 'caliper'),
         (r'^CARBON@LOD_A_WHEEL|^CARBON@jesko:LOD_A_WHEEL|mm_wheel1', 'wheel:carbon'), (r'mm_tyre1', 'wheel:rubber'), (r'mm_rotor1', 'wheel:disc'),
         (r'^Tela_Int', 'int:seat'), (r'_INT_|^Int@|mm_cab1|PLASTICO|INTERIOR', 'int:dark'),
@@ -56,6 +58,7 @@ CARS = {
     ]),
     # a four-seat hyper grand tourer
     'megagt': dict(src='c2/source/inner/FINAL_MODEL_G.fbx', front=-1, rim_ratio=.72, rules=[
+        (r'SeatBelt', 'int:dark'),   # (2026-11-18) the interior colour: seats and console only
         (r'Badge|ManufacturerPlate|interior_glass', 'drop'), (r'^Light_glass', lambda c, uv: np.where((c[:, 1] > 2.0) & (c[:, 2] > 1.9), 'glass', 'drop')),
         (r'SeatBelt|InteriorColourZone', 'int:seat'), (r'2025Paint', 'paint'), (r'2025Coloured', 'paint'), (r'2025Carbon', 'carbon'), (r'2025Base', 'dark'),
         (r'_Wheel1A', 'wheel:auto'), (r'Calliper|caliper_color', 'caliper'), (r'2025Engine', 'int:gunmetal'), (r'2025Window|^d_glass', 'glass'), (r'^red_glass', 'tail'), (r'2025Light', lights),
@@ -69,6 +72,7 @@ CARS = {
     ]),
     # a concept racer whose driver lies flat
     'slip': dict(src='c4/source/mclaren_ultimate_vision_gt__updated__texture.glb', front=-1, rules=[
+        (r'^sm_48@', 'int:seat'),   # (2026-11-18) the interior colour: seats and console only
         (r'^INT_DISPLAY|^win_int|^sm_16_T|^sm_158|^sm_72|^material@|^sm_110|^sm_100|^sm_71', 'drop'),
         (r'^body_1|^body_2|^sm_152_T', 'paint'), (r'^carbon_1', 'carbon'), (r'^black1|^sm_115|^sm_129|^wiper', 'dark'), (r'^glass', 'glass'),
         (r'^EXT_WHEEL', 'wheel:rubber'), (r'^rim_ao', 'wheel:rim'), (r'^color_rims', 'wheel:red'), (r'^white_center_rim', 'wheel:white'), (r'^EXT_BRAKEDISC', 'wheel:disc'),
@@ -78,6 +82,7 @@ CARS = {
     ]),
     # a late-seventies endurance wedge
     'retrogt': dict(src='c6/source/Sketchfab_2026_11_04_10_34_31.glb', front=-1, rules=[
+        (r'^INTSTEER_FABRIC|^INT2_FABRIC|SEATBELT', 'int:dark'), (r'centerconsolestructure|^INT_FABRIC', 'int:seat'),   # (2026-11-18) the interior colour: seats and console only
         (r'STICKER|weld|int_gauges|STITCH', 'drop'), (r'^EXT_BODY|^carPaint', 'paint'), (r'^EXT_WINDOWS|^EXT_BLACKGLASS', 'glass'),
         (r'^EXT_tyre', 'wheel:rubber'), (r'^RIM_CHROME', 'wheel:chrome'), (r'^RIM_GUNMETAL|^inner_rim', 'wheel:gunmetal'), (r'^rotor_', 'wheel:disc'), (r'^hub|^steel', 'wheel:metal'),
         (r'^EXT_FLATGLASS|^EXT_HEADLIGHTCHROME|^EXT_LIGHT', 'light'), (r'^TAILGLASS', lambda c, uv: np.where(c[:, 1] > 3, 'tail', 'drop')), (r'^BULB', lights), (r'^MAIN_CIRCLE', 'white'),

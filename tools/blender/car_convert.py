@@ -42,8 +42,8 @@ PBR = dict(paint=('#c8261b', .3, .5), dark=('#161618', .36, .25), stripe=('#ffff
            carbon=('#161618', .36, .25), metal=('#76777d', .32, .9), rubber=('#121212', .9, 0), seat=('#1c1918', .8, 0), chrome=('#e9e9ee', .1, 1), rim=('#b5b7be', .24, .95), disc=('#58595d', .45, .85),
            caliper=('#c8321e', .35, .2), blue=('#2a5bff', .3, 0), gunmetal=('#3b3e44', .26, .9), green=('#3f9a1a', .34, .6), red=('#c0180c', .3, .5), bluem=('#1d7fe6', .22, .85), bronze=('#8a6232', .3, .95), white=('#eeeeee', .3, 0),
            steel=('#c4c7cd', .42, .45), wood=('#c38f58', .55, 0))   # (2026-11-17, the Blender karts: a steel that stays light in a dim room, a varnished wood)
-BASE = dict(paint=9000, vc=6000, int=900, glass=400, tail=300, light=450, wheel=1700)
-HQ = dict(paint=22500, vc=15000, int=2600, glass=1000, tail=800, light=1100)
+BASE = dict(paint=9000, vc=6000, int=900, seat=700, glass=400, tail=300, light=450, wheel=1700)
+HQ = dict(paint=22500, vc=15000, int=2600, seat=1800, glass=1000, tail=800, light=1100)
 LOD = dict(paint=880, vc=600, glass=50, tail=30, light=40)
 RUB = CLS.index('rubber')
 T0 = time.time()
@@ -384,6 +384,7 @@ def convert(cid, fast=False):
             m = tt == u; rep.append((k, u, int(m.sum()), np.round(cen[m].min(0), 1).tolist(), np.round(cen[m].max(0), 1).tolist()))
             if u == 'drop': continue
             if u in ('paint', 'glass', 'tail', 'light'): put(u, u, P[m], N[m])
+            elif u == 'int:seat': put('seat', 'seat', P[m], N[m])   # (2026-11-18: the seats a budget of their own, or they are simplified away)
             elif u.startswith('int:'): put('int', u[4:], P[m], N[m])
             elif u == 'wheel:auto': put('wheelparts', 'stripe', P[m], N[m])     # tyre and rim in one material ('stripe' only marks it here)
             elif u.startswith('wheel:'): put('wheelparts', u[6:], P[m], N[m])
@@ -411,8 +412,8 @@ def convert(cid, fast=False):
     for w in wheels: log('  wheel', 'front' if w['f'] else 'rear', np.round(w['c'], 3), 'r %.3f rin %.3f half width %.3f' % (w['r'], w['rin'], w['hw']), len(w['P']), 'tris')
     # --- the full-detail meshes and the reference surfaces for normals
     hi = {}; refs = {}
-    small = dict(vc=cfg.get('small', .07), int=cfg.get('small_int', .3), wheel=.03)
-    body = [g for g in ('paint', 'vc', 'int', 'glass', 'tail', 'light') if g in G]; wh = [f'w{i}' for i in range(4)]
+    small = dict(vc=cfg.get('small', .07), int=cfg.get('small_int', .3), seat=.04, wheel=.03)
+    body = [g for g in ('paint', 'vc', 'int', 'seat', 'glass', 'tail', 'light') if g in G]; wh = [f'w{i}' for i in range(4)]
     for g in body:
         P = np.concatenate([a for a, _, _ in G[g]]); N = np.concatenate([b for _, b, _ in G[g]]); C = np.concatenate([c for _, _, c in G[g]])
         P[..., 2] -= ground
@@ -424,14 +425,14 @@ def convert(cid, fast=False):
         hi[f'w{i}'] = (V, F, C2); refs[f'w{i}'] = Ref(w['P'], w['N'])
     log('references built')
     # --- the simplified versions
-    prune = lambda g: g in ('vc', 'int') or g[0] == 'w'
+    prune = lambda g: g in ('vc', 'int', 'seat') or g[0] == 'w'
     base = {g: simplified('b_' + g, *hi[g], BASE['wheel' if g[0] == 'w' else g], prune(g)) for g in body + wh}; log('base simplified')
     hq = {} if fast else {g: simplified('h_' + g, *hi[g], HQ[g], prune(g)) for g in body}; log('high quality simplified')
     tyres = [lathe_tyre(w['c'], w['r'], w['rin'], w['hw']) for w in wheels]
     tyo = [mk_obj(f'tyre{i}', t[0], t[1], t[2], t[3], t[4]) for i, t in enumerate(tyres)]
     bpy.ops.mesh.primitive_plane_add(size=80, location=(0, 0, -.02)); floor = bpy.context.object
     wobj = [base[w] for w in wh]
-    shade = lambda d: [d[g] for g in d if g in ('paint', 'vc', 'int')]
+    shade = lambda d: [d[g] for g in d if g in ('paint', 'vc', 'int', 'seat')]
     bake(shade(base), [o for g, o in base.items() if g != 'glass'] + tyo + [floor]); log('base shaded')
     for w, t in zip(wobj, tyo): bake([w], [w, t], lift=.3)
     if hq: bake(shade(hq), [o for g, o in hq.items() if g != 'glass'] + wobj + tyo + [floor]); log('high quality shaded')
@@ -457,7 +458,7 @@ def convert(cid, fast=False):
             if Hd: Hd['tub'] = Bd['tub']
     Ld = {}
     for g in body:
-        if g == 'int': continue
+        if g in ('int', 'seat'): continue
         V, F, C, ao, _ = Bd[g]
         if not len(F): continue
         # Blender's simplifier first (it keeps the shape far better); it stops early on meshes full of open edges, and only
@@ -483,7 +484,7 @@ def convert(cid, fast=False):
             meta.append({'n': name, 'v': v, 'i': i})
         return meta, bytes(blob)
     def body_sets(D, pre):
-        vcp = [D[g] for g in ('vc', 'int', 'tub') if g in D]
+        vcp = [D[g] for g in ('vc', 'int', 'seat', 'tub') if g in D]
         return [(pre + 'vc', vcp)] + [(pre + g, [D[g]]) for g in ('glass', 'tail', 'light', 'paint') if g in D]
     wsets = []
     for i, w in enumerate(wheels):
@@ -497,7 +498,7 @@ def convert(cid, fast=False):
         log('high quality pack', len(blob) // 1024, 'KB:', ' '.join(f"{m['n']}:{m['v']}/{m['i'] // 3}" for m in meta))
     # --- measurements for the car's definition in the game (game axes: x forward, y up, z to the right)
     info = {'wheels': gw}
-    for g in ('paint', 'glass', 'tail', 'light', 'vc', 'int', 'tub'):
+    for g in ('paint', 'glass', 'tail', 'light', 'vc', 'int', 'seat', 'tub'):
         if g in Bd and len(Bd[g][1]):
             X = to_game(Bd[g][0][np.unique(Bd[g][1])]); info[g] = [[round(float(v), 2) for v in X.min(0)], [round(float(v), 2) for v in X.max(0)]]
     if 'glass' in Bd and len(Bd['glass'][1]):

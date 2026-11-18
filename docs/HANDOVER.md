@@ -45,9 +45,21 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 - FLYING CAMERA (83 / pc83 + pc84). The owner: flying, the camera "only moves up and down and it struggles to follow"; then "sit lower
   behind the user". The chase camera aims between the kart and the ground under it: far below a flying kart. Flying: cy = rz - 8 (the
   race camera low behind the kart, looking ahead).
-- INTERIOR COLOUR (open): the car models' cabins were imported on a tiny budget: on most cars the seats are a handful of points or are
-  merged into dark trim / carbon, and the "seat" class (9, what the interior colour paints) holds roof lining and pillars on others
-  (Scissor, Muscle). A real fix re-imports the cars with seats and console as their own class (car_rules.py, car_convert.py).
+- INTERIOR COLOUR = SEATS (web v225 data, PC via the export). The owner: the interior colour changed "the literal inside of the cars
+  but not the interior assets"; "as long as it won't slow down the game do that for the car models". Why: car_convert squeezed the whole
+  cabin into 900 triangles and cleared small pieces first, so seats vanished (Megawatt and Slip kept 20 seat points), and the rules filed
+  roof-lining, pillar, steering and belt fabric as 'seat'. Now car_convert gives the seats their own group ('seat', budget 700 / HQ 1800,
+  small-part limit .04, packed into b_vc with the cabin: the game reads it as before) and car_rules.py (first match wins) files only
+  seats (and Retro GT's centre console) as int:seat for the six cars with sources here (endur, skywing, megagt, megawatt, slip, retrogt;
+  re-imported with car_all.sh + car_pack.py; +about 700 triangles a car; wheels identical, checked, so nothing that moves a kart changed).
+  Left as they are: a stray flat panel or two that the sources tag as seat fabric (Megawatt, Skywing, Retro GT's door cards). The older
+  cars (Scissor, Muscle, Hatch...) have no sources here and may be the owner's own uploads (never re-import those): their 'seat' class is
+  the whole cabin shell on some (Scissor, Muscle). Pictures: scratch/paint/cabinqa.py (body and glass hidden, red interior).
+- BIKE WHEELS (85, web; PC via the export): the conversion cut fenders, a tail-light piece and seat trim into the bikes' wheel meshes,
+  which spun round as a second set ("remove the ones that are spinning since the bike already has them"). wheelTrim in carGeos (bikes):
+  the tyre whole, anything else only well inside it (within 90% of its radius) and never body paint, stripe, tail, glass or seat.
+- SANDBOX READ-OUT UP IN THE CORNER (86, web): "move the hud on the left side higher up to the corner so there is more room for the user to
+  drive with touch controls": #sbHud at top max(10px, safe area) (was 64px), Special and Rear 108px (was 172px). PC unchanged.
 
 - CHEATS DON'T COUNT TOWARDS RECORDS (79 / pc79). The owner: "make any race using cheat codes not count towards records unless its the
   unlock cheat code. using different colored cars shouldnt not make the race count but dev options alter the core function of the
