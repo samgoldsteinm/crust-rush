@@ -2,7 +2,7 @@
 # and its garage (every body, wheel set, glider and driver) on one more, and attaches them to the "maps"
 # release. The PC build downloads them from there, so the big model files never go into git. Run it by hand
 # after the web game's tracks or karts change.
-# (Last run for: web v222, LED-strip underglow (same as web; tight under karts, none on bikes), combos, rims colours, quickest-route delivery arrow.)
+# (Last run for: web v223, Cheats don't count for records (as web v223); brighter gold/silver/bronze; 14 more paints from the export.)
 name: Export tracks
 
 on:
