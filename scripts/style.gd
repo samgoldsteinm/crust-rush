@@ -26,7 +26,47 @@ const COMBOS := [{"n": "Stealth", "p": 8, "st": {"tr": 1, "ac": 1, "in": 1, "rm"
 	{"n": "Inferno", "p": 2, "st": {"tr": 1, "ac": 4, "in": 4, "rm": 15, "gl": 3, "hl": 3, "sm": 3}, "c": 600},
 	{"n": "Royal Gold", "p": 6, "st": {"tr": 16, "ac": 16, "in": 11, "rm": 16, "gl": 2, "hl": 0, "sm": 4}, "c": 650},
 	{"n": "Chrome King", "p": 8, "st": {"tr": 17, "ac": 17, "in": 1, "rm": 17, "gl": 7, "hl": 1, "sm": 1}, "c": 900},
-	{"n": "Spectrum", "p": 5, "st": {"tr": 1, "ac": 10, "in": 1, "rm": 17, "gl": 8, "hl": 4, "sm": 8}, "c": 1200}]
+	{"n": "Spectrum", "p": 5, "st": {"tr": 1, "ac": 10, "in": 1, "rm": 17, "gl": 8, "hl": 4, "sm": 8}, "c": 1200},
+	# (pc86, web patch 90) ten more for every vehicle, then ten made for one kind ("only": its body ids)
+	{"n": "Blackout", "p": 23, "st": {"tr": 1, "ac": 1, "in": 1, "rm": 1, "cl": 1, "gl": 0, "hl": 1, "sm": 1}, "c": 200},
+	{"n": "Sunburst", "p": 11, "st": {"tr": 1, "ac": 1, "in": 1, "rm": 1, "cl": 4, "gl": 6, "hl": 3, "sm": 6}, "c": 350},
+	{"n": "Racing Green", "p": 13, "st": {"tr": 1, "ac": 16, "in": 11, "rm": 16, "cl": 16, "gl": 0, "hl": 0, "sm": 0}, "c": 400},
+	{"n": "Sky Rocket", "p": 15, "st": {"tr": 2, "ac": 5, "in": 1, "rm": 2, "cl": 5, "gl": 1, "hl": 1, "sm": 2}, "c": 450},
+	{"n": "Teal Wave", "p": 14, "st": {"tr": 2, "ac": 2, "in": 2, "rm": 3, "cl": 5, "gl": 1, "hl": 2, "sm": 2}, "c": 450},
+	{"n": "Copper Sunset", "p": 18, "st": {"tr": 1, "ac": 6, "in": 11, "rm": 15, "cl": 6, "gl": 6, "hl": 3, "sm": 6}, "c": 500},
+	{"n": "Grape Soda", "p": 6, "st": {"tr": 1, "ac": 10, "in": 9, "rm": 3, "cl": 10, "gl": 2, "hl": 4, "sm": 4}, "c": 500},
+	{"n": "Lime Rush", "p": 12, "st": {"tr": 1, "ac": 1, "in": 12, "rm": 1, "cl": 12, "gl": 4, "hl": 5, "sm": 5}, "c": 500},
+	{"n": "Ice Queen", "p": 22, "st": {"tr": 3, "ac": 13, "in": 2, "rm": 17, "cl": 13, "gl": 1, "hl": 2, "sm": 0}, "c": 550},
+	{"n": "Navy Brass", "p": 16, "st": {"tr": 2, "ac": 16, "in": 11, "rm": 15, "cl": 16, "gl": 0, "hl": 0, "sm": 0}, "c": 600},
+	{"n": "Pursuit", "p": 23, "st": {"tr": 2, "ac": 2, "in": 1, "rm": 3, "cl": 8, "gl": 0, "hl": 2, "sm": 0}, "c": 400, "only": ["interceptor"]},
+	{"n": "Mud Slinger", "p": 13, "st": {"tr": 1, "ac": 6, "in": 1, "rm": 1, "cl": 6, "gl": 6, "hl": 3, "sm": 1}, "c": 400, "only": ["monster"]},
+	{"n": "Steam Baron", "p": 18, "st": {"tr": 15, "ac": 16, "in": 11, "rm": 15, "cl": 16, "gl": 6, "hl": 3, "sm": 0}, "c": 500, "only": ["chariot"]},
+	{"n": "Pit Lane", "p": 1, "st": {"tr": 1, "ac": 2, "in": 1, "rm": 1, "cl": 4, "gl": 0, "hl": 1, "sm": 0}, "c": 350, "only": ["formula", "gokart", "rollpin"]},
+	{"n": "Night Stint", "p": 16, "st": {"tr": 1, "ac": 6, "in": 1, "rm": 1, "cl": 6, "gl": 1, "hl": 3, "sm": 0}, "c": 450, "only": ["endur", "retrogt", "gt"]},
+	{"n": "Grand Tour", "p": 17, "st": {"tr": 17, "ac": 17, "in": 11, "rm": 17, "cl": 1, "gl": 0, "hl": 0, "sm": 0}, "c": 600, "only": ["coupe", "tourer", "suv"]},
+	{"n": "Pizza Rider", "p": 2, "st": {"tr": 1, "ac": 6, "in": 1, "rm": 1, "cl": 6, "gl": 0, "hl": 3, "sm": 3}, "c": 400, "only": ["bike_moto", "bike_mx", "bike_neutron", "bike_june", "bike_rocket"]},
+	{"n": "Hypersonic", "p": 21, "st": {"tr": 1, "ac": 13, "in": 1, "rm": 14, "cl": 13, "gl": 1, "hl": 2, "sm": 2}, "c": 550, "only": ["hyper", "skywing", "megawatt", "megagt", "scissor", "onyx", "concept", "slip"]},
+	{"n": "Cheese Wheel", "p": 3, "st": {"tr": 4, "ac": 2, "in": 4, "rm": 2, "cl": 4, "gl": 6, "hl": 3, "sm": 6}, "c": 350, "only": ["classic", "wedge", "tomato", "delivery", "cutter", "oven", "grater", "comet", "oilcan", "rocket"]},
+	{"n": "Heritage", "p": 10, "st": {"tr": 1, "ac": 2, "in": 11, "rm": 17, "cl": 1, "gl": 0, "hl": 0, "sm": 0}, "c": 450, "only": ["muscle", "roadster", "hatch", "interceptor"]}]
+const MY_PATH := "user://mycombos.json"
+
+
+## (pc86, web patch 90) your own combos: [{n, p, t, st}], up to 12
+static func my_combos() -> Array:
+	var out: Array = []
+	if FileAccess.file_exists(MY_PATH):
+		var j = JSON.parse_string(FileAccess.get_file_as_string(MY_PATH))
+		if j is Array:
+			for c in j:
+				if c is Dictionary and (c as Dictionary).get("st") is Dictionary:
+					out.append(c)
+	return out
+
+
+static func my_combos_put(a: Array) -> void:
+	var f := FileAccess.open(MY_PATH, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(a.slice(0, 12)))
 
 
 static func combo_owned(i: int) -> bool:

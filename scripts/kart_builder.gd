@@ -245,8 +245,16 @@ static func colours(spec: Dictionary, ri: int) -> Dictionary:
 					vcpbr[ci] = [float(t.get("r", 0.22)), 0.9]   # (pc72: silver, chrome, gold... shine as metal)
 		if ac["h"] != null:
 			stripe = Color(String(ac["h"]))
-			for ci in [2, 13, 17]:
+			# (pc86, web patch 89) also the chrome trim and the carbon (ahead of the trim colour), and the body's own extra class
+			var abid := String(info["bodies"][int(spec.get("b", 0))]["id"])
+			var acl: Array = [2, 13, 17, 10]
+			if not ACC_NO6.has(abid):
+				acl.append(6)
+			if ACC_X.has(abid):
+				acl.append(int(ACC_X[abid]))
+			for ci in acl:
 				vcre[ci] = stripe
+				vcpbr.erase(ci)
 		if inn["h"] != null:
 			vcre[9] = Color(String(inn["h"]))
 			if inn.has("m"):
@@ -270,8 +278,42 @@ static func colours(spec: Dictionary, ri: int) -> Dictionary:
 			vcre[13] = cc   # a car body's calipers
 			for ci in WHEEL_CAL.get(wid, []):
 				rimall[ci] = cc
-	return {"paint": col, "dark": dark, "stripe": stripe, "lv": lv, "vcre": vcre, "vcpbr": vcpbr, "rimre": rimre, "rimpbr": rimpbr, "rimall": rimall, "rimallpbr": rimallpbr, "rimc": rimc, "rimm": S.pick(spec, "rm") if spec.get("st") is Dictionary else {},
+	var accm: Dictionary = {}
+	var acc_c = null
+	if spec.get("st") is Dictionary:
+		accm = S.pick(spec, "ac")
+		if accm["h"] != null:
+			acc_c = Color(String(accm["h"]))
+	return {"acc": acc_c, "accm": accm, "paint": col, "dark": dark, "stripe": stripe, "lv": lv, "vcre": vcre, "vcpbr": vcpbr, "rimre": rimre, "rimpbr": rimpbr, "rimall": rimall, "rimallpbr": rimallpbr, "rimc": rimc, "rimm": S.pick(spec, "rm") if spec.get("st") is Dictionary else {},
 		"cut": WHEEL_SPOKES.get(String(info["bodies"][int(spec.get("b", 0))]["id"]), [11]), "cutw": WHEEL_SPOKES.get(String(wheel_of(spec).get("id", "")), [])}
+
+
+## (pc86, web patch 88) a held part's colours: its caliper classes (13, the pack's own HOLD_K, the wheel's calipers and spoke classes)
+## take the Calipers colour; nothing else is repainted
+const HOLD_K := {"monster": [12, 11], "muscle": [12], "retrogt": [7], "hatch": [9]}
+static func hold_cols(cols: Dictionary, spec: Dictionary, hid: String) -> Dictionary:
+	var c := cols.duplicate()
+	var re := {}
+	var clc: Dictionary = preload("res://scripts/style.gd").pick(spec, "cl")
+	if spec.get("st") is Dictionary and clc["h"] != null:
+		var cl: Array = [13]
+		for ci in HOLD_K.get(hid, []) + WHEEL_CAL.get(hid, []) + WHEEL_SPOKES.get(hid, [11]):
+			if not cl.has(ci):
+				cl.append(ci)
+		for ci in cl.slice(0, 4):
+			re[ci] = Color(String(clc["h"]))
+	c["rimre"] = re
+	c["rimall"] = re
+	c["rimpbr"] = {}
+	c["rimallpbr"] = {}
+	c["cut"] = []
+	c["cutw"] = []
+	return c
+
+
+## (pc86, web patch 89 ACC_X / ACC_NO6) a body's own extra accent class; the Slip's carbon is most of its body
+const ACC_X := {"bike_neutron": 7, "bike_mx": 7, "bike_rocket": 7, "retrogt": 7, "coupe": 1, "concept": 1, "muscle": 1, "slip": 1}
+const ACC_NO6 := ["slip"]
 
 
 ## (pc85, web patch 82 WHEEL_SPOKES / WHEEL_CAL) each wheel's spokes and calipers: its colour classes, measured; not listed: spokes 11
@@ -428,6 +470,23 @@ static func build(spec: Dictionary, ri: int) -> Dictionary:
 		if wm != null:
 			yaw.add_child(wm)
 			_paint(wm, cols, null, ri, false, true, not own)   # (pc72: a wheel takes the rims' colour, never the trim's; pc82: a kart's wheel set all over)
+			# (pc86, web patch 88 holdOut) the caliper / hub carrier: beside the wheel, it steers but does not roll
+			var hsrc: Node3D = null
+			if own:
+				hsrc = bsrc.find_child("ph%d" % int(wq["i"]), true, false) as Node3D
+			elif wsrc != null:
+				hsrc = wsrc.find_child("hold_" + ("L" if z < 0.0 else "R"), true, false) as Node3D
+				if hsrc == null:
+					hsrc = wsrc.find_child("hold_R", true, false) as Node3D
+			if hsrc != null:
+				var hn := Node3D.new()
+				hn.name = nm + "_hold"
+				hn.position = yaw.position
+				root.add_child(hn)
+				var hm := hsrc.duplicate() as Node3D
+				hm.transform = wm.transform
+				hn.add_child(hm)
+				_paint(hm, hold_cols(cols, spec, String(bd["id"]) if own else String(wd["id"])), null, ri, false, true, not own)
 		meta_wheels.append({"name": nm, "front": bool(wq["front"]), "x": float(wq["x"]), "y": float(wq["y"]), "z": z, "r": float(wq["r"])})
 	# the driver in their seat
 	var dsrc := _scene("driver_%d.glb" % ri)
@@ -617,6 +676,8 @@ static func repaint(root: Node3D, spec: Dictionary, ri: int) -> void:
 		var nm := String(c.name)
 		if nm == "body":
 			_paint(c, cols, liv, ri)
+		elif nm.ends_with("_hold"):
+			pass   # (pc86) a held part: painted when built
 		elif nm.begins_with("wheel_"):
 			_paint(c, cols, null, ri, false, true)
 
@@ -689,6 +750,16 @@ static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false, whee
 					pm.clearcoat = 1.0
 					pm.clearcoat_roughness = 0.03 if not lv.is_empty() else 0.02
 					m3.set_surface_override_material(si, pm)
+			elif nm.begins_with("g_acc"):
+				# (pc86, web patch 89 accM) an accent spot on a code-built kart: its own material until an accent is picked
+				if cols.get("acc") != null:
+					var am := sm.duplicate() as BaseMaterial3D
+					am.albedo_color = cols["acc"]
+					am.albedo_texture = null
+					var amm: Dictionary = cols.get("accm", {})
+					am.metallic = 0.9 if amm.has("m") else 0.35
+					am.roughness = float(amm.get("r", 0.22)) if amm.has("m") else 0.32
+					m3.set_surface_override_material(si, am)
 			elif nm.begins_with("g_dark") or nm.begins_with("g_stripe"):
 				var dm := StandardMaterial3D.new()
 				var dark := nm.begins_with("g_dark")

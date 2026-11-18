@@ -2369,6 +2369,121 @@ class _Dots extends Control:
 var _style_ask := ""
 
 
+## (pc86, web patch 90 myCards) My combos: press one to wear it on this vehicle, x to delete (a second press confirms), + to save this look
+func _my_combos(outer: VBoxContainer, st: Dictionary) -> void:
+	var S := preload("res://scripts/style.gd")
+	outer.add_child(section_label("My combos"))
+	var mg := GridContainer.new()
+	mg.columns = 3
+	mg.add_theme_constant_override("h_separation", zi(8))
+	mg.add_theme_constant_override("v_separation", zi(8))
+	var mine: Array = S.my_combos()
+	for mi in mine.size():
+		var c: Dictionary = mine[mi]
+		var cst: Dictionary = c["st"]
+		var on := int(build.get("p", -1)) == int(c.get("p", 0)) and String(build.get("t", "")) == String(c.get("t", ""))
+		for k in S.SLOTS:
+			on = on and int(st.get(k, 0)) == int(cst.get(k, 0))
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", zi(2))
+		var bt := Button.new()
+		bt.custom_minimum_size = Vector2(z(118), z(58))
+		bt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		bt.clip_text = true
+		bt.text = "%s\n%s" % [String(c.get("n", "My combo")), "Livery" if String(c.get("t", "")) != "" else "Saved"]
+		bt.set_meta("gkey", "my:%d" % mi)
+		var pls: Array = KartBuilder.info.get("paints", [])
+		var pc = pls[int(c.get("p", 0))] if int(c.get("p", 0)) < pls.size() else null
+		var chips: Array = [Color(String(pc)) if pc != null else Color("#555555")]
+		for k in ["tr", "ac", "rm", "cl", "gl"]:
+			var L: Array = S.SLOTS[k][1]
+			var it2: Dictionary = L[clampi(int(cst.get(k, 0)), 0, L.size() - 1)]
+			if it2["h"] != null and String(it2["h"]) != "rainbow":
+				chips.append(Color(String(it2["h"])).darkened(0.25))
+		var cbx := box(chips, 120.0, 12.0, CHEESE if on else Color(1, 0.957, 0.863, 0.25), 3.0 if on else 1.5)
+		for s2 in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
+			bt.add_theme_stylebox_override(s2, cbx)
+		bt.add_theme_font_override("font", f_bold)
+		bt.add_theme_font_size_override("font_size", zi(13))
+		bt.add_theme_color_override("font_color", Color("#fff4dc"))
+		bt.add_theme_color_override("font_outline_color", Color("#1a0e08"))
+		bt.add_theme_constant_override("outline_size", zi(5))
+		var mix := mi
+		bt.pressed.connect(func(): _my_wear(mix))
+		row.add_child(bt)
+		var dx := Button.new()
+		dx.text = "×"
+		dx.custom_minimum_size = Vector2(z(26), z(26))
+		dx.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		dx.tooltip_text = "Delete"
+		dx.set_meta("gkey", "myx:%d" % mi)
+		dx.pressed.connect(func():
+			var M2: Array = S.my_combos()
+			if mix >= M2.size():
+				return
+			if _style_ask != "md%d" % mix:
+				_style_ask = "md%d" % mix
+				setting_changed.emit("toast", "Press × on %s again to delete it." % String((M2[mix] as Dictionary).get("n", "this combo")))
+				return
+			_style_ask = ""
+			M2.remove_at(mix)
+			S.my_combos_put(M2)
+			_build_changed())
+		row.add_child(dx)
+		mg.add_child(row)
+	if mine.size() < 12:
+		var sv := Button.new()
+		sv.custom_minimum_size = Vector2(z(118), z(58))
+		sv.text = "+\nSave this look"
+		sv.set_meta("gkey", "mysave")
+		sv.add_theme_font_override("font", f_bold)
+		sv.add_theme_font_size_override("font_size", zi(13))
+		sv.pressed.connect(func():
+			var M3: Array = S.my_combos()
+			if M3.size() >= 12:
+				setting_changed.emit("toast", "You can keep 12 combos. Delete one first.")
+				return
+			var nm := "My look %d" % (M3.size() + 1)
+			M3.append({"n": nm, "p": int(build.get("p", 0)), "t": String(build.get("t", "")), "st": (build.get("st", {}) as Dictionary).duplicate() if build.get("st") is Dictionary else {}})
+			S.my_combos_put(M3)
+			setting_changed.emit("toast", "Saved %s. Wear it on any vehicle from My combos." % nm)
+			_build_changed())
+		mg.add_child(sv)
+	outer.add_child(mg)
+
+
+## (pc86, web myWear) put a saved combo on the vehicle in the garage
+func _my_wear(i: int) -> void:
+	var S := preload("res://scripts/style.gd")
+	var M: Array = S.my_combos()
+	if i < 0 or i >= M.size():
+		return
+	var c: Dictionary = M[i]
+	var bid := String((KartBuilder.info["bodies"][int(build["b"])] as Dictionary)["id"])
+	var t := String(c.get("t", ""))
+	var lv := KartBuilder.livery(t) if t != "" else {}
+	var lv_ok := not lv.is_empty() and (not lv.has("only") or String(lv["only"]) == bid)
+	var nst := {}
+	var lost := 0
+	var cst: Dictionary = c["st"]
+	for k in S.SLOTS:
+		var v := int(cst.get(k, 0))
+		if v != 0 and not S.is_owned(k, v):
+			lost += 1
+			continue
+		if v != 0:
+			nst[k] = v
+	var pls: Array = KartBuilder.info.get("paints", [])
+	build["p"] = clampi(int(c.get("p", 0)), 0, maxi(0, pls.size() - 1))
+	build["t"] = t if lv_ok else ""
+	build["st"] = nst
+	_build_changed()
+	if t != "" and not lv_ok:
+		setting_changed.emit("toast", "%s: its livery is made for another vehicle, so its paint and colours went on." % String(c.get("n", "Your combo")))
+	elif lost > 0:
+		setting_changed.emit("toast", "Some of %s's colours are not yours yet: those parts are stock." % String(c.get("n", "this combo")))
+
+
 ## web styleUI: a row of swatches per slot; a locked one shows its price; the first press asks, a second buys
 func _style_shop(outer: VBoxContainer) -> void:
 	var S := preload("res://scripts/style.gd")
@@ -2381,7 +2496,14 @@ func _style_shop(outer: VBoxContainer) -> void:
 	cg.columns = 3
 	cg.add_theme_constant_override("h_separation", zi(8))
 	cg.add_theme_constant_override("v_separation", zi(8))
-	for ci in S.COMBOS.size():
+	var cbid := String((KartBuilder.info["bodies"][int(build["b"])] as Dictionary)["id"])
+	var corder: Array = []
+	for pass_i in 2:   # (pc86, web patch 90) this vehicle's own combos first, then the rest; another vehicle's own are not shown
+		for ci0 in S.COMBOS.size():
+			var oc = (S.COMBOS[ci0] as Dictionary).get("only")
+			if (pass_i == 0 and oc is Array and (oc as Array).has(cbid)) or (pass_i == 1 and not (oc is Array)):
+				corder.append(ci0)
+	for ci: int in corder:
 		var cb: Dictionary = S.COMBOS[ci]
 		var cst: Dictionary = cb["st"]
 		var cown: bool = S.combo_owned(ci)
@@ -2390,13 +2512,13 @@ func _style_shop(outer: VBoxContainer) -> void:
 			con = con and int(st.get(k, 0)) == int(cst[k])
 		var bt := Button.new()
 		bt.custom_minimum_size = Vector2(z(150), z(58))
-		bt.text = "%s\n%s" % [String(cb["n"]), ("Free" if int(cb["c"]) == 0 else "Owned") if cown else "%d coins" % int(cb["c"])]
+		bt.text = "%s%s\n%s" % ["★ " if cb.has("only") else "", String(cb["n"]), ("Free" if int(cb["c"]) == 0 else "Owned") if cown else "%d coins" % int(cb["c"])]
 		bt.set_meta("gkey", "cb:%d" % ci)
 		var pls: Array = KartBuilder.info.get("paints", [])
 		var pc = pls[int(cb["p"])] if int(cb["p"]) < pls.size() else null
 		var chips: Array = [Color(String(pc)) if pc != null else Color("#555555")]
-		for k in ["tr", "ac", "rm", "gl"]:
-			var it2: Dictionary = (S.SLOTS[k][1] as Array)[int(cst[k])]
+		for k in ["tr", "ac", "rm", "cl", "gl"]:
+			var it2: Dictionary = (S.SLOTS[k][1] as Array)[int(cst.get(k, 0))]
 			if it2["h"] != null and String(it2["h"]) != "rainbow":
 				chips.append(Color(String(it2["h"])).darkened(0.25))
 		var cbx := box(chips, 120.0, 12.0, CHEESE if con else Color(1, 0.957, 0.863, 0.25), 3.0 if con else 1.5)
@@ -2427,6 +2549,7 @@ func _style_shop(outer: VBoxContainer) -> void:
 			_build_changed())
 		cg.add_child(bt)
 	outer.add_child(cg)
+	_my_combos(outer, st)
 	for row in [["tr", "Trim"], ["ac", "Accent"], ["in", "Interior"], ["rm", "Rims"], ["cl", "Calipers"], ["gl", "Underglow"], ["hl", "Headlights"], ["sm", "Tyre smoke"]]:
 		var slot := String(row[0])
 		if slot == "gl" and bool((KartBuilder.info["bodies"][int(build["b"])] as Dictionary).get("bike", false)):

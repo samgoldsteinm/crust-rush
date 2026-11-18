@@ -281,7 +281,7 @@ func add_kart(k: Kart, sc_file_loader: Callable) -> void:
 		var wd: Dictionary = w
 		var wn := model.find_child(String(wd["name"]), true, false) as Node3D
 		if wn:
-			wheels.append({"node": wn, "r": float(wd["r"]), "front": bool(wd["front"])})
+			wheels.append({"node": wn, "r": float(wd["r"]), "front": bool(wd["front"]), "hold": model.find_child(String(wd["name"]) + "_hold", true, false)})   # (pc86: the caliper)
 	# flames, hidden until a boost
 	var flames: Array = []
 	for f in meta.get("flames", []):
@@ -825,6 +825,9 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 			n.rotation.z -= k.speed * dt / (float(w["r"]) * KS)
 			if w["front"]:
 				n.rotation.y = -k.steer * 0.42
+				var hd = w.get("hold")
+				if hd != null:
+					(hd as Node3D).rotation.y = -k.steer * 0.42   # (pc86: the caliper steers, it does not roll)
 	# frozen in a block of ice: it grows in, wobbles, and shrinks away at the end
 	var ice: Node3D = v["ice"]
 	var fz := k.frozen > 0.0
