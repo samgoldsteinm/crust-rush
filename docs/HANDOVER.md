@@ -24,7 +24,20 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 
 ## Fix log
 
-### 2026-11-18 (web v223 / PC, not released yet)
+### 2026-11-18 (web v224 / PC, not released yet)
+- GARAGE IS A REAL WORKSHOP (81, web). The owner: the paint's sides were still flat ("lacking stuff to reflect"); "make high quality 3d
+  models and make the garage look very realisitic". gStudioSet: the Garage track's scanned Blender models at real size (1 m = 2.7
+  units; TM.U is units per CENTIMETRE: scale K/(TM.U*100)) round the turntable, concrete and brick on new materials over the track's
+  scanned pictures, LED panels and an LED strip (HDR); the car's reflections are made from that room (PMREMGenerator(gR).fromScene),
+  rebuilt on opening until every scanned model has downloaded. Zoom out limited to 1.1 so the camera stays inside.
+- RIM COLOUR ON KART WHEELS (82 / pc82). The owner: the rim colour "only changes the brake drum". Cars were right; a kart's wheel set was
+  recoloured only on the metal classes (on those wheels just the hub), and the code-built wheels never took it (rim = trim colour,
+  spokes = body paint). Now a wheel set takes it on every class but tyre (8) and caliper (13) (rimVC uniform uAll; PC rimall), and a
+  code-built wheel's rim, spokes, cap and hub (M.rimS; PC g_dark / g_paint on a wheel).
+- INTERIOR COLOUR (open): the car models' cabins were imported on a tiny budget: on most cars the seats are a handful of points or are
+  merged into dark trim / carbon, and the "seat" class (9, what the interior colour paints) holds roof lining and pillars on others
+  (Scissor, Muscle). A real fix re-imports the cars with seats and console as their own class (car_rules.py, car_convert.py).
+
 - CHEATS DON'T COUNT TOWARDS RECORDS (79 / pc79). The owner: "make any race using cheat codes not count towards records unless its the
   unlock cheat code. using different colored cars shouldnt not make the race count but dev options alter the core function of the
   game". Before, auto-drive (TESTING) and every developer option still wrote personal bests and world leaderboard runs (only the PC's
