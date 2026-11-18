@@ -14,8 +14,51 @@ const LIGHTS := [{"n": "Halogen", "h": "#fff2d6", "p": 0}, {"n": "Xenon white", 
 const SMOKES := [{"n": "White", "h": "#f2ebe0", "p": 0}, {"n": "Black", "h": "#2a2a2e", "p": 300}, {"n": "Blue", "h": "#2a6cff", "p": 350}, {"n": "Red", "h": "#ff3020", "p": 350},
 	{"n": "Purple", "h": "#9a40ff", "p": 350}, {"n": "Green", "h": "#3ad84a", "p": 350}, {"n": "Yellow", "h": "#ffd22a", "p": 350}, {"n": "Pink", "h": "#ff4fb8", "p": 400}, {"n": "Rainbow", "h": "rainbow", "p": 900}]
 ## slot -> [id prefix, list] (trim, accent and interior share one list: buying a colour unlocks it for all three)
-const SLOTS := {"tr": ["tr", TRIMS], "ac": ["tr", TRIMS], "in": ["tr", TRIMS], "gl": ["gl", GLOWS], "hl": ["hl", LIGHTS], "sm": ["sm", SMOKES]}
+const SLOTS := {"tr": ["tr", TRIMS], "ac": ["tr", TRIMS], "in": ["tr", TRIMS], "rm": ["tr", TRIMS], "gl": ["gl", GLOWS], "hl": ["hl", LIGHTS], "sm": ["sm", SMOKES]}
 const PATH := "user://own.json"
+## web patch 73's colour combos: p a paint (the garage's paint list), st the style; p price (0 free). KEEP THE WEB'S ORDER ("cb" + index)
+const COMBOS := [{"n": "Stealth", "p": 8, "st": {"tr": 1, "ac": 1, "in": 1, "rm": 1, "gl": 0, "hl": 1, "sm": 0}, "c": 0},
+	{"n": "Track Day", "p": 1, "st": {"tr": 1, "ac": 2, "in": 1, "rm": 3, "gl": 0, "hl": 1, "sm": 0}, "c": 0},
+	{"n": "Arctic", "p": 9, "st": {"tr": 3, "ac": 13, "in": 2, "rm": 3, "gl": 1, "hl": 2, "sm": 0}, "c": 350},
+	{"n": "Midnight Neon", "p": 8, "st": {"tr": 14, "ac": 13, "in": 1, "rm": 14, "gl": 1, "hl": 2, "sm": 2}, "c": 450},
+	{"n": "Toxic", "p": 4, "st": {"tr": 1, "ac": 12, "in": 12, "rm": 1, "gl": 4, "hl": 5, "sm": 5}, "c": 500},
+	{"n": "Miami", "p": 7, "st": {"tr": 2, "ac": 13, "in": 2, "rm": 2, "gl": 5, "hl": 1, "sm": 7}, "c": 550},
+	{"n": "Inferno", "p": 2, "st": {"tr": 1, "ac": 4, "in": 4, "rm": 15, "gl": 3, "hl": 3, "sm": 3}, "c": 600},
+	{"n": "Royal Gold", "p": 6, "st": {"tr": 16, "ac": 16, "in": 11, "rm": 16, "gl": 2, "hl": 0, "sm": 4}, "c": 650},
+	{"n": "Chrome King", "p": 8, "st": {"tr": 17, "ac": 17, "in": 1, "rm": 17, "gl": 7, "hl": 1, "sm": 1}, "c": 900},
+	{"n": "Spectrum", "p": 5, "st": {"tr": 1, "ac": 10, "in": 1, "rm": 17, "gl": 8, "hl": 4, "sm": 8}, "c": 1200}]
+
+
+static func combo_owned(i: int) -> bool:
+	if i < 0 or i >= COMBOS.size():
+		return false
+	return int(COMBOS[i]["c"]) == 0 or Ach.cheat or owned().has("cb%d" % i)
+
+
+## a bought combo's piece, in its own slot only (web comboAllows)
+static func combo_allows(slot: String, i: int) -> bool:
+	if i == 0:
+		return false
+	var o := owned()
+	for j in COMBOS.size():
+		var c: Dictionary = COMBOS[j]
+		if int(c["c"]) > 0 and int((c["st"] as Dictionary).get(slot, 0)) == i and o.has("cb%d" % j):
+			return true
+	return false
+
+
+static func combo_buy(i: int) -> bool:
+	if combo_owned(i):
+		return true
+	var sv: Dictionary = Sandbox.load_save()
+	if int(sv.get("c", 0)) < int(COMBOS[i]["c"]):
+		return false
+	sv["c"] = int(sv["c"]) - int(COMBOS[i]["c"])
+	Sandbox.keep()
+	var o := owned()
+	o["cb%d" % i] = true
+	_put(o)
+	return true
 const Sandbox := preload("res://scripts/sandbox.gd")   # (by its file: a fresh checkout has no class list)
 
 
@@ -41,7 +84,7 @@ static func is_owned(slot: String, i: int) -> bool:
 	var L: Array = SLOTS[slot][1]
 	if i < 0 or i >= L.size() or int(L[i]["p"]) == 0:
 		return true
-	return owned().has(String(SLOTS[slot][0]) + str(i))
+	return owned().has(String(SLOTS[slot][0]) + str(i)) or combo_allows(slot, i)   # (pc72: a combo's piece)
 
 
 ## web styleBuy: false when the purse is short

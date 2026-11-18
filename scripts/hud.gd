@@ -71,6 +71,7 @@ var show_touch := true
 var sb_race := ""         # Sandbox: the start line's offer, "Race here: <track>" ("" = not at the line); set by main.gd
 var sb_act: Array = []    # Sandbox: an activity on offer at its marker, [title, line] (scripts/sandbox_acts.gd)
 var sb_bar: Array = []    # Sandbox: the one under way, [title, line, fraction, hurry]
+var sb_arrow: Array = []  # (pc74) a delivery's way: [angle on the screen (0 ahead, + right), "To <place> · N m"]
 var sb_cls := ""          # ...and the speed class it would be run at
 var sb_hold: Array = []   # Sandbox, in the tunnel between two places: the read-out as it was going in, kept until the kart is out
 var sb_spd := -1.0        # Sandbox's speed slider: its value (.25 to 1), or below 0 when it is not on the screen; set by main.gd
@@ -528,7 +529,7 @@ func _draw() -> void:
 	if sbx and sb_spd > 0.0:
 		_draw_sb_spd()
 	if not bb:
-		_draw_special(btn, top)   # (in Sandbox too since web v200: abilities work there)
+		_draw_special(btn, _special_top(top))   # (in Sandbox too since web v200: abilities work there; pc74: below its read-out)
 	_draw_gauge(btn)
 	if show_touch:
 		_draw_pedals(btn)
@@ -699,6 +700,14 @@ func _draw_sb_act() -> void:
 		var fr := clampf(float(sb_bar[2]), 0.0, 1.0)
 		if fr > 0.0:
 			_rbox(x + 14.0, y + 44.0, (w - 28.0) * fr, 5.0, Color("#e8542f") if bool(sb_bar[3]) else Color("#ffd65a"), Color(0, 0, 0, 0), 0.0, 3.0)
+		if sb_arrow.size() == 2:
+			# (pc74) the arrow and what it points at, under the bar (web patch 74)
+			var lt := String(sb_arrow[1])
+			var aw := _str_w(f_bold, lt, 13.0) + 28.0
+			var ax := W / 2.0 - aw / 2.0
+			var ay := y + 64.0
+			_rbox(ax, ay, aw, 30.0, Color(18.0 / 255, 9.0 / 255, 6.0 / 255, 0.7), Color(1, 0.957, 0.863, 0.35), 2.0, 12.0)
+			_text(f_bold, lt, ax + 14.0, ay + 7.0, 13.0, CREAM)
 
 
 func sb_act_rect() -> Rect2:
@@ -1306,7 +1315,14 @@ func special_rect() -> Rect2:
 	var btn := _btn()
 	var size := btn * 0.95
 	var x := maxf(8.0, btn * 0.12) + 16.0
-	return Rect2(Vector2(x, 12.0 + _hud_top()) * s, Vector2(size, size) * s)
+	return Rect2(Vector2(x, 12.0 + _special_top(_hud_top())) * s, Vector2(size, size) * s)
+
+
+## (pc74) the Special button's top: in Sandbox below the place's read-out (64 + 76 + a gap), else the usual
+func _special_top(top: float) -> float:
+	if race != null and race.mode == "sb" and race.sb != null:
+		return maxf(top, 64.0 + 76.0 + 12.0 - 12.0 + 10.0)
+	return top
 
 
 ## web .tdtag (AUTO-DRIVE at the top) and .tdbar (the shortcut choice at the bottom)

@@ -356,6 +356,189 @@ const Sandbox := preload("res://scripts/sandbox.gd")           # (by their files
 const SandboxView := preload("res://scripts/sandbox_view.gd")
 const SandboxActs := preload("res://scripts/sandbox_acts.gd")
 const SandboxMap := preload("res://scripts/sandbox_map.gd")
+var _sb_hops := {}
+## (pc76, web SB_COST from tools/neon/sbcost.py) each place's driving distances: "a>b" from the gate to a to the gate to b, "@flag" the start line
+const SB_COST := {"backyard": {"kitchen>@flag": 1174}, "basil": {"margherita>@flag": 3068, "margherita>mozz": 3359, "margherita>spiral": 3510, "mozz>@flag": 1600, "mozz>margherita": 3359, "mozz>spiral": 3643, "spiral>@flag": 2057, "spiral>margherita": 3510, "spiral>mozz": 3643}, "bay": {"lagoon>@flag": 3700, "lagoon>margherita": 3744, "margherita>@flag": 2573, "margherita>lagoon": 3744}, "bedroom": {"garage>@flag": 1195, "garage>kitchen": 1623, "kitchen>@flag": 1054, "kitchen>garage": 1623}, "burn": {"frosty>@flag": 3009, "frosty>glacier": 4013, "glacier>@flag": 1928, "glacier>frosty": 4013}, "calzone": {"lagoon>@flag": 1371, "lagoon>tour": 4272, "tour>@flag": 3398, "tour>lagoon": 4272}, "frosty": {"burn>@flag": 2446, "burn>spiral": 3649, "spiral>@flag": 3101, "spiral>burn": 3649}, "garage": {"bedroom>@flag": 1472, "bedroom>margherita": 1686, "margherita>@flag": 231, "margherita>bedroom": 1686}, "glacier": {"burn>@flag": 3844, "burn>peak": 4241, "peak>@flag": 399, "peak>burn": 4241}, "grid": {"holo>@flag": 3167, "holo>laser": 4766, "laser>@flag": 3167, "laser>holo": 4766}, "holo": {"grid>@flag": 5056, "grid>napoli": 7633, "napoli>@flag": 5056, "napoli>grid": 7633}, "kitchen": {"backyard>@flag": 1199, "backyard>bedroom": 650, "bedroom>@flag": 1525, "bedroom>backyard": 650}, "lagoon": {"bay>@flag": 1982, "bay>calzone": 4127, "calzone>@flag": 2536, "calzone>bay": 4127}, "laser": {"grid>@flag": 5385, "grid>synth": 7113, "synth>@flag": 5145, "synth>grid": 7113}, "margherita": {"basil>@flag": 255, "basil>bay": 3490, "basil>garage": 3054, "basil>oven": 2080, "bay>@flag": 3281, "bay>basil": 3490, "bay>garage": 3345, "bay>oven": 2080, "garage>@flag": 2831, "garage>basil": 3054, "garage>bay": 3345, "garage>oven": 3813, "oven>@flag": 1992, "oven>basil": 2080, "oven>bay": 2080, "oven>garage": 3813}, "moon": {"napoli>@flag": 1559, "napoli>peaks": 4272, "peaks>@flag": 3290, "peaks>napoli": 4272}, "mozz": {"basil>@flag": 2683, "basil>napoli": 4030, "napoli>@flag": 1985, "napoli>basil": 4030}, "napoli": {"holo>@flag": 552, "holo>moon": 3808, "holo>mozz": 3283, "moon>@flag": 3595, "moon>holo": 3808, "moon>mozz": 3680, "mozz>@flag": 2731, "mozz>holo": 3283, "mozz>moon": 3680}, "oven": {"margherita>@flag": 3461, "margherita>spiral": 4189, "spiral>@flag": 2304, "spiral>margherita": 4189}, "peak": {"glacier>@flag": 2046, "glacier>synth": 4330, "synth>@flag": 2675, "synth>glacier": 4330}, "peaks": {"moon>@flag": 604}, "spiral": {"basil>@flag": 4455, "basil>frosty": 2736, "basil>oven": 1824, "frosty>@flag": 1952, "frosty>basil": 2736, "frosty>oven": 4559, "oven>@flag": 2631, "oven>basil": 1824, "oven>frosty": 4559}, "synth": {"laser>@flag": 4585, "laser>peak": 6914, "peak>@flag": 4585, "peak>laser": 6914}, "tour": {"calzone>@flag": 1124}}
+var _sb_rt := {}
+
+
+## (pc76, web sbRouteNext) the first place on the quickest drivable way to `to`'s start line; "" when the table does not know it
+func _sb_route_next(sb, to: String) -> String:
+	var now := Time.get_ticks_msec()
+	if not _sb_rt.is_empty() and String(_sb_rt["to"]) == to and String(_sb_rt["reg"]) == String(sb.id) and now - int(_sb_rt["t"]) < 500:
+		return String(_sb_rt["v"])
+	var v := ""
+	if SB_COST.has(to):
+		var T0: TrackData = T
+		var road := String(sb.kind) == "road"
+		var kj := 0
+		var cum: Array = []
+		if road:
+			cum.append(0.0)
+			for j in range(1, T0.N + 1):
+				cum.append(float(cum[j - 1]) + Vector2(T0.px[j % T0.N] - T0.px[j - 1], T0.py[j % T0.N] - T0.py[j - 1]).length())
+			var bd := 1e18
+			for j in range(0, T0.N, 2):
+				var d := Vector2(T0.px[j] - kart.x, T0.py[j] - kart.y).length_squared()
+				if d < bd:
+					bd = d
+					kj = j
+		var Q: Array = []
+		for g in sb.gates:
+			var c := 0.0
+			if road and int(g.get("j", -1)) >= 0:
+				var L: float = cum[T0.N]
+				var dd: float = absf(float(cum[kj]) - float(cum[int(g["j"])]))
+				c = minf(dd, L - dd)
+			else:
+				c = Vector2(float(g["x"]) - kart.x, float(g["z"]) - kart.y).length() * 1.15
+			Q.append({"r": String(g["to"]), "f": String(sb.id), "c": c, "first": String(g["to"])})
+		var seen := {}
+		var best := {}
+		while not Q.is_empty():
+			Q.sort_custom(func(a, b): return float(a["c"]) < float(b["c"]))
+			var q: Dictionary = Q.pop_front()
+			var key := String(q["r"]) + "|" + String(q["f"])
+			if seen.has(key):
+				continue
+			seen[key] = true
+			if not best.is_empty() and float(q["c"]) >= float(best["c"]):
+				break
+			var T: Dictionary = SB_COST.get(String(q["r"]), {})
+			if String(q["r"]) == to:
+				var c2 := float(q["c"]) + float(T.get(String(q["f"]) + ">@flag", 0.0))
+				if best.is_empty() or c2 < float(best["c"]):
+					best = {"c": c2, "first": q["first"]}
+				continue
+			for kk in T:
+				var ab := String(kk).split(">")
+				if ab[0] != String(q["f"]) or ab[1] == "@flag" or not Sandbox.has_place(ab[1]):
+					continue
+				Q.append({"r": ab[1], "f": String(q["r"]), "c": float(q["c"]) + float(T[kk]), "first": q["first"]})
+		if not best.is_empty():
+			v = String(best["first"])
+	_sb_rt = {"to": to, "reg": String(sb.id), "t": now, "v": v}
+	return v
+
+
+## (pc74, web sbNextHop) the next place on the shortest way from one place to another, over the map's links, both ways
+func _sb_next_hop(from: String, to: String) -> String:
+	var key := from + ">" + to
+	if _sb_hops.has(key):
+		return _sb_hops[key]
+	var adj := {}
+	var add := func(a: String, b: String) -> void:
+		if not Sandbox.has_place(a) or not Sandbox.has_place(b):
+			return
+		if not adj.has(a):
+			adj[a] = {}
+		if not adj.has(b):
+			adj[b] = {}
+		adj[a][b] = true
+		adj[b][a] = true
+	for a in SandboxMap.LINKS:
+		for b in SandboxMap.LINKS[a]:
+			add.call(String(a), String(b))
+	for a in SandboxMap.HOUSE_GATES:
+		for g in SandboxMap.HOUSE_GATES[a]:
+			add.call(String(a), String(g[3]))
+	var prev := {from: ""}
+	var q: Array = [from]
+	while not q.is_empty():
+		var c: String = q.pop_front()
+		if c == to:
+			break
+		for n in (adj.get(c, {}) as Dictionary).keys():
+			if not prev.has(n):
+				prev[n] = c
+				q.append(n)
+	var hop := ""
+	if prev.has(to):
+		var c2 := to
+		while String(prev[c2]) != from and String(prev[c2]) != "":
+			c2 = String(prev[c2])
+		hop = c2
+	_sb_hops[key] = hop
+	return hop
+
+
+## (pc74, web sbDelAim / sbDelArrow) the delivery's arrow: [angle on the screen, what it points at]
+func _sb_del_arrow(sb) -> Array:
+	var A: Dictionary = SandboxActs.act
+	if A.is_empty() or String(A["a"]["kind"]) != "deliver" or kart == null or cam == null or sb_trav:
+		_sb_arrow3d(false)
+		return []
+	var to := String(A["a"]["to"])
+	var tx := 0.0
+	var tz := 0.0
+	var say := ""
+	if String(sb.id) == to:
+		if not sb.has_flag:
+			_sb_arrow3d(false)
+			return []
+		tx = float(sb.flag[0])
+		tz = float(sb.flag[2])
+		say = "Start line"
+	else:
+		var hop := _sb_route_next(sb, to)   # (pc76: the quickest drivable way)
+		if hop == "":
+			hop = _sb_next_hop(String(sb.id), to)
+		var gate = null
+		for g in sb.gates:
+			if String(g["to"]) == hop:
+				gate = g
+		if gate == null:
+			_sb_arrow3d(false)
+			return []
+		tx = float(gate["x"])
+		tz = float(gate["z"])
+		var m := _map_info(hop)
+		say = "To " + String(m.get("name", hop))
+	var dx := tx - kart.x
+	var dz := tz - kart.y
+	_sb_arrow3d(true, atan2(-dz, dx))
+	return [0.0, "%s · %d m" % [say, int(round(Vector2(dx, dz).length() * 0.25))]]
+
+
+## (pc74, web sbDel3D; the owner: "make the arrow a 3d orange arrow that changes direction based on where you need to go and the
+## direction the car is facing") a 3D orange arrow floating above the kart, turned in the world toward where to drive; it bobs a little
+var _sb_a3: Node3D = null
+func _sb_arrow3d(on: bool, yaw := 0.0) -> void:
+	if not on or kart == null or cam == null:
+		if _sb_a3 != null:
+			_sb_a3.visible = false
+		return
+	if _sb_a3 == null or not is_instance_valid(_sb_a3):
+		_sb_a3 = Node3D.new()
+		var poly := CSGPolygon3D.new()
+		poly.polygon = PackedVector2Array([Vector2(9, 0), Vector2(1.5, 5.6), Vector2(1.5, 1.7), Vector2(-5, 1.7), Vector2(-5, -1.7), Vector2(1.5, -1.7), Vector2(1.5, -5.6)])
+		poly.depth = 1.0
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color("#ff7a12")
+		m.emission_enabled = true
+		m.emission = Color("#ff5a00")
+		m.emission_energy_multiplier = 0.12   # (lit and shaded by the scene: the owner asked for lighting and shadows)
+		m.roughness = 0.35
+		poly.material = m
+		poly.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		poly.rotation = Vector3(-PI / 2.0, 0, 0)   # (the outline lies flat, pointing +x)
+		poly.position = Vector3(0, 0.8, 0)
+		var tilt := Node3D.new()
+		tilt.rotation = Vector3(0, 0, -0.75)
+		tilt.add_child(poly)
+		_sb_a3.add_child(tilt)
+		_sb_a3.scale = Vector3.ONE * 0.8
+	var host: Node = (view.views[kart]["g"] as Node3D).get_parent() if view != null and view.views.has(kart) else null   # (beside the kart's own model: the same space)
+	if host == null:
+		return
+	if _sb_a3.get_parent() != host:
+		if _sb_a3.get_parent() != null:
+			_sb_a3.get_parent().remove_child(_sb_a3)
+		host.add_child(_sb_a3)
+	_sb_a3.visible = true
+	var tt := Time.get_ticks_msec() / 1000.0
+	_sb_a3.position = Vector3(kart.x, kart.wy + 19.0 + sin(tt * 2.4) * 0.5, kart.y)
+	_sb_a3.rotation.y += wrapf(yaw - _sb_a3.rotation.y, -PI, PI) * 0.2
 const SandboxWarp := preload("res://scripts/sandbox_warp.gd")
 const WorldBuild := preload("res://scripts/world_build.gd")
 var sb_next := false       # the race about to be set up is a drive in Sandbox (never the menu's background race)
@@ -597,6 +780,9 @@ func _sb_tick() -> void:
 	# things to do (scripts/sandbox_acts.gd): the offer at a marker, the bar while one runs, the panel when one ends
 	hud.sb_act = sb.acts.offer() if (sb.acts != null and state == "race" and not sb_trav and hud.sb_race == "") else []
 	hud.sb_bar = SandboxActs.bar() if state == "race" and not sb_trav else []
+	hud.sb_arrow = _sb_del_arrow(sb) if not hud.sb_bar.is_empty() else []   # (pc74, web patch 74)
+	if hud.sb_bar.is_empty():
+		_sb_arrow3d(false)
 	if not SandboxActs.ended.is_empty() and sb_act_ui == null:
 		_sb_act_end(SandboxActs.ended)
 	if sb.shop_want:
@@ -673,8 +859,9 @@ func _sb_travel(to: String, at: String) -> void:
 		return
 	if not _sb_has(to):
 		return
-	if SandboxActs.retry == "" and not SandboxActs.act.is_empty() and String(SandboxActs.act["a"]["kind"]) == "deliver":
-		SandboxActs.finish("cancel")   # (fast travel cannot finish a delivery)
+	if SandboxActs.retry == "" and not SandboxActs.act.is_empty():
+		_toast("No fast travel during a mission: drive there")   # (pc74: refused, not the mission ended)
+		return
 	sb_trav = true
 	_sb_cover_on()
 	sb_go = {"mode": "map", "to": to, "at": at, "stage": "build", "n": 0, "t0": Time.get_ticks_msec(), "wb": null, "sp": maxf(70.0, absf(kart.speed))}
@@ -1580,6 +1767,9 @@ func _sb_map(open: bool, from := "drive") -> void:
 
 ## fast travel from the map: to a place's start line (web sbMapTravel)
 func _sb_map_travel(id: String) -> void:
+	if not SandboxActs.act.is_empty() and SandboxActs.retry == "":
+		_toast("No fast travel during a mission: drive there")   # (pc74)
+		return
 	if id == "shop":
 		# the mechanic's shop: to the garage, set down at its door (web v200)
 		id = String(Sandbox.SHOP["id"])

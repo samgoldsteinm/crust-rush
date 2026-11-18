@@ -226,6 +226,9 @@ static func colours(spec: Dictionary, ri: int) -> Dictionary:
 		stripe = Color(String(rc["top"]))
 	# the style shop (web patch 65): trim and accent on the code-built karts; a car body's part classes repainted (vcre: class -> colour)
 	var vcre := {}
+	var vcpbr := {}
+	var rimre := {}
+	var rimpbr := {}
 	var S := preload("res://scripts/style.gd")
 	if spec.get("st") is Dictionary:
 		var t: Dictionary = S.pick(spec, "tr")
@@ -233,19 +236,29 @@ static func colours(spec: Dictionary, ri: int) -> Dictionary:
 		var inn: Dictionary = S.pick(spec, "in")
 		if t["h"] != null:
 			dark = Color(String(t["h"]))
-			for ci in [1, 6, 15]:
+			for ci in [1, 6, 7, 15]:   # (pc72: the interior's metal trim too)
 				vcre[ci] = dark
+				if t.has("m"):
+					vcpbr[ci] = [float(t.get("r", 0.22)), 0.9]   # (pc72: silver, chrome, gold... shine as metal)
 		if ac["h"] != null:
 			stripe = Color(String(ac["h"]))
 			for ci in [2, 13, 17]:
 				vcre[ci] = stripe
 		if inn["h"] != null:
 			vcre[9] = Color(String(inn["h"]))
-	return {"paint": col, "dark": dark, "stripe": stripe, "lv": lv, "vcre": vcre}
+			if inn.has("m"):
+				vcpbr[9] = [0.28, 0.45]   # (web patch 72: interior metal, not a black mirror)
+		var rmc: Dictionary = S.pick(spec, "rm")
+		if rmc["h"] != null:
+			for ci in [7, 10, 11, 15, 19, 21]:   # (pc72: the rims, web rimVC)
+				rimre[ci] = Color(String(rmc["h"]))
+				rimpbr[ci] = [float(rmc.get("r", 0.2)), 0.95] if rmc.has("m") else [0.38, 0.3]
+	return {"paint": col, "dark": dark, "stripe": stripe, "lv": lv, "vcre": vcre, "vcpbr": vcpbr, "rimre": rimre, "rimpbr": rimpbr}
 
 
 ## the classes' own colours, as the web's CAR_PBR (the baked vertex colour is this times the shading)
-const CAR_BASE := {1: "#161618", 6: "#161618", 15: "#3b3e44", 2: "#ffffff", 13: "#c8321e", 17: "#c0180c", 9: "#1c1918"}
+const CAR_BASE := {1: "#161618", 6: "#161618", 15: "#3b3e44", 2: "#ffffff", 13: "#c8321e", 17: "#c0180c", 9: "#1c1918",
+	7: "#76777d", 10: "#e9e9ee", 11: "#b5b7be", 19: "#8a6232", 21: "#c4c7cd"}   # (pc72: the rims' and metal trim's classes)
 static var _vc_cache := {}
 
 
@@ -310,7 +323,7 @@ static func describe(spec: Dictionary, ri: int) -> Dictionary:
 		var z := float(q["z"])
 		wl.append({"name": "wheel_" + ("F" if bool(q["front"]) else "R") + ("L" if z < 0.0 else "R"), "front": bool(q["front"]), "x": float(q["x"]), "y": float(q["y"]), "z": z, "r": float(q["r"])})
 	var sf := float(bd.get("sf", 1.0))
-	var meta := {"scale": 1.76 * sf, "sf": sf, "wheels": wl, "top": float(pl["top"]), "axF": float(pl["axF"]), "axR": float(pl["axR"]), "axW": float(pl["axW"]),
+	var meta := {"scale": 1.76 * sf, "sf": sf, "id": String(bd["id"]), "wheels": wl, "top": float(pl["top"]), "axF": float(pl["axF"]), "axR": float(pl["axR"]), "axW": float(pl["axW"]),
 		"hover": float(pl.get("hover", 0.0)), "bike": bool(pl.get("bike", false)), "fxL": pl.get("fxL", []), "fxP": pl.get("fxP", []), "smoke": pl.get("smoke"), "bub": pl.get("bub"),
 		"flames": pl.get("flames", []), "fglow": pl.get("fglow"), "glY": float(pl.get("glY", 0.0)), "spec": spec}
 	var gd: Dictionary = info["gliders"][gi]
@@ -376,7 +389,7 @@ static func build(spec: Dictionary, ri: int) -> Dictionary:
 				wm.transform = Transform3D(Basis.from_scale(Vector3(sc[0], sc[1], sc[2])), Vector3.ZERO)
 		if wm != null:
 			yaw.add_child(wm)
-			_paint(wm, cols, null, ri)
+			_paint(wm, cols, null, ri, false, true)   # (pc72: a wheel takes the rims' colour, never the trim's)
 		meta_wheels.append({"name": nm, "front": bool(wq["front"]), "x": float(wq["x"]), "y": float(wq["y"]), "z": z, "r": float(wq["r"])})
 	# the driver in their seat
 	var dsrc := _scene("driver_%d.glb" % ri)
@@ -403,7 +416,7 @@ static func build(spec: Dictionary, ri: int) -> Dictionary:
 		if c != null:
 			(c as Node).free()
 	var sf := float(bd.get("sf", 1.0))
-	var meta := {"scale": 1.76 * sf, "sf": sf, "wheels": meta_wheels, "top": float(pl["top"]), "axF": float(pl["axF"]), "axR": float(pl["axR"]), "axW": float(pl["axW"]),
+	var meta := {"scale": 1.76 * sf, "sf": sf, "id": String(bd["id"]), "wheels": meta_wheels, "top": float(pl["top"]), "axF": float(pl["axF"]), "axR": float(pl["axR"]), "axW": float(pl["axW"]),
 		"hover": float(pl.get("hover", 0.0)), "bike": bool(pl.get("bike", false)), "fxL": pl.get("fxL", []), "fxP": pl.get("fxP", []), "smoke": pl.get("smoke"), "bub": pl.get("bub"),
 		"flames": pl.get("flames", []), "fglow": pl.get("fglow"), "spec": spec, "hglow": hglow}
 	var gd: Dictionary = info["gliders"][gi]
@@ -567,11 +580,11 @@ static func repaint(root: Node3D, spec: Dictionary, ri: int) -> void:
 		if nm == "body":
 			_paint(c, cols, liv, ri)
 		elif nm.begins_with("wheel_"):
-			_paint(c, cols, null, ri)
+			_paint(c, cols, null, ri, false, true)
 
 
 ## recolour the exported marker materials: paint (or the livery), dark trim, stripe
-static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false) -> void:
+static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false, wheel := false) -> void:
 	var lv: Dictionary = cols["lv"]
 	var meshes := n.find_children("*", "MeshInstance3D", true, false)
 	if n is MeshInstance3D:
@@ -588,9 +601,11 @@ static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false) -> v
 			var nm := _marker(sm)
 			var fmt: int = mesh.surface_get_format(si)
 			if not nm.begins_with("g_") and _is_car_vc(sm, fmt):
-				m3.set_surface_override_material(si, car_vc_mat())
-				if not (cols.get("vcre", {}) as Dictionary).is_empty():
-					_style_vc(m3, si, cols["vcre"])
+				var re: Dictionary = cols.get("rimre" if wheel else "vcre", {})
+				var pbr: Dictionary = cols.get("rimpbr" if wheel else "vcpbr", {})
+				m3.set_surface_override_material(si, car_vc_mat_pbr(pbr) if not pbr.is_empty() else car_vc_mat())
+				if not re.is_empty():
+					_style_vc(m3, si, re)
 				continue
 			if (fmt & Mesh.ARRAY_FORMAT_COLOR) != 0 and not sm.vertex_color_use_as_albedo and not nm.begins_with("g_"):
 				var c0 := sm.duplicate() as BaseMaterial3D
@@ -691,6 +706,29 @@ static func car_vc_mat() -> StandardMaterial3D:
 	m.clearcoat_roughness = 0.03
 	m.clearcoat_texture = ImageTexture.create_from_image(cc)
 	_car_vc = m
+	return m
+
+
+## (pc72) the parts' material with some classes' roughness and metalness changed (over: class -> [roughness, metalness]), cached
+static var _car_vc_pbr := {}
+static func car_vc_mat_pbr(over: Dictionary) -> StandardMaterial3D:
+	var ks: Array = over.keys()
+	ks.sort()
+	var key := ""
+	for c in ks:
+		key += "%d:%.2f,%.2f|" % [c, float(over[c][0]), float(over[c][1])]
+	if _car_vc_pbr.has(key):
+		return _car_vc_pbr[key]
+	var base := car_vc_mat()
+	var m := base.duplicate() as StandardMaterial3D
+	var img := (base.roughness_texture as ImageTexture).get_image()
+	img = img.duplicate() as Image
+	for c in ks:
+		img.set_pixel(int(c), 0, Color(1, float(over[c][0]), float(over[c][1]), 1))
+	var rt := ImageTexture.create_from_image(img)
+	m.roughness_texture = rt
+	m.metallic_texture = rt
+	_car_vc_pbr[key] = m
 	return m
 
 

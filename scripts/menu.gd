@@ -55,6 +55,10 @@ var _gview: SubViewport
 var _gkart: Node3D
 var _gturn: Node3D
 var _grot := 0.6
+var _gfloor: ShaderMaterial = null   # (pc77) the garage floor, lit by the underglow; the body's numbers; its light, rainbow or not
+var _gug_P := {}
+var _gugl: OmniLight3D = null
+var _gug_rb := false
 var _gcam: Camera3D
 var _grad := 8.0
 var _gcy := 3.0
@@ -2371,8 +2375,62 @@ func _style_shop(outer: VBoxContainer) -> void:
 	var coins := int(preload("res://scripts/sandbox.gd").load_save().get("c", 0))
 	outer.add_child(label("Style shop · %d coins" % coins, f_bold, 15.0, CHEESE))
 	var st: Dictionary = build.get("st", {}) if build.get("st") is Dictionary else {}
-	for row in [["tr", "Trim"], ["ac", "Accent"], ["in", "Interior"], ["gl", "Underglow"], ["hl", "Headlights"], ["sm", "Tyre smoke"]]:
+	# (pc72, web patch 73) the combos: a whole look; a bought one's colours are yours for the parts it puts them on
+	outer.add_child(section_label("Combos"))
+	var cg := GridContainer.new()
+	cg.columns = 3
+	cg.add_theme_constant_override("h_separation", zi(8))
+	cg.add_theme_constant_override("v_separation", zi(8))
+	for ci in S.COMBOS.size():
+		var cb: Dictionary = S.COMBOS[ci]
+		var cst: Dictionary = cb["st"]
+		var cown: bool = S.combo_owned(ci)
+		var con := int(build.get("p", -1)) == int(cb["p"]) and String(build.get("t", "")) == ""
+		for k in cst:
+			con = con and int(st.get(k, 0)) == int(cst[k])
+		var bt := Button.new()
+		bt.custom_minimum_size = Vector2(z(150), z(58))
+		bt.text = "%s\n%s" % [String(cb["n"]), ("Free" if int(cb["c"]) == 0 else "Owned") if cown else "%d coins" % int(cb["c"])]
+		bt.set_meta("gkey", "cb:%d" % ci)
+		var pls: Array = KartBuilder.info.get("paints", [])
+		var pc = pls[int(cb["p"])] if int(cb["p"]) < pls.size() else null
+		var chips: Array = [Color(String(pc)) if pc != null else Color("#555555")]
+		for k in ["tr", "ac", "rm", "gl"]:
+			var it2: Dictionary = (S.SLOTS[k][1] as Array)[int(cst[k])]
+			if it2["h"] != null and String(it2["h"]) != "rainbow":
+				chips.append(Color(String(it2["h"])).darkened(0.25))
+		var cbx := box(chips, 120.0, 12.0, CHEESE if con else Color(1, 0.957, 0.863, 0.25), 3.0 if con else 1.5)
+		for s2 in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
+			bt.add_theme_stylebox_override(s2, cbx)
+		bt.add_theme_font_override("font", f_bold)
+		bt.add_theme_font_size_override("font_size", zi(13))
+		bt.add_theme_color_override("font_color", Color("#fff4dc"))
+		bt.add_theme_color_override("font_outline_color", Color("#1a0e08"))
+		bt.add_theme_constant_override("outline_size", zi(5))
+		var cix := ci
+		bt.pressed.connect(func():
+			var c2: Dictionary = S.COMBOS[cix]
+			if not S.combo_owned(cix):
+				var have := int(preload("res://scripts/sandbox.gd").load_save().get("c", 0))
+				if have < int(c2["c"]):
+					setting_changed.emit("toast", "%s costs %d coins. You have %d. Earn coins by racing and in Sandbox." % [String(c2["n"]), int(c2["c"]), have])
+					return
+				if _style_ask != "cb%d" % cix:
+					_style_ask = "cb%d" % cix
+					setting_changed.emit("toast", "Press %s again to buy it for %d coins. Its colours are yours for the parts it puts them on." % [String(c2["n"]), int(c2["c"])])
+					return
+				_style_ask = ""
+				S.combo_buy(cix)
+			build["p"] = int(c2["p"])
+			build["t"] = ""
+			build["st"] = (c2["st"] as Dictionary).duplicate()
+			_build_changed())
+		cg.add_child(bt)
+	outer.add_child(cg)
+	for row in [["tr", "Trim"], ["ac", "Accent"], ["in", "Interior"], ["rm", "Rims"], ["gl", "Underglow"], ["hl", "Headlights"], ["sm", "Tyre smoke"]]:
 		var slot := String(row[0])
+		if slot == "gl" and bool((KartBuilder.info["bodies"][int(build["b"])] as Dictionary).get("bike", false)):
+			continue   # (pc78) a bike has no underglow
 		outer.add_child(section_label(String(row[1])))
 		var gr := GridContainer.new()
 		gr.columns = 6
@@ -2437,22 +2495,27 @@ func _garage_scene() -> void:
 	var sky := Sky.new()
 	# a warm studio with soft-box lights, for clean reflections in the paint, glass and chrome
 	var skm := ShaderMaterial.new()
-	skm.shader = load("res://shaders/studio_sky.gdshader")
+	skm.shader = load("res://shaders/studio_neutral.gdshader")   # (pc73: a neutral showroom, not the warm studio)
 	sky.sky_material = skm
-	sky.radiance_size = Sky.RADIANCE_SIZE_256
+	sky.radiance_size = Sky.RADIANCE_SIZE_512
 	e.sky = sky
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	e.ambient_light_sky_contribution = 1.0
-	e.ambient_light_energy = 0.55
+	e.ambient_light_energy = 0.35
 	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
-	e.tonemap_white = 16.0
-	e.tonemap_exposure = 1.05 * (1.0 / 0.6) / 1.8
+	e.tonemap_white = 8.0
+	e.tonemap_exposure = 1.0
 	env.environment = e
 	w3.add_child(env)
+	var rim := DirectionalLight3D.new()   # (pc73) a cool rim light from behind, for the edges of the body
+	rim.light_energy = 1.1
+	rim.light_color = Color("#dfe8ff")
+	w3.add_child(rim)
+	rim.look_at_from_position(Vector3(-14, 10, -12), Vector3.ZERO, Vector3.UP)
 	var sun := DirectionalLight3D.new()
-	sun.light_energy = 2.4
-	sun.light_color = Color("#fff0d8")
+	sun.light_energy = 2.6
+	sun.light_color = Color("#fffaf2")
 	sun.shadow_enabled = true
 	sun.shadow_blur = 1.5
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
@@ -2470,9 +2533,11 @@ func _garage_scene() -> void:
 	disc.radial_segments = 64
 	disc.rings = 1
 	fl.mesh = disc
-	var fm := StandardMaterial3D.new()
-	fm.albedo_color = Color("#3a2216")
-	fm.roughness = 0.85
+	var fm := ShaderMaterial.new()
+	fm.shader = load("res://shaders/garage_floor.gdshader")   # (pc77: the dark showroom floor, lit by the car's underglow)
+	fm.set_shader_parameter("albedo_tex", _floor_tex())
+	fm.set_shader_parameter("albedo_col", Color(0.17, 0.17, 0.18))   # (darker under the showroom's lights)
+	_gfloor = fm
 	fl.material_override = fm
 	fl.position.y = -0.01
 	w3.add_child(fl)
@@ -2509,7 +2574,63 @@ func _garage_scene() -> void:
 		if not first:
 			_grad = bb.size.length() * 0.5
 			_gcy = bb.position.y + bb.size.y * 0.5
+		# (pc71) the underglow under the preview (after the camera's bounds): the picture and one soft light under the middle
+		var S := preload("res://scripts/style.gd")
+		var gl: Dictionary = S.pick(build, "gl")
+		_gug_P = {}
+		if _gfloor != null:
+			_gfloor.set_shader_parameter("ug_on", 0.0)
+		if gl["h"] != null and not bool((built["meta"] as Dictionary).get("bike", false)):   # (pc78: none on a bike)
+			# (pc77) the floor lit by the LED strips (shaders/garage_floor.gdshader), one short light under the car for its panels
+			var gc := Color("#ff3030") if String(gl["h"]) == "rainbow" else Color(String(gl["h"]))
+			_gug_rb = String(gl["h"]) == "rainbow"
+			_gug_P = View.ug_params(String((built["meta"] as Dictionary).get("id", "")), _gkart, _gkart)
+			if _gfloor != null:
+				View.ug_apply(_gfloor, _gug_P)
+			var L := OmniLight3D.new()
+			L.omni_range = float(_gug_P["b"]) * 2.4
+			L.omni_attenuation = 2.0
+			L.shadow_enabled = false
+			L.position = Vector3(float(_gug_P["cx"]), float(_gug_P["h"]) * 0.55, float(_gug_P["cz"]))
+			_gkart.add_child(L)
+			_gugl = L
+			_gug_colour(gc)
 	_frame_garage_cam()
+
+
+## (pc77) the garage glow's colour: the floor's light (colour x brightness / the floor's own colour at the middle) and the light's
+func _gug_colour(c: Color) -> void:
+	var cs := View.ug_sat(c)
+	var cl := cs.srgb_to_linear()
+	var cp := View.ug_comp(cl)
+	var f0 := Color("#3a3c44").srgb_to_linear()
+	var f1 := Color(0.17, 0.17, 0.18).srgb_to_linear()
+	var ref := (f0.r * f1.r + f0.g * f1.g + f0.b * f1.b) / 3.0
+	if _gfloor != null:
+		_gfloor.set_shader_parameter("ug_col", Vector3(cl.r, cl.g, cl.b) * cp * View.UG_GAIN * View.UG_TONE / ref)
+	if is_instance_valid(_gugl):
+		_gugl.light_color = cs
+		_gugl.light_energy = View.UG_BOUNCE * cp
+
+
+## web gFloorTex: dark polished charcoal, a lighter spot under the car, fine circular brushing, darker to the edge
+static var _floor_t: ImageTexture = null
+static func _floor_tex() -> ImageTexture:
+	if _floor_t != null:
+		return _floor_t
+	var N := 512
+	var img := Image.create(N, N, false, Image.FORMAT_RGBA8)
+	var c0 := Color("#3a3c44")
+	var c1 := Color("#26272d")
+	var c2 := Color("#121317")
+	for y in N:
+		for x in N:
+			var r := Vector2(x - N / 2.0, y - N / 2.0).length() / (N / 2.0)
+			var c := c0.lerp(c1, clampf(r / 0.45, 0.0, 1.0)) if r < 0.45 else c1.lerp(c2, clampf((r - 0.45) / 0.55, 0.0, 1.0))
+			img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	_floor_t = ImageTexture.create_from_image(img)
+	return _floor_t
 
 
 ## a node's transform relative to an ancestor
@@ -2577,6 +2698,13 @@ func _process(dt: float) -> void:
 				var z2 := signf(zy) * (absf(zy) - 0.18) / 0.82
 				_gzoom = clampf(_gzoom * exp(z2 * dt * 1.6), 0.32, 1.5)
 		_gturn.rotation.y = _grot
+		if not _gug_P.is_empty() and _gfloor != null and is_instance_valid(_gkart):
+			# (pc77) the floor's light follows the turning car
+			var xf := _gkart.global_transform * Transform3D(Basis(), Vector3(float(_gug_P["cx"]), 0.0, float(_gug_P["cz"])))
+			_gfloor.set_shader_parameter("ug_inv", Projection(xf.affine_inverse()))
+			_gfloor.set_shader_parameter("ug_on", 1.0)
+			if _gug_rb:
+				_gug_colour(Color.from_hsv(fmod(Time.get_ticks_msec() / 1000.0 * 0.12, 1.0), 1.0, 1.0))
 		_frame_garage_cam(dt)
 
 

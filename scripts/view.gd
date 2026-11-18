@@ -404,62 +404,180 @@ func _style_view(k: Kart, g: Node3D, info: Dictionary, meta: Dictionary) -> void
 	var gi: Dictionary = S.pick(spec, "gl")
 	v["ug"] = []
 	v["ug_rb"] = gi["h"] != null and String(gi["h"]) == "rainbow"
-	if gi["h"] == null or float(meta.get("hover", 0.0)) > 0.0:
+	if gi["h"] == null or float(meta.get("hover", 0.0)) > 0.0 or bool(meta.get("bike", false)):   # (pc78: none on a bike)
 		return
 	var col := Color("#ff3030") if bool(v["ug_rb"]) else Color(String(gi["h"]))
-	var sc: float = g.scale.x if g.scale.x > 0.0 else 1.0
-	var axf := float(meta.get("axF", 6.0)) / sc
-	var axr := float(meta.get("axR", -6.0)) / sc
-	for ax in [axf * 0.55, axr * 0.55]:
+	var P := ug_params(String(meta.get("id", "")), g, v["model"])
+	var cs := ug_sat(col)
+	v["ug_cp"] = ug_comp(cs.srgb_to_linear())
+	for i in 2:
+		# (pc77) low under the car and short: they tint its lowest panels and tyres (the sheet lights the ground)
 		var L := OmniLight3D.new()
-		L.light_color = col
-		L.omni_range = 95.0
-		L.omni_attenuation = 0.45
+		L.light_color = cs
+		L.omni_range = float(P["b"]) * 2.4
+		L.omni_attenuation = 2.0
 		L.light_energy = 0.0
 		L.shadow_enabled = false
-		L.position = Vector3(ax, 0.3, 0.0)
+		L.position = Vector3(float(P["cx"]) + float(P["wf"] if i == 0 else P["wr"]) * 0.5, float(P["h"]) * 0.55, float(P["cz"]))
 		g.add_child(L)
 		(v["ug"] as Array).append(L)
+	v["ug_haze"] = ug_plane(g, col, 0.1, v["model"], P)   # (pc77: the LED strips' light from the body and its wheels)
+
+
+## (pc77, web ugParams via tools/neon/ugtable.py) each body's underglow numbers in the kart's own units: the body's half-length and
+## half-width, its centre (x, z), the strips' height (the sill), the axles' x, the wheels' radius (front, rear), their z, a tyre's width
+const UG_KEYS := ["a", "b", "cx", "cz", "h", "wf", "wr", "rf", "rr", "wz", "tw"]
+## (pc78) karts under their frame; bikes have no underglow
+const UG_P := {
+	"chariot": [7.68, 1.171, 0.0, 0.0, 0.792, 5.471, -2.395, 2.423, 1.097, 3.626, 1.397],
+	"classic": [5.87, 2.55, 0.1, 0.0, 0.474, 3.05, -3.05, 1.05, 1.32, 2.875, 1.067],
+	"comet": [6.163, 3.072, 0.151, 0.0, 0.426, 3.437, -3.525, 0.881, 1.013, 2.732, 0.809],
+	"concept": [5.939, 2.796, -0.0, -0.001, 0.25, 3.513, -3.743, 0.846, 0.906, 2.339, 1.16],
+	"coupe": [5.82, 2.41, 0.0, 0.0, 0.675, 3.644, -3.3, 0.909, 0.909, 2.067, 0.894],
+	"cutter": [5.7, 2.55, -0.05, 0.0, 0.45, 2.95, -2.95, 1.0, 1.25, 2.875, 1.012],
+	"delivery": [5.85, 2.508, 0.1, 0.0, 0.49, 3.1, -3.1, 1.2, 1.25, 2.95, 1.103],
+	"endur": [5.986, 2.732, 0.134, -0.002, 0.241, 3.113, -4.088, 0.933, 0.945, 2.276, 0.927],
+	"formula": [6.477, 2.27, -0.003, 0.0, 0.355, 3.66, -4.851, 0.886, 0.886, 1.891, 1.086],
+	"gokart": [7.68, 2.79, 0.0, 0.005, 0.561, 3.864, -5.859, 1.121, 1.459, 4.806, 1.616],
+	"grater": [6.079, 2.496, 0.121, 0.0, 0.794, 3.206, -3.852, 1.714, 1.815, 3.68, 1.815],
+	"gt": [5.748, 2.516, 0.0, 0.0, 0.225, 3.282, -3.001, 0.867, 0.871, 2.035, 1.194],
+	"hatch": [5.604, 2.262, 0.0, -0.007, 0.805, 3.471, -3.342, 0.864, 0.864, 1.903, 0.71],
+	"hyper": [5.465, 2.389, 0.001, 0.06, 0.359, 3.203, -3.624, 0.929, 0.953, 2.08, 0.882],
+	"interceptor": [5.351, 2.419, 0.001, 0.0, 0.388, 3.275, -3.477, 0.852, 0.89, 2.087, 0.822],
+	"megagt": [5.953, 2.424, 0.009, 0.0, 0.547, 3.661, -3.743, 0.884, 0.932, 2.069, 0.831],
+	"megawatt": [5.95, 2.811, 0.091, 0.0, 0.278, 3.506, -4.08, 0.882, 0.961, 2.464, 0.813],
+	"monster": [6.72, 3.205, 0.0, -0.038, 2.646, 4.097, -3.861, 1.652, 1.655, 2.532, 1.922],
+	"muscle": [5.806, 2.357, -0.003, 0.0, 0.672, 3.606, -3.448, 0.897, 0.909, 2.01, 0.993],
+	"oilcan": [6.459, 0.708, -0.652, 0.0, 0.495, 5.461, -1.995, 0.559, 1.64, 1.677, 0.965],
+	"onyx": [5.7, 2.493, 0.0, 0.0, 0.639, 3.374, -3.409, 0.846, 0.846, 2.161, 0.86],
+	"oven": [6.15, 2.762, 0.15, 0.0, 0.52, 3.25, -3.25, 1.2, 1.4, 3.175, 1.17],
+	"retrogt": [5.866, 2.458, 0.01, 0.001, 0.45, 3.01, -3.242, 0.74, 0.766, 2.065, 0.897],
+	"roadster": [4.194, 1.702, 0.0, 0.0, 0.524, 2.876, -2.254, 0.78, 0.78, 1.338, 0.836],
+	"rocket": [5.8, 2.55, 0.1, 0.0, 0.44, 3.1, -3.1, 1.0, 1.2, 2.65, 0.99],
+	"rollpin": [6.311, 0.779, -0.27, 0.0, 0.454, 3.079, -2.395, 0.9, 1.117, 2.233, 0.879],
+	"scissor": [5.921, 2.497, 0.001, 0.0, 0.527, 3.095, -3.655, 0.83, 0.893, 2.125, 0.77],
+	"skywing": [5.886, 2.647, -0.031, 0.0, 0.427, 3.438, -3.765, 0.934, 1.002, 2.235, 0.789],
+	"slip": [5.987, 2.827, -0.106, 0.0, 0.583, 3.346, -4.006, 0.933, 1.047, 2.369, 1.074],
+	"suv": [6.451, 2.553, 0.005, -0.035, 1.263, 4.245, -3.413, 1.045, 1.045, 2.152, 0.837],
+	"tomato": [5.45, 2.55, 0.0, 0.0, 0.48, 2.75, -2.75, 1.2, 1.2, 3.0, 1.08],
+	"tourer": [6.575, 2.049, 0.02, -0.002, 0.961, 5.319, -4.583, 1.093, 1.115, 1.746, 0.865],
+	"wedge": [5.85, 2.55, 0.05, 0.0, 0.47, 3.05, -3.05, 1.05, 1.3, 2.9, 1.058]
+}
+const UG_GAIN := 1.0       # (web UG_GAIN) the garage floor's light
+const UG_TONE := 1.4      # Godot's ACES (white 8) compresses more than three.js's: the same glow on screen as the web
+const UG_BOUNCE := 0.35    # the light under the car in the garage
+const UG_BOUNCE_R := 1.6   # the lights under a racing kart, x the dark
+const UG_SHEET := preload("res://shaders/ug_sheet.gdshader")
+
+
+## the meshes' bounds (src's) in g's own space
+static func _box_in(g: Node3D, src: Node3D) -> AABB:
+	var bb := AABB()
+	var first := true
+	for mi in src.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null:
+			continue
+		var xf := Transform3D.IDENTITY
+		var c: Node = m
+		while c != null and c != g:
+			if c is Node3D:
+				xf = (c as Node3D).transform * xf
+			c = c.get_parent()
+		var ab := xf * m.mesh.get_aabb()
+		bb = ab if first else bb.merge(ab)
+		first = false
+	return bb
+
+
+## web ugParams: the body's numbers (the table; for a body not in it, src's bounds and its wheels), with kT and M (web ugDerive)
+static func ug_params(id: String, g: Node3D, src: Node3D) -> Dictionary:
+	var P := {}
+	if UG_P.has(id):
+		var q: Array = UG_P[id]
+		for i in UG_KEYS.size():
+			P[UG_KEYS[i]] = float(q[i])
+	else:
+		var bb := _box_in(g, src)
+		var cx := bb.position.x + bb.size.x / 2.0
+		var cz := bb.position.z + bb.size.z / 2.0
+		P = {"a": bb.size.x * 0.45, "b": bb.size.z * 0.42, "cx": cx, "cz": cz, "h": 0.5, "wf": bb.size.x * 0.3, "wr": -bb.size.x * 0.3, "rf": 0.0, "rr": 0.0, "wz": 0.0, "tw": 0.0}
+		var nf := src.find_child("wheel_FL", true, false) as Node3D
+		var nr := src.find_child("wheel_RL", true, false) as Node3D
+		if nf != null and nr != null:
+			var bf := _box_in(g, nf)
+			var br := _box_in(g, nr)
+			if bf.size.y > 0.0 and br.size.y > 0.0:
+				P["wf"] = bf.get_center().x - cx
+				P["wr"] = br.get_center().x - cx
+				P["rf"] = bf.size.y / 2.0
+				P["rr"] = br.size.y / 2.0
+				P["wz"] = absf(bf.get_center().z - cz)
+				P["tw"] = bf.size.z
+				P["h"] = 0.45 * (float(P["rf"]) + float(P["rr"])) / 2.0
+	var tw := float(P["tw"])
+	var rA := (float(P["rf"]) + float(P["rr"])) / 2.0
+	P["kT"] = 5.0 / maxf(0.2, minf(tw if tw > 0.0 else 1.0, rA if rA > 0.0 else 1.0))
+	P["M"] = 0.45 * float(P["b"]) + 1.5 * float(P["h"])
+	return P
+
+
+## the body's numbers into a material using shaders/underglow.gdshaderinc
+static func ug_apply(m: ShaderMaterial, P: Dictionary) -> void:
+	m.set_shader_parameter("ug_p0", Vector4(P["a"], P["b"], P["h"], P["kT"]))
+	m.set_shader_parameter("ug_p1", Vector4(P["wf"], P["wr"], P["wz"], P["tw"]))
+	m.set_shader_parameter("ug_p2", Vector4(P["rf"], P["rr"], P["M"], 0.0))
+
+
+## web ugSat: the glow's colour a little more saturated (in HSL, on the colour as picked)
+static func ug_sat(c: Color) -> Color:
+	var mx := maxf(c.r, maxf(c.g, c.b))
+	var mn := minf(c.r, minf(c.g, c.b))
+	var l := (mx + mn) / 2.0
+	var s := 0.0 if mx <= mn else (mx - mn) / (1.0 - absf(2.0 * l - 1.0))
+	s = minf(1.0, s * 1.15 + 0.05)
+	l *= 0.96
+	var h := c.h * 6.0
+	var C := (1.0 - absf(2.0 * l - 1.0)) * s
+	var X := C * (1.0 - absf(fmod(h, 2.0) - 1.0))
+	var o := l - C / 2.0
+	var rgb := Vector3(C, X, 0) if h < 1.0 else Vector3(X, C, 0) if h < 2.0 else Vector3(0, C, X) if h < 3.0 else Vector3(0, X, C) if h < 4.0 else Vector3(X, 0, C) if h < 5.0 else Vector3(C, 0, X)
+	return Color(rgb.x + o, rgb.y + o, rgb.z + o, c.a)
+
+
+## web ugComp: the colour (linear) evened out by its brightness, the colour itself kept: a dark blue lifted, a pale cyan brought down
+static func ug_comp(c: Color) -> float:
+	var Y := 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
+	return clampf(pow(0.25 / maxf(Y, 0.01), 0.3), 0.8, 1.6)
+
+
+## the race's colour on a sheet (col as picked)
+static func ug_colour(m: ShaderMaterial, col: Color) -> void:
+	var cl := ug_sat(col).srgb_to_linear()
+	m.set_shader_parameter("ug_col", Vector3(cl.r, cl.g, cl.b) * ug_comp(cl) * 0.75 * UG_TONE)
+
+
+## web patch 77's sheets: an additive sheet under g with the LED strips' light (shaders/ug_sheet.gdshader); returns its material
+static func ug_plane(g: Node3D, col: Color, alpha: float, src: Node3D, P := {}) -> ShaderMaterial:
+	if P.is_empty():
+		P = ug_params("", g, src)
+	var W := 2.0 * (float(P["a"]) + float(P["M"]))
+	var H := 2.0 * (float(P["b"]) + float(P["M"]))
 	var q := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
-	pm.size = Vector2((axf - axr) * 1.9 + 6.0, float(meta.get("axW", 5.0)) / sc * 3.4 + 3.0)
+	pm.size = Vector2(W, H)
 	q.mesh = pm
-	var hm := StandardMaterial3D.new()
-	hm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	hm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	hm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	hm.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-	hm.albedo_texture = _ug_tex()
-	hm.albedo_color = Color(col.r, col.g, col.b, 0.3)
-	hm.disable_fog = true
-	q.material_override = hm
+	var m := ShaderMaterial.new()
+	m.shader = UG_SHEET
+	ug_apply(m, P)
+	ug_colour(m, col)
+	m.set_shader_parameter("ug_alpha", alpha)
+	m.set_shader_parameter("ug_size", Vector2(W, H))
+	q.material_override = m
 	q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	q.position = Vector3((axf + axr) / 2.0, 0.2, 0.0)
+	q.position = Vector3(float(P["cx"]), 0.2, float(P["cz"]))
 	g.add_child(q)
-	v["ug_haze"] = hm
-
-
-static var _ugt: ImageTexture = null
-
-
-## a soft rounded pool: brightest near the edge of the body, fading out over the ground (web ugGenericT)
-static func _ug_tex() -> ImageTexture:
-	if _ugt != null:
-		return _ugt
-	var W := 128
-	var H := 64
-	var img := Image.create(W, H, false, Image.FORMAT_RGBA8)
-	for zz in H:
-		for q in W:
-			var u := absf(q + 0.5 - W / 2.0) / (W / 2.0)
-			var w := absf(zz + 0.5 - H / 2.0) / (H / 2.0)
-			var d := pow(pow(u, 6.0) + pow(w, 6.0), 1.0 / 6.0)
-			var ring := exp(-pow((d - 0.72) / 0.13, 2.0))
-			var fill := 0.55 if d < 0.72 else maxf(0.0, 1.0 - (d - 0.72) / 0.28) * 0.55
-			var a := minf(1.0, ring * 0.9 + fill) * (1.0 if d < 1.0 else 0.0)
-			img.set_pixel(q, zz, Color(1, 1, 1, a))
-	_ugt = ImageTexture.create_from_image(img)
-	return _ugt
+	return m
 
 
 ## each frame: the glow brighter in the dark, rainbow cycling (web patch 66's light, patch 67's haze)
@@ -467,15 +585,18 @@ func _style_frame(k: Kart, v: Dictionary, time: float, dark: float) -> void:
 	var ug: Array = v.get("ug", [])
 	if ug.is_empty():
 		return
-	var rc := Color.from_hsv(fmod(time * 0.12 + k.ri * 0.13, 1.0), 1.0, 1.0) if bool(v.get("ug_rb", false)) else Color(0, 0, 0, 0)
+	var rb := bool(v.get("ug_rb", false))
+	var rc := Color.from_hsv(fmod(time * 0.12 + k.ri * 0.13, 1.0), 1.0, 1.0) if rb else Color(0, 0, 0, 0)
+	var cp := float(v.get("ug_cp", 1.0))
 	for L in ug:
-		(L as OmniLight3D).light_energy = (2.0 + 6.0 * dark) * (1.2 if k.boost > 0.0 else 1.0)
-		if rc.a > 0.0:
-			(L as OmniLight3D).light_color = rc
-	var hm: StandardMaterial3D = v.get("ug_haze")
+		(L as OmniLight3D).light_energy = UG_BOUNCE_R * cp * dark * (1.2 if k.boost > 0.0 else 1.0)   # (only in the dark, as the web)
+		if rb:
+			(L as OmniLight3D).light_color = ug_sat(rc)
+	var hm: ShaderMaterial = v.get("ug_haze")
 	if hm != null:
-		var c := rc if rc.a > 0.0 else (ug[0] as OmniLight3D).light_color
-		hm.albedo_color = Color(c.r, c.g, c.b, 0.05 + 0.07 * dark)   # (a faint haze only: the lights do the work)
+		hm.set_shader_parameter("ug_alpha", 0.1 + 0.6 * dark)   # (faint by day, the glow at night)
+		if rb:
+			ug_colour(hm, rc)
 
 
 func smoke_col(k: Kart, v: Dictionary) -> Color:
