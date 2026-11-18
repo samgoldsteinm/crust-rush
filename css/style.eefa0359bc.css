@@ -308,7 +308,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .g-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.g-done{padding:10px 28px;font-size:19px}
 .g-grid{flex:1;min-height:0;display:grid;gap:14px;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}
 @media (orientation:portrait),(max-width:620px){.g-grid{grid-template-columns:1fr;grid-template-rows:minmax(0,1.15fr) minmax(0,1fr)}.g-head{flex-wrap:wrap}.g-tabs{order:3;width:100%;margin:0}.g-tabs button{flex:1;padding:8px 6px}#garage .parts{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}#garage .part{padding:7px 7px}#garage .part b{font-size:12.5px}#garage .chips em{font-size:9px;padding:1px 4px}#garage .st-row{grid-template-columns:62px minmax(0,1fr) 22px;font-size:9.5px}#garage .st-bar i{height:6px}#garage .g-stats{gap:3px;padding:7px 10px}#garage .g-desc{font-size:12px;min-height:0}}
-.g-view{position:relative;min-width:0;min-height:0;border-radius:18px;overflow:hidden;background:radial-gradient(ellipse at 50% 35%,#3a2216,#1c0f0a 75%);box-shadow:0 0 0 1px rgba(255,244,220,.12),0 16px 34px rgba(0,0,0,.4)}
+.g-view{position:relative;min-width:0;min-height:0;border-radius:18px;overflow:hidden;background:radial-gradient(ellipse at 50% 35%,#2c2d33,#0e0f12 75%);box-shadow:0 0 0 1px rgba(255,244,220,.12),0 16px 34px rgba(0,0,0,.4)}
 .g-view.big{position:fixed;inset:max(10px,env(safe-area-inset-top,0px)) max(10px,env(safe-area-inset-right,0px)) max(10px,env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px));z-index:40;border-radius:20px}
 .g-name{position:absolute;left:14px;top:10px;margin:0;font-family:var(--display);font-size:clamp(17px,2.6vw,24px);color:var(--cheese);text-shadow:0 2px 8px rgba(0,0,0,.6);pointer-events:none}
 .g-zoom{position:absolute;right:10px;top:10px;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;color:var(--cream);background:rgba(20,10,6,.55);border:1px solid rgba(255,244,220,.2)}
@@ -548,6 +548,7 @@ body.sbshop #sbPark,body.sbshop #sbSpd,body.sbshop #sbHud,body.sbshop #sbMapBtn,
 .abtn{bottom:auto;top:var(--hudTop,66px);left:max(8px,calc(var(--btn)*.12));width:calc(var(--btn)*.95);height:calc(var(--btn)*.95)}
 .ihint{top:calc(var(--hudTop,66px) + var(--btn)*1.95 + 26px)!important;right:max(8px,calc(var(--btn)*.12))!important;bottom:auto!important}
 #stage{--hudTop:clamp(58px,15vh,96px)}
+body.sbx .abtn{top:172px!important}body.sbx .lookbtn{top:calc(172px + var(--btn)*.95 + 20px)!important}/* (patch 74: below Sandbox's read-out) */
 .tbprog .tb-lap{position:absolute;top:50%;width:3px;height:16px;margin:-8px 0 0 -1.5px;border-radius:2px;background:#fff4dc;box-shadow:0 0 0 1.5px rgba(10,20,40,.7)}
 .tbprog .tb-lap b{position:absolute;top:13px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:800;letter-spacing:.04em;color:#fff4dc;text-shadow:0 1px 3px #000}
 
