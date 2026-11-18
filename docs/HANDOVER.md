@@ -98,6 +98,28 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   same): ten for everyone, ten with only:[body ids] that show first, starred, for those vehicles. My combos: 'crust-mycombos' (web) /
   user://mycombos.json (PC), up to 12 {n, p, t, st}; wearing one on another vehicle leaves off a livery made for a different vehicle and
   any colour not owned. Test: scratch/paint/comboqa.py (save on the Interceptor, wear on the Street Cruiser, delete).
+- RIMS MISSED THE SPOKES; WHEEL SETS INSIDE OUT; METAL PAINTS (91, web v228; PC pc87 + export). The owner: Gold rims and Gold calipers
+  on the Sport Sedan's Redline wheels: "the spokes/rim is not gold at all and the caliper is gold"; the Chariot's hub "is a part of
+  the rim"; "Gold silver and bronze should also be car color options". (1) Why: patch 82's WHEEL_SPOKES gave the wheel sets their
+  CALIPER's class (redline 17...); once 88 held the caliper apart, Rims painted almost nothing. Measured again on the rolling part
+  (scratch/paint/clssheet.js: each wheel coloured by class; spokecls.js): see patch91.py for each wheel's classes. (2) Found on the
+  way: the wheel sets' pack has no wheel positions, so on the right (+z) side Redline, Stealth, Forged, Turbo, Emerald and the Monster
+  wheel showed their caliper side out. Fix: holdOut mirrors a wheel set whose spokes are not outboard of its caliper; packWheelGeo
+  uses a car pack's own wheel for each side (the Monster wheel). (3) The Scissor's and Mega GT's brake discs are in the spoke class:
+  rotorMark labels pieces of the spoke classes lying over 15% of the radius inboard as disc 12 (uv only). (4) PAINTS 24..26 Gold,
+  Silver, Bronze with PAINT_MET (metal under the clear coat), swatches with a sheen. Keep it fixed: scratch/paint/rimtest.js (every
+  car's wheel, stock vs gold rims and blue calipers) and rimtest4.js (the Sport Sedan on every wheel set, all four corners); a new
+  wheel's spokes go in WHEEL_SPOKES (web) and kart_builder WHEEL_SPOKES (PC).
+- RIMS ON THE WHOLE METAL WHEEL (93, web v228; PC pc88). The owner: the gold "ends before it covers the spokes completely ... the
+  part that the tire wraps around should be the same as the rim color"; "for the chariot wheel rim should just change the entire
+  color of the wheel". Why: patch 82's uCut stopped the spoke classes at the tyre's inner radius. Fix: the limit stays only on the
+  Monster wheel (WHEEL_CUT: its tread blocks are its rim class); the lip and barrel take the Rims colour; WHEEL_ALL paints the
+  Chariot's whole wheel; the Emerald set adds its rim 11, the toy cars their dish (their class 12). Keep it fixed: rimtest.js.
+- ADDED CALIPERS (92, web v228; PC via the export's ph<i>). Wheels with none on show: the owner saw a prototype (scratch/paint/
+  addcal3.js) and kept the cars, not the bikes ("dont worry about the calipers for bikes the rest look good"). WHEEL_ADDCAL: Grand
+  Coupe, Megawatt, Luxury SUV. addCal builds a rounded block over the brake disc's rear top edge, kept behind the spokes, class 13, as
+  a held part (steers, does not roll, Calipers colour). Not added: the bikes; the Concept and Go-Kart (no brake disc to sit on); the
+  Onyx (it has a dark one); hubcap wheels (Roadster, Tourer, Formula, the toy cars).
 - BIKE WHEELS (85, web; PC via the export): the conversion cut fenders, a tail-light piece and seat trim into the bikes' wheel meshes,
   which spun round as a second set ("remove the ones that are spinning since the bike already has them"). wheelTrim in carGeos (bikes):
   the tyre whole, anything else only well inside it (within 90% of its radius) and never body paint, stripe, tail, glass or seat.
