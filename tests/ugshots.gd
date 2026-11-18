@@ -27,6 +27,13 @@ func _ready() -> void:
 			bi = j
 	var gl := int(OS.get_environment("UG_GL")) if OS.get_environment("UG_GL") != "" else 1
 	var b := {"b": bi, "w": 0, "g": 0, "p": int(OS.get_environment("UG_P")) if OS.get_environment("UG_P") != "" else 2, "t": "", "st": {"gl": gl} if gl > 0 else {}}
+	if OS.get_environment("UG_ST") != "":   # (pc85: a style to test, as JSON, e.g. {"rm": 9, "cl": 8})
+		var stj = JSON.parse_string(OS.get_environment("UG_ST"))
+		if stj is Dictionary:
+			var st2 := {}
+			for k in stj:
+				st2[k] = int(stj[k])
+			b["st"] = st2
 	if OS.get_environment("UG_COMBO") != "":
 		var cb: Dictionary = preload("res://scripts/style.gd").COMBOS[int(OS.get_environment("UG_COMBO"))]
 		b = {"b": bi, "w": 0, "g": 0, "p": int(cb["p"]), "t": "", "st": (cb["st"] as Dictionary).duplicate()}

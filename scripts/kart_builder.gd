@@ -251,33 +251,49 @@ static func colours(spec: Dictionary, ri: int) -> Dictionary:
 			vcre[9] = Color(String(inn["h"]))
 			if inn.has("m"):
 				vcpbr[9] = [0.28, 0.45]   # (web patch 72: interior metal, not a black mirror)
+		# (pc85, web patch 82) the Rims colour on each wheel's spokes (its own class), the Calipers colour on its calipers
 		var rmc: Dictionary = S.pick(spec, "rm")
+		var clc: Dictionary = S.pick(spec, "cl")
+		var bid := String(info["bodies"][int(spec.get("b", 0))]["id"])
+		var wid := String(wheel_of(spec).get("id", ""))
 		if rmc["h"] != null:
-			for ci in [7, 10, 11, 15, 19, 21]:   # (pc72: the rims, web rimVC)
-				rimre[ci] = Color(String(rmc["h"]))
-				rimpbr[ci] = [float(rmc.get("r", 0.2)), 0.95] if rmc.has("m") else [0.38, 0.3]
 			rimc = Color(String(rmc["h"]))
-			for ci in 23:   # (pc82, web patch 82: a kart's wheel set: all but the tyre and the caliper)
-				if ci != 8 and ci != 13:
-					rimall[ci] = rimc
-					rimallpbr[ci] = [float(rmc.get("r", 0.2)), 0.95] if rmc.has("m") else [0.38, 0.3]
-	return {"paint": col, "dark": dark, "stripe": stripe, "lv": lv, "vcre": vcre, "vcpbr": vcpbr, "rimre": rimre, "rimpbr": rimpbr, "rimall": rimall, "rimallpbr": rimallpbr, "rimc": rimc, "rimm": S.pick(spec, "rm") if spec.get("st") is Dictionary else {}}
+			var fin: Array = [float(rmc.get("r", 0.2)), 0.95] if rmc.has("m") else [0.38, 0.3]
+			for ci in WHEEL_SPOKES.get(bid, [11]):
+				rimre[ci] = rimc
+				rimpbr[ci] = fin
+			for ci in WHEEL_SPOKES.get(wid, []):
+				rimall[ci] = rimc
+				rimallpbr[ci] = fin
+		if clc["h"] != null:
+			var cc := Color(String(clc["h"]))
+			vcre[13] = cc   # a car body's calipers
+			for ci in WHEEL_CAL.get(wid, []):
+				rimall[ci] = cc
+	return {"paint": col, "dark": dark, "stripe": stripe, "lv": lv, "vcre": vcre, "vcpbr": vcpbr, "rimre": rimre, "rimpbr": rimpbr, "rimall": rimall, "rimallpbr": rimallpbr, "rimc": rimc, "rimm": S.pick(spec, "rm") if spec.get("st") is Dictionary else {},
+		"cut": WHEEL_SPOKES.get(String(info["bodies"][int(spec.get("b", 0))]["id"]), [11]), "cutw": WHEEL_SPOKES.get(String(wheel_of(spec).get("id", "")), [])}
+
+
+## (pc85, web patch 82 WHEEL_SPOKES / WHEEL_CAL) each wheel's spokes and calipers: its colour classes, measured; not listed: spokes 11
+const WHEEL_SPOKES := {"suv": [10], "retrogt": [10], "concept": [1], "chariot": [1], "skywing": [6], "bike_mx": [10], "bike_moto": [10],
+	"rollpin": [21], "grater": [21], "comet": [21], "oilcan": [21], "redline": [17], "emerald": [16], "stealth": [16], "turbo": [18], "forged": [19]}
+const WHEEL_CAL := {"forged": [17]}
 
 
 ## the classes' own colours, as the web's CAR_PBR (the baked vertex colour is this times the shading)
-const CAR_BASE := {1: "#161618", 6: "#161618", 15: "#3b3e44", 2: "#ffffff", 13: "#c8321e", 17: "#c0180c", 9: "#1c1918",
+const CAR_BASE := {1: "#161618", 6: "#161618", 15: "#3b3e44", 2: "#ffffff", 13: "#c8321e", 17: "#c0180c", 9: "#1c1918", 16: "#3f9a1a", 18: "#1d7fe6",
 	7: "#76777d", 10: "#e9e9ee", 11: "#b5b7be", 19: "#8a6232", 21: "#c4c7cd"}   # (pc72: the rims' and metal trim's classes)
 static var _vc_cache := {}
 
 
 ## web styleVC (patch 65), done once on a copy of the mesh: each vertex of the chosen classes takes the new colour times its own shading
-static func _style_vc(m3: MeshInstance3D, si: int, re: Dictionary) -> void:
+static func _style_vc(m3: MeshInstance3D, si: int, re: Dictionary, cut_cls: Array = []) -> void:
 	var mesh := m3.mesh as ArrayMesh
 	if mesh == null:
 		return
 	var ks: Array = re.keys()
 	ks.sort()
-	var key := "%d|%d" % [mesh.get_rid().get_id(), si]
+	var key := "%d|%d|%s" % [mesh.get_rid().get_id(), si, str(cut_cls)]
 	for c in ks:
 		key += "|%d:%s" % [c, (re[c] as Color).to_html(false)]
 	var nm: ArrayMesh = _vc_cache.get(key)
@@ -288,9 +304,23 @@ static func _style_vc(m3: MeshInstance3D, si: int, re: Dictionary) -> void:
 			if j == si and arr[Mesh.ARRAY_COLOR] != null and arr[Mesh.ARRAY_TEX_UV] != null:
 				var cs: PackedColorArray = arr[Mesh.ARRAY_COLOR]
 				var uv: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV]
+				# (pc85, web rimVC uCut) a wheel's spoke class only inside the tyre: its lip and barrel are the same class
+				var cut := 1e9
+				var vx: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+				if not cut_cls.is_empty():
+					var rr: Array = []
+					var rm := 0.0
+					for q in vx.size():
+						var d := Vector2(vx[q].x, vx[q].y).length()
+						rm = maxf(rm, d)
+						if int(uv[q].x * 32.0) == 8:
+							rr.append(d)
+					if rr.size() > 20:
+						rr.sort()
+						cut = maxf(0.45 * rm, float(rr[int(rr.size() * 0.02)]) - 0.05 * rm)
 				for q in cs.size():
 					var ci := int(uv[q].x * 32.0)
-					if re.has(ci):
+					if re.has(ci) and not (cut_cls.has(ci) and Vector2(vx[q].x, vx[q].y).length() >= cut):
 						var b := Color(String(CAR_BASE.get(ci, "#808080"))).srgb_to_linear()
 						var bm := maxf(0.004, maxf(b.r, maxf(b.g, b.b)))
 						var c0: Color = cs[q]
@@ -613,14 +643,14 @@ static func _paint(n: Node, cols: Dictionary, liv, ri: int, cloth := false, whee
 				var pbr: Dictionary = cols.get(("rimallpbr" if wset else "rimpbr") if wheel else "vcpbr", {})
 				m3.set_surface_override_material(si, car_vc_mat_pbr(pbr) if not pbr.is_empty() else car_vc_mat())
 				if not re.is_empty():
-					_style_vc(m3, si, re)
+					_style_vc(m3, si, re, (cols.get("cutw" if wset else "cut", []) as Array) if wheel else [])
 				continue
 			if (fmt & Mesh.ARRAY_FORMAT_COLOR) != 0 and not sm.vertex_color_use_as_albedo and not nm.begins_with("g_"):
 				var c0 := sm.duplicate() as BaseMaterial3D
 				c0.vertex_color_use_as_albedo = true
 				m3.set_surface_override_material(si, c0)
-			if wheel and cols.get("rimc") != null and (nm.begins_with("g_dark") or nm.begins_with("g_paint")):
-				# (pc82, web patch 82) a code-built wheel: its rim and spokes take the rim colour
+			if wheel and cols.get("rimc") != null and nm.begins_with("g_paint"):
+				# (pc82 / pc84, web patch 82) a code-built wheel: its spokes take the rim colour (its rim keeps the trim's)
 				var rmm: Dictionary = cols.get("rimm", {})
 				var rw := StandardMaterial3D.new()
 				rw.albedo_color = cols["rimc"]

@@ -2427,7 +2427,7 @@ func _style_shop(outer: VBoxContainer) -> void:
 			_build_changed())
 		cg.add_child(bt)
 	outer.add_child(cg)
-	for row in [["tr", "Trim"], ["ac", "Accent"], ["in", "Interior"], ["rm", "Rims"], ["gl", "Underglow"], ["hl", "Headlights"], ["sm", "Tyre smoke"]]:
+	for row in [["tr", "Trim"], ["ac", "Accent"], ["in", "Interior"], ["rm", "Rims"], ["cl", "Calipers"], ["gl", "Underglow"], ["hl", "Headlights"], ["sm", "Tyre smoke"]]:
 		var slot := String(row[0])
 		if slot == "gl" and bool((KartBuilder.info["bodies"][int(build["b"])] as Dictionary).get("bike", false)):
 			continue   # (pc78) a bike has no underglow

@@ -4472,7 +4472,7 @@ func _camera(dt: float, rx: float, ry: float, rz: float, rma: float) -> void:
 		var gyy := T.glide_y(rx, ry)
 		if rg < gyy - 20.0:
 			rg = minf(rz, gyy)
-	var cy := rz - 2.0 if k.fly else (rz - 4.0 if k.glide else rg + (rz - rg) * 0.45)   # (pc83: flying, at the kart's height)
+	var cy := rz - 8.0 if k.fly else (rz - 4.0 if k.glide else rg + (rz - rg) * 0.45)   # (pc83: flying, at the kart's height)
 	if (T.battle or sbf or k.tun != null) and not k.glide and not k.fly:
 		# free driving: a kart can drop a long way, off the boxes or off the table. The race's rule aims between the kart
 		# and the ground under it, which then is far below: the kart left the picture. Here the camera keeps to the kart's
