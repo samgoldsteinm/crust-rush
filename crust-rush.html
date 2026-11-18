@@ -1941,7 +1941,7 @@ const GLOWS=[{n:'Off',h:null,$:0},{n:'Ice blue',h:'#3fc8ff',$:0},{n:'Purple',h:'
 const LIGHTS=[{n:'Halogen',h:'#fff2d6',$:0},{n:'Xenon white',h:'#eef3ff',$:0},{n:'Ice blue',h:'#9fd8ff',$:150},{n:'Yellow',h:'#ffd75a',$:150},{n:'Purple',h:'#c49bff',$:300},{n:'Green',h:'#9dffb0',$:300},{n:'Red',h:'#ff7a6a',$:300}];
 const SMOKES=[{n:'White',h:'#f2ebe0',$:0},{n:'Black',h:'#2a2a2e',$:300},{n:'Blue',h:'#2a6cff',$:350},{n:'Red',h:'#ff3020',$:350},{n:'Purple',h:'#9a40ff',$:350},{n:'Green',h:'#3ad84a',$:350},
   {n:'Yellow',h:'#ffd22a',$:350},{n:'Pink',h:'#ff4fb8',$:400},{n:'Rainbow',h:'rainbow',$:900}];
-const STYLE={tr:['tr',TRIMS],ac:['tr',TRIMS],in:['tr',TRIMS],rm:['tr',TRIMS],gl:['gl',GLOWS],hl:['hl',LIGHTS],sm:['sm',SMOKES]};/* (patch 73: rm, the rims) */
+const STYLE={tr:['tr',TRIMS],ac:['tr',TRIMS],in:['tr',TRIMS],rm:['tr',TRIMS],cl:['tr',TRIMS]/* (patch 82: calipers) */,gl:['gl',GLOWS],hl:['hl',LIGHTS],sm:['sm',SMOKES]};/* (patch 73: rm, the rims) */
 /* (patch 73) colour combos: p a paint (PAINTS), st the style; $ the price (0 free). KEEP THE ORDER (owned ones are 'cb'+index), the PC's style.gd the same */
 const COMBOS=[{n:'Stealth',p:8,st:{tr:1,ac:1,in:1,rm:1,gl:0,hl:1,sm:0},$:0},{n:'Track Day',p:1,st:{tr:1,ac:2,in:1,rm:3,gl:0,hl:1,sm:0},$:0},
   {n:'Arctic',p:9,st:{tr:3,ac:13,in:2,rm:3,gl:1,hl:2,sm:0},$:350},{n:'Midnight Neon',p:8,st:{tr:14,ac:13,in:1,rm:14,gl:1,hl:2,sm:2},$:450},
@@ -1998,7 +1998,7 @@ function pepFaceMat(){if(_pepM)return _pepM;const S=512,c=cnv(S,S),g=c.getContex
   for(let i=0;i<1600;i++){const a=r()*6.283,d=Math.sqrt(r())*S*.47;g.fillStyle=r()<.5?'rgba(90,16,8,.35)':'rgba(255,170,140,.18)';g.fillRect(S/2+Math.cos(a)*d,S/2+Math.sin(a)*d,1.5,1.5);}
   for(let i=0;i<40;i++){const a=r()*6.283,d=S*(.3+r()*.15);g.fillStyle='rgba(40,8,4,.35)';g.beginPath();g.arc(S/2+Math.cos(a)*d,S/2+Math.sin(a)*d,1+r()*3,0,7);g.fill();}
   _pepM=new THREE.MeshPhysicalMaterial({map:T2(c),roughness:.42,clearcoat:.6,clearcoatRoughness:.25,sheen:.3,sheenColor:new THREE.Color('#ffb08a')});_pepM.map.userData.shared=true;SHSET.add(_pepM);return _pepM;}
-function buildWheel(type,side,M){const wd=WHEELS.find(w=>w.id===type);if(wd&&wd.pack){const m=new THREE.Mesh(packWheelGeo(wd.pack,wd.g,side),wd.pack==='wheelset'?(M&&M.rimW||wheelVC()):(M&&M.rimM||SH.carVC));/* (patch 73) */m.castShadow=false;return m;}
+function buildWheel(type,side,M){const wd=WHEELS.find(w=>w.id===type);if(wd&&wd.pack){const wg=packWheelGeo(wd.pack,wd.g,side),m=new THREE.Mesh(wg,wd.pack==='wheelset'?(M&&rimVC(M.st,1,wd.id,wg)||wheelVC()):(M&&rimVC(M.st,0,wd.id,wg)||SH.carVC));/* (patch 82: the wheel's own spokes) *//* (patch 73) */m.castShadow=false;return m;}
   const W=new THREE.Group();
   if(type==='hover'){hrx(P3(KG.hoverDisc,SH.carbon,0,0,0,W));for(const s of [-1,1])P3(KG.hoverRing,SH.glowC,0,0,s*.27,W);
     for(let i=0;i<3;i++){const v=P3(KG.vane,M.paint,0,0,side*.28,W);v.rotation.z=i*Math.PI/3;}hrx(P3(KG.hub,SH.chrome,0,0,0,W)).scale.set(1,.5,1);}
@@ -2006,12 +2006,12 @@ function buildWheel(type,side,M){const wd=WHEELS.find(w=>w.id===type);if(wd&&wd.
     for(const s of [-1,1]){const f=P3(pepFace(),pepFaceMat(),0,0,s*.7,W);if(s<0)f.rotation.y=Math.PI;}hrx(P3(KG.hub,SH.chrome,0,0,0,W)).scale.set(.7,1.02,.7);}
   else{const t=hrx(P3(KG.tire,SH.rubber,0,0,0,W));
     if(type==='standard'){for(const s of [-1,1])P3(KG.tread,SH.rubber,0,0,s*.36,W).scale.set(1.005,1.005,1);
-      if(HQB){hrx(P3(KG.rimHQ[side>0?0:1],M.dark,0,0,0,W));for(let i=0;i<5;i++){const a=i*Math.PI*2/5,sp=P3(KG.spokeHQ,M.paint,Math.cos(a)*.42,Math.sin(a)*.42,side*.43,W);sp.rotation.z=a-Math.PI/2;
+      if(HQB){hrx(P3(KG.rimHQ[side>0?0:1],M.dark,0,0,0,W));for(let i=0;i<5;i++){const a=i*Math.PI*2/5,sp=P3(KG.spokeHQ,M.rimS||M.paint,Math.cos(a)*.42,Math.sin(a)*.42,side*.43,W);sp.rotation.z=a-Math.PI/2;
           hrx(P3(KG.lug,SH.chrome,Math.cos(a+.63)*.2,Math.sin(a+.63)*.2,side*.4,W));}const c=P3(KG.cap,SH.chrome,0,0,side*.4,W);c.rotation.x=side*Math.PI/2;}
       else{hrx(P3(KG.rim,M.dark,0,0,0,W));
-      for(let i=0;i<5;i++){const a=i*Math.PI*2/5,sp=P3(KG.spoke,M.paint,Math.cos(a)*.36,Math.sin(a)*.36,side*.58,W);sp.rotation.z=a-Math.PI/2;}}}
+      for(let i=0;i<5;i++){const a=i*Math.PI*2/5,sp=P3(KG.spoke,M.rimS||M.paint,Math.cos(a)*.36,Math.sin(a)*.36,side*.58,W);sp.rotation.z=a-Math.PI/2;}}}
     else if(type==='slick'){P3(KG.slickRing,M.stripe,0,0,side*.66,W);hrx(P3(HQB?KG.rimHQ[side>0?0:1]:KG.rim,SH.chrome,0,0,0,W));if(HQB){const c=P3(KG.cap,M.stripe,0,0,side*.4,W);c.rotation.x=side*Math.PI/2;}
-      for(let i=0;i<6;i++){const a=i*Math.PI/3,sp=P3(KG.spoke,SH.metal,Math.cos(a)*.36,Math.sin(a)*.36,side*.58,W);sp.rotation.z=a-Math.PI/2;sp.scale.set(.6,1,1);}}
+      for(let i=0;i<6;i++){const a=i*Math.PI/3,sp=P3(KG.spoke,M.rimS||SH.metal,Math.cos(a)*.36,Math.sin(a)*.36,side*.58,W);sp.rotation.z=a-Math.PI/2;sp.scale.set(.6,1,1);}}
     else if(type==='monster'){for(let i=0;i<18;i++){const a=i/18*Math.PI*2,k=P3(KG.knob,SH.rubber,Math.cos(a)*1.36,Math.sin(a)*1.36,(i%2?.12:-.12),W);k.rotation.z=a;}
       hrx(P3(KG.rim,SH.black,0,0,0,W));for(let i=0;i<6;i++){const a=i*Math.PI/3;hrx(P3(KG.bolt,SH.chrome,Math.cos(a)*.45,Math.sin(a)*.45,side*.62,W));}}
     hrx(P3(KG.hub,SH.chrome,0,0,0,W));}
@@ -2645,25 +2645,34 @@ let _ugG=null;function ugGenericT(){if(_ugG)return _ugG;const W=128,H=64,c=cnv(W
   x.putImageData(im,0,0);return _ugG=new THREE.CanvasTexture(c);}
 /* (patch 65) a car body's styled copy of the shared part material: its trim classes (dark, carbon, gunmetal), accent classes (stripe,
    caliper, red) and seats repainted in the chosen colours; the baked shading kept (the vertex colour over the class's own colour) */
-const _svc={};function styleVC(st){const t=TRIMS[st.tr|0],a=TRIMS[st.ac|0],n=TRIMS[st.in|0];if(!(t&&t.h)&&!(a&&a.h)&&!(n&&n.h))return null;const key=[st.tr|0,st.ac|0,st.in|0].join('.');if(_svc[key])return _svc[key];
+const _svc={};function styleVC(st){const t=TRIMS[st.tr|0],a=TRIMS[st.ac|0],n=TRIMS[st.in|0],cw=TRIMS[st.cl|0];if(!(t&&t.h)&&!(a&&a.h)&&!(n&&n.h)&&!(cw&&cw.h))return null;const key=[st.tr|0,st.ac|0,st.in|0,st.cl|0].join('.');/* (patch 82: the calipers' own colour) */if(_svc[key])return _svc[key];
   const m=SH.carVC.clone(),C=h=>new THREE.Color(h||'#000000'),base=c=>{const x=new THREE.Color(CAR_COL[c]);return Math.max(.004,x.r,x.g,x.b);},
-    U={uT:{value:C(t.h)},uA:{value:C(a.h)},uI:{value:C(n.h)},uOn:{value:new THREE.Vector3(t.h?1:0,a.h?1:0,n.h?1:0)},uB:{value:new THREE.Vector3(base('dark'),base('stripe'),base('seat'))},
+    U={uT:{value:C(t.h)},uA:{value:C(a.h)},uI:{value:C(n.h)},uOn:{value:new THREE.Vector3(t.h?1:0,a.h?1:0,n.h?1:0)},uRc:{value:C(cw&&cw.h)},uRon:{value:cw&&cw.h?1:0},uB:{value:new THREE.Vector3(base('dark'),base('stripe'),base('seat'))},
       uTM:{value:new THREE.Vector4(t.m?.9:.25,t.m?(t.r||.22):.4,n.m?.45:0,n.m?.28:.6)}};/* (patch 72: interior metal .45, not a black mirror) */
-  m.onBeforeCompile=sh=>{Object.assign(sh.uniforms,U);sh.fragmentShader='uniform vec3 uT,uA,uI,uOn,uB;uniform vec4 uTM;\n'+sh.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n'
+  m.onBeforeCompile=sh=>{Object.assign(sh.uniforms,U);sh.fragmentShader='uniform vec3 uT,uA,uI,uOn,uB,uRc;uniform float uRon;uniform vec4 uTM;\n'+sh.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n'
     +'float sCi=floor(vUv.x*32.);float sMx=max(vColor.r,max(vColor.g,vColor.b));float sG=0.;\n'
-    +'if(uOn.x>.5&&(abs(sCi-1.)<.1||abs(sCi-6.)<.1||abs(sCi-7.)<.1||abs(sCi-15.)<.1)){diffuseColor.rgb=uT*clamp(sMx/uB.x,.3,1.2);sG=1.;}\n'
+    +'if(uRon>.5&&abs(sCi-13.)<.1){diffuseColor.rgb=uRc*clamp(sMx/.78,.3,1.2);sG=4.;}\nelse if(uOn.x>.5&&(abs(sCi-1.)<.1||abs(sCi-6.)<.1||abs(sCi-7.)<.1||abs(sCi-15.)<.1)){diffuseColor.rgb=uT*clamp(sMx/uB.x,.3,1.2);sG=1.;}\n'
     +'else if(uOn.y>.5&&(abs(sCi-2.)<.1||abs(sCi-13.)<.1||abs(sCi-17.)<.1)){diffuseColor.rgb=uA*clamp(sMx/uB.y,.3,1.2);sG=2.;}\n'
     +'else if(uOn.z>.5&&abs(sCi-9.)<.1){diffuseColor.rgb=uI*clamp(sMx/uB.z,.3,1.2);sG=3.;}').replace('#include <metalnessmap_fragment>','#include <metalnessmap_fragment>\n'
     +'if(sG==1.){metalnessFactor=uTM.x;roughnessFactor=uTM.y;}else if(sG==3.){metalnessFactor=uTM.z;roughnessFactor=uTM.w;}');};
   m.customProgramCacheKey=()=>'carvc-style';SHSET.add(m);return _svc[key]=m;}
 /* (patch 73) the rims' colour: a wheel's metal classes (metal 7, chrome 10, rim 11, gunmetal 15, bronze 19, steel 21) repainted, metal or satin */
-const _rvc={};function rimVC(st,ds){const r=TRIMS[(st&&st.rm)|0];if(!r||!r.h)return null;const key=(st.rm|0)+(ds?'d':'');if(_rvc[key])return _rvc[key];const m=SH.carVC.clone();if(ds)m.side=THREE.DoubleSide;
-  const U={uR:{value:new THREE.Color(r.h)},uRM:{value:new THREE.Vector2(r.m?.95:.3,r.m?(r.r||.2):.38)}};
-  m.onBeforeCompile=sh=>{Object.assign(sh.uniforms,U);sh.fragmentShader='uniform vec3 uR;uniform vec2 uRM;\n'+sh.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n'
+/* (patch 82) each wheel's spokes and calipers: its colour classes, measured (tools/mini/patch82.py); not listed: spokes 11, no caliper */
+const WHEEL_SPOKES={suv:[10],retrogt:[10],concept:[1],chariot:[1],skywing:[6],bike_mx:[10],bike_moto:[10],rollpin:[21],grater:[21],comet:[21],oilcan:[21],redline:[17],emerald:[16],stealth:[16],turbo:[18],forged:[19]},
+  WHEEL_CAL={forged:[17]};
+const _rvc={};function rimVC(st,ds,id,geo){const r=TRIMS[(st&&st.rm)|0],c=TRIMS[(st&&st.cl)|0],sp=WHEEL_SPOKES[id]||[11],cl=WHEEL_CAL[id]||[];
+  if(!(r&&r.h)&&!(c&&c.h&&cl.length))return null;const key=[st.rm|0,st.cl|0,ds?'d':'',id,geo?geo.uuid:''].join('|');if(_rvc[key])return _rvc[key];const m=SH.carVC.clone();if(ds)m.side=THREE.DoubleSide;
+  const v4=a=>new THREE.Vector4(...[0,1,2,3].map(i=>a[i]??-1));
+  /* the spokes stop where the wheel's lip and barrel begin, just inside the tyre (the 'rim' class holds lip, barrel and spokes alike) */
+  let cut=1e9;if(geo&&geo.attributes.uv){const P=geo.attributes.position,uv=geo.attributes.uv,rr=[];let Rm=0;for(let i=0;i<P.count;i++){const q=Math.hypot(P.getX(i),P.getY(i));Rm=Math.max(Rm,q);if(Math.floor(uv.getX(i)*32)===8)rr.push(q);}
+    if(rr.length>20){rr.sort((a,b)=>a-b);cut=Math.max(.45*Rm,rr[Math.floor(rr.length*.02)]-.05*Rm);}}/* (never under 45%: the Monster's tyre reaches almost to its hub) */
+  const U={uR:{value:new THREE.Color(r&&r.h||'#000')},uRM:{value:new THREE.Vector2(r&&r.m?.95:.3,r&&r.m?(r.r||.2):.38)},uC:{value:new THREE.Color(c&&c.h||'#000')},
+    uS:{value:v4(r&&r.h?sp:[])},uK:{value:v4(c&&c.h?cl:[])},uCut:{value:cut}};
+  m.onBeforeCompile=sh=>{Object.assign(sh.uniforms,U);sh.vertexShader='varying vec2 vRO;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvRO=position.xy;');sh.fragmentShader='varying vec2 vRO;uniform float uCut;uniform vec3 uR,uC;uniform vec2 uRM;uniform vec4 uS,uK;\nbool rIn(float c,vec4 s){return abs(c-s.x)<.1||abs(c-s.y)<.1||abs(c-s.z)<.1||abs(c-s.w)<.1;}\n'+sh.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n'
     +'float rCi=floor(vUv.x*32.);float rMx=max(vColor.r,max(vColor.g,vColor.b));float rG=0.;\n'
-    +'if(abs(rCi-7.)<.1||abs(rCi-10.)<.1||abs(rCi-11.)<.1||abs(rCi-15.)<.1||abs(rCi-19.)<.1||abs(rCi-21.)<.1){diffuseColor.rgb=uR*clamp(rMx/.7,.45,1.15);rG=1.;}').replace('#include <metalnessmap_fragment>','#include <metalnessmap_fragment>\n'
-    +'if(rG==1.){metalnessFactor=uRM.x;roughnessFactor=uRM.y;}');};
-  m.customProgramCacheKey=()=>'carvc-rim';SHSET.add(m);return _rvc[key]=m;}
+    +'if(rIn(rCi,uK)){diffuseColor.rgb=uC*clamp(rMx/.78,.35,1.2);rG=2.;}else if(rIn(rCi,uS)&&length(vRO)<uCut){diffuseColor.rgb=uR*clamp(rMx/.7,.45,1.15);rG=1.;}').replace('#include <metalnessmap_fragment>','#include <metalnessmap_fragment>\n'
+    +'if(rG==1.){metalnessFactor=uRM.x;roughnessFactor=uRM.y;}');/* (a caliper keeps its painted finish) */};
+  m.customProgramCacheKey=()=>'carvc-rim3';SHSET.add(m);return _rvc[key]=m;}
 const _hgF={};function hoverGlowFor(id){if(!id||!CAR_PACKS[id])return null;if(_hgF[id]!==undefined)return _hgF[id];try{const g=carGeos(id);let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
   for(const k in g){if(!k.startsWith('b_'))continue;const a=g[k].attributes.position.array;for(let i=0;i<a.length;i+=3){x0=Math.min(x0,a[i]);x1=Math.max(x1,a[i]);z0=Math.min(z0,a[i+2]);z1=Math.max(z1,a[i+2]);}}
   if(!(x1>x0))return _hgF[id]=null;const M=1.7,W=128,H=64,w=x1-x0+M*2,h=z1-z0+M*2,ox=x0-M,oz=z0-M,sx=W/w,sz=H/h,O=new Float32Array(W*H);
@@ -3211,7 +3220,7 @@ function bakeFar(g,tilt,skip){try{g.updateMatrixWorld(true);const inv=new THREE.
 function buildKart(spec){HQB=spec.hq!==0;
   const rc=RACERS[spec.ri],idx=spec.ri,body=BODIES[spec.b],gd=GLIDERS[spec.g];let wt=WHEELS[spec.w];let lv=spec.t?livOf(spec.t):null;if(lv&&!spec.pv&&livLocked(lv))lv=null;if(lv&&lv.only&&lv.only!==body.id)lv=null;const col=lv?lv.A:(PAINTS[spec.p]||rc.color);
   const paint=new THREE.MeshPhysicalMaterial(lv?{color:col,roughness:.2,metalness:.14,clearcoat:1,clearcoatRoughness:.03,envMapIntensity:1.45}:{color:col,roughness:.36,metalness:0,clearcoat:1,clearcoatRoughness:.02,envMapIntensity:1.75})/* (patch 62: a solid colour is a non-metal base under a sharp clear coat, as real paint; a livery keeps its finish) */;paint.userData.solid=!lv;
-  const M={rimM:rimVC(stOf(spec)),rimW:rimVC(stOf(spec),1),paint,dark:new THREE.MeshStandardMaterial({color:lv?lv.C:shade(col,-.45),roughness:.4,metalness:.3}),stripe:new THREE.MeshStandardMaterial({color:lv?lv.B:(rc.stripe===col?rc.top:rc.stripe),roughness:.3,metalness:.1}),
+  const M={st:stOf(spec),rimM:rimVC(stOf(spec),0,body.id),rimS:(()=>{const r=TRIMS[stOf(spec).rm|0];return r&&r.h?new THREE.MeshStandardMaterial({color:r.h,metalness:r.m?.95:.3,roughness:r.m?(r.r||.2):.38}):null;})()/* (patch 82: a code-built wheel's spokes) */,paint,dark:new THREE.MeshStandardMaterial({color:lv?lv.C:shade(col,-.45),roughness:.4,metalness:.3}),stripe:new THREE.MeshStandardMaterial({color:lv?lv.B:(rc.stripe===col?rc.top:rc.stripe),roughness:.3,metalness:.1}),
     tailM:new THREE.MeshStandardMaterial({color:'#ff2a1a',emissive:'#ff1a0a',emissiveIntensity:.8})};
   {/* (patch 65) the style: trim and accent on the kart's own materials; the car bodies' shared parts get styled copies */const st=stOf(spec),t=TRIMS[st.tr|0],a=TRIMS[st.ac|0],hl=st.hl|0;if(t&&t.h){M.dark.color.set(t.h);M.dark.metalness=t.m?.9:.3;M.dark.roughness=t.r||(t.m?.22:.4);}if(a&&a.h){M.stripe.color.set(a.h);if(a.m){M.stripe.metalness=.9;M.stripe.roughness=a.r||.22;}}M.vcM=styleVC(st);if(hl){M.lightM=SH.carLight.clone();M.lightM.emissive.set(LIGHTS[hl].h);M.lightM.emissiveIntensity=.7;M.lightM.color.set(LIGHTS[hl].h);}}
   if(body.id==='oven'){M.brick=new THREE.MeshStandardMaterial({map:brickT,color:new THREE.Color('#ffffff').lerp(new THREE.Color(col),.3),roughness:.85});}
@@ -3244,10 +3253,10 @@ if(gi&&GLOWS[gi]&&GLOWS[gi].h&&!cfg.hover&&!ugBike){/* (patch 77) LED strips: th
     let z=q&&!cfg.ow?zOut-Wn/2:zIn+Wn/2;
     if(R>w[2]*1.02||Wn>W0*1.02)z=Math.min(clearZ(w[0],R,z,Wn,w[2],zN,W0),z+W0*(q?.22:.5)+Math.max(0,R-w[2])*.6);return z*s;};
   const wheels=[],front=[];
-  if(cfg.bike){if(!cfg.noWheels){const cg=carGeos(cfg.car);CAR_PACKS[cfg.car].h.wheels.forEach((q,wi)=>{const yaw=new THREE.Group();yaw.position.set(q.c[0],q.c[1],0);g.add(yaw);const spin=new THREE.Group();yaw.add(spin);const wh=new THREE.Mesh(cg['w'+wi],M.rimM||SH.carVC);/* (patch 73: the rims' colour) */wh.castShadow=false;spin.add(wh);wheels.push({spin,r:q.r});if(q.f)front.push(yaw);});}}
+  if(cfg.bike){if(!cfg.noWheels){const cg=carGeos(cfg.car);CAR_PACKS[cfg.car].h.wheels.forEach((q,wi)=>{const yaw=new THREE.Group();yaw.position.set(q.c[0],q.c[1],0);g.add(yaw);const spin=new THREE.Group();yaw.add(spin);const wh=new THREE.Mesh(cg['w'+wi],rimVC(M.st,0,cfg.car,cg['w'+wi])||SH.carVC);/* (patch 73: the rims' colour) */wh.castShadow=false;spin.add(wh);wheels.push({spin,r:q.r});if(q.f)front.push(yaw);});}}
   else for(const [w,f] of [[cfg.rw,0],[cfg.fw,1]])for(const s of [-1,1]){const R=w[2]*wt.r,yaw=new THREE.Group();yaw.position.set(w[0],R,wheelZ(w,f,s,R));g.add(yaw);
     const zN=w[1],zW=Math.abs(yaw.position.z),Wh=1.44*tyreR(R)/1.32*wz;if(zW-Wh/2>zN-.05){const len=zW-Wh/2-(zN-.4),ad=new THREE.Mesh(KG.axle,SH.metal);ad.rotation.x=Math.PI/2;ad.scale.set(R*.9,len/5.6,R*.9);ad.position.z=-s*(Wh/2+len/2);ad.castShadow=true;yaw.add(ad);}
-    const spin=new THREE.Group();yaw.add(spin);let wh;if(cfg.car&&wt.id==='standard'){const cg=carGeos(cfg.car),wi=CAR_PACKS[cfg.car].h.wheels.findIndex(q=>Math.sign(q.c[2])===s&&q.f===f);wh=new THREE.Mesh(cg['w'+wi],M.rimM||SH.carVC);/* (patch 73: the rims' colour) */wh.castShadow=false;}/* detailed rims cost a lot in the shadow pass for an invisible gain */else{wh=buildWheel(wt.id,s,M);wh.scale.set(R/1.32,R/1.32,tyreR(R)/1.32*wz);}spin.add(wh);wheels.push({spin,r:R});if(f)front.push(yaw);}
+    const spin=new THREE.Group();yaw.add(spin);let wh;if(cfg.car&&wt.id==='standard'){const cg=carGeos(cfg.car),wi=CAR_PACKS[cfg.car].h.wheels.findIndex(q=>Math.sign(q.c[2])===s&&q.f===f);wh=new THREE.Mesh(cg['w'+wi],rimVC(M.st,0,cfg.car,cg['w'+wi])||SH.carVC);/* (patch 73: the rims' colour) */wh.castShadow=false;}/* detailed rims cost a lot in the shadow pass for an invisible gain */else{wh=buildWheel(wt.id,s,M);wh.scale.set(R/1.32,R/1.32,tyreR(R)/1.32*wz);}spin.add(wh);wheels.push({spin,r:R});if(f)front.push(yaw);}
   for(const w of wheels){const yw=w.spin.parent;if(yw&&yw.parent===g)tilt.add(yw);}
   const drv=new THREE.Group();drv.rotation.y=Math.PI/2;(spec.hq===0?lowDetail:f=>f())(()=>buildDriver(drv,rc,topM,irisM));
   {const db=new THREE.Box3();drv.updateMatrixWorld(true);db.setFromObject(drv);cfg.dzc=(db.min.x+db.max.x)/2;}
@@ -7724,11 +7733,18 @@ function cloudRing(n,dist,y,tint,op){const mat=new THREE.MeshBasicMaterial({map:
 function moonTex(){const S=512,c=cnv(S,S),g=c.getContext('2d');const gr=g.createRadialGradient(S*.42,S*.4,S*.05,S/2,S/2,S/2);gr.addColorStop(0,'#fbfcff');gr.addColorStop(.85,'#d9deea');gr.addColorStop(1,'#b8bfd0');g.fillStyle=gr;g.beginPath();g.arc(S/2,S/2,S/2-2,0,7);g.fill();
   for(let i=0;i<70;i++){const x=S/2+(rnd()-.5)*S*.85,y=S/2+(rnd()-.5)*S*.85;if(Math.hypot(x-S/2,y-S/2)>S*.45)continue;const r=4+rnd()*rnd()*46;g.fillStyle='rgba(120,128,150,'+(.12+rnd()*.2)+')';g.beginPath();g.arc(x,y,r,0,7);g.fill();g.strokeStyle='rgba(255,255,255,.18)';g.lineWidth=2;g.beginPath();g.arc(x-1,y-1,r,Math.PI*.9,Math.PI*1.7);g.stroke();}
   return T2(c);}
+/* (patch 84) a scanned surface (tools/blender/ph_tex.py) and its relief, one texture pair per key for every surface that uses it;
+   null until both pictures are in. uvS scales a geometry's UVs: each surface sets its own repeat without copying the textures */
+const SCANT={};function scanTex(key){const a='tex_toy_'+key,b=a+'_n';if(typeof PROP_TEX==='undefined'||!PROP_TEX[a]||!PROP_TEX[b])return null;if(SCANT[key])return SCANT[key];
+  const tx=(n,srgb)=>{const im=new Image(),src=texSrc(PROP_TEX[n]);if(/^https?:/.test(src))im.crossOrigin='anonymous';im.src=src;const t=new THREE.Texture(im);im.onload=()=>{t.needsUpdate=true;};if(im.complete)t.needsUpdate=true;
+    if(srgb)t.encoding=THREE.sRGBEncoding;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=maxAniso;t.userData.shared=true;return t;};
+  return SCANT[key]={map:tx(a,true),normalMap:tx(b,false)};}
+function uvS(g,rx,ry){const uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*rx,uv.getY(i)*ry);return g;}
 /* kitchen dressing: tall windows of daylight, shelves of jars and tins, hanging copper pans */
-function kitchenDressing(R){const W=R+1700,shelfM=wm('#6e4527',{roughness:.6}),frame=wm('#f3ead8',{roughness:.5}),sky=new THREE.MeshBasicMaterial({name:'sky_window',color:'#bfe3ff',toneMapped:false,fog:false}),sun=new THREE.MeshBasicMaterial({color:'#fff6d8',toneMapped:false,transparent:true,opacity:.18,depthWrite:false,blending:THREE.AdditiveBlending,fog:false});
+function kitchenDressing(R){const W=R+1700,shelfM=wm('#6e4527',{roughness:.6}),frame=wm('#f3ead8',{roughness:.5}),sky=typeof PROP_TEX!=='undefined'&&PROP_TEX['tex_toy_outsidek']?new THREE.MeshBasicMaterial({name:'sky_window',map:propTex('tex_toy_outsidek'),color:new THREE.Color(1.15,1.15,1.17),toneMapped:false,fog:false})/* (patch 84: the garden rendered in Blender) */:new THREE.MeshBasicMaterial({name:'sky_window',color:'#bfe3ff',toneMapped:false,fog:false}),sun=new THREE.MeshBasicMaterial({color:'#fff6d8',toneMapped:false,transparent:true,opacity:.18,depthWrite:false,blending:THREE.AdditiveBlending,fog:false});
   const g=new THREE.Group();g.userData.noLift=true;world.add(g);const S=new THREE.Group();g.add(S);
   for(const a of [0.15,1.75,3.3,4.9]){const x=Math.cos(a)*(W-6),z=Math.sin(a)*(W-6),w=new THREE.Group();w.position.set(x,520,z);w.lookAt(0,520,0);S.add(w);
-    put(new THREE.PlaneGeometry(520,620),sky,0,0,0,w,false);for(const yy of [-310,0,310])put(new THREE.BoxGeometry(560,22,30),frame,0,yy,8,w,false);for(const xx of [-270,0,270])put(new THREE.BoxGeometry(22,640,30),frame,xx,0,8,w,false);
+    {const pg=new THREE.PlaneGeometry(520,620);if(sky.map){const uv=pg.attributes.uv;for(let i=0;i<uv.count;i++)uv.setX(i,.5+(uv.getX(i)-.5)*.71);}/* (the picture is wider than the pane: its middle) */put(pg,sky,0,0,0,w,false);}for(const yy of [-310,0,310])put(new THREE.BoxGeometry(560,22,30),frame,0,yy,8,w,false);for(const xx of [-270,0,270])put(new THREE.BoxGeometry(22,640,30),frame,xx,0,8,w,false);
     const beam=put(new THREE.PlaneGeometry(520,1600),sun,0,-560,500,w,false);beam.rotation.x=-1.0;}
   const jarCols=['#d6301e','#3f9a35','#f7c948','#2f7fd8','#f4efe4','#c98b4e','#7a2a12'],J=[],q=new THREE.Quaternion(),m4=new THREE.Matrix4(),v=new THREE.Vector3(),sc=new THREE.Vector3(),cc=new THREE.Color();
   for(let s=0;s<14;s++){const a=s/14*Math.PI*2+.45;if([0.15,1.75,3.3,4.9].some(b=>Math.abs(((a-b+Math.PI*3)%(Math.PI*2))-Math.PI)<.3))continue;for(const yy of [260,520,780]){
@@ -7745,13 +7761,14 @@ function kitchenDressing(R){const W=R+1700,shelfM=wm('#6e4527',{roughness:.6}),f
 
 function buildKitchen(R,L1,L2){
   const table=put(new THREE.PlaneGeometry(R*14,R*14),new THREE.MeshStandardMaterial({map:T2(woodTex(),R*14/500,R*14/500),roughness:.55,envMapIntensity:.5}),0,-60,0,world,false);table.rotation.x=-Math.PI/2;
-  put(new THREE.CylinderGeometry(R+1700,R+1700,2200,120,1,true),new THREE.MeshStandardMaterial({map:T2(brickTex(),70,9),side:THREE.BackSide,roughness:.9}),0,1040,0,world,false);
+  {const B=scanTex('brick'),T=800/* (one scan repeat: about 27 courses) */,g=new THREE.CylinderGeometry(R+1700,R+1700,2200,120,1,true);/* (patch 84: the scanned brick) */
+  put(B?uvS(g,Math.round(2*Math.PI*(R+1700)/T),2200/T):g,B?new THREE.MeshStandardMaterial({map:B.map,normalMap:B.normalMap,normalScale:new THREE.Vector2(1.2,1.2),side:THREE.BackSide,roughness:.88,envMapIntensity:.3}):new THREE.MeshStandardMaterial({map:T2(brickTex(),70,9),side:THREE.BackSide,roughness:.9}),0,1040,0,world,false);}
   const ceil=put(new THREE.CircleGeometry(R+1700,80),new THREE.MeshStandardMaterial({map:T2(woodTex(),10,10),roughness:.8}),0,2140,0,world,false);ceil.rotation.x=Math.PI/2;
-  const fires=[];
+  const fires=[],KB=scanTex('brick'),KBM=KB?new THREE.MeshStandardMaterial({map:KB.map,normalMap:KB.normalMap,normalScale:new THREE.Vector2(1.2,1.2),roughness:.88,envMapIntensity:.3}):null;/* (patch 84) */
   for(let i=0;i<4;i++){const a=i*Math.PI/2+.4,Dd=R+1250,g=new THREE.Group();g.position.set(Math.cos(a)*Dd,-60,Math.sin(a)*Dd);g.lookAt(0,-60,0);world.add(g);
     const bm=new THREE.MeshStandardMaterial({map:T2(brickTex(),6,2),roughness:.9}),S=new THREE.Group();g.add(S);
-    put(new THREE.CylinderGeometry(330,340,110,48),bm,0,55,0,S);put(new THREE.SphereGeometry(320,48,24,0,Math.PI*2,0,Math.PI/2),bm,0,110,0,S);
-    put(new THREE.CylinderGeometry(55,60,520,24),bm,0,420,-190,S);put(new THREE.CircleGeometry(120,36,0,Math.PI),wm('#120806'),0,110,321,S);
+    put(KBM?uvS(new THREE.CylinderGeometry(330,340,110,48),2.6,110/800):new THREE.CylinderGeometry(330,340,110,48),KBM||bm,0,55,0,S);put(KBM?uvS(new THREE.SphereGeometry(320,48,24,0,Math.PI*2,0,Math.PI/2),2.5,1.0):new THREE.SphereGeometry(320,48,24,0,Math.PI*2,0,Math.PI/2),KBM||bm,0,110,0,S);
+    put(KBM?uvS(new THREE.CylinderGeometry(55,60,520,24),.45,520/800):new THREE.CylinderGeometry(55,60,520,24),KBM||bm,0,420,-190,S);put(new THREE.CircleGeometry(120,36,0,Math.PI),wm('#120806'),0,110,321,S);
     put(new THREE.TorusGeometry(126,13,12,36,Math.PI),wm('#5c2a17',{roughness:.8}),0,110,318,S);bake(S,false);
     const fm=new THREE.MeshStandardMaterial({color:'#ff7a22',emissive:'#ff6a1a',emissiveIntensity:2});fires.push(fm);
     put(new THREE.CircleGeometry(92,36,0,Math.PI),fm,0,110,323,g,false);put(new THREE.CircleGeometry(48,24,0,Math.PI),new THREE.MeshBasicMaterial({color:'#ffd36b',toneMapped:false}),0,110,324,g,false);}
@@ -9251,7 +9268,7 @@ function render(time,dt){
   if(camT){cam.a=lerpA(cam.a,camT.rma,1-Math.exp(-5.5*dt));
     const ex=Math.max(0,(camT.m.top||7.2)-7.2)*KS;const CL=CFG.cam!=='far';const cS=(CFG.camd||100)/100;let dist=((CL?30:44)+(camT.boost>0?(CL?5:4):0)+ex*1.1)*cS,h=((CL?12.6:17.4)+ex*.8)*(.4+.6*cS);if(state==='countdown'&&!CL){const f=clamp((cd-.4)/3,0,1);dist+=80*f*f;h+=50*f*f;}let cSA=0;if(TOYT&&MULTI&&!camT.loop&&!camT.glide&&!(camT.z>3)&&!(SBX&&(camT.sbOff||Math.abs(Math.cos(camT.ma)*track[camT.idx].tx+Math.sin(camT.ma)*track[camT.idx].ty)<.5))){/* (Sandbox: this look up or down the track's slope is for a kart driving ALONG the track; one crossing it, or about to drive off its side, is not) */const sp=T.L/N,ix=camT.idx,e0=track[ix].ey||0,eb=track[((ix-Math.round(dist/sp))%N+N)%N].ey||0,ea=track[(ix+Math.round(40/sp))%N].ey||0,bk=(keys.look||PAD.look)!==(SBX&&Math.cos(camT.ma)*track[ix].tx+Math.sin(camT.ma)*track[ix].ty<0)/* (Sandbox: driving the track the other way round, "ahead" is behind) */,f=Math.min(1,dt*5);cam.sb=(cam.sb||0)+(Math.max(0,(bk?ea:eb)-e0)-(cam.sb||0))*f;cam.sa=(cam.sa||0)+(((bk?eb:ea)-e0)-(cam.sa||0))*f;h+=cam.sb*1.15+Math.max(0,-cam.sa)*.6;cSA=cam.sa*.75;}
     const lb=(keys.look||PAD.look)&&state==='race'&&camT===player&&!(camT.rth>0);if(lb!==cam.lb){cam.lb=lb;camSnap=true;}
-    const fx=Math.cos(cam.a)*(lb?-1:1),fy=Math.sin(cam.a)*(lb?-1:1),cy=camT.glide?camT.rz-4:BATTLE?camT.rz-Math.min(8,(camT.rz-camT.rg)*.55):camT.rg+(camT.rz-camT.rg)*.45;/* (free driving: a kart can drop a long way, off high track or off the table. The race's rule aims between the kart and the ground under it, which then is far below: the kart left the picture. Here the camera keeps to the kart's own height, a little under it, all the way down) */tv2.set(camT.rx-fx*dist,cy+h,camT.ry-fy*dist);
+    const fx=Math.cos(cam.a)*(lb?-1:1),fy=Math.sin(cam.a)*(lb?-1:1),cy=camT.fly?camT.rz-8/* (patch 83: flying, the race camera low behind the kart, looking ahead) */:camT.glide?camT.rz-4:BATTLE?camT.rz-Math.min(8,(camT.rz-camT.rg)*.55):camT.rg+(camT.rz-camT.rg)*.45;/* (free driving: a kart can drop a long way, off high track or off the table. The race's rule aims between the kart and the ground under it, which then is far below: the kart left the picture. Here the camera keeps to the kart's own height, a little under it, all the way down) */tv2.set(camT.rx-fx*dist,cy+h,camT.ry-fy*dist);
     tv.set(camT.rx+fx*(CL?32:21),cy+(CL?6.2:5.5)+ex*.5+cSA,camT.ry+fy*(CL?32:21));
     const inLoop=camT.rth>0;
     if(inLoop){const p=(camT.loop||LOOPS[0]).p,ct=Math.cos(camT.rth),st=Math.sin(camT.rth);cam.F.set(p.tx*ct,st,p.ty*ct).normalize();cam.U.set(-p.tx*st,ct,-p.ty*st);const lrv=!!(camT.loop&&camT.loop.rev);if(lrv)cam.F.multiplyScalar(-1);cam.P.set(camT.rx,camT.rz,camT.ry);
@@ -10001,11 +10018,11 @@ function buildGarage(){
     if(PT.size===1){gDrag={x:e.clientX,y:e.clientY,r:gRot,p:gPitch};tap={x:e.clientX,y:e.clientY,t:performance.now()};}
     else if(PT.size===2){const [a,b]=[...PT.values()];pinch0=Math.hypot(a.x-b.x,a.y-b.y);zoom0=gZoom;gDrag=null;tap=null;}});
   cv.addEventListener('pointermove',e=>{gActT=performance.now();if(!PT.has(e.pointerId))return;PT.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    if(PT.size===2&&pinch0>0){const [a,b]=[...PT.values()];gZoom=clamp(zoom0*pinch0/Math.max(1,Math.hypot(a.x-b.x,a.y-b.y)),.32,1.5);return;}
+    if(PT.size===2&&pinch0>0){const [a,b]=[...PT.values()];gZoom=clamp(zoom0*pinch0/Math.max(1,Math.hypot(a.x-b.x,a.y-b.y)),.32,1.1);return;}
     if(gDrag){gRot=gDrag.r+(e.clientX-gDrag.x)*.011;if(gBig)gPitch=clamp(gDrag.p+(e.clientY-gDrag.y)*.006,-.12,1.1);if(tap&&Math.hypot(e.clientX-tap.x,e.clientY-tap.y)>7)tap=null;}});
   const up=e=>{PT.delete(e.pointerId);if(PT.size<2)pinch0=0;if(tap&&!gBig&&performance.now()-tap.t<350)setBig(true);tap=null;if(!PT.size)gDrag=null;};
   cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
-  cv.addEventListener('wheel',e=>{e.preventDefault();gZoom=clamp(gZoom*Math.exp(e.deltaY*.0012),.32,1.5);if(!gBig&&e.deltaY<0)setBig(true);},{passive:false});
+  cv.addEventListener('wheel',e=>{e.preventDefault();gZoom=clamp(gZoom*Math.exp(e.deltaY*.0012),.32,1.1);if(!gBig&&e.deltaY<0)setBig(true);},{passive:false});
   $('gZoomBtn').onclick=()=>setBig(!gBig);}
 let gBig=false,gZoom=1,gPitch=0,gZc=1,gPc=0,gActT=0;
 function setBig(v){gBig=v;$('gView').classList.toggle('big',v);gW=gH=0;if(!v){gZoom=1;gPitch=0;}$('gZoomBtn').setAttribute('aria-label',v?'Close inspect view':'Inspect kart');}
@@ -10020,7 +10037,7 @@ let styleAsk=null;function styleUI(){const w=$('pStyle');if(!w)return;const st=p
   const cards=COMBOS.map((c,i)=>{const own=comboOwned(i),on=playerBuild.p===c.p&&!playerBuild.t&&Object.keys(c.st).every(k=>(st[k]|0)===c.st[k]);/* (patch 73) */
     return '<button type="button" class="combo" data-c="'+i+'" aria-pressed="'+on+'" style="display:flex;flex-direction:column;gap:5px;align-items:flex-start;padding:8px 10px;border-radius:12px;border:2px solid '+(on?'#f7c948':'rgba(255,244,220,.14)')+';background:rgba(0,0,0,.28);color:#fff4dc;font:inherit;cursor:pointer;min-width:0">'
       +'<b style="font-size:13px">'+c.n+'</b><span>'+[PAINTS[c.p],TRIMS[c.st.tr].h,TRIMS[c.st.ac].h,TRIMS[c.st.rm].h,GLOWS[c.st.gl].h].map(chip).join('')+'</span><small style="opacity:.8">'+(own?(c.$?'Owned':'Free'):c.$+' coins')+'</small></button>';}).join('');
-  w.innerHTML='<p class="g-sub style-coins">Style shop · <b>'+coins+'</b> coins</p><p class="g-sub">Combos</p><div class="combos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px">'+cards+'</div>'+row('tr','Trim')+row('ac','Accent')+row('in','Interior')+row('rm','Rims')+(BODIES[playerBuild.b].bike?'':row('gl','Underglow'))+/* (patch 78) */row('hl','Headlights')+row('sm','Tyre smoke');
+  w.innerHTML='<p class="g-sub style-coins">Style shop · <b>'+coins+'</b> coins</p><p class="g-sub">Combos</p><div class="combos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px">'+cards+'</div>'+row('tr','Trim')+row('ac','Accent')+row('in','Interior')+row('rm','Rims')+row('cl','Calipers')+(BODIES[playerBuild.b].bike?'':row('gl','Underglow'))+/* (patch 78) */row('hl','Headlights')+row('sm','Tyre smoke');
   w.querySelectorAll('button.combo').forEach(b=>b.onclick=()=>{const i=+b.dataset.c,c=COMBOS[i];
     if(!comboOwned(i)){const have=sbSave().c||0;if(have<c.$){achToast(null,'<b>'+c.n+'</b> costs '+c.$+' coins. You have '+have+'. Earn coins by racing and in Sandbox.');return;}
       if(styleAsk!=='cb'+i){styleAsk='cb'+i;achToast(null,'Tap <b>'+c.n+'</b> again to buy it for '+c.$+' coins. Its colours are yours for the parts it puts them on.');return;}styleAsk=null;comboBuy(i);try{SFX.ready();}catch(e){}}
@@ -10069,6 +10086,46 @@ function panelMore(){const side=document.querySelector('.g-side');if(!side)retur
 /* (patch 72) the garage's floor: dark polished charcoal, a softer lighter spot under the car, fine circular brushing, darker to the edge */
 function gFloorTex(){const N=512,c=cnv(N,N),g=c.getContext('2d'),gr=g.createRadialGradient(N/2,N/2,0,N/2,N/2,N/2);gr.addColorStop(0,'#3a3c44');gr.addColorStop(.45,'#26272d');gr.addColorStop(1,'#121317');g.fillStyle=gr;g.fillRect(0,0,N,N);
   const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=8;return t;}
+/* (patch 81) the garage studio: a real workshop round the turntable, built from the Garage track's scanned models at real size
+   (1 m = 2.7 units, a car's length), and the car's reflections made from it */
+let gSetFull=false;
+function gStudioSet(){const G=new THREE.Group(),M={},K=2.7,S=K/(TM.U*100)/* (TM.U units per cm) */,X=33,Z=28,H=15;
+  const mat=(k,o)=>M[k]||(M[k]=o.emit!=null?new THREE.MeshBasicMaterial({color:new THREE.Color(o.c).multiplyScalar(o.emit)}):new THREE.MeshStandardMaterial({color:o.c,roughness:o.r==null?.8:o.r,metalness:o.m||0,envMapIntensity:o.e==null?.5:o.e}));
+  const box=(k,o,x,y,z,w,h,d)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(k,o));m.position.set(x,y,z);G.add(m);return m;};
+  /* a surface at real size: UVs in repeats of the scan (about 2 m) */
+  const plane=(m,w,h,tile,x,y,z,rx,ry)=>{const g=new THREE.PlaneGeometry(w,h),uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*w/tile,uv.getY(i)*h/tile);const me=new THREE.Mesh(g,m);me.position.set(x,y,z);me.rotation.set(rx||0,ry||0,0);G.add(me);return me;};
+  const put=(o,x,y,z,ry,sc)=>{if(!o)return null;o.scale.setScalar(S*(sc||1));o.position.set(x,y,z);o.rotation.y=ry||0;G.add(o);return o;};
+  const fromScan=(f,col,o)=>{try{const c=f();if(!c||!c.map)return null;return new THREE.MeshStandardMaterial(Object.assign({map:c.map,normalMap:c.normalMap||null,normalScale:c.normalScale?c.normalScale.clone():undefined,color:new THREE.Color(col),roughness:.6,metalness:0,envMapIntensity:.5},o));}catch(e){return null;}};
+  /* new materials on the track's scanned pictures (its own materials stay as they are): polished grey concrete, a warm grey brick */
+  const conc=fromScan(()=>TM.gconcrete(),'#5a5a5c',{roughness:.34,envMapIntensity:.8}),brick=fromScan(()=>TM.gbrick(),'#8f8a82',{roughness:.9,envMapIntensity:.3});
+  plane(conc||mat('floor',{c:'#55565a',r:.6}),2*X,2*Z,2*K,0,-.03,0,-Math.PI/2);/* sealed concrete */
+  const wm=brick||mat('wall',{c:'#d9d6cf',r:.9});/* painted brick */
+  /* a dark painted band low on every wall, as in a workshop */const band=mat('band',{c:'#2b2e33',r:.55,e:.6});box('band',{},-X+.06,1.6,0,.12,3.2,2*Z);box('band',{},X-.06,1.6,0,.12,3.2,2*Z);box('band',{},0,1.6,-Z+.06,2*X,3.2,.12);box('band',{},0,1.6,Z-.06,2*X,3.2,.12);
+  plane(wm,2*Z,H,2*K,-X,H/2,0,0,Math.PI/2);plane(wm,2*Z,H,2*K,X,H/2,0,0,-Math.PI/2);plane(wm,2*X,H,2*K,0,H/2,-Z,0,0);plane(wm,2*X,H,2*K,0,H/2,Z,0,Math.PI);
+  box('ceil',{c:'#3a3c41',r:.9},0,H+.25,0,2*X,.5,2*Z);for(const x of [-22,-11,0,11,22])box('beam',{c:'#55585e',r:.5,m:.6},x,H-.4,0,.6,.8,2*Z);/* steel beams */
+  /* lighting: long LED panels overhead, an LED strip round the walls at door height, as in a detailing studio */
+  for(const z of [-12,-4,4,12])for(const x of [-16,0,16])box('ledC',{c:'#ffffff',emit:10},x,H-.9,z,12,.15,1.1);
+  for(const [y,k,o,t] of [[6.2,'led',{c:'#eef3ff',emit:5},.35]]){box(k,o,-X+.08,y,0,.15,t,2*Z-1);box(k,o,X-.08,y,0,.15,t,2*Z-1);box(k,o,0,y,-Z+.08,2*X-1,t,.15);box(k,o,0,y,Z-.08,2*X-1,t,.15);}
+  box('skirt',{c:'#26282c',r:.6},0,.35,-Z+.1,2*X,.7,.2);box('skirt',{c:'#26282c',r:.6},0,.35,Z-.1,2*X,.7,.2);box('skirt',{c:'#26282c',r:.6},-X+.1,.35,0,.2,.7,2*Z);box('skirt',{c:'#26282c',r:.6},X-.1,.35,0,.2,.7,2*Z);
+  const T=f=>{try{return f();}catch(e){return null;}};
+  /* back wall (-X): two workbenches, the tool chests, the tool rack and the electrics */
+  put(T(()=>TM.gbench(116)),-X+.85,0,-9,Math.PI/2);put(T(()=>TM.gbench(116)),-X+.85,0,-5.8,Math.PI/2);
+  put(T(()=>TM.gchest()),-X+.7,0,-1.6,Math.PI/2);put(T(()=>TM.gchest()),-X+.7,0,.3,Math.PI/2);
+  put(T(()=>TM.gfit('grack')),-X,3.6,-7.4,Math.PI/2);put(T(()=>TM.gfit('gelec')),-X,3.2,9,Math.PI/2);
+  /* front wall (+X): two roll-up doors */
+  put(T(()=>TM.gdoor(318,214)),X,0,-6,-Math.PI/2,1.25);put(T(()=>TM.gdoor(318,214)),X,0,6,-Math.PI/2,1.25);
+  /* -Z wall: shelving, tyres, the ladder */
+  for(const x of [-16,-11.6,-7.2])put(T(()=>TM.gshelf()),x,0,-Z+.6,0);put(T(()=>TM.gtyres(4)),-5,0,-Z+1.2,0);put(T(()=>TM.gtyres(4)),-2.6,0,-Z+1.4,.6);put(T(()=>TM.gfit('gladder')),8,1.2,-Z,0);
+  /* +Z wall: windows onto daylight, a tyre stack in the corner */
+  for(const x of [-14,0,14]){box('win',{c:'#d6e6ff',emit:2.6},x,9.5,Z-.12,9,4.2,.1);box('frame',{c:'#2a2c30',r:.5,m:.4},x,9.5,Z-.2,9.6,.35,.2);box('frame',{c:'#2a2c30',r:.5,m:.4},x,9.5,Z-.2,.3,4.6,.2);box('frame',{c:'#2a2c30',r:.5,m:.4},x,7.3,Z-.25,9.6,.25,.4);}
+  put(T(()=>TM.gtyres(4)),X-3,0,Z-3,.3);
+  G.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=true;}});
+  gSetFull=['gbench','gchest','gshelf','gtyres','gdoor','grack','gelec','gladder'].every(n=>{try{return TM.pkReady(n);}catch(e){return false;}});return G;}
+function gStudioEnvFrom(set){const sc=new THREE.Scene(),par=set.parent;sc.add(set);set.position.y=-3;set.updateMatrixWorld(true);
+  sc.add(new THREE.HemisphereLight('#fff1d6','#2a2a30',.35));const dl=new THREE.DirectionalLight('#fff0d8',2.2);dl.position.set(10,22,12);sc.add(dl);
+  const pg=new THREE.PMREMGenerator(gR),rt=pg.fromScene(sc,0,.5,400);pg.dispose();set.position.y=0;if(par)par.add(set);set.updateMatrixWorld(true);return rt.texture;}
+/* the room again once the scanned models have arrived (they download after the menu is up) */
+let gSet=null;function gStudioMake(){if(gSet){gS.remove(gSet);gSet.traverse(o=>{if(o.isMesh)o.geometry.dispose();});}gSet=gStudioSet();const old=gS.environment;gS.environment=gStudioEnvFrom(gSet);gS.add(gSet);if(old&&old!==gS.environment)old.dispose();}
 /* (patch 80) the garage's reflections: an HDR photo studio, dark neutral walls and sharp bright soft-boxes, so paint and metal shine */
 function gStudioEnv(){const W=1024,H=512,d=new Uint16Array(W*H*4),S=(e0,e1,x)=>{const t=Math.min(1,Math.max(0,(x-e0)/(e1-e0)));return t*t*(3-2*t);},
   box=(a,lo,hi,f)=>S(lo-f,lo,a)*(1-S(hi,hi+f,a));
@@ -10083,11 +10140,12 @@ function gStudioEnv(){const W=1024,H=512,d=new Uint16Array(W*H*4),S=(e0,e1,x)=>{
   const pg=new THREE.PMREMGenerator(gR),rt=pg.fromEquirectangular(t);pg.dispose();t.dispose();return rt.texture;}/* (made with the garage's own renderer: a texture made by the game's renderer is empty in another WebGL context) */
 function openGarage(){garageOpen=true;menu.hidden=true;garage.hidden=false;
   if(!gR){try{gR=new THREE.WebGLRenderer({canvas:$('gCan'),antialias:true,alpha:true,powerPreference:'high-performance'});gR.setClearColor(0x000000,0);gR.outputEncoding=THREE.sRGBEncoding;gR.toneMapping=THREE.ACESFilmicToneMapping;gR.toneMappingExposure=1.05;
-    gS=new THREE.Scene();gS.environment=gStudioEnv();/* (patch 80: was the kitchen's sky) */
+    gS=new THREE.Scene();/* (patch 81: the studio room and the car's reflections from it: gStudioMake below; 80's painted studio was gStudioEnv) */
     gS.add(new THREE.HemisphereLight('#fff1d6','#6b3a1e',.35));const dl=new THREE.DirectionalLight('#fff0d8',2.2);/* (patch 80: the studio's light now comes from its soft-boxes too) */dl.position.set(10,22,12);dl.castShadow=true;dl.shadow.mapSize.set(1024,1024);Object.assign(dl.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:1,far:60});dl.shadow.bias=-.0005;gS.add(dl);gR.shadowMap.enabled=true;gR.shadowMap.type=THREE.PCFSoftShadowMap;
     const fl=new THREE.Mesh(new THREE.CircleGeometry(15.5,96),ugFloorMat(new THREE.MeshStandardMaterial({map:gFloorTex(),roughness:.62,metalness:0,envMapIntensity:.25})));fl.rotation.x=-Math.PI/2;fl.receiveShadow=true;gS.add(fl);/* (patch 72: a dark showroom floor) */
     const rg=new THREE.Mesh(new THREE.RingGeometry(14.3,15,64),new THREE.MeshBasicMaterial({color:'#f7c948',toneMapped:false}));rg.rotation.x=-Math.PI/2;rg.position.y=.03;gS.add(rg);
     gC=new THREE.PerspectiveCamera(30,1.6,.1,500);}catch(e){gR=null;}}
+  if(gR&&(!gSet||!gSetFull))try{gStudioMake();}catch(e){console.warn('studio',e);}/* (patch 81) */
   gW=gH=0;gTab=BODIES[playerBuild.b].bike?'bike':CAR_BODIES.includes(BODIES[playerBuild.b].id)?'car':'kart';refreshGarage(true);garage.scrollTop=0;}
 function closeGarage(){if(gBig){setBig(false);return;}garageOpen=false;garage.hidden=true;menu.hidden=false;if(gModel){gS.remove(gModel.g);disposeModel(gModel);gModel=null;}refreshMenu();}
 function renderGarage(dt){if(!gR||!gModel)return;const c=gR.domElement,w=c.clientWidth,h=c.clientHeight;if(!w||!h)return;
@@ -11238,7 +11296,7 @@ function padPoll(){let gps;try{gps=navigator.getGamepads?navigator.getGamepads()
       if(f){f.click();}else if(playerBuild.t){toggleFav(BODIES[playerBuild.b].id,playerBuild.t);refreshGarage(false);}}
     if(garageOpen){const bv=i=>{const b=gp.buttons[i];return b?(typeof b.value==='number'&&b.value>0?b.value:(b.pressed?1:0)):0;},sp=(bv(5)+bv(7))-(bv(4)+bv(6)),gd=Math.min(.05,(now-(PAD.gT||now))/1000);
       if(Math.abs(sp)>.05)gRot+=sp*gd*2.6;
-      if(gBig){const dz2=.18,ay2=gp.axes[3]||0,zy=Math.abs(ay2)<dz2?0:Math.sign(ay2)*(Math.abs(ay2)-dz2)/(1-dz2);/* (the right stick: the left one is the cursor's) */if(zy)gZoom=clamp(gZoom*Math.exp(zy*gd*1.6),.32,1.5);}}PAD.gT=now;
+      if(gBig){const dz2=.18,ay2=gp.axes[3]||0,zy=Math.abs(ay2)<dz2?0:Math.sign(ay2)*(Math.abs(ay2)-dz2)/(1-dz2);/* (the right stick: the left one is the cursor's) */if(zy)gZoom=clamp(gZoom*Math.exp(zy*gd*1.6),.32,1.1);}}PAD.gT=now;
     if(SBM.open&&edge(M.BACK))sbMap(false);else
     if(edge(M.B))padBack();}
   if(edge(M.START))togglePause();
