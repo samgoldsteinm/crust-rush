@@ -65,6 +65,39 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   1326 triangles, HQ 1799, class 9). Left: the Neutron (its saddle is body paint in the pack), the Bentley's rear (none in the source).
   How and which parts: tools/blender/seats/README.md. Keep it fixed: a new car goes through car_convert (its seat group); an old pack is
   re-labelled with transfer.py, never rebuilt. Test pictures of the Chariot need the garage's default camera (gZoom .55 shows nothing).
+- CLASSIC KART'S SPARE SLICE + GARAGE CEILING (87, web v227; PC kart body via the export). The owner: "The pizza slice is messed up on
+  the side of this kart also if you move the camera too high in the garage you run into the ceiling". (1) The slice strapped to the
+  Classic's right pod points forward with its crust end at x -.3, but two pepperoni (x -.8, -.4) and the rear strap (x -1.1) were placed
+  behind that end, floating on the pod. Now the pepperoni sit on the cheese, both straps cross it and a crust (KG.crust) runs along the
+  wide end. Keep it fixed: KG.slice rotated -PI/2 about z runs from its base at the given x forward by 6.45 x its scale; decorations go
+  inside that triangle. (2) frameGarageCam had no height limit: pitch up to .22+1.1 rad at 1.1x zoom put the camera ~20 units up, above
+  the studio's LED panels (bottom 14) and ceiling (15). Now the camera stays at y <= 12.6: it comes closer first (not nearer than 1.7 x
+  the car's radius), then the tilt stops. Keep it fixed: if the studio's H changes in gStudioSet, move yM with it. The PC garage has no
+  room, so its camera needed nothing. Test: scratch/paint/sliceqa.py (camera y printed at full tilt).
+- CALIPERS SPUN WITH THE WHEELS (88, web v227; PC pc86 + export). The owner: "the brake calipers are spinning with some of the wheels
+  ... test this for all cars and wheel types". Why: the downloaded wheel models hold what sits inside the wheel (the caliper on every
+  kart wheel set and the Monster wheel; on Muscle, Monster, Retro GT, Onyx, SUV, Hatch, Tourer; the GT's, Roadster's and Onyx's hub
+  carrier or strut; brake parts and a fender arc on the bikes) in the same mesh, under the spinning group. Fix: wheelHold(geo, pack)
+  splits each wheel model into what rolls and what is held (connected pieces not repeated round the axle and under 200 degrees, per
+  WHEEL_HOLD's rule for that pack; the MX bike's hubless ring: everything inside it); holdOut puts the held part in the steering group
+  (yaw). The held part's material makes its caliper classes take the Calipers colour (a wheel set's caliper shared its class with the
+  spokes and took the Rims colour). The cars whose calipers are in the BODY (Hyper, GT, Interceptor, Scissor, Endurance, Skywing,
+  Mega GT) already stood still. PC: glbexport.js exports the held part as ph<i> / hold_L / hold_R; kart_builder puts it in
+  'wheel_XX_hold' beside the wheel; view.gd steers it. Keep it fixed: a new wheel model with a caliper needs a WHEEL_HOLD entry (find
+  the pieces with scratch/paint/calan.js and calsheet.js, check with holdtest.js: every body on every wheel type, two spin angles).
+  The PC needs the same caliper classes in kart_builder HOLD_K as the web's WHEEL_HOLD k.
+- ACCENT CHANGED NOTHING ON MOST VEHICLES (89, web v227; PC pc86). Measured (scratch/paint/acctest.js: every body from 4 sides, accent
+  off vs neon green): accent painted classes 2, 13, 17 only; 30 of 38 bodies showed under 1% change (only their calipers). The
+  Gouda's stripe is buried in its cheese (the .3 bevel). Fix: accent also paints the body's chrome trim (10) and carbon (6, ahead of the
+  trim colour; not the Slip, whose carbon is its body: ACC_NO6), plus ACC_X's class where those are hidden (metal 7: Neutron, MX,
+  Rocket bike, Retro GT; dark 1: Grand Coupe, Concept, Muscle, Slip). Code-built karts: accM parts (Gouda's splitter and grille,
+  Tomatino's portholes and lamp brows) keep their own material until an accent is picked, named g_acc for the PC (glbexport's
+  __garageBake keeps g_acc out of the vertex-colour bake). Now 2% to 36% of every vehicle changes. Keep it fixed: run acctest.js after
+  adding a vehicle; a body with none of 2, 6, 10, 13, 17 on show needs an ACC_X class (web) and the same in kart_builder ACC_X (PC).
+- MORE COMBOS, MY COMBOS (90, web v227; PC pc86). COMBOS 10..29 appended (KEEP THE ORDER: owned ones are 'cb'+index; style.gd the
+  same): ten for everyone, ten with only:[body ids] that show first, starred, for those vehicles. My combos: 'crust-mycombos' (web) /
+  user://mycombos.json (PC), up to 12 {n, p, t, st}; wearing one on another vehicle leaves off a livery made for a different vehicle and
+  any colour not owned. Test: scratch/paint/comboqa.py (save on the Interceptor, wear on the Street Cruiser, delete).
 - BIKE WHEELS (85, web; PC via the export): the conversion cut fenders, a tail-light piece and seat trim into the bikes' wheel meshes,
   which spun round as a second set ("remove the ones that are spinning since the bike already has them"). wheelTrim in carGeos (bikes):
   the tyre whole, anything else only well inside it (within 90% of its radius) and never body paint, stripe, tail, glass or seat.
