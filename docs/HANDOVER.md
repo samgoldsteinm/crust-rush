@@ -115,6 +115,10 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   color of the wheel". Why: patch 82's uCut stopped the spoke classes at the tyre's inner radius. Fix: the limit stays only on the
   Monster wheel (WHEEL_CUT: its tread blocks are its rim class); the lip and barrel take the Rims colour; WHEEL_ALL paints the
   Chariot's whole wheel; the Emerald set adds its rim 11, the toy cars their dish (their class 12). Keep it fixed: rimtest.js.
+- CONCEPT: SPOKES ONLY (94, web v229; PC pc89). The owner: "For the concept vehicle make the rim cover only cover the spokes not the
+  barrel". Its spokes and barrel are one piece of one class at the same depth (scratch/paint/concz.js). barrelMark labels the barrel
+  14 (uv only): the white ribs (2) and the dark surface in the outer half facing away from the axle; WHEEL_CUT keeps its lip. Test:
+  scratch/paint/rimc.js. Keep it fixed: another wheel whose barrel and spokes share a class needs the same (WHEEL_CUT + a mark).
 - ADDED CALIPERS (92, web v228; PC via the export's ph<i>). Wheels with none on show: the owner saw a prototype (scratch/paint/
   addcal3.js) and kept the cars, not the bikes ("dont worry about the calipers for bikes the rest look good"). WHEEL_ADDCAL: Grand
   Coupe, Megawatt, Luxury SUV. addCal builds a rounded block over the brake disc's rear top edge, kept behind the spokes, class 13, as
