@@ -850,8 +850,10 @@ const GLIDERS=[
   {id:'twin',name:'Twin Canopy',desc:'Two small chutes. Very steady and quick to open, a touch slow.',st:[-1,1,0,0,0],sink:13,air:.98},
   {id:'balloon',name:'Dough Balloon',desc:'A puffed-up dough balloon. Floats forever, drifts slowly, and adds a little weight.',st:[-1,0,0,1,0],sink:9,air:.95},
   {id:'umbrella',name:'Patio Umbrella',desc:'The pizzeria terrace umbrella. Quick to open.',st:[0,1,-1,0,0],sink:15,air:1}];
-const PAINTS=[null,'#c40c0c','#ff5a00','#ffb400','#3fae0c','#0b49c9','#5317ad','#ff2c84','#1c1d22','#efe4cb'];/* (patch 62: deep car colours, chosen for the tone curve) */
-const PAINT_NAMES=['Driver color','Tomato','Orange','Cheddar','Basil','Ocean','Grape','Bubblegum','Charcoal','Cream'];
+const PAINTS=[null,'#c40c0c','#ff5a00','#ffb400','#3fae0c','#0b49c9','#5317ad','#ff2c84','#1c1d22','#efe4cb',
+  '#7a0912','#ffd21a','#86c916','#0b4a26','#0e8c86','#2f9bff','#0c1d4d','#2a1150','#b4532a','#c9b28a','#a9adb5','#3a3d43','#f5f6f8','#07080a'];/* (patch 80: 14 more solids) *//* (patch 62: deep car colours, chosen for the tone curve) */
+const PAINT_NAMES=['Driver color','Tomato','Orange','Cheddar','Basil','Ocean','Grape','Bubblegum','Charcoal','Cream',
+  'Crimson','Sunburst','Lime','Racing green','Teal','Sky','Navy','Midnight','Copper','Sand','Silver grey','Gunmetal','Snow','Jet black'];
 /* bikes ride on their own wheels: each bike body names the wheel set it is built with (bw), and that set counts in its stats exactly as a
    chosen wheel does for a kart or car, so a bike compares with a kart-plus-wheels, not with a bare kart */
 const wheelOf=b=>{const bd=BODIES[b.b];return bd&&bd.bike?(WHEELS.find(w=>w.id===bd.bw)||WHEELS[0]):WHEELS[b.w];};
@@ -871,9 +873,9 @@ function validBuild(b){return b&&BODIES[b.b]&&WHEELS[b.w]&&GLIDERS[b.g]&&b.p>=0&
 let playerBuild=(()=>{try{const b=JSON.parse(store.get('crust-build')||'null');if(validBuild(b))return b;}catch(e){}return {b:0,w:0,g:0,p:0};})();
 /* (patch 65) CPU karts sometimes wear a glow or coloured smoke, for show (they need not own it) */setTimeout(()=>{const rb=randomBuild;randomBuild=function(){const b=rb();if(Math.random()<.3)b.st={gl:Math.floor(Math.random()*GLOWS.length),sm:Math.random()<.5?Math.floor(Math.random()*SMOKES.length):0};return b;};},0);
 /* (patch 65) the style shop: trim / accent / interior colours (one list), underglow, headlight colours, tyre smoke */
-const TRIMS=[{n:'Stock',h:null,$:0},{n:'Black',h:'#111214',$:0},{n:'White',h:'#f2f2f0',$:0},{n:'Silver',h:'#b8bcc4',$:0,m:1},{n:'Red',h:'#c40c0c',$:60},{n:'Orange',h:'#ff5a00',$:60},
+const TRIMS=[{n:'Stock',h:null,$:0},{n:'Black',h:'#111214',$:0},{n:'White',h:'#f2f2f0',$:0},{n:'Silver',h:'#c9ccd2',$:0,m:1,r:.16},{n:'Red',h:'#c40c0c',$:60},{n:'Orange',h:'#ff5a00',$:60},
   {n:'Yellow',h:'#ffc400',$:60},{n:'Green',h:'#2fae0c',$:60},{n:'Blue',h:'#0b49c9',$:60},{n:'Purple',h:'#5317ad',$:80},{n:'Pink',h:'#ff2c84',$:80},{n:'Tan leather',h:'#a8703e',$:120},
-  {n:'Neon green',h:'#7dff2a',$:150},{n:'Neon blue',h:'#2ae8ff',$:150},{n:'Gunmetal',h:'#3b3e44',$:150,m:1},{n:'Bronze',h:'#8a6232',$:250,m:1},{n:'Gold',h:'#d4a838',$:400,m:1},{n:'Chrome',h:'#e9e9ee',$:600,m:1,r:.08}];
+  {n:'Neon green',h:'#7dff2a',$:150},{n:'Neon blue',h:'#2ae8ff',$:150},{n:'Gunmetal',h:'#3b3e44',$:150,m:1},{n:'Bronze',h:'#b5763f',$:250,m:1,r:.26},{n:'Gold',h:'#e3b448',$:400,m:1,r:.18},{n:'Chrome',h:'#e9e9ee',$:600,m:1,r:.08}];
 const GLOWS=[{n:'Off',h:null,$:0},{n:'Ice blue',h:'#3fc8ff',$:0},{n:'Purple',h:'#a040ff',$:200},{n:'Red',h:'#ff2a2a',$:200},{n:'Green',h:'#3dff6a',$:200},{n:'Pink',h:'#ff3fb4',$:250},
   {n:'Amber',h:'#ffa020',$:250},{n:'White',h:'#e8f0ff',$:250},{n:'Rainbow',h:'rainbow',$:800}];
 const LIGHTS=[{n:'Halogen',h:'#fff2d6',$:0},{n:'Xenon white',h:'#eef3ff',$:0},{n:'Ice blue',h:'#9fd8ff',$:150},{n:'Yellow',h:'#ffd75a',$:150},{n:'Purple',h:'#c49bff',$:300},{n:'Green',h:'#9dffb0',$:300},{n:'Red',h:'#ff7a6a',$:300}];
@@ -1625,7 +1627,7 @@ function carGeos(id){const p=CAR_PACKS[id];if(p.g)return p.g;const bin=p.b?new U
   p.d=null;p.b=null;p.g=g;return g;}
 let HQB=false;let LODM=0,LODF=120;
 function carBody(id,M,B){const g=carGeos(HQB&&hqReady(id)?id+'_hq':id);M.carPaint=new THREE.MeshPhysicalMaterial(M.paint.userData.solid?{color:M.paint.color.clone(),vertexColors:true,metalness:0,roughness:.36,clearcoat:1,clearcoatRoughness:.02,envMapIntensity:1.75}:{color:M.paint.color.clone(),vertexColors:true,metalness:.32,roughness:.2,clearcoat:1,clearcoatRoughness:.02,envMapIntensity:1.5});/* (patch 62: the solid finish) *//* (patch 49c: glossier) */
-  M.blue=new THREE.MeshStandardMaterial({color:'#2a5bff',emissive:'#2a5bff',emissiveIntensity:2});const mats={paint:M.carPaint,tail:M.tailM,light:M.lightM||SH.carLight,glass:SH.carGlass,vc:M.vcM||SH.carVC,blue:M.blue};/* (patch 65: styled copies) */
+  M.blue=new THREE.MeshStandardMaterial({color:'#2a5bff',emissive:'#2a5bff',emissiveIntensity:2});M.carPaint.userData.cp=1;/* (patch 80) */const mats={paint:M.carPaint,tail:M.tailM,light:M.lightM||SH.carLight,glass:SH.carGlass,vc:M.vcM||SH.carVC,blue:M.blue};/* (patch 65: styled copies) */
   for(const k in g){if(!k.startsWith('b_'))continue;const me=new THREE.Mesh(g[k],mats[k.slice(2)]);me.castShadow=k!=='b_glass';me.receiveShadow=true;B.add(me);if(k==='b_paint')M.paintMesh=me;}}
 /* bikes: the model's own two wheels (or none on a hover bike), a rider astride the seat */
 function bikeCfg(id,o){return Object.assign({car:id,bike:1,noCockpit:1,belt:2.6,numPos:[0,3.2],drvS:.5,lean:.22,bubS:1.3},o);}
@@ -5612,7 +5614,7 @@ function sbActPlace(id){const m=MAPS.find(q=>q.id===id);return m?m.name:id;}
 function sbActStart(a){if(SBA.act||state!=='race')return;sbActEndUi(null);const sv=sbActSave(),r=sv.a[a.id];SBA.act={a,t:0,v:0,first:!r||!r.n,from:SB.regId};SBA.near=null;sbActBtn(null);
   showBanner(a.name+': '+a.goal.toLowerCase(),3,'sm');if(a.tip)setTimeout(()=>{if(SBA.act&&SBA.act.a===a&&state==='race')showBanner(a.tip,3.2,'sm');},3100);try{SFX.ready();}catch(e){}SBA.barT=0;sbActBar();}
 /* each step of driving (sbTick): markers, and the one under way */
-function sbActTick(k,dt){const A=SBA.act;try{sbDel3D(k,A);}catch(e){}/* (patch 74) */
+function sbActTick(k,dt){const A=SBA.act;try{if(A&&!A.cheat&&(TD.on||devAlt()))A.cheat=1;}catch(e){}/* (patch 79) */try{sbDel3D(k,A);}catch(e){}/* (patch 74) */
   if(!A){let near=null;for(const m of SBA.marks){if((k.x-m.x)**2+(k.y-m.z)**2<26*26&&Math.abs((k.wy||0)-m.y)<12){near=m;break;}}SBA.near=near;sbActBtn(near);
     if(near){try{const gp=navigator.getGamepads&&navigator.getGamepads()[PAD.idx];const up=!!gp&&gp.buttons[12]&&gp.buttons[12].pressed;if(up&&!SBA.padUp)sbActStart(near.a);SBA.padUp=up;}catch(e){}}}
   else{const a=A.a;A.t+=dt;if(a.kind==='drift'){if(k.drift&&!k.air&&Math.abs(k.speed)>40)A.v+=dt;}else if(a.kind==='air'){if(k.air&&!k.loop)A.v+=dt;}
@@ -5624,7 +5626,7 @@ function sbActTick(k,dt){const A=SBA.act;try{sbDel3D(k,A);}catch(e){}/* (patch 7
 function sbActEnd(why,quiet){const A=SBA.act;if(!A)return;SBA.act=null;if(A.drop){try{SB.grp.remove(A.drop);A.drop.geometry.dispose();A.drop.material.dispose();}catch(e){}}if(SBA.bar)SBA.bar.hidden=true;
   const a=A.a,sv=sbActSave();let pay=0,best=false;
   if(why==='done'){const r=sv.a[a.id]||(sv.a[a.id]={n:0});pay=A.first?a.coins:Math.round(a.coins/2);const sc=a.kind==='deliver'?A.t:A.t;/* (a challenge's score: how quickly it was done) */
-    if(!r.best||sc<r.best){r.best=+sc.toFixed(1);best=r.n>0;}r.n++;if(a.kind==='deliver'&&A.t<=a.par)pay+=Math.round(a.coins/3);sv.c+=pay;sbKeep();SB.hudT=0;try{SFX.ready();}catch(e){}
+    if(!A.cheat&&(!r.best||sc<r.best)){r.best=+sc.toFixed(1);best=r.n>0;}/* (patch 79: no best with a cheat on) */r.n++;if(a.kind==='deliver'&&A.t<=a.par)pay+=Math.round(a.coins/3);sv.c+=pay;sbKeep();SB.hudT=0;try{SFX.ready();}catch(e){}
     try{const k=player;burst(k.x,(k.wy||0)+8,k.y,30,['#ffd65a','#e8542f','#ffffff'],80,2.6);}catch(e){}}
   if(quiet)return;sbActEndUi({a,why,pay,t:A.t,best,par:a.kind==='deliver'&&why==='done'&&A.t<=a.par});}
 function sbActEndUi(o){let e=SBA.end;if(!o){if(e)e.hidden=true;return;}if(!e){e=SBA.end=document.createElement('div');e.id='sbActEnd';e.style.cssText='position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:8;min-width:min(86vw,340px);max-width:92vw;font:700 15px/1.3 system-ui,sans-serif;color:#fff4dc;background:rgba(18,9,6,.88);border:2px solid rgba(255,244,220,.45);border-radius:18px;padding:16px 18px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.5)';
@@ -6850,6 +6852,10 @@ function devSave(){store.set('crust-dev',JSON.stringify(DEV));}
 /* the race settings in force: in a room the host's (cfg.dev), off line yours; null when off */
 function devR(){if(NET.cfg)return NET.cfg.dev||null;return DEVU&&DEV.on?DEV:null;}
 /* this device only: off line, never in a room */
+/* (patch 79) a developer setting in force that changes the game (not its looks: field of view, the HUD) */
+function devAlt(){const ne=(a,b)=>b&&typeof b==='object'?Object.keys(b).some(k=>a&&a[k]!==undefined&&ne(a[k],b[k])):typeof b==='string'?String(a||'')!==b:+a!==+b;
+  return [devR(),devLocal()].some(D=>D&&Object.keys(DEVDEF).some(k=>k!=='on'&&k!=='fov'&&k!=='hud'&&D[k]!==undefined&&ne(D[k],DEVDEF[k])));}
+let RTAINT=false;/* (patch 79) this race used auto-drive or a developer setting: it does not count towards records */
 function devLocal(){return !NET.cfg&&!NET.role&&DEVU&&DEV.on?DEV:null;}
 /* a kart's race settings: in a room every kart's; off line only yours */
 function devFor(k){const D=devR();return D&&(NET.cfg||k===player)?D:null;}
@@ -8273,7 +8279,7 @@ const brkEls=[$('brakeL'),$('brakeR')],hitfx=$('hitfx'),slot2El=$('slot2'),frost
 const suf=n=>n===1?'st':n===2?'nd':n===3?'rd':'th';
 const fmt=t=>{const m=Math.floor(t/60),s=t-m*60;return m+':'+(s<10?'0':'')+s.toFixed(2);};
 function showBanner(txt,dur,sm){banner.textContent=txt;banner.classList.toggle('sm',sm===true||sm==='sm');banner.classList.toggle('md',sm==='md');banner.classList.remove('pop');void banner.offsetWidth;banner.classList.add('pop');bannerT=dur;}
-function hud(dt,time){try{tdTick();}catch(e){}if(BENCH.pending){if(state==='intro')introSkip=true;if(state==='race'){const n=performance.now();if(!BENCH.pt)BENCH.pt=n;else if(n-BENCH.pt>1500){BENCH.pending=false;BENCH.pt=0;if(benchStart())showBanner('Graphics test: hands off for 40 s',1.6,'sm');}}else if(state==='menu'&&BENCH.pt===0&&!raceLoading)BENCH.pending=false;}
+function hud(dt,time){try{tdTick();}catch(e){}try{if(!RTAINT&&player&&(state==='race'||state==='countdown')&&(TD.on||devAlt()))RTAINT=true;}catch(e){}if(BENCH.pending){if(state==='intro')introSkip=true;if(state==='race'){const n=performance.now();if(!BENCH.pt)BENCH.pt=n;else if(n-BENCH.pt>1500){BENCH.pending=false;BENCH.pt=0;if(benchStart())showBanner('Graphics test: hands off for 40 s',1.6,'sm');}}else if(state==='menu'&&BENCH.pt===0&&!raceLoading)BENCH.pending=false;}
   if(bannerT>0){bannerT-=dt;if(bannerT<=0)banner.textContent='';}
   if(!player)return;hud.pf=(hud.pf||0)+1;if(hud.pf%60===1){const el=$('tbProg');hud.pw=el?Math.max(0,el.clientWidth-16):0;}if(hud.pf%3===0)for(const k of karts){if(!k.pm)continue;const f=Math.max(0,Math.min(1,(k.finished?LAPS*N:k.prog)/(LAPS*N)));const v=(f*(hud.pw||0)).toFixed(0);if(k.pm._v!==v){k.pm._v=v;k.pm.style.transform='translateX('+v+'px)';}}
   const pos=standCache.indexOf(player)+1;if(pos&&String(pos)!==lastPos){lastPos=String(pos);posNum.textContent=pos;posSuf.textContent=suf(pos);}
@@ -8355,7 +8361,7 @@ const wrapA=a=>Math.atan2(Math.sin(a),Math.cos(a));
 /* record the player's kart 10 times a second while racing */
 function recTick(){if(!recBuf||!player||player.finished)return;const g=player.m.g;while(recT<=raceTime&&recBuf.length<REC_MAX*6){recBuf.push(g.position.x*4,g.position.y*4,g.position.z*4,wrapA(g.rotation.x)*10000,wrapA(g.rotation.y)*10000,wrapA(g.rotation.z)*10000);recT+=1/REC_HZ;}}
 /* the ghost: your own kart from your best run, see-through, replaying that run */
-function ghostStart(){recBuf=[];recT=0;recLaps=[];lastRun=null;
+function ghostStart(){recBuf=[];recT=0;recLaps=[];lastRun=null;RTAINT=false;
   if(ghost){if(ghost.g.parent)ghost.g.parent.remove(ghost.g);ghost.mats.forEach(m=>m.dispose());ghost=null;}ghostRun=null;
   if(!CFG.ghost)return;const R=loadRecs()[recKey()];if(!R||!R.g)return;
   try{const d=unpackI16(R.g);ghostRun={d,n:d.length/6,t:R.t,laps:R.laps||[]};
@@ -8369,7 +8375,8 @@ function ghostTick(){if(!ghost||!ghostRun)return;const t=state==='race'?raceTime
   const near=(ghost.g.position.x-camera.position.x)**2+(ghost.g.position.z-camera.position.z)**2<30*30;ghost.mats.forEach(m=>m.opacity=near?.16:.36);}
 /* lap splits against your best run */
 function recLap(lap){if(!recBuf)return null;recLaps.push(raceTime);if(!ghostRun||!ghostRun.laps[lap-2])return null;const d=raceTime-ghostRun.laps[lap-2];return (d<0?'−':'+')+Math.abs(d).toFixed(2)+'s vs best';}
-function saveRun(){if(!player||!recBuf)return;const t=player.finishTime,key=recKey(),recs=loadRecs(),old=recs[key],pb=!old||t<old.t;
+function saveRun(){if(!player||!recBuf)return;const t=player.finishTime,key=recKey(),recs=loadRecs(),old=recs[key];
+  if(RTAINT){lastRun={t,old:old?old.t:null,pb:false,place:player.place,cheat:true};recBuf=null;return;}/* (patch 79) not counted */const pb=!old||t<old.t;
   lastRun={t,old:old?old.t:null,pb,place:player.place};
   if(pb){recs[key]={t,d:Date.now(),place:player.place,dr:selected,laps:recLaps.slice(),spec:{ri:selected,b:playerBuild.b,w:playerBuild.w,g:playerBuild.g,p:playerBuild.p,t:playerBuild.t||''},g:packI16(recBuf)};
     let s=JSON.stringify(recs);/* keep storage in check: drop the oldest ghosts if it ever gets large */
@@ -8378,7 +8385,7 @@ function saveRun(){if(!player||!recBuf)return;const t=player.finishTime,key=recK
 /* (patch 65) coins for a finished race: 8, 3 more for each kart beaten, a podium bonus, times the class; 6 for a run alone */
 function racePay(){if(!player||player.est||RDEMO||RPAY)return;const n=karts.length,p=player.place||n,cm={small:1,medium:1.2,large:1.5,reverse:1.5}[clsKey]||1;const amt=n>1?Math.round((8+Math.max(0,n-p)*3+(p===1?10:p===2?5:p===3?2:0))*cm):6;const sv=sbSave();sv.c=(sv.c||0)+amt;sbKeep();RPAY=amt;}
 function payLine(){return RPAY?'<span class="pbn">+'+RPAY+' coins</span>':'';}
-function pbLine(){if(!lastRun)return '';if(lastRun.pb)return lastRun.old==null?'<span class="pbn">First time logged · '+fmt(lastRun.t)+'</span>':'<span class="pbn">New personal best! '+fmt(lastRun.t)+' (−'+(lastRun.old-lastRun.t).toFixed(2)+'s)</span>';
+function pbLine(){if(!lastRun)return '';if(lastRun.cheat)return '<span class="pbo">Not counted for records: auto-drive or developer options were on</span>';if(lastRun.pb)return lastRun.old==null?'<span class="pbn">First time logged · '+fmt(lastRun.t)+'</span>':'<span class="pbn">New personal best! '+fmt(lastRun.t)+' (−'+(lastRun.old-lastRun.t).toFixed(2)+'s)</span>';
   return '<span class="pbo">Personal best '+fmt(lastRun.old)+' · +'+(lastRun.t-lastRun.old).toFixed(2)+'s</span>';}
 const fmtDate=d=>{const x=new Date(d);return x.toLocaleDateString(undefined,{month:'short',day:'numeric'});};
 let recCls=null;
@@ -8990,7 +8997,8 @@ function refreshGarage(rebuild){setTimeout(panelMore,0);
   $('buildSum').textContent=buildSummary();
   if(rebuild&&garageOpen)setPreview();}
 function setPreview(){if(!gR)return;if(gModel){gS.remove(gModel.g);disposeModel(gModel);gModel=null;}
-  gModel=buildKart(Object.assign({ri:selected,ugL:1},playerBuild));/* (patch 66: the underglow's lights in the preview) */gModel.g.scale.setScalar(gModel.sf);gModel.g.traverse(o=>{if(o.isMesh){o.castShadow=true;}});gS.add(gModel.g);gModel.pga=gGlT>0?1:0;
+  gModel=buildKart(Object.assign({ri:selected,ugL:1},playerBuild));/* (patch 66: the underglow's lights in the preview) */gModel.g.scale.setScalar(gModel.sf);gModel.g.traverse(o=>{if(o.isMesh){o.castShadow=true;for(const m of [].concat(o.material))if(m&&m.userData&&m.userData.cp){/* (patch 80) the garage's paint: the base less mirror-like (its colour stays rich), a crisp clear coat */
+    m.envMapIntensity=m.metalness>0?.75:.8;if(!(m.metalness>0))m.roughness=.45;m.clearcoatRoughness=.04;}}});gS.add(gModel.g);gModel.pga=gGlT>0?1:0;
   {gModel.gl.visible=false;gModel.g.rotation.y=0;gModel.g.updateMatrixWorld(true);const bb=new THREE.Box3(),tb=new THREE.Box3();gModel.g.traverseVisible(o=>{if(o.isMesh&&o.geometry&&!(o.material&&o.material.blending===THREE.AdditiveBlending)){/* (patch 78: not the glow) */if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();tb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);bb.union(tb);}});gModel.rad=bb.getSize(new THREE.Vector3()).length()*.5;gModel.cy=(bb.min.y+bb.max.y)/2;}}
 let gGlT=0;
 function frameGarageCam(ga,dt){gZc+=(gZoom-gZc)*Math.min(1,(dt||.016)*10);gPc+=(gPitch-gPc)*Math.min(1,(dt||.016)*10);const rad=(gModel.rad||8)+ga*3,ty=(gModel.cy||3)+ga*3.5,vh=15*Math.PI/180,hh=Math.atan(Math.tan(vh)*(gC.aspect||1.6)),d=rad/Math.sin(Math.min(vh,hh))*(gBig?.95:.84+.12*ga)*gZc,_nf=(()=>{const nr=Math.max(.5,Math.min(d-rad*1.6,d*.25));if(Math.abs(gC.near-nr)>.05){gC.near=nr;gC.far=Math.max(200,d*8);gC.updateProjectionMatrix();}})(),el=.22+gPc,hz=Math.cos(el)*d,sh=gBig?0:rad*.34*Math.min(1,(gC.aspect||1)/1.3);
@@ -9001,11 +9009,23 @@ function panelMore(){const side=document.querySelector('.g-side');if(!side)retur
 /* (patch 72) the garage's floor: dark polished charcoal, a softer lighter spot under the car, fine circular brushing, darker to the edge */
 function gFloorTex(){const N=512,c=cnv(N,N),g=c.getContext('2d'),gr=g.createRadialGradient(N/2,N/2,0,N/2,N/2,N/2);gr.addColorStop(0,'#3a3c44');gr.addColorStop(.45,'#26272d');gr.addColorStop(1,'#121317');g.fillStyle=gr;g.fillRect(0,0,N,N);
   const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=8;return t;}
+/* (patch 80) the garage's reflections: an HDR photo studio, dark neutral walls and sharp bright soft-boxes, so paint and metal shine */
+function gStudioEnv(){const W=1024,H=512,d=new Uint16Array(W*H*4),S=(e0,e1,x)=>{const t=Math.min(1,Math.max(0,(x-e0)/(e1-e0)));return t*t*(3-2*t);},
+  box=(a,lo,hi,f)=>S(lo-f,lo,a)*(1-S(hi,hi+f,a));
+  for(let y=0;y<H;y++){const el=((y+.5)/H-.5)*Math.PI,dy=Math.sin(el),ce=Math.cos(el);for(let x=0;x<W;x++){const ph=((x+.5)/W-.5)*2*Math.PI,dx=Math.cos(ph)*ce,dz=Math.sin(ph)*ce;
+    let v=dy>0?.012*(1+.8*dy):.006*(1+dy);/* dark walls, a darker floor */
+    v+=.2*box(dy,-.012,.022,.01);/* the line where wall meets floor */
+    if(dy>.2){const a=dx/dy,b=dz/dy;v+=10*box(a,-1,1,.04)*box(b,-.07,.07,.03);}/* overhead: one long narrow soft-box */
+    v+=5*(box(dz,.9,1.01,.02)+box(-dz,.9,1.01,.02))*box(dx,-.045,.045,.02)*box(dy,.06,.62,.03);/* a tall strip each side */
+    v+=3*box(dx,.9,1.01,.02)*box(dz,-.3,.3,.03)*box(dy,.12,.42,.03)+2*box(-dx,.9,1.01,.02)*box(dz,-.3,.3,.03)*box(dy,.12,.42,.03);/* front and back panels */
+    const i=(y*W+x)*4,h=THREE.DataUtils.toHalfFloat;d[i]=h(v*.97);d[i+1]=h(v);d[i+2]=h(v*1.03);d[i+3]=h(1);}}
+  const t=new THREE.DataTexture(d,W,H,THREE.RGBAFormat,THREE.HalfFloatType);/* (half float: filterable everywhere) */t.mapping=THREE.EquirectangularReflectionMapping;t.magFilter=t.minFilter=THREE.LinearFilter;t.needsUpdate=true;
+  const pg=new THREE.PMREMGenerator(gR),rt=pg.fromEquirectangular(t);pg.dispose();t.dispose();return rt.texture;}/* (made with the garage's own renderer: a texture made by the game's renderer is empty in another WebGL context) */
 function openGarage(){garageOpen=true;menu.hidden=true;garage.hidden=false;
   if(!gR){try{gR=new THREE.WebGLRenderer({canvas:$('gCan'),antialias:true,alpha:true,powerPreference:'high-performance'});gR.setClearColor(0x000000,0);gR.outputEncoding=THREE.sRGBEncoding;gR.toneMapping=THREE.ACESFilmicToneMapping;gR.toneMappingExposure=1.05;
-    gS=new THREE.Scene();gS.environment=envFrom(THEMES.kitchen.env,[[128,40,40,'#ffffff'],[384,40,40,'#ffffff'],[256,140,40,'#ff8a2a']]);
-    gS.add(new THREE.HemisphereLight('#fff1d6','#6b3a1e',.75));const dl=new THREE.DirectionalLight('#fff0d8',2.4);dl.position.set(10,22,12);dl.castShadow=true;dl.shadow.mapSize.set(1024,1024);Object.assign(dl.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:1,far:60});dl.shadow.bias=-.0005;gS.add(dl);gR.shadowMap.enabled=true;gR.shadowMap.type=THREE.PCFSoftShadowMap;
-    const fl=new THREE.Mesh(new THREE.CircleGeometry(15.5,96),ugFloorMat(new THREE.MeshStandardMaterial({map:gFloorTex(),roughness:.62,metalness:0,envMapIntensity:.6})));fl.rotation.x=-Math.PI/2;fl.receiveShadow=true;gS.add(fl);/* (patch 72: a dark showroom floor) */
+    gS=new THREE.Scene();gS.environment=gStudioEnv();/* (patch 80: was the kitchen's sky) */
+    gS.add(new THREE.HemisphereLight('#fff1d6','#6b3a1e',.35));const dl=new THREE.DirectionalLight('#fff0d8',2.2);/* (patch 80: the studio's light now comes from its soft-boxes too) */dl.position.set(10,22,12);dl.castShadow=true;dl.shadow.mapSize.set(1024,1024);Object.assign(dl.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:1,far:60});dl.shadow.bias=-.0005;gS.add(dl);gR.shadowMap.enabled=true;gR.shadowMap.type=THREE.PCFSoftShadowMap;
+    const fl=new THREE.Mesh(new THREE.CircleGeometry(15.5,96),ugFloorMat(new THREE.MeshStandardMaterial({map:gFloorTex(),roughness:.62,metalness:0,envMapIntensity:.25})));fl.rotation.x=-Math.PI/2;fl.receiveShadow=true;gS.add(fl);/* (patch 72: a dark showroom floor) */
     const rg=new THREE.Mesh(new THREE.RingGeometry(14.3,15,64),new THREE.MeshBasicMaterial({color:'#f7c948',toneMapped:false}));rg.rotation.x=-Math.PI/2;rg.position.y=.03;gS.add(rg);
     gC=new THREE.PerspectiveCamera(30,1.6,.1,500);}catch(e){gR=null;}}
   gW=gH=0;gTab=BODIES[playerBuild.b].bike?'bike':CAR_BODIES.includes(BODIES[playerBuild.b].id)?'car':'kart';refreshGarage(true);garage.scrollTop=0;}
