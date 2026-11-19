@@ -1760,7 +1760,11 @@ let HQB=false;let LODM=0,LODF=120;
 const TAIL_ROOF={interceptor:2.2},TAIL_DEEP={interceptor:1};
 function bodyCalSplit(geo,hw){if(geo.userData.calsplit!==undefined)return geo.userData.calsplit;geo.userData.calsplit=null;const P=geo.attributes.position,uv=geo.attributes.uv,I=geo.index&&geo.index.array;if(!uv||!I)return null;const a=[],b=[];
   for(let t=0;t<I.length;t+=3){let cal=false;if(Math.floor(uv.getX(I[t])*32)===13){const x=(P.getX(I[t])+P.getX(I[t+1])+P.getX(I[t+2]))/3,y=(P.getY(I[t])+P.getY(I[t+1])+P.getY(I[t+2]))/3,z=(P.getZ(I[t])+P.getZ(I[t+1])+P.getZ(I[t+2]))/3;
-    cal=hw.some(q=>Math.hypot(x-q.c[0],y-q.c[1])<q.r*1.1&&Math.abs(z-q.c[2])<q.r);}(cal?b:a).push(I[t],I[t+1],I[t+2]);}if(!b.length)return null;
+    cal=hw.some(q=>Math.hypot(x-q.c[0],y-q.c[1])<q.r*1.1&&Math.abs(z-q.c[2])<q.r);}
+    if(cal&&geo.attributes.normal){/* (patch 103) an inside-out caliper face is turned */const N=geo.attributes.normal,A=new THREE.Vector3().fromBufferAttribute(P,I[t]),B=new THREE.Vector3().fromBufferAttribute(P,I[t+1]),C=new THREE.Vector3().fromBufferAttribute(P,I[t+2]);
+      const fn=B.sub(A).cross(C.sub(A)),vn=new THREE.Vector3(N.getX(I[t])+N.getX(I[t+1])+N.getX(I[t+2]),N.getY(I[t])+N.getY(I[t+1])+N.getY(I[t+2]),N.getZ(I[t])+N.getZ(I[t+1])+N.getZ(I[t+2]));
+      if(fn.dot(vn)<0){b.push(I[t],I[t+2],I[t+1]);continue;}}
+    (cal?b:a).push(I[t],I[t+1],I[t+2]);}if(!b.length)return null;
   const mk=ix=>{const g=new THREE.BufferGeometry();for(const k in geo.attributes)g.setAttribute(k,geo.attributes[k]);g.setIndex(new THREE.BufferAttribute(I instanceof Uint32Array?new Uint32Array(ix):new Uint16Array(ix),1));g.computeBoundingSphere();CARGEO.add(g);return g;};
   return geo.userData.calsplit={rest:mk(a),cal:mk(b)};}
 function tailSplit(geo,y0){if(geo.userData.tsplit!==undefined)return geo.userData.tsplit;const P=geo.attributes.position,I=geo.index&&geo.index.array;geo.userData.tsplit=null;if(!I)return null;const a=[],b=[];
@@ -1773,7 +1777,7 @@ function carBody(id,M,B){let g=carGeos(HQB&&hqReady(id)?id+'_hq':id);M.carPaint=
   const cid=id.replace(/_hq$/,'');if(TAIL_DEEP[cid]){mats.tail=M.tailM.clone();mats.tail.color.set('#b3000c');mats.tail.emissive.set('#a0000a');mats.tail.emissiveIntensity=.45;}
   if(TAIL_ROOF[cid]!=null&&g.b_tail){const sp=tailSplit(g.b_tail,TAIL_ROOF[cid]);if(sp){const tr=TRIMS[(M.st&&M.st.tr)|0];const me=new THREE.Mesh(sp.roof,new THREE.MeshStandardMaterial({color:tr&&tr.h||'#161618',metalness:tr&&tr.m?.9:.3,roughness:tr&&tr.m?(tr.r||.22):.45}));me.castShadow=true;me.receiveShadow=true;B.add(me);g={...g,b_tail:sp.lamp};}}
   /* (patch 101) a car's own calipers in their own mesh: hidden on a wheel type that brings its own */
-  if(BODY_CAL[cid]&&g.b_vc){const sp=bodyCalSplit(g.b_vc,(CAR_PACKS[id]||CAR_PACKS[cid]).h.wheels||[]);if(sp){const me=new THREE.Mesh(sp.cal,mats.vc);me.castShadow=true;me.receiveShadow=true;me.userData.bodyCal=1;B.add(me);M.bodyCal=me;g={...g,b_vc:sp.rest};}}
+  if(g.b_vc){/* (patch 103: every car) */const sp=bodyCalSplit(g.b_vc,(CAR_PACKS[id]||CAR_PACKS[cid]).h.wheels||[]);if(sp){const me=new THREE.Mesh(sp.cal,mats.vc);me.castShadow=true;me.receiveShadow=true;me.userData.bodyCal=1;B.add(me);M.bodyCal=me;g={...g,b_vc:sp.rest};}}
   for(const k in g){if(!k.startsWith('b_'))continue;const me=new THREE.Mesh(g[k],mats[k.slice(2)]);me.castShadow=k!=='b_glass';me.receiveShadow=true;B.add(me);if(k==='b_paint')M.paintMesh=me;}}
 /* bikes: the model's own two wheels (or none on a hover bike), a rider astride the seat */
 function bikeCfg(id,o){return Object.assign({car:id,bike:1,noCockpit:1,belt:2.6,numPos:[0,3.2],drvS:.5,lean:.22,bubS:1.3},o);}
