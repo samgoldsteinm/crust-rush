@@ -201,8 +201,10 @@ window.__garageBake=function(S){const mk=new THREE.Color(GM.paint),st=new THREE.
 /* one body: its geometry without wheels, driver or glider, plus the pack wheels of cars and bikes */
 window.__exportBody=function(b){const G=new GLB();const pi=PAINTS.length-1;const m=buildKart({ri:0,b,w:0,g:0,p:pi,t:'',hq:1});reset(m);const g=m.g;
   const yaws=m.wheels.map(w=>w.spin.parent),front=new Set(m.front||[]);
-  const skip=o=>yaws.some(y=>under(o,y))||under(o,m.drv)||(m.lo&&under(o,m.lo))||(m.gl&&under(o,m.gl))||(m.bub&&under(o,m.bub))||(m.ice&&under(o,m.ice))||(m.flames||[]).some(f=>under(o,f))||(m.hglow&&o===m.hglow);
+  const skip=o=>o.userData.bodyCal||yaws.some(y=>under(o,y))||under(o,m.drv)||(m.lo&&under(o,m.lo))||(m.gl&&under(o,m.gl))||(m.bub&&under(o,m.bub))||(m.ice&&under(o,m.ice))||(m.flames||[]).some(f=>under(o,f))||(m.hglow&&o===m.hglow);
   const top=[G.node('body',parts(G,g,g.matrixWorld,skip))];
+  /* (pc93, web patch 101) a car's own calipers apart: the PC hides them on a wheel type that brings its own */
+  {let bc=null;g.traverse(o=>{if(o.userData.bodyCal)bc=o;});if(bc){const pr=parts(G,bc,g.matrixWorld,null);if(pr.length)top.push(G.node('bcal',pr));}}
   /* where the livery pattern is computed: the paint mesh's own space */
   let paintM=null,box=null;g.traverse(o=>{if(!paintM&&o.isMesh&&!skip(o)&&o.material&&o.material.name==='g_paint'){paintM=o;}});
   /* the imported cars keep their own paint mesh (not baked): it wears the marker paint colour */
@@ -221,7 +223,11 @@ window.__exportBody=function(b){const G=new GLB();const pi=PAINTS.length-1;const
 window.__exportWheel=function(w){const G=new GLB();const pi=PAINTS.length-1;const m=buildKart({ri:0,b:0,w,g:0,p:pi,t:'',hq:1});reset(m);const top=[];
   const done={};m.wheels.forEach(q=>{const sp=q.spin,yaw=sp.parent,side=yaw.position.z<0?'L':'R';if(done[side])return;done[side]=1;const wh=sp.children[0];if(!wh)return;
     const pr=parts(G,wh,wh.matrixWorld,null);if(pr.length)top.push(G.node('wheel_'+side,pr));
-    const ph=[];for(const h of yaw.children)if(h.userData.held)ph.push(...parts(G,h,wh.matrixWorld,null));if(ph.length)top.push(G.node('hold_'+side,ph));/* (pc86) */});
+    /* the model's own turn (hold0_), for the car whose wheel it is */const r0=[];for(const h of yaw.children)if(h.userData.held&&h.userData.r0!=null){r0.push([h,h.rotation.z]);h.rotation.z=h.userData.r0;h.updateMatrixWorld(true);}
+    const ph=[];for(const h of yaw.children)if(h.userData.held)ph.push(...parts(G,h,wh.matrixWorld,null));if(ph.length)top.push(G.node('hold0_'+side,ph));for(const [h,z] of r0){h.rotation.z=z;h.updateMatrixWorld(true);}/* (pc86, pc93) */});
+  /* (pc93, web patch 101) each corner's caliper, turned: behind a front axle, ahead of a rear one */
+  {const fr=new Set(m.front||[]);m.wheels.forEach(q=>{const sp=q.spin,yaw=sp.parent,wh=sp.children[0];if(!wh)return;const nm='hold_'+(fr.has(yaw)?'F':'R')+(yaw.position.z<0?'L':'R');
+    const ph=[];for(const h of yaw.children)if(h.userData.held)ph.push(...parts(G,h,wh.matrixWorld,null));if(ph.length)top.push(G.node(nm,ph));});}
   const root=G.node('wheels',null,{children:top});G.j.scenes[0].nodes.push(root);const bytes=G.glb();return {b64:u8ToB64(bytes),stats:Object.assign(G.stats,{bytes:bytes.length})};};
 window.__exportGlider=function(gi){const G=new GLB();const pi=PAINTS.length-1;const m=buildKart({ri:0,b:0,w:0,g:gi,p:pi,t:'',hq:1});reset(m);const gl=m.gl;gl.visible=true;gl.scale.setScalar(1);gl.updateMatrixWorld(true);
   const pr=parts(G,gl,gl.matrixWorld,null);const root=G.node('glider',pr);G.j.scenes[0].nodes.push(root);const bytes=G.glb();return {b64:u8ToB64(bytes),stats:Object.assign(G.stats,{bytes:bytes.length})};};
