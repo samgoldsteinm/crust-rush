@@ -130,6 +130,11 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   and its held caliper takes the Calipers colour (k [7,1]). Added calipers: front behind, rear ahead. Check: scratch/paint/calaudit.py
   <wheel> <name> (every body x the wheel type x 4 wheels: calipers counted, pictures; standard / slick / hover / pepperoni: 0 or 1, wheel
   sets and Monster: 1 everywhere; the Onyx's front trim is class 13 but not a caliper) and calside.js (front behind, rear ahead).
+- STREET CRUISER FENDERS HALF MISSING (102, web v235; PC pc94 + export). The owner: "the green wheel covers are still half
+  disappeared". Its fenders' lower halves were cut into its WHEEL models at conversion; patch 85's wheelTrim deleted them. Now BIKE_KEEP
+  skips the trim for it and patch 99's hold keeps them still (held paint drawn with M.carPaint); WHEEL_SCALE scales only the rolling
+  wheel mesh. Keep it fixed: for a bike, check what wheelTrim removes before trusting it (scratch/paint/moto.js).
+  Also: the owner saw the Scissor's front caliper ahead of the axle on a pre-v234 page; v234+ is right (scratch/paint/sciside.py).
 - STREET CRUISER WHEELS (99, web v234). Fender stays and brackets in its wheel models spun, and the front tyre (1.99 from the axle) sank
   into the front fender (1.87): WHEEL_HOLD bike_moto {outer:.9} holds every non-tyre piece reaching the tyre; WHEEL_SCALE shrinks the front
   wheel to .94 about its axle (visual only). scratch/paint/moto.js.
