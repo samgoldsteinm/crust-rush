@@ -1,6 +1,6 @@
 // Crust Rush service worker: installs the game as an app and keeps every file for offline play.
 // Game files have their content hash in the name, so a saved copy never goes stale; only the page itself is re-checked.
-const VERSION = 'crust-rush-v243';
+const VERSION = 'crust-rush-v244';
 const SHELL = [
   "./",
   "./index.html",
@@ -16,9 +16,9 @@ const SHELL = [
   "./assets/geo/tourer.10219a867b.bin",
   "./assets/geo/concept.4896a96dc6.bin",
   "./assets/geo/interceptor.62adca4ace.bin",
-  "./assets/geo/monster.0070a0ccd0.bin",
+  "./assets/geo/monster.22f2074ff6.bin",
   "./assets/geo/muscle.ac5c07a377.bin",
-  "./assets/geo/wheelset.01d35e5074.bin",
+  "./assets/geo/wheelset.f8a006e228.bin",
   "./assets/geo/gokart.baf72d914c.bin",
   "./assets/geo/chariot.f1e087c623.bin",
   "./assets/geo/hatch.db29691d7a.bin",
@@ -69,8 +69,8 @@ const SHELL = [
   "./assets/geo/scarlet_hq.0fc5250763.bin",
   "./assets/geo/surge.73e28efb07.bin",
   "./assets/geo/surge_hq.c752f74325.bin",
-  "./assets/geo/nighttank.8f50c11e33.bin",
-  "./assets/geo/nighttank_hq.3b4fca30aa.bin",
+  "./assets/geo/nighttank.b357480458.bin",
+  "./assets/geo/nighttank_hq.5f80a62b8d.bin",
   "./assets/geo/tree_pine1.55f1df225a.bin",
   "./assets/geo/tree_pine2.51237a24e1.bin",
   "./assets/geo/tree_round1.cc883fdab7.bin",
@@ -283,7 +283,7 @@ const SHELL = [
   "./assets/shots/preptable-m.02ee47e84f.jpg",
   "./assets/shots/preptable-a.d7b3293702.jpg",
   "./css/style.498adc41c0.css",
-  "./js/game.ff64b5ac91.js",
+  "./js/game.90f6babf15.js",
   "./vendor/three-0.149.0.402de381c9.js"
 ];
 
