@@ -136,6 +136,13 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   and struts that sit off the body: corrected in v242, see NIGHT TANK JET). Theme 'Dark Knight'
   (matte camo) and combo 'Dark Knight' (gloss black, gunmetal): slightly different as asked. Also Surge: its door / bonnet aluminium
   plate (a separate square on the body) dropped.
+- LSS ON A CLOCK (web v246, patch111; PC pc99; online 124). Last Slice Standing: every 30 s (LSS_EVERY) the last kart is out; at two
+  left the other wins on that elimination; next due at (number out + 1) x 30 s so guests count the same. LAPS 99 (safety net only),
+  HUD "Lap N" + "Next out 17s" (red last 5 s), tracker by position on the current lap, eliminated logos hidden. PC bug fixed: race.gd
+  _ahead sorted eliminated karts (finished) ahead of the racing, so every elimination dropped everyone a place. Test:
+  scratch/paint/lsstest.py (order of the racing never changes on an elimination).
+- FINISH DRIVER SHOT RAISED (web v246, patch112; PC pc100): the close-up swings .14->.36 pi off the nose (front quarter, not side-on) at
+  R*.58 above the head, looking down into the cockpit; before, it sat at door height and cars hid the driver's face.
 - CINEMATIC FINISH (web v245, patch110; PC pc98). The owner: "make the slow mo ending ... way more cinematic ... another camera angle and a
   close up of the driver ... their name in 3d letters ... and the place they took". FIN: ~7.2 s real time after the player finishes a
   race (not battle / Sandbox / LSS / spectating / PC auto drives): A trackside low fixed camera ahead at the road's edge, zooming as the
