@@ -119,6 +119,23 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   barrel". Its spokes and barrel are one piece of one class at the same depth (scratch/paint/concz.js). barrelMark labels the barrel
   14 (uv only): the white ribs (2) and the dark surface in the outer half facing away from the axle; WHEEL_CUT keeps its lip. Test:
   scratch/paint/rimc.js. Keep it fixed: another wheel whose barrel and spokes share a class needs the same (WHEEL_CUT + a mark).
+- ONE CALIPER PER WHEEL, PLACED (101, web v234; PC pc93 + export). The owner (Scissor on Forged: its calipers "sticking out through the
+  rims"; "only one in the front and back on every car ... dont spin ... rear calipers on the front of the wheel and the front calipers on
+  the rear ... calipers from the 3d model i uploaded: dont change the orientation"). Fix: (1) BODY_CAL cars (GT, Hyper, Interceptor,
+  Scissor, Skywing, Endurance, Roadster) have their body calipers split into their own mesh (bodyCalSplit; PC node 'bcal'), shown only on
+  their own wheels: on any wheel type the wheel's own caliper shows (wheel sets, Monster) or none (Slicks, Hover, Pepperoni are closed;
+  the Interceptor's stuck out over Slicks). (2) A wheel type's held caliper is turned about the axle: 155 deg (behind) on a front wheel,
+  25 deg (ahead) on a rear (holdOut fr; userData.r0 keeps the model's turn; PC exports hold_FL/FR/RL/RR and hold0_L/R). The Monster wheel
+  on the Monster Truck keeps its model's turn. (3) The SUV's model has its own caliper: no added one (WHEEL_ADDCAL coupe, megawatt only),
+  and its held caliper takes the Calipers colour (k [7,1]). Added calipers: front behind, rear ahead. Check: scratch/paint/calaudit.py
+  <wheel> <name> (every body x the wheel type x 4 wheels: calipers counted, pictures; standard / slick / hover / pepperoni: 0 or 1, wheel
+  sets and Monster: 1 everywhere; the Onyx's front trim is class 13 but not a caliper) and calside.js (front behind, rear ahead).
+- STREET CRUISER WHEELS (99, web v234). Fender stays and brackets in its wheel models spun, and the front tyre (1.99 from the axle) sank
+  into the front fender (1.87): WHEEL_HOLD bike_moto {outer:.9} holds every non-tyre piece reaching the tyre; WHEEL_SCALE shrinks the front
+  wheel to .94 about its axle (visual only). scratch/paint/moto.js.
+- CHARIOT SHAPES (100, web v234): the owner wanted the accent back as it was ("the lime green looked better") and the dark shapes
+  symmetrical. ACC_SYM emptied (98 off); shapeSym(g,'add') gives every one-sided carbon piece a twin from the paint opposite (63
+  triangles move b_paint -> b_vc class 6). scratch/paint/charsym.js compares adding and removing.
 - CHARIOT ACCENT LOPSIDED (98, web v233; PC via the export). The owner: "can we fix these accents so they are symettrical". Its model's
   carbon panels differ left to right; symAcc (ACC_SYM chariot) relabels carbon with no mirror twin as dark 1 (identical CAR_PBR, so the
   stock look is untouched). Measure others with scratch/paint/sym3.js (use the body's own centre: Hyper and Monster sit off z=0).

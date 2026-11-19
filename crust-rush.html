@@ -2018,7 +2018,8 @@ function pepFaceMat(){if(_pepM)return _pepM;const S=512,c=cnv(S,S),g=c.getContex
   _pepM=new THREE.MeshPhysicalMaterial({map:T2(c),roughness:.42,clearcoat:.6,clearcoatRoughness:.25,sheen:.3,sheenColor:new THREE.Color('#ffb08a')});_pepM.map.userData.shared=true;SHSET.add(_pepM);return _pepM;}
 /* (patch 88) what inside a wheel model must not roll: the caliper, hub carrier, strut. Per pack: pieces (connected, by position) not
    repeated round the axle, under 200 degrees, at least n triangles, of these classes (cls), reaching no further out than r1 (x the wheel's radius); any: everything inside r1 (the MX bike's hubless ring wheel) */
-const WHEEL_HOLD={wheelset:{n:150,k:[16,17,18]}/* (patch 91: the sets' calipers: green 16, red 17, blue 18) */,monster:{n:150,k:[12,11]},muscle:{n:400,k:[12]},retrogt:{k:[7]},onyx:{n:80},suv:{},hatch:{cls:[9],k:[9]},tourer:{cls:[6]},gt:{},roadster:{cls:[6],r1:3},bike_mx:{any:1,n:1,r1:.86},slip:{cls:[17]}/* (patch 95: the red crescent) */,bike_moto:{cls:[7]}};/* (k: the held caliper's own classes, for the Calipers colour) */
+/* (patch 99) a bike wheel shrunk about its axle to clear its fender */const WHEEL_SCALE={bike_moto:{w1:.94}};
+const WHEEL_HOLD={wheelset:{n:150,k:[16,17,18]}/* (patch 91: the sets' calipers: green 16, red 17, blue 18) */,monster:{n:150,k:[12,11]},muscle:{n:400,k:[12]},retrogt:{k:[7]},onyx:{n:80},suv:{k:[7,1]}/* (patch 101: its model's caliper takes the Calipers colour) */,hatch:{cls:[9],k:[9]},tourer:{cls:[6]},gt:{},roadster:{cls:[6],r1:3},bike_mx:{any:1,n:1,r1:.86},slip:{cls:[17]}/* (patch 95: the red crescent) */,bike_moto:{outer:.9}/* (patch 99: all that reaches the tyre) */};/* (k: the held caliper's own classes, for the Calipers colour) */
 function wheelHold(geo,pack){if(geo.userData.hold!==undefined)return geo.userData.hold;const rule=WHEEL_HOLD[pack];geo.userData.hold=null;if(!rule||!geo.index)return null;
   const P=geo.attributes.position,uv=geo.attributes.uv,I=geo.index.array;let R=0;for(let i=0;i<P.count;i++)R=Math.max(R,Math.hypot(P.getX(i),P.getY(i)));if(!(R>0))return null;
   const km=new Map(),par=new Int32Array(P.count);for(let i=0;i<P.count;i++){const k=Math.round(P.getX(i)*500)+','+Math.round(P.getY(i)*500)+','+Math.round(P.getZ(i)*500);const j=km.get(k);if(j!==undefined)par[i]=j;else{km.set(k,i);par[i]=i;}}
@@ -2026,7 +2027,9 @@ function wheelHold(geo,pack){if(geo.userData.hold!==undefined)return geo.userDat
   const C=new Map();for(let t=0;t<I.length;t+=3){const r=f(I[t]);let c=C.get(r);if(!c)C.set(r,c={t:[],r0:9,r1:0,b:new Set(),cl:{}});c.t.push(t);
     for(let j=0;j<3;j++){const v=I[t+j],x=P.getX(v),y=P.getY(v),q=Math.hypot(x,y)/R;c.r0=Math.min(c.r0,q);c.r1=Math.max(c.r1,q);if(q>.08)c.b.add(Math.floor((Math.atan2(y,x)+Math.PI)/(Math.PI/18))%36);}
     const ci=uv?Math.floor(uv.getX(I[t])*32):-1;c.cl[ci]=(c.cl[ci]||0)+1;}
-  const L=[...C.values()],hold=new Set();for(const c of L){const n=c.t.length,top=+Object.entries(c.cl).sort((a,b)=>b[1]-a[1])[0][0];
+  const L=[...C.values()],hold=new Set();let RT=0;if(rule.outer){const rr=[];for(let i=0;i<P.count;i++)if(uv&&Math.floor(uv.getX(i)*32)===8)rr.push(Math.hypot(P.getX(i),P.getY(i)));rr.sort((a,b)=>a-b);RT=rr.length?rr[Math.floor(rr.length*.98)]:R;}
+  for(const c of L){const n=c.t.length,top=+Object.entries(c.cl).sort((a,b)=>b[1]-a[1])[0][0];
+    if(rule.outer){if(top!==8&&c.r1*R>rule.outer*RT)for(const t of c.t)hold.add(t);continue;}/* (patch 99) */
     if(n<(rule.n||30)||c.r1>=(rule.r1||.95)||top===8)continue;if(!rule.any&&(c.b.size>20||c.r1-c.r0<=.12))continue;if(rule.cls&&!rule.cls.includes(top))continue;
     if(!rule.any&&L.some(d=>d!==c&&d.t.length===n&&Math.abs(d.r1-c.r1)<.03))continue;/* (repeated round the axle: a spoke) */for(const t of c.t)hold.add(t);}
   if(!hold.size)return null;const a=[],b=[];for(let t=0;t<I.length;t+=3)(hold.has(t)?b:a).push(I[t],I[t+1],I[t+2]);
@@ -2034,26 +2037,28 @@ function wheelHold(geo,pack){if(geo.userData.hold!==undefined)return geo.userDat
   return geo.userData.hold={spin:mk(a),hold:mk(b)};}
 /* (patch 88) put a wheel's held part in its steering group: it steers, it does not roll; a wheel set's caliper takes the Calipers colour */
 /* (patch 97) car bodies that carry their own calipers: a wheel type's caliper is not shown on them */
-const BODY_CAL={gt:1,hyper:1,interceptor:1,scissor:1,skywing:1,endur:1};
-function holdOut(wh,yaw,M,id,wset,pack,noCal){if(!wh||!wh.isMesh||!yaw)return;const h=wheelHold(wh.userData.geo0||wh.geometry,pack);if(!h)return;wh.userData.geo0=wh.userData.geo0||wh.geometry;wh.geometry=h.spin;
+const BODY_CAL={gt:1,hyper:1,interceptor:1,scissor:1,skywing:1,endur:1,roadster:1};/* (patch 101: the Roadster's behind its hubcaps) */
+function holdOut(wh,yaw,M,id,wset,pack,noCal,fr){if(!wh||!wh.isMesh||!yaw)return;const h=wheelHold(wh.userData.geo0||wh.geometry,pack);if(!h)return;wh.userData.geo0=wh.userData.geo0||wh.geometry;wh.geometry=h.spin;
   const m=new THREE.Mesh(h.hold,(M&&M.st&&rimVC(M.st,wset?1:0,id,null,(WHEEL_HOLD[pack]||{}).k||[]))||(wset?wheelVC():SH.carVC));m.position.copy(wh.position);m.rotation.copy(wh.rotation);m.scale.copy(wh.scale);m.castShadow=false;m.userData.held=1;if(noCal)m.visible=false;/* (patch 97) */yaw.add(m);
+  if(fr){/* (patch 101) a wheel type's caliper: behind a front axle, ahead of a rear one */if(h.ang==null){const P=h.hold.attributes.position,I=h.hold.index.array;let x=0,y=0;for(let t=0;t<I.length;t++){x+=P.getX(I[t]);y+=P.getY(I[t]);}h.ang=Math.atan2(y,x);}
+    m.userData.r0=m.rotation.z;m.rotation.z+=(fr>0?Math.PI*155/180:Math.PI*25/180)-h.ang;}/* (r0: the model's own turn, for the PC export) */
   /* (patch 91) a wheel set: the spokes face out, the caliper in: one built the other way round is turned (a mirror in z) */
   const sd=pack==='wheelset'?Math.sign(yaw.position.z):0;if(sd){const sp=WHEEL_SPOKES[id]||[11],za=(g,f)=>{const P=g.attributes.position,uv=g.attributes.uv,I=g.index.array;let z=0,n=0;for(let t=0;t<I.length;t++){const v=I[t];if(f(Math.floor(uv.getX(v)*32))){z+=P.getZ(v);n++;}}return n?z/n:null;};
     const zs=za(h.spin,c=>sp.includes(c)),zh=za(h.hold,()=>true);if(zs!=null&&zh!=null&&(zs-zh)*wh.scale.z*sd<0){wh.scale.z*=-1;m.scale.z*=-1;}}}
 /* (patch 89) an accent spot on a code-built kart: the part's own material until an accent is picked (g_acc: the PC paints it) */
 function accM(M,base){const m=base.clone();m.name='g_acc';m.userData.keyed=true;const a=TRIMS[(M&&M.st&&M.st.ac)|0];if(a&&a.h){m.color.set(a.h);m.metalness=a.m?.9:.35;m.roughness=a.m?(a.r||.22):.32;}return m;}
 /* (patch 92) a caliper for the cars whose wheels show none: over the brake disc's edge at its rear top, behind the spokes */
-const WHEEL_ADDCAL={coupe:1,megawatt:1,suv:1};
-function addCalGeo(geo,os,id){const k='addcal'+os;if(geo.userData[k]!==undefined)return geo.userData[k];geo.userData[k]=null;const P=geo.attributes.position,uv=geo.attributes.uv;if(!uv)return null;
+const WHEEL_ADDCAL={coupe:1,megawatt:1};/* (patch 101: the SUV's model has its own) */
+function addCalGeo(geo,os,id,f){const k='addcal'+os+(f?'f':'r');if(geo.userData[k]!==undefined)return geo.userData[k];geo.userData[k]=null;const P=geo.attributes.position,uv=geo.attributes.uv;if(!uv)return null;
   let R=0,rd=0,z=0,n=0,z0=1e9,z1=-1e9;const rt=[];for(let i=0;i<P.count;i++){const q=Math.hypot(P.getX(i),P.getY(i));R=Math.max(R,q);const c=Math.floor(uv.getX(i)*32);if(c===12){rd=Math.max(rd,q);z+=P.getZ(i);n++;z0=Math.min(z0,P.getZ(i));z1=Math.max(z1,P.getZ(i));}if(c===8)rt.push(q);}
   if(!n||!rt.length)return null;rt.sort((a,b)=>a-b);const inner=rt[Math.floor(rt.length*.02)],sp=WHEEL_SPOKES[id]||[11];let si=1e9;
   for(let i=0;i<P.count;i++){const c=Math.floor(uv.getX(i)*32);if(sp.includes(c)&&Math.hypot(P.getX(i),P.getY(i))<inner*.95)si=Math.min(si,P.getZ(i)*os);}
-  const th=Math.min(z1-z0,R*.12),r0=rd*.5,r1=Math.min(rd*1.14,inner*.95),a=.5,ang=Math.PI*.8,sh=new THREE.Shape();sh.absarc(0,0,r1,ang-a,ang+a,false);sh.absarc(0,0,r0,ang+a*.86,ang-a*.86,true);sh.closePath();
+  const th=Math.min(z1-z0,R*.12),r0=rd*.5,r1=Math.min(rd*1.14,inner*.95),a=.5,ang=f?Math.PI*.8:Math.PI*.2/* (patch 101: a rear wheel's ahead of its axle) */,sh=new THREE.Shape();sh.absarc(0,0,r1,ang-a,ang+a,false);sh.absarc(0,0,r0,ang+a*.86,ang-a*.86,true);sh.closePath();
   const dep=Math.max(th,R*.03)+R*.16,g=new THREE.ExtrudeGeometry(sh,{depth:dep,bevelEnabled:true,bevelThickness:R*.03,bevelSize:R*.03,bevelSegments:3,curveSegments:10});
   let zc=z/n;if(si<1e9&&zc*os+dep/2+R*.04>si)zc=(si-dep/2-R*.04)*os;g.translate(0,0,zc-dep/2);
   const m=g.attributes.position.count,C=new Float32Array(m*3),U=new Float32Array(m*2),cc=new THREE.Color(CAR_COL.caliper);for(let i=0;i<m;i++){C[i*3]=cc.r;C[i*3+1]=cc.g;C[i*3+2]=cc.b;U[i*2]=(13+.5)/32;U[i*2+1]=.5;}
   g.setAttribute('color',new THREE.BufferAttribute(C,3));g.setAttribute('uv',new THREE.BufferAttribute(U,2));g.computeVertexNormals();CARGEO.add(g);return geo.userData[k]=g;}
-function addCal(wh,yaw,M,id){if(!WHEEL_ADDCAL[id]||!wh||!wh.isMesh||!yaw)return;const os=Math.sign(yaw.position.z)||1,g=addCalGeo(wh.userData.geo0||wh.geometry,os,id);if(!g)return;
+function addCal(wh,yaw,M,id,f){if(!WHEEL_ADDCAL[id]||!wh||!wh.isMesh||!yaw)return;const os=Math.sign(yaw.position.z)||1,g=addCalGeo(wh.userData.geo0||wh.geometry,os,id,f);if(!g)return;
   const m=new THREE.Mesh(g,(M&&M.st&&rimVC(M.st,0,id,null,[]))||SH.carVC);m.position.copy(wh.position);m.rotation.copy(wh.rotation);m.scale.copy(wh.scale);m.castShadow=false;m.userData.held=1;yaw.add(m);}
 function buildWheel(type,side,M){const wd=WHEELS.find(w=>w.id===type);if(wd&&wd.pack){const wg=packWheelGeo(wd.pack,wd.g,side),m=new THREE.Mesh(wg,wd.pack==='wheelset'?(M&&rimVC(M.st,1,wd.id,wg)||wheelVC()):(M&&rimVC(M.st,0,wd.id,wg)||SH.carVC));/* (patch 82: the wheel's own spokes) *//* (patch 73) */m.castShadow=false;m.userData.pk=wd.pack;m.userData.wid=wd.id;m.userData.wset=wd.pack==='wheelset';return m;}
   const W=new THREE.Group();
@@ -2756,7 +2761,9 @@ function carGeos(id){const p=CAR_PACKS[id];if(p.g)return p.g;const bin=p.b?new U
     const isVC=m.n.endsWith('vc')||m.n[0]==='w';if(isVC||m.n.endsWith('paint')){const C=new Float32Array(v*3),U=new Float32Array(v*2);for(let i=0;i<v;i++){const c=isVC?cc[cls[i]]:cc[0],a=ao[i]/255;C[i*3]=c.r*a;C[i*3+1]=c.g*a;C[i*3+2]=c.b*a;U[i*2]=(cls[i]+.5)/32;U[i*2+1]=.5;}geo.setAttribute('color',new THREE.BufferAttribute(C,3));if(isVC)geo.setAttribute('uv',new THREE.BufferAttribute(U,2));else if(UVa)geo.setAttribute('uv',new THREE.BufferAttribute(UVa,2));}
     geo.setIndex(new THREE.BufferAttribute(new Uint16Array(idx),1));geo.computeBoundingSphere();CARGEO.add(geo);g[m.n]=geo;}
   {const bd=BODIES.find(b=>b.id===id.replace(/_hq$/,''));if(bd&&bd.bike)for(const k in g)if(/^w\d$/.test(k))wheelTrim(g[k]);}/* (patch 85) */
+  {const ws=WHEEL_SCALE[id.replace(/_hq$/,'')];if(ws)for(const k in ws)if(g[k])g[k].scale(ws[k],ws[k],1);}/* (patch 99) */
   if(ACC_SYM[id.replace(/_hq$/,'')])symAcc(g);/* (patch 98) */
+  if(SHAPE_SYM[id.replace(/_hq$/,'')])shapeSym(g,'add');/* (patch 100) */
   {const hw=p.h.wheels||[],cid=id.replace(/_hq$/,'');if(cid!=='chariot')for(const k in g){const m=/^w(\d)$/.exec(k);if(m&&hw[+m[1]])rotorMark(g[k],Math.sign(hw[+m[1]].c[2])||1,WHEEL_SPOKES[cid]||[11]);}}/* (patch 91) */
   if(id.replace(/_hq$/,'')==='concept')for(const k in g)if(/^w\d$/.test(k))barrelMark(g[k]);/* (patch 94) */
   p.d=null;p.b=null;p.g=g;return g;}
@@ -2769,7 +2776,7 @@ function barrelMark(geo){const P=geo.attributes.position,N=geo.attributes.normal
     const r=Math.hypot(x,y)/3,nr=Math.abs(nx*x+ny*y)/(Math.hypot(x,y)*3||1);if(c===2||(r>.5*R&&nr>.65))mk.push(t);}
   for(const t of mk)for(let j=0;j<3;j++)uv.setX(I[t+j],(14+.5)/32);uv.needsUpdate=true;}
 /* (patch 98) a body whose carbon is laid out differently on its two sides: carbon with no twin across the middle becomes dark 1 (same look) */
-const ACC_SYM={chariot:1};
+const ACC_SYM={};/* (patch 100: the owner preferred the accent on all its carbon) */
 function symAcc(g){const T=[];let z0=1e9,z1=-1e9;for(const k in g){if(!k.startsWith('b_'))continue;const P=g[k].attributes.position;for(let i=0;i<P.count;i++){const z=P.getZ(i);if(z<z0)z0=z;if(z>z1)z1=z;}}const zc=(z0+z1)/2;
   for(const k in g){if(!k.startsWith('b_')||!g[k].attributes.uv||!g[k].index)continue;const geo=g[k],P=geo.attributes.position,uv=geo.attributes.uv,I=geo.index.array;
     for(let t=0;t<I.length;t+=3){if(Math.floor(uv.getX(I[t])*32)!==6)continue;const a=new THREE.Vector3().fromBufferAttribute(P,I[t]),b=new THREE.Vector3().fromBufferAttribute(P,I[t+1]),d=new THREE.Vector3().fromBufferAttribute(P,I[t+2]);T.push({uv,I,t,a,b,d,m:a.clone().add(b).add(d).divideScalar(3)});}}
@@ -2777,6 +2784,26 @@ function symAcc(g){const T=[];let z0=1e9,z1=-1e9;for(const k in g){if(!k.startsW
   const v=new THREE.Vector3(),tr=new THREE.Triangle(),cp=new THREE.Vector3(),un=[];for(const e of T){if(Math.abs(e.m.z-zc)<.06)continue;v.set(e.m.x,e.m.y,2*zc-e.m.z);let ok=false;
     for(const u of H.get(cl(v.x)+','+cl(v.y)+','+cl(v.z))||[]){tr.set(u.a,u.b,u.d);tr.closestPointToPoint(v,cp);if(cp.distanceTo(v)<.06){ok=true;break;}}if(!ok)un.push(e);}
   for(const e of un)for(let j=0;j<3;j++)e.uv.setX(e.I[e.t+j],(1+.5)/32);for(const k in g)if(g[k].attributes.uv)g[k].attributes.uv.needsUpdate=true;}
+/* (patch 100) a body's dark shapes made symmetrical: carbon with no twin across the centre gets one from the paint opposite */
+const SHAPE_SYM={chariot:1};
+function shapeSym(g,mode){const V=THREE.Vector3;let z0=1e9,z1=-1e9;for(const k of ['b_vc','b_paint']){const P=g[k].attributes.position;for(let i=0;i<P.count;i++){const z=P.getZ(i);if(z<z0)z0=z;if(z>z1)z1=z;}}const zc=(z0+z1)/2;
+  const tris=(k,f)=>{const G=g[k],P=G.attributes.position,uv=G.attributes.uv,I=G.index.array,o=[];for(let t=0;t<I.length;t+=3){if(f&&!f(uv,I,t))continue;const a=new V().fromBufferAttribute(P,I[t]),b=new V().fromBufferAttribute(P,I[t+1]),d=new V().fromBufferAttribute(P,I[t+2]);o.push({k,t,a,b,d,m:a.clone().add(b).add(d).divideScalar(3)});}return o;};
+  const isC=(uv,I,t)=>Math.floor(uv.getX(I[t])*32)===6;
+  const C=tris('b_vc',isC),Pn=tris('b_paint');
+  const hash=L=>{const cs=.3,H=new Map(),cl=x=>Math.floor(x/cs);for(const e of L)for(let x=cl(Math.min(e.a.x,e.b.x,e.d.x));x<=cl(Math.max(e.a.x,e.b.x,e.d.x));x++)for(let y=cl(Math.min(e.a.y,e.b.y,e.d.y));y<=cl(Math.max(e.a.y,e.b.y,e.d.y));y++)for(let z=cl(Math.min(e.a.z,e.b.z,e.d.z));z<=cl(Math.max(e.a.z,e.b.z,e.d.z));z++){const kk=x+','+y+','+z;(H.get(kk)||H.set(kk,[]).get(kk)).push(e);}return p=>H.get(cl(p.x)+','+cl(p.y)+','+cl(p.z))||[];};
+  const tr=new THREE.Triangle(),cp=new V(),near=(q,p,tol)=>{for(const u of q(p)){tr.set(u.a,u.b,u.d);tr.closestPointToPoint(p,cp);if(cp.distanceTo(p)<tol)return true;}return false;};
+  const qC=hash(C),mir=p=>new V(p.x,p.y,2*zc-p.z);
+  const un=C.filter(e=>Math.abs(e.m.z-zc)>.06&&!near(qC,mir(e.m),.06));const qU=hash(un);
+  const toVC=[],toP=[];
+  if(mode==='add'){for(const e of Pn)if(near(qU,mir(e.m),.08))toVC.push(e);}else for(const e of un)toP.push(e);
+  /* rebuild b_vc and b_paint with the moved triangles */
+  const build=(k,drop,add,cls)=>{const G=g[k],P=G.attributes.position,N=G.attributes.normal,Cc=G.attributes.color,U=G.attributes.uv,I=G.index.array,dset=new Set(drop.map(e=>e.t));
+    const pos=[],nor=[],col=[],uv=[],idx=[];const push=(SG,i,c3,u)=>{const SP=SG.attributes.position,SN=SG.attributes.normal;pos.push(SP.getX(i),SP.getY(i),SP.getZ(i));nor.push(SN.getX(i),SN.getY(i),SN.getZ(i));col.push(...c3);if(U)uv.push(u,.5);return pos.length/3-1;};
+    for(let t=0;t<I.length;t+=3){if(dset.has(t))continue;for(let j=0;j<3;j++){const i=I[t+j];idx.push(push(G,i,[Cc.getX(i),Cc.getY(i),Cc.getZ(i)],U?U.getX(i):0));}}
+    for(const e of add){const SG=g[e.k],SI=SG.index.array,SC=SG.attributes.color;for(let j=0;j<3;j++){const i=SI[e.t+j];let c3;if(cls===6){const base=new THREE.Color(CAR_COL.carbon),ao=Math.min(1,Math.max(SC.getX(i),SC.getY(i),SC.getZ(i)));c3=[base.r*ao,base.g*ao,base.b*ao];}else{const ao=Math.min(1,Math.max(SC.getX(i),SC.getY(i),SC.getZ(i))/Math.max(.004,new THREE.Color(CAR_COL.carbon).r));c3=[Math.min(1,ao),Math.min(1,ao),Math.min(1,ao)];}idx.push(push(SG,i,c3,(cls+.5)/32));}}
+    const ng=new THREE.BufferGeometry();ng.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));ng.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));ng.setAttribute('color',new THREE.Float32BufferAttribute(col,3));if(U)ng.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+    ng.setIndex(pos.length/3>65535?new THREE.Uint32BufferAttribute(idx,1):new THREE.Uint16BufferAttribute(idx,1));ng.computeBoundingSphere();CARGEO.add(ng);return ng;};
+  const nvc=build('b_vc',toP,toVC,6),np=build('b_paint',toVC,toP,0);g.b_vc=nvc;g.b_paint=np;return {un:un.length,toVC:toVC.length,toP:toP.length};};
 function rotorMark(geo,os,sp){const P=geo.attributes.position,uv=geo.attributes.uv,I=geo.index&&geo.index.array;if(!uv||!I)return;let R=0;for(let i=0;i<P.count;i++)R=Math.max(R,Math.hypot(P.getX(i),P.getY(i)));if(!(R>0))return;
   const km=new Map(),par=new Int32Array(P.count);for(let i=0;i<P.count;i++){const k=Math.round(P.getX(i)*500)+','+Math.round(P.getY(i)*500)+','+Math.round(P.getZ(i)*500);const j=km.get(k);if(j!==undefined)par[i]=j;else{km.set(k,i);par[i]=i;}}
   const f=i=>{while(par[i]!==i){par[i]=par[par[i]];i=par[i];}return i;};for(let t=0;t<I.length;t+=3){const a=f(I[t]),b=f(I[t+1]);if(a!==b)par[a]=b;const b2=f(I[t+1]),c2=f(I[t+2]);if(b2!==c2)par[b2]=c2;}
@@ -2790,6 +2817,11 @@ function wheelTrim(geo){const P=geo.attributes.position,uv=geo.attributes.uv,I=g
   geo.setIndex(new THREE.BufferAttribute(A instanceof Uint32Array?new Uint32Array(keep):new Uint16Array(keep),1));}
 let HQB=false;let LODM=0,LODF=120;
 const TAIL_ROOF={interceptor:2.2},TAIL_DEEP={interceptor:1};
+function bodyCalSplit(geo,hw){if(geo.userData.calsplit!==undefined)return geo.userData.calsplit;geo.userData.calsplit=null;const P=geo.attributes.position,uv=geo.attributes.uv,I=geo.index&&geo.index.array;if(!uv||!I)return null;const a=[],b=[];
+  for(let t=0;t<I.length;t+=3){let cal=false;if(Math.floor(uv.getX(I[t])*32)===13){const x=(P.getX(I[t])+P.getX(I[t+1])+P.getX(I[t+2]))/3,y=(P.getY(I[t])+P.getY(I[t+1])+P.getY(I[t+2]))/3,z=(P.getZ(I[t])+P.getZ(I[t+1])+P.getZ(I[t+2]))/3;
+    cal=hw.some(q=>Math.hypot(x-q.c[0],y-q.c[1])<q.r*1.1&&Math.abs(z-q.c[2])<q.r);}(cal?b:a).push(I[t],I[t+1],I[t+2]);}if(!b.length)return null;
+  const mk=ix=>{const g=new THREE.BufferGeometry();for(const k in geo.attributes)g.setAttribute(k,geo.attributes[k]);g.setIndex(new THREE.BufferAttribute(I instanceof Uint32Array?new Uint32Array(ix):new Uint16Array(ix),1));g.computeBoundingSphere();CARGEO.add(g);return g;};
+  return geo.userData.calsplit={rest:mk(a),cal:mk(b)};}
 function tailSplit(geo,y0){if(geo.userData.tsplit!==undefined)return geo.userData.tsplit;const P=geo.attributes.position,I=geo.index&&geo.index.array;geo.userData.tsplit=null;if(!I)return null;const a=[],b=[];
   for(let t=0;t<I.length;t+=3)((P.getY(I[t])+P.getY(I[t+1])+P.getY(I[t+2]))/3>y0?b:a).push(I[t],I[t+1],I[t+2]);if(!b.length)return null;
   const mk=ix=>{const g=new THREE.BufferGeometry();for(const k in geo.attributes)g.setAttribute(k,geo.attributes[k]);g.setIndex(new THREE.BufferAttribute(new Uint16Array(ix),1));g.computeBoundingSphere();CARGEO.add(g);return g;};
@@ -2799,6 +2831,8 @@ function carBody(id,M,B){let g=carGeos(HQB&&hqReady(id)?id+'_hq':id);M.carPaint=
   /* (patch 95) tail-lamp material that is not a lamp (roof slots above TAIL_ROOF): the Trim colour; TAIL_DEEP: a deeper red lamp */
   const cid=id.replace(/_hq$/,'');if(TAIL_DEEP[cid]){mats.tail=M.tailM.clone();mats.tail.color.set('#b3000c');mats.tail.emissive.set('#a0000a');mats.tail.emissiveIntensity=.45;}
   if(TAIL_ROOF[cid]!=null&&g.b_tail){const sp=tailSplit(g.b_tail,TAIL_ROOF[cid]);if(sp){const tr=TRIMS[(M.st&&M.st.tr)|0];const me=new THREE.Mesh(sp.roof,new THREE.MeshStandardMaterial({color:tr&&tr.h||'#161618',metalness:tr&&tr.m?.9:.3,roughness:tr&&tr.m?(tr.r||.22):.45}));me.castShadow=true;me.receiveShadow=true;B.add(me);g={...g,b_tail:sp.lamp};}}
+  /* (patch 101) a car's own calipers in their own mesh: hidden on a wheel type that brings its own */
+  if(BODY_CAL[cid]&&g.b_vc){const sp=bodyCalSplit(g.b_vc,(CAR_PACKS[id]||CAR_PACKS[cid]).h.wheels||[]);if(sp){const me=new THREE.Mesh(sp.cal,mats.vc);me.castShadow=true;me.receiveShadow=true;me.userData.bodyCal=1;B.add(me);M.bodyCal=me;g={...g,b_vc:sp.rest};}}
   for(const k in g){if(!k.startsWith('b_'))continue;const me=new THREE.Mesh(g[k],mats[k.slice(2)]);me.castShadow=k!=='b_glass';me.receiveShadow=true;B.add(me);if(k==='b_paint')M.paintMesh=me;}}
 /* bikes: the model's own two wheels (or none on a hover bike), a rider astride the seat */
 function bikeCfg(id,o){return Object.assign({car:id,bike:1,noCockpit:1,belt:2.6,numPos:[0,3.2],drvS:.5,lean:.22,bubS:1.3},o);}
@@ -3358,8 +3392,9 @@ if(gi&&GLOWS[gi]&&GLOWS[gi].h&&!cfg.hover&&!ugBike){/* (patch 77) LED strips: th
   if(cfg.bike){if(!cfg.noWheels){const cg=carGeos(cfg.car);CAR_PACKS[cfg.car].h.wheels.forEach((q,wi)=>{const yaw=new THREE.Group();yaw.position.set(q.c[0],q.c[1],0);g.add(yaw);const spin=new THREE.Group();yaw.add(spin);const wh=new THREE.Mesh(cg['w'+wi],rimVC(M.st,0,cfg.car,cg['w'+wi])||SH.carVC);/* (patch 73: the rims' colour) */wh.castShadow=false;spin.add(wh);holdOut(wh,yaw,M,cfg.car,0,cfg.car);/* (patch 88) */wheels.push({spin,r:q.r});if(q.f)front.push(yaw);});}}
   else for(const [w,f] of [[cfg.rw,0],[cfg.fw,1]])for(const s of [-1,1]){const R=w[2]*wt.r,yaw=new THREE.Group();yaw.position.set(w[0],R,wheelZ(w,f,s,R));g.add(yaw);
     const zN=w[1],zW=Math.abs(yaw.position.z),Wh=1.44*tyreR(R)/1.32*wz;if(zW-Wh/2>zN-.05){const len=zW-Wh/2-(zN-.4),ad=new THREE.Mesh(KG.axle,SH.metal);ad.rotation.x=Math.PI/2;ad.scale.set(R*.9,len/5.6,R*.9);ad.position.z=-s*(Wh/2+len/2);ad.castShadow=true;yaw.add(ad);}
-    const spin=new THREE.Group();yaw.add(spin);let wh;if(cfg.car&&wt.id==='standard'){const cg=carGeos(cfg.car),wi=CAR_PACKS[cfg.car].h.wheels.findIndex(q=>Math.sign(q.c[2])===s&&q.f===f);wh=new THREE.Mesh(cg['w'+wi],rimVC(M.st,0,cfg.car,cg['w'+wi])||SH.carVC);/* (patch 73: the rims' colour) */wh.castShadow=false;}/* detailed rims cost a lot in the shadow pass for an invisible gain */else{wh=buildWheel(wt.id,s,M);wh.scale.set(R/1.32,R/1.32,tyreR(R)/1.32*wz);}spin.add(wh);if(wh.userData.pk)holdOut(wh,yaw,M,wh.userData.wid,wh.userData.wset,wh.userData.pk,!!(cfg.car&&BODY_CAL[cfg.car]));else if(cfg.car&&wt.id==='standard'){holdOut(wh,yaw,M,cfg.car,0,cfg.car);addCal(wh,yaw,M,cfg.car);}/* (patch 92) *//* (patch 88: the caliper steers, it does not roll) */wheels.push({spin,r:R});if(f)front.push(yaw);}
+    const spin=new THREE.Group();yaw.add(spin);let wh;if(cfg.car&&wt.id==='standard'){const cg=carGeos(cfg.car),wi=CAR_PACKS[cfg.car].h.wheels.findIndex(q=>Math.sign(q.c[2])===s&&q.f===f);wh=new THREE.Mesh(cg['w'+wi],rimVC(M.st,0,cfg.car,cg['w'+wi])||SH.carVC);/* (patch 73: the rims' colour) */wh.castShadow=false;}/* detailed rims cost a lot in the shadow pass for an invisible gain */else{wh=buildWheel(wt.id,s,M);wh.scale.set(R/1.32,R/1.32,tyreR(R)/1.32*wz);}spin.add(wh);if(wh.userData.pk)holdOut(wh,yaw,M,wh.userData.wid,wh.userData.wset,wh.userData.pk,false,wh.userData.pk===cfg.car?0:f?1:-1);else if(cfg.car&&wt.id==='standard'){holdOut(wh,yaw,M,cfg.car,0,cfg.car);addCal(wh,yaw,M,cfg.car,f);}/* (patch 101: turned by front / rear) *//* (patch 92) *//* (patch 88: the caliper steers, it does not roll) */wheels.push({spin,r:R});if(f)front.push(yaw);}
   for(const w of wheels){const yw=w.spin.parent;if(yw&&yw.parent===g)tilt.add(yw);}
+  if(M.bodyCal&&wt&&wt.id!=='standard')M.bodyCal.visible=false;/* (patch 101) the wheel type's own caliper shows instead */
   const drv=new THREE.Group();drv.rotation.y=Math.PI/2;(spec.hq===0?lowDetail:f=>f())(()=>buildDriver(drv,rc,topM,irisM));
   {const db=new THREE.Box3();drv.updateMatrixWorld(true);db.setFromObject(drv);cfg.dzc=(db.min.x+db.max.x)/2;}
   if(cfg.fit){const F=cfg.fit,[e,h]=CHAR_MET[rc.name.toLowerCase()]||[2.8,6.4],cl=Math.cos(F.lean||0),fl=cfg.drv[1];let sc,y0;
