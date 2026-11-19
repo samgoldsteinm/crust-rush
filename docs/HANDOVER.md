@@ -136,6 +136,10 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   and struts that sit off the body: corrected in v242, see NIGHT TANK JET). Theme 'Dark Knight'
   (matte camo) and combo 'Dark Knight' (gloss black, gunmetal): slightly different as asked. Also Surge: its door / bonnet aluminium
   plate (a separate square on the body) dropped.
+- SURGE WHEELS (web v243, patch106). The owner: other wheel types stuck far out of the Surge (Pepperoni etc.), Hover sat too far in;
+  stock looked great. Its own tyres are narrow, so wider wheels touched the body and clearZ pushed them out. WHEEL_FLUSH {surge}: no
+  push-out (unless R > 1.2x the car's own: Monster), then the built wheel's measured outer face goes on the stock tyre's drawn outer face
+  (scratch/paint/wfit.js: every type 2.67 = stock). Add another car to WHEEL_FLUSH if the owner sees the same on it.
 - NIGHT TANK JET (web v242). The owner: "missing the rocket booster in the back". Frontbody's children (jet, struts, Spoiler1-6,
   boostfans, FrontStrut*) were off by Frontbody's FBX GeometricTranslation, not just 5.9 sideways: move= is now minus Frontbody's world
   matrix times it, (6.021, 8.287, 2.226). The jet sits in the tail between the rear tyres, the fins on the rear deck, and the front strut
