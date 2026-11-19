@@ -7,7 +7,7 @@ extends Node
 ## takes that and replays the controls the host hasn't seen yet, so steering is instant. Everything else is drawn as the
 ## host sends it. PC-to-PC races (ENet) are separate and unchanged.
 
-const PROTO := 120   # (120: web v219 patch 68, the host's developer options in cfg "dev"; 119: web v217, four new kart bodies; 118: web v216, what a stat point counts for; 117: web v213, a Sandbox race from a start line with invites; 116: web v209, cfg.ni; 115: web v208)
+const PROTO := 122   # (122: web v241, the Night Tank; 121: web v239, four new car bodies; 120: web v219 patch 68, the host's developer options in cfg "dev"; 119: web v217, four new kart bodies; 118: web v216, what a stat point counts for; 117: web v213, a Sandbox race from a start line with invites; 116: web v209, cfg.ni; 115: web v208)
 const RACE_T := {"s": 1, "hit": 1, "tst": 1, "go": 1, "load": 1, "menu": 1, "elim": 1, "sbend": 1}   # race messages: a Sandbox race's racers only
 var _last_poll := 0
 var sb_race := {}   # the host, a room's Sandbox race (web NET.sbRace): {pid: true} of the guests in it; empty otherwise

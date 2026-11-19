@@ -47,7 +47,14 @@ const COMBOS := [{"n": "Stealth", "p": 8, "st": {"tr": 1, "ac": 1, "in": 1, "rm"
 	{"n": "Pizza Rider", "p": 2, "st": {"tr": 1, "ac": 6, "in": 1, "rm": 1, "cl": 6, "gl": 0, "hl": 3, "sm": 3}, "c": 400, "only": ["bike_moto", "bike_mx", "bike_neutron", "bike_june", "bike_rocket"]},
 	{"n": "Hypersonic", "p": 21, "st": {"tr": 1, "ac": 13, "in": 1, "rm": 14, "cl": 13, "gl": 1, "hl": 2, "sm": 2}, "c": 550, "only": ["hyper", "skywing", "megawatt", "megagt", "scissor", "onyx", "concept", "slip"]},
 	{"n": "Cheese Wheel", "p": 3, "st": {"tr": 4, "ac": 2, "in": 4, "rm": 2, "cl": 4, "gl": 6, "hl": 3, "sm": 6}, "c": 350, "only": ["classic", "wedge", "tomato", "delivery", "cutter", "oven", "grater", "comet", "oilcan", "rocket"]},
-	{"n": "Heritage", "p": 10, "st": {"tr": 1, "ac": 2, "in": 11, "rm": 17, "cl": 1, "gl": 0, "hl": 0, "sm": 0}, "c": 450, "only": ["muscle", "roadster", "hatch", "interceptor"]}]
+	{"n": "Heritage", "p": 10, "st": {"tr": 1, "ac": 2, "in": 11, "rm": 17, "cl": 1, "gl": 0, "hl": 0, "sm": 0}, "c": 450, "only": ["muscle", "roadster", "hatch", "interceptor"]},
+	# (pc95, web v239) the four concept cars' signature combos
+	{"n": "Glowroot", "p": 14, "st": {"tr": 1, "ac": 13, "in": 7, "rm": 2, "cl": 13, "gl": 1, "hl": 2, "sm": 2}, "c": 450, "only": ["biome"]},
+	{"n": "Plug In", "p": 22, "st": {"tr": 1, "ac": 4, "in": 1, "rm": 1, "cl": 4, "gl": 0, "hl": 1, "sm": 0}, "c": 400, "only": ["surge"]},
+	{"n": "Acid Strike", "p": 12, "st": {"tr": 1, "ac": 1, "in": 12, "rm": 1, "cl": 12, "gl": 4, "hl": 5, "sm": 5}, "c": 550, "only": ["vortex"]},
+	{"n": "Grand Prix Red", "p": 10, "st": {"tr": 1, "ac": 16, "in": 11, "rm": 16, "cl": 16, "gl": 0, "hl": 0, "sm": 0}, "c": 500, "only": ["scarlet"]},
+	{"n": "Static Charge", "p": 17, "st": {"tr": 1, "ac": 13, "in": 1, "rm": 14, "cl": 13, "gl": 1, "hl": 2, "sm": 2}, "c": 450, "only": ["biome", "surge"]},
+	{"n": "Dark Knight", "p": 23, "st": {"tr": 1, "ac": 14, "in": 1, "rm": 14, "cl": 1, "gl": 0, "hl": 2, "sm": 1}, "c": 500, "only": ["nighttank"]}]
 const MY_PATH := "user://mycombos.json"
 
 

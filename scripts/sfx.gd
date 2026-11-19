@@ -7,7 +7,7 @@ extends Node
 ## to a soft hum at a steady speed, so it is there without droning all race.
 
 ## engine voice per kart body and its tuning (web ENG_BODY / ENG_PROF): [pitch, gears, voice, unused, level]
-const ENG_BODY := {"oilcan": "v8", "grater": "chug", "comet": "race", "delivery": "v8", "formula": "race", "interceptor": "race", "hyper": "race", "onyx": "race", "roadster": "race", "scissor": "race",
+const ENG_BODY := {"nighttank": "jet", "biome": "jet", "surge": "jet", "vortex": "race", "scarlet": "race", "oilcan": "v8", "grater": "chug", "comet": "race", "delivery": "v8", "formula": "race", "interceptor": "race", "hyper": "race", "onyx": "race", "roadster": "race", "scissor": "race",
 	"gt": "race", "coupe": "race", "muscle": "v8", "monster": "v8", "suv": "v8", "rocket": "jet", "bike_rocket": "jet", "bike_moto": "bike", "bike_mx": "bike",
 	"bike_neutron": "bike", "bike_june": "hum", "oven": "chug", "chariot": "chug",
 	"skywing": "race", "megagt": "race", "megawatt": "race", "endur": "race", "slip": "race", "retrogt": "race"}

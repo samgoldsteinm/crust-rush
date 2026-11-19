@@ -5326,6 +5326,8 @@ func _settings_panel() -> Control:
 				sv.add_child(menu.para(String(st[1]), 12.5, Color("#c2a58c"), 720.0))
 				c.add_child(sv)
 		"more":
+			c.add_child(menu.section_label("Credits"))   # (pc96, web Settings > More > Credits)
+			c.add_child(menu.para("Night Tank: based on \"Batmobile-The Dark Knight Tumbler\" by Gravity Jack, licensed under Creative Commons Attribution (CC BY 4.0). Scenery photo-scans from Poly Haven (CC0).", 12.5, Color("#c2a58c"), 720.0))
 			c.add_child(menu.section_label("Username"))
 			var ur := menu.hbox(20)
 			var uv := menu.vbox(2)
