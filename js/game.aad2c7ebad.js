@@ -958,7 +958,7 @@ function pepFaceMat(){if(_pepM)return _pepM;const S=512,c=cnv(S,S),g=c.getContex
   _pepM=new THREE.MeshPhysicalMaterial({map:T2(c),roughness:.42,clearcoat:.6,clearcoatRoughness:.25,sheen:.3,sheenColor:new THREE.Color('#ffb08a')});_pepM.map.userData.shared=true;SHSET.add(_pepM);return _pepM;}
 /* (patch 88) what inside a wheel model must not roll: the caliper, hub carrier, strut. Per pack: pieces (connected, by position) not
    repeated round the axle, under 200 degrees, at least n triangles, of these classes (cls), reaching no further out than r1 (x the wheel's radius); any: everything inside r1 (the MX bike's hubless ring wheel) */
-/* (patch 99) a bike wheel shrunk about its axle to clear its fender */const WHEEL_SCALE={bike_moto:{w1:.94}};
+/* (patch 99) a bike wheel shrunk about its axle to clear its fender (patch 102: the rolling part only) */const WHEEL_SCALE={bike_moto:{w1:.94}},BIKE_KEEP={bike_moto:1};
 const WHEEL_HOLD={wheelset:{n:150,k:[16,17,18]}/* (patch 91: the sets' calipers: green 16, red 17, blue 18) */,monster:{n:150,k:[12,11]},muscle:{n:400,k:[12]},retrogt:{k:[7]},onyx:{n:80},suv:{k:[7,1]}/* (patch 101: its model's caliper takes the Calipers colour) */,hatch:{cls:[9],k:[9]},tourer:{cls:[6]},gt:{},roadster:{cls:[6],r1:3},bike_mx:{any:1,n:1,r1:.86},slip:{cls:[17]}/* (patch 95: the red crescent) */,bike_moto:{outer:.9}/* (patch 99: all that reaches the tyre) */};/* (k: the held caliper's own classes, for the Calipers colour) */
 function wheelHold(geo,pack){if(geo.userData.hold!==undefined)return geo.userData.hold;const rule=WHEEL_HOLD[pack];geo.userData.hold=null;if(!rule||!geo.index)return null;
   const P=geo.attributes.position,uv=geo.attributes.uv,I=geo.index.array;let R=0;for(let i=0;i<P.count;i++)R=Math.max(R,Math.hypot(P.getX(i),P.getY(i)));if(!(R>0))return null;
@@ -972,14 +972,15 @@ function wheelHold(geo,pack){if(geo.userData.hold!==undefined)return geo.userDat
     if(rule.outer){if(top!==8&&c.r1*R>rule.outer*RT)for(const t of c.t)hold.add(t);continue;}/* (patch 99) */
     if(n<(rule.n||30)||c.r1>=(rule.r1||.95)||top===8)continue;if(!rule.any&&(c.b.size>20||c.r1-c.r0<=.12))continue;if(rule.cls&&!rule.cls.includes(top))continue;
     if(!rule.any&&L.some(d=>d!==c&&d.t.length===n&&Math.abs(d.r1-c.r1)<.03))continue;/* (repeated round the axle: a spoke) */for(const t of c.t)hold.add(t);}
-  if(!hold.size)return null;const a=[],b=[];for(let t=0;t<I.length;t+=3)(hold.has(t)?b:a).push(I[t],I[t+1],I[t+2]);
+  if(!hold.size)return null;const a=[],b=[],bp=[];for(let t=0;t<I.length;t+=3)(hold.has(t)?(uv&&Math.floor(uv.getX(I[t])*32)===0?bp:b):a).push(I[t],I[t+1],I[t+2]);/* (patch 102: held paint apart) */
   const mk=ix=>{const g=new THREE.BufferGeometry();for(const k in geo.attributes)g.setAttribute(k,geo.attributes[k]);g.setIndex(new THREE.BufferAttribute(I instanceof Uint32Array?new Uint32Array(ix):new Uint16Array(ix),1));g.computeBoundingSphere();CARGEO.add(g);return g;};
-  return geo.userData.hold={spin:mk(a),hold:mk(b)};}
+  return geo.userData.hold={spin:mk(a),hold:mk(b),holdP:bp.length?mk(bp):null};}
 /* (patch 88) put a wheel's held part in its steering group: it steers, it does not roll; a wheel set's caliper takes the Calipers colour */
 /* (patch 97) car bodies that carry their own calipers: a wheel type's caliper is not shown on them */
 const BODY_CAL={gt:1,hyper:1,interceptor:1,scissor:1,skywing:1,endur:1,roadster:1};/* (patch 101: the Roadster's behind its hubcaps) */
 function holdOut(wh,yaw,M,id,wset,pack,noCal,fr){if(!wh||!wh.isMesh||!yaw)return;const h=wheelHold(wh.userData.geo0||wh.geometry,pack);if(!h)return;wh.userData.geo0=wh.userData.geo0||wh.geometry;wh.geometry=h.spin;
   const m=new THREE.Mesh(h.hold,(M&&M.st&&rimVC(M.st,wset?1:0,id,null,(WHEEL_HOLD[pack]||{}).k||[]))||(wset?wheelVC():SH.carVC));m.position.copy(wh.position);m.rotation.copy(wh.rotation);m.scale.copy(wh.scale);m.castShadow=false;m.userData.held=1;if(noCal)m.visible=false;/* (patch 97) */yaw.add(m);
+  if(h.holdP){const mp=new THREE.Mesh(h.holdP,(M&&M.carPaint)||SH.carVC);mp.position.copy(wh.position);mp.rotation.copy(wh.rotation);mp.scale.copy(wh.scale);mp.castShadow=true;mp.userData.held=1;mp.userData.heldPaint=1;yaw.add(mp);}/* (patch 102) */
   if(fr){/* (patch 101) a wheel type's caliper: behind a front axle, ahead of a rear one */if(h.ang==null){const P=h.hold.attributes.position,I=h.hold.index.array;let x=0,y=0;for(let t=0;t<I.length;t++){x+=P.getX(I[t]);y+=P.getY(I[t]);}h.ang=Math.atan2(y,x);}
     m.userData.r0=m.rotation.z;m.rotation.z+=(fr>0?Math.PI*155/180:Math.PI*25/180)-h.ang;}/* (r0: the model's own turn, for the PC export) */
   /* (patch 91) a wheel set: the spokes face out, the caliper in: one built the other way round is turned (a mirror in z) */
@@ -1700,8 +1701,8 @@ function carGeos(id){const p=CAR_PACKS[id];if(p.g)return p.g;const bin=p.b?new U
     const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(Pp,3));geo.setAttribute('normal',new THREE.BufferAttribute(Nn,3));
     const isVC=m.n.endsWith('vc')||m.n[0]==='w';if(isVC||m.n.endsWith('paint')){const C=new Float32Array(v*3),U=new Float32Array(v*2);for(let i=0;i<v;i++){const c=isVC?cc[cls[i]]:cc[0],a=ao[i]/255;C[i*3]=c.r*a;C[i*3+1]=c.g*a;C[i*3+2]=c.b*a;U[i*2]=(cls[i]+.5)/32;U[i*2+1]=.5;}geo.setAttribute('color',new THREE.BufferAttribute(C,3));if(isVC)geo.setAttribute('uv',new THREE.BufferAttribute(U,2));else if(UVa)geo.setAttribute('uv',new THREE.BufferAttribute(UVa,2));}
     geo.setIndex(new THREE.BufferAttribute(new Uint16Array(idx),1));geo.computeBoundingSphere();CARGEO.add(geo);g[m.n]=geo;}
-  {const bd=BODIES.find(b=>b.id===id.replace(/_hq$/,''));if(bd&&bd.bike)for(const k in g)if(/^w\d$/.test(k))wheelTrim(g[k]);}/* (patch 85) */
-  {const ws=WHEEL_SCALE[id.replace(/_hq$/,'')];if(ws)for(const k in ws)if(g[k])g[k].scale(ws[k],ws[k],1);}/* (patch 99) */
+  {const bd=BODIES.find(b=>b.id===id.replace(/_hq$/,''));if(bd&&bd.bike&&!BIKE_KEEP[bd.id])for(const k in g)if(/^w\d$/.test(k))wheelTrim(g[k]);/* (patch 102: not the Street Cruiser: its fenders' lower halves are in its wheels) */}/* (patch 85) */
+
   if(ACC_SYM[id.replace(/_hq$/,'')])symAcc(g);/* (patch 98) */
   if(SHAPE_SYM[id.replace(/_hq$/,'')])shapeSym(g,'add');/* (patch 100) */
   {const hw=p.h.wheels||[],cid=id.replace(/_hq$/,'');if(cid!=='chariot')for(const k in g){const m=/^w(\d)$/.exec(k);if(m&&hw[+m[1]])rotorMark(g[k],Math.sign(hw[+m[1]].c[2])||1,WHEEL_SPOKES[cid]||[11]);}}/* (patch 91) */
@@ -2329,7 +2330,7 @@ if(gi&&GLOWS[gi]&&GLOWS[gi].h&&!cfg.hover&&!ugBike){/* (patch 77) LED strips: th
     let z=q&&!cfg.ow?zOut-Wn/2:zIn+Wn/2;
     if(R>w[2]*1.02||Wn>W0*1.02)z=Math.min(clearZ(w[0],R,z,Wn,w[2],zN,W0),z+W0*(q?.22:.5)+Math.max(0,R-w[2])*.6);return z*s;};
   const wheels=[],front=[];
-  if(cfg.bike){if(!cfg.noWheels){const cg=carGeos(cfg.car);CAR_PACKS[cfg.car].h.wheels.forEach((q,wi)=>{const yaw=new THREE.Group();yaw.position.set(q.c[0],q.c[1],0);g.add(yaw);const spin=new THREE.Group();yaw.add(spin);const wh=new THREE.Mesh(cg['w'+wi],rimVC(M.st,0,cfg.car,cg['w'+wi])||SH.carVC);/* (patch 73: the rims' colour) */wh.castShadow=false;spin.add(wh);holdOut(wh,yaw,M,cfg.car,0,cfg.car);/* (patch 88) */wheels.push({spin,r:q.r});if(q.f)front.push(yaw);});}}
+  if(cfg.bike){if(!cfg.noWheels){const cg=carGeos(cfg.car);CAR_PACKS[cfg.car].h.wheels.forEach((q,wi)=>{const yaw=new THREE.Group();yaw.position.set(q.c[0],q.c[1],0);g.add(yaw);const spin=new THREE.Group();yaw.add(spin);const wh=new THREE.Mesh(cg['w'+wi],rimVC(M.st,0,cfg.car,cg['w'+wi])||SH.carVC);/* (patch 73: the rims' colour) */wh.castShadow=false;spin.add(wh);holdOut(wh,yaw,M,cfg.car,0,cfg.car);/* (patch 88) */{const ws=WHEEL_SCALE[cfg.car];if(ws&&ws['w'+wi])wh.scale.set(ws['w'+wi],ws['w'+wi],1);}/* (patch 102: the rolling wheel only) */wheels.push({spin,r:q.r});if(q.f)front.push(yaw);});}}
   else for(const [w,f] of [[cfg.rw,0],[cfg.fw,1]])for(const s of [-1,1]){const R=w[2]*wt.r,yaw=new THREE.Group();yaw.position.set(w[0],R,wheelZ(w,f,s,R));g.add(yaw);
     const zN=w[1],zW=Math.abs(yaw.position.z),Wh=1.44*tyreR(R)/1.32*wz;if(zW-Wh/2>zN-.05){const len=zW-Wh/2-(zN-.4),ad=new THREE.Mesh(KG.axle,SH.metal);ad.rotation.x=Math.PI/2;ad.scale.set(R*.9,len/5.6,R*.9);ad.position.z=-s*(Wh/2+len/2);ad.castShadow=true;yaw.add(ad);}
     const spin=new THREE.Group();yaw.add(spin);let wh;if(cfg.car&&wt.id==='standard'){const cg=carGeos(cfg.car),wi=CAR_PACKS[cfg.car].h.wheels.findIndex(q=>Math.sign(q.c[2])===s&&q.f===f);wh=new THREE.Mesh(cg['w'+wi],rimVC(M.st,0,cfg.car,cg['w'+wi])||SH.carVC);/* (patch 73: the rims' colour) */wh.castShadow=false;}/* detailed rims cost a lot in the shadow pass for an invisible gain */else{wh=buildWheel(wt.id,s,M);wh.scale.set(R/1.32,R/1.32,tyreR(R)/1.32*wz);}spin.add(wh);if(wh.userData.pk)holdOut(wh,yaw,M,wh.userData.wid,wh.userData.wset,wh.userData.pk,false,wh.userData.pk===cfg.car?0:f?1:-1);else if(cfg.car&&wt.id==='standard'){holdOut(wh,yaw,M,cfg.car,0,cfg.car);addCal(wh,yaw,M,cfg.car,f);}/* (patch 101: turned by front / rear) *//* (patch 92) *//* (patch 88: the caliper steers, it does not roll) */wheels.push({spin,r:R});if(f)front.push(yaw);}
