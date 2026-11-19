@@ -136,6 +136,14 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   and struts that sit off the body: corrected in v242, see NIGHT TANK JET). Theme 'Dark Knight'
   (matte camo) and combo 'Dark Knight' (gloss black, gunmetal): slightly different as asked. Also Surge: its door / bonnet aluminium
   plate (a separate square on the body) dropped.
+- CINEMATIC FINISH (web v245, patch110; PC pc98). The owner: "make the slow mo ending ... way more cinematic ... another camera angle and a
+  close up of the driver ... their name in 3d letters ... and the place they took". FIN: ~7.2 s real time after the player finishes a
+  race (not battle / Sandbox / LSS / spectating / PC auto drives): A trackside low fixed camera ahead at the road's edge, zooming as the
+  kart passes (speed .28); B a camera swinging round the driver's head (.4); C place (1ST gold / 2ND silver / 3RD bronze / cream) over
+  the username (netName / _web_name) in Bungee 3D letters floating across the road ahead, each popping in, camera rising behind (.4->.85).
+  Letterbox + "skip" hint, HUD and sauce smears hidden; any key/tap skips; results .35 s after (their timer waits). Slow motion off line
+  only. Web letters: data/font3d.json (tools/fin/font3d.py from godot/assets/fonts/Bungee-Regular.ttf, OFL) -> THREE.ShapePath +
+  ExtrudeGeometry; PC: TextMesh per letter. Test: scratch/paint/fintest.py (auto lap, frames through the finish).
 - TREAD, STOCK WHEELS, NIGHT TANK ACCENTS / SIZE / MONSTER FIT (web v244; patches 107-109, PC pc97 + export; NET_PROTO / PROTO 123).
   (1) The owner's uploaded wheel sets had blotchy rubber (decimated long ago; the originals are gone). tools/cars/tread.py (run once;
   packs marked 'tread') drops each wheel's rubber (class 8) and builds a new tyre the same size: crisp-walled tread cells, rounded
