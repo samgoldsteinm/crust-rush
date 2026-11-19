@@ -307,6 +307,12 @@ window.__statsFor=function(b){return {sm:statMods(b),glider:{id:GLIDERS[b.g].id,
 /* the mechanic's shop of Sandbox (web v205 patch 41) for the PC: run in a Sandbox place where SB.shopG is built (the packs loaded).
    Two nodes, both in the shop's own frame (its middle on the ground at 0): "shop" (the building, everything but the door) and
    "door" (the roll-up door, at its hinge: the PC moves it up and down). Also the numbers the PC needs: K, the floor, the bay. */
+/* the garage's workshop room (web patch 81, gStudioSet) for the PC garage: one node "studio", textures inside. The unlit LED panels
+   (MeshBasicMaterial, colour x up to 10) become black lit materials glowing that colour, so nothing in the file is above 1. */
+window.__exportStudio=function(){if(typeof gStudioSet!=='function')return {err:'no gStudioSet'};const set=gStudioSet();if(!gSetFull)return {err:'models not all here'};
+  set.traverse(o=>{if(o.isMesh&&o.material&&o.material.isMeshBasicMaterial){const c=o.material.color;o.material=new THREE.MeshStandardMaterial({color:0x000000,roughness:1,metalness:0,emissive:c.clone()});}});
+  set.updateMatrixWorld(true);const G=new GLB();const b=collect(G,set,new THREE.Matrix4(),{visStop:null});const pr=[];for(const [k,bk] of b){const p=G.primitive(bk.parts,bk.mi,bk.useUV,bk.useC);if(p)pr.push(p);}
+  if(!pr.length)return {err:'empty'};const root=G.node('studio',pr);G.j.scenes[0].nodes.push(root);const bytes=G.glb();return {b64:u8ToB64(bytes),stats:Object.assign(G.stats,{bytes:bytes.length})};};
 window.__exportShop=function(){if(!SB||!SB.shopG||!SB.shopDoorG)return {err:'no shop here'};const G=new GLB();const S=SB_SHOP;/* (textures inside the .glb) */
   const sp=new THREE.Matrix4().makeTranslation(S.x,0,S.z),door=SB.shopDoorG,vis=door.visible;
   const dbg={};const one=(name,root,stop)=>{const b=collect(G,root,sp,{visStop:stop||null});dbg[name]={buckets:b.size,skipped:JSON.stringify(G.stats.skipped)};const pr=[];for(const [k,bk] of b){const p=G.primitive(bk.parts,bk.mi,bk.useUV,bk.useC);if(p)pr.push(p);}return pr.length?G.node(name,pr):null;};
