@@ -130,6 +130,11 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   and its held caliper takes the Calipers colour (k [7,1]). Added calipers: front behind, rear ahead. Check: scratch/paint/calaudit.py
   <wheel> <name> (every body x the wheel type x 4 wheels: calipers counted, pictures; standard / slick / hover / pepperoni: 0 or 1, wheel
   sets and Monster: 1 everywhere; the Onyx's front trim is class 13 but not a caliper) and calside.js (front behind, rear ahead).
+- GT RACER ROOF (104, web v237; PC via the export). The owner: "the gt racers roof is gone" (its source GLB shows a black carbon roof).
+  The roof is a one-sided carbon panel facing INTO the car (scratch/paint/roofw.js), culled from outside. roofFix (ROOF_FIX gt) adds a
+  reversed twin of every carbon triangle within .8 of the top (|z|<1.3); the detailed pack's roof has a gap at the front, so the GT
+  uses its standard pack everywhere (NO_HQ); its driver sits lower (fit.rim 1.45) under the roof. I had earlier written it off as
+  roofless by design: wrong. Check a model in a GLB viewer before calling a part missing by design.
 - CALIPERS ONE SIDE ONLY (103, web v236; PC via the export). The owner (Scissor and Mega GT, garage, both sides). The garage builds the
   DETAILED packs (_hq): the Scissor's left calipers there are inside out (wound against their normals; scratch/paint/wind.js), and the
   detailed Mega GT has body calipers its standard pack lacks. bodyCalSplit now runs on every car and turns inside-out caliper faces;
@@ -167,7 +172,7 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   ACC_NO6 onyx. The Onyx, Concept and Slipstream now have little or no accent (their chrome only). Every vehicle checked:
   scratch/paint/accall.py (accent neon green from the rear-top and front-top). (3) The Interceptor's roof slots were tail-lamp
   material: TAIL_ROOF splits b_tail above y 2.2 into a Trim-coloured part; its lamps a deeper red (TAIL_DEEP). (4) GT driver fit.s
-  .4 -> .22. Not changed: the GT Racer is roofless by design; the "wheels backwards" on the Megawatt was the v227 bug fixed in v228
+  .4 -> .22. Not changed then (fixed in 104): the GT Racer's roof; the "wheels backwards" on the Megawatt was the v227 bug fixed in v228
   (scratch/paint/facing2.js: every body on every wheel set, spokes outboard of the caliper: 675 of 675).
 - ADDED CALIPERS (92, web v228; PC via the export's ph<i>). Wheels with none on show: the owner saw a prototype (scratch/paint/
   addcal3.js) and kept the cars, not the bikes ("dont worry about the calipers for bikes the rest look good"). WHEEL_ADDCAL: Grand
