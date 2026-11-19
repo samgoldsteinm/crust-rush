@@ -30,7 +30,7 @@ const OVEN2 := Color("#25150f")
 const MODES := [["gp", "Grand Prix"], ["single", "Single race"], ["lss", "Last Slice"], ["bb", "Balloon Battle"], ["sb", "Sandbox"]]
 const CLASSES := [["small", "50cc"], ["medium", "100cc"], ["large", "200cc"], ["reverse", "Reverse"]]
 const CLS_NOTE := {"small": "50cc: a relaxed speed for learning the tracks.", "medium": "100cc: the standard race speed.", "large": "200cc: much faster karts and sharper rivals.", "reverse": "Every track runs backwards at 200cc speed."}
-const MODE_NOTE := {"lss": "Last Slice Standing: each time the leader completes a lap, the racer in last place is out. Seven laps, one slice left.",
+const MODE_NOTE := {"lss": "Last Slice Standing: every 30 seconds, the racer in last place is out. Keep racing until one slice is left.",
 	"bb": "Balloon Battle: everybody starts with five balloons. Pop a rival's balloon with a pepperoni for a point. Lose all five and you come back with three, then with one; lose that one and you are out. The last driver left wins.",
 	"sb": "Sandbox: drive anywhere, no race and no clock. One world: the house, and beyond the garage door every track of the game. Drive anywhere in the rooms and on the pizzas; warp tunnels lead from place to place. Gold coins lead the way; pepperoni coins are hidden everywhere. The map travels fast: Select on a controller, M on a keyboard, or Map in the pause menu. Park stops the car."}
 const CUPS := [["Margherita Cup", "#f7c948"], ["Supreme Cup", "#3f9a35"], ["Deep Dish Cup", "#e0452c"], ["Meat Lover's Cup", "#b06a3c"], ["Neon Cup", "#3ff0ff"], ["Miniature Mayhem Cup", "#ff6a12"]]

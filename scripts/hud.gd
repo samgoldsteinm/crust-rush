@@ -301,7 +301,7 @@ func _top_bar() -> Dictionary:
 	var num_w := f_disp.get_string_size(num, HORIZONTAL_ALIGNMENT_LEFT, -1, int(pos_size)).x
 	var suf_w := maxf(f_disp.get_string_size(_ord_suffix(_pos_num()).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, int(suf_size)).x, f_bold.get_string_size("OF 8", HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x + 4.0)
 	var pos_w := num_w + 6.0 + suf_w
-	var lap_txt := "%d/%d" % [me.lap() if me else 1, T.LAPS if T else 3]
+	var lap_txt := ("%d" % (me.lap() if me else 1)) if race != null and race.mode == "lss" else "%d/%d" % [me.lap() if me else 1, T.LAPS if T else 3]
 	var row_w := f_bold.get_string_size("LAP", HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x + 4.0 + 8.0 + f_disp.get_string_size(lap_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, int(lap_big)).x + 8.0 + 3 * 10.0 + 2 * 3.0
 	var lap_w := maxf(row_w, 80.0) + 20.0
 	var lap_h := 4.0 + lap_big * 1.15 + 1.0 + time_size * 1.2 + 5.0
@@ -889,7 +889,8 @@ func _draw_progress(tb: Dictionary, mid: float) -> void:
 			var rx := lx0 + (lx1 - lx0) * f0
 			draw_rect(Rect2(_p(Vector2(rx, mid - 2.5)), Vector2((lx1 - lx0) / steps + 0.5, 5.0) * s), c)
 		# lap marks
-		for lp in range(1, T.LAPS):
+		var lss := race.mode == "lss"
+		for lp in range(1, 0 if lss else T.LAPS):
 			var fx := lx0 + (lx1 - lx0) * float(lp) / T.LAPS
 			_rbox(fx - 1.5, mid - 8.0, 3.0, 16.0, CREAM, Color(10.0 / 255, 20.0 / 255, 40.0 / 255, 0.7), 1.5, 2.0)
 			_text(f_bold, "L%d" % (lp + 1), fx - 12.0, mid + 5.0, 9.0, CREAM, HORIZONTAL_ALIGNMENT_CENTER, 24.0, Color(0, 0, 0, 0.9), Vector2(0, 1))
@@ -903,7 +904,11 @@ func _draw_progress(tb: Dictionary, mid: float) -> void:
 		var mine_x := 0.0
 		var hk: Kart = spec_k if spectating and spec_k != null else me
 		for k in race.karts:
+			if k.elim and k != hk:
+				continue   # (pc99) out: off the tracker
 			var f := clampf((total if k.finished else float(k.prog)) / total, 0.0, 1.0)
+			if lss:
+				f = float(posmod(k.prog, T.N)) / T.N   # where it is on its current lap (web patch 111)
 			var mx := lx0 + f * (lx1 - lx0)
 			if k == hk:
 				mine_x = mx
@@ -930,14 +935,22 @@ func _draw_lap_box(tb: Dictionary, mid: float) -> void:
 	_text(f_disp, lt, lx + 10.0 + lab_w + 8.0, ly + 4.0 + lb * 0.08, lb, CREAM)
 	var bx := lx + 10.0 + lab_w + 8.0 + f_disp.get_string_size(lt, HORIZONTAL_ALIGNMENT_LEFT, -1, int(lb * s)).x / s + 8.0
 	var lap := me.lap()
-	for i in T.LAPS:
+	var lss := race != null and race.mode == "lss"
+	for i in (0 if lss else T.LAPS):
 		var on := i < lap
 		var c2 := Color(1, 0.957, 0.863, 0.18)
 		if on:
 			c2 = CHEESE.lerp(Color("#ff8a1f"), 0.5)
 		_rbox(bx + i * 13.0, ly + 4.0 + lb * 0.575 - 2.5, 10.0, 5.0, c2, Color(0, 0, 0, 0), 0.0, 3.0)
 	var tsz: float = tb["time_size"]
-	_text(f_bold, _fmt(me.finish_time if me.finished else race.race_time), lx + 10.0, ly + 4.0 + lb * 1.15 + 1.0, tsz, CHEESE, HORIZONTAL_ALIGNMENT_LEFT, -1.0, Color(0, 0, 0, 0.7), Vector2(0, 2), tsz * 0.02)
+	var tstr := _fmt(me.finish_time if me.finished else race.race_time)
+	var tcol := CHEESE
+	if lss and not me.finished:
+		var left := maxi(0, int(ceil(race.lss_next() - race.race_time)))
+		tstr = "Next out %ds" % left
+		if race.state == "race" and left <= 5:
+			tcol = Color("#ff5a4a")
+	_text(f_bold, tstr, lx + 10.0, ly + 4.0 + lb * 1.15 + 1.0, tsz, tcol, HORIZONTAL_ALIGNMENT_LEFT, -1.0, Color(0, 0, 0, 0.7), Vector2(0, 2), tsz * 0.02)
 	if pb_text != "":
 		var pbs: float = tb["pb_size"]
 		_text(f_bold, pb_text, lx + 10.0, ly + 4.0 + lb * 1.15 + 1.0 + tsz * 1.2, pbs, Color(1, 0.957, 0.863, 0.75), HORIZONTAL_ALIGNMENT_LEFT, -1.0, Color(0, 0, 0, 0.7), Vector2(0, 2))

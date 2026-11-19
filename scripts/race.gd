@@ -640,9 +640,9 @@ func _ahead(a: Kart, b: Kart) -> bool:
 	if a.finished and b.finished:
 		return a.place < b.place
 	if a.finished:
-		return true
+		return not a.elim   # (pc99) the eliminated after everyone still racing
 	if b.finished:
-		return false
+		return b.elim
 	return a.prog > b.prog
 
 
@@ -836,7 +836,7 @@ func update(dt: float, player_inp: Dictionary) -> void:
 			fx.append({"t": "finish", "k": k})
 
 
-## Last Slice Standing: each time the leader starts a new lap, whoever is last is out; the last kart racing wins (web lssTick)
+## Last Slice Standing: every LSS_EVERY s whoever is last is out; the last kart racing wins (web lssTick, patch 111)
 ## Has this kart finished? On the last lap, once it has come round past lap point 0 and is at or beyond the line itself.
 ## (web finAt, v192. Before, a kart finished when its count of lap points reached laps x N, which runs 4 to 22 points ahead of the
 ## kart after loops, shortcuts and glides: every race ended a little before the line.)
@@ -847,6 +847,18 @@ func _fin_at(k: Kart) -> bool:
 	if k.idx > (n >> 2):
 		return k.prog >= T.LAPS * n + (n >> 2)
 	return (k.x - T.px[0]) * T.tx[0] + (k.y - T.py[0]) * T.ty[0] >= 0.0
+
+
+const LSS_EVERY := 30.0
+
+
+## when the next one is out: (number out + 1) x 30 s, so a guest counts down to the same moment (web lssNext)
+func lss_next() -> float:
+	var n := 0
+	for k in karts:
+		if k.elim:
+			n += 1
+	return (n + 1) * LSS_EVERY
 
 
 func _lss_tick() -> void:
@@ -875,14 +887,20 @@ func _lss_tick() -> void:
 		lss_done = true
 		fx.append({"t": "lss_win", "k": lead})
 		return
-	var lap := int(floor(float(lead.prog) / T.N))
-	if lap > lss_lap and lap < T.LAPS:
-		lss_lap = lap
+	if race_time >= lss_next():
+		lss_lap += 1
 		var last: Kart = act[0]
 		for k in act:
 			if k.prog < last.prog:
 				last = k
 		_lss_elim(last, act.size(), true)
+		if act.size() == 2:
+			var w: Kart = act[1] if act[0] == last else act[0]
+			w.finished = true
+			w.finish_time = race_time
+			w.place = 1
+			lss_done = true
+			fx.append({"t": "lss_win", "k": w})
 
 
 func _lss_elim(k: Kart, place: int, loud: bool) -> void:

@@ -3004,7 +3004,7 @@ func _start_race(cfg: Dictionary, bg := false) -> void:
 			race.noitm = all_items_off()
 	if race.noitm:
 		race.boxes.clear()
-	T.LAPS = maxi(2, race.karts.size() - 1) if race.mode == "lss" else T.laps0
+	T.LAPS = 99 if race.mode == "lss" else T.laps0   # (pc99: LSS goes by the clock; 99 is a safety net)
 	spec_k = null
 	_spec_reset()
 	if sfx != null and kart != null:
@@ -3215,6 +3215,16 @@ func _finish_check() -> void:
 const FIN_COL := [[Color("#ffcf40"), Color("#8a5a00")], [Color("#e2e7ef"), Color("#4a5260")], [Color("#d98a48"), Color("#6a3410")], [Color("#fff4dc"), Color("#7a3a10")]]
 
 
+## (pc99) "lap 2 of 3"; in Last Slice Standing (no lap total) "lap 2"
+func _lap_of(k: Kart) -> String:
+	var lp := mini(T.LAPS, int(floor(maxf(0.0, float(k.prog)) / T.N)) + 1)
+	return ("lap %d" % lp) if race != null and race.mode == "lss" else ("lap %d of %d" % [lp, T.LAPS])
+
+
+func _mmss(t: float) -> String:
+	return "%d:%02d" % [int(t / 60.0), int(fmod(t, 60.0))]
+
+
 func _fin_start() -> void:
 	_fin_clear()
 	if spec_on or kart == null or race == null or race.mode == "lss" or race.mode == "bb" or race.sb != null or T.battle or auto_drive:
@@ -3416,11 +3426,12 @@ func _fin_cam(dt: float, k: Kart, rx: float, ry: float, rz: float, rma: float) -
 			hd = drv.global_position
 		hd.y += 1.4
 		var u := clampf((t - 2.3) / 2.3, 0.0, 1.0)
-		var an := rma + fin_side * (0.2 + 0.34 * float(ez.call(u))) * PI
-		var R := (13.0 - 2.5 * u) * k.sf
+		var an := rma + fin_side * (0.14 + 0.22 * float(ez.call(u))) * PI   # (pc100) round to the front quarter, not past side-on
+		var R := (14.0 - 2.0 * u) * k.sf
+		var up := maxf(3.0, R * 0.58)   # looking down into the cockpit, so the face shows over the door
 		var cx := hd.x + cos(an) * R
 		var cz := hd.z + sin(an) * R
-		cam.global_position = Vector3(cx, maxf(hd.y + 2.4 - 1.2 * u, T.ground(cx, cz) + 1.5), cz)
+		cam.global_position = Vector3(cx, maxf(hd.y + up, T.ground(cx, cz) + 1.5), cz)
 		cam.look_at(hd, Vector3.UP)
 		fov = 34.0
 	else:
@@ -4085,7 +4096,7 @@ func _show_results() -> void:
 		var k := st[i]
 		var rtxt := ("~" if k.est else "") + _fmt(k.finish_time)
 		if race.mode == "lss":
-			rtxt = ("out on lap %d" % k.elim_lap) if k.elim else ("last slice" if k.place == 1 else _fmt(k.finish_time))
+			rtxt = ("out at " + _mmss(k.finish_time)) if k.elim else ("last slice" if k.place == 1 else _fmt(k.finish_time))
 		elif race.mode == "bb":
 			rtxt = race.bb.res_row(k)   # the points, and "out" before them for the eliminated (web bbResRow)
 		c1.add_child(_result_row(i + 1, k, rtxt, "+%d" % (Race.PTS[i] if i < Race.PTS.size() else 0) if not gp.is_empty() else ""))
@@ -6539,11 +6550,11 @@ func _live_rows() -> void:
 		var k: Kart = st[i]
 		var rt := ""
 		if k.elim:
-			rt = "out on lap %d" % k.elim_lap
+			rt = "out at " + _mmss(k.finish_time)
 		elif k.finished:
 			rt = ("~" if k.est else "") + _fmt(k.finish_time)
 		else:
-			rt = "racing · lap %d of %d" % [mini(T.LAPS, int(floor(maxf(0.0, float(k.prog)) / T.N)) + 1), T.LAPS]
+			rt = "racing · " + _lap_of(k)
 		live_rows.add_child(_result_row(i + 1, k, rt, ""))
 
 
@@ -6630,7 +6641,7 @@ func _spec_label() -> void:
 	elif k.finished:
 		info += "finished" if k.est else "finished %s" % _fmt(k.finish_time)
 	else:
-		info += "lap %d of %d" % [mini(T.LAPS, int(floor(maxf(0.0, float(k.prog)) / T.N)) + 1), T.LAPS]
+		info += _lap_of(k)
 	(spec_lab[2] as Label).text = info
 
 
