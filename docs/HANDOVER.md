@@ -119,6 +119,9 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   barrel". Its spokes and barrel are one piece of one class at the same depth (scratch/paint/concz.js). barrelMark labels the barrel
   14 (uv only): the white ribs (2) and the dark surface in the outer half facing away from the axle; WHEEL_CUT keeps its lip. Test:
   scratch/paint/rimc.js. Keep it fixed: another wheel whose barrel and spokes share a class needs the same (WHEEL_CUT + a mark).
+- CHARIOT ACCENT LOPSIDED (98, web v233; PC via the export). The owner: "can we fix these accents so they are symettrical". Its model's
+  carbon panels differ left to right; symAcc (ACC_SYM chariot) relabels carbon with no mirror twin as dark 1 (identical CAR_PBR, so the
+  stock look is untouched). Measure others with scratch/paint/sym3.js (use the body's own centre: Hyper and Monster sit off z=0).
 - TWO CALIPERS ON A WHEEL SET (97, web v232; PC pc92). The owner (Endurance GT on Redline): "2 calipers shown". Six car bodies carry
   their own calipers in the body (BODY_CAL: GT, Hyper, Interceptor, Scissor, Skywing, Endurance; scratch/paint/bodycal.js); a wheel set or
   the Monster wheel added its own. Now a wheel type's held part is hidden on those bodies (web holdOut noCal; PC no hold node). The body's

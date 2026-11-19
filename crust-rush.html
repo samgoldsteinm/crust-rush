@@ -2756,6 +2756,7 @@ function carGeos(id){const p=CAR_PACKS[id];if(p.g)return p.g;const bin=p.b?new U
     const isVC=m.n.endsWith('vc')||m.n[0]==='w';if(isVC||m.n.endsWith('paint')){const C=new Float32Array(v*3),U=new Float32Array(v*2);for(let i=0;i<v;i++){const c=isVC?cc[cls[i]]:cc[0],a=ao[i]/255;C[i*3]=c.r*a;C[i*3+1]=c.g*a;C[i*3+2]=c.b*a;U[i*2]=(cls[i]+.5)/32;U[i*2+1]=.5;}geo.setAttribute('color',new THREE.BufferAttribute(C,3));if(isVC)geo.setAttribute('uv',new THREE.BufferAttribute(U,2));else if(UVa)geo.setAttribute('uv',new THREE.BufferAttribute(UVa,2));}
     geo.setIndex(new THREE.BufferAttribute(new Uint16Array(idx),1));geo.computeBoundingSphere();CARGEO.add(geo);g[m.n]=geo;}
   {const bd=BODIES.find(b=>b.id===id.replace(/_hq$/,''));if(bd&&bd.bike)for(const k in g)if(/^w\d$/.test(k))wheelTrim(g[k]);}/* (patch 85) */
+  if(ACC_SYM[id.replace(/_hq$/,'')])symAcc(g);/* (patch 98) */
   {const hw=p.h.wheels||[],cid=id.replace(/_hq$/,'');if(cid!=='chariot')for(const k in g){const m=/^w(\d)$/.exec(k);if(m&&hw[+m[1]])rotorMark(g[k],Math.sign(hw[+m[1]].c[2])||1,WHEEL_SPOKES[cid]||[11]);}}/* (patch 91) */
   if(id.replace(/_hq$/,'')==='concept')for(const k in g)if(/^w\d$/.test(k))barrelMark(g[k]);/* (patch 94) */
   p.d=null;p.b=null;p.g=g;return g;}
@@ -2767,6 +2768,15 @@ function barrelMark(geo){const P=geo.attributes.position,N=geo.attributes.normal
   const mk=[];for(let t=0;t<I.length;t+=3){const c=Math.floor(uv.getX(I[t])*32);if(c!==1&&c!==2)continue;let x=0,y=0,nx=0,ny=0;for(let j=0;j<3;j++){const v=I[t+j];x+=P.getX(v);y+=P.getY(v);nx+=N.getX(v);ny+=N.getY(v);}
     const r=Math.hypot(x,y)/3,nr=Math.abs(nx*x+ny*y)/(Math.hypot(x,y)*3||1);if(c===2||(r>.5*R&&nr>.65))mk.push(t);}
   for(const t of mk)for(let j=0;j<3;j++)uv.setX(I[t+j],(14+.5)/32);uv.needsUpdate=true;}
+/* (patch 98) a body whose carbon is laid out differently on its two sides: carbon with no twin across the middle becomes dark 1 (same look) */
+const ACC_SYM={chariot:1};
+function symAcc(g){const T=[];let z0=1e9,z1=-1e9;for(const k in g){if(!k.startsWith('b_'))continue;const P=g[k].attributes.position;for(let i=0;i<P.count;i++){const z=P.getZ(i);if(z<z0)z0=z;if(z>z1)z1=z;}}const zc=(z0+z1)/2;
+  for(const k in g){if(!k.startsWith('b_')||!g[k].attributes.uv||!g[k].index)continue;const geo=g[k],P=geo.attributes.position,uv=geo.attributes.uv,I=geo.index.array;
+    for(let t=0;t<I.length;t+=3){if(Math.floor(uv.getX(I[t])*32)!==6)continue;const a=new THREE.Vector3().fromBufferAttribute(P,I[t]),b=new THREE.Vector3().fromBufferAttribute(P,I[t+1]),d=new THREE.Vector3().fromBufferAttribute(P,I[t+2]);T.push({uv,I,t,a,b,d,m:a.clone().add(b).add(d).divideScalar(3)});}}
+  const cs=.3,H=new Map(),cl=(x)=>Math.floor(x/cs);for(const e of T)for(let x=cl(Math.min(e.a.x,e.b.x,e.d.x));x<=cl(Math.max(e.a.x,e.b.x,e.d.x));x++)for(let y=cl(Math.min(e.a.y,e.b.y,e.d.y));y<=cl(Math.max(e.a.y,e.b.y,e.d.y));y++)for(let z=cl(Math.min(e.a.z,e.b.z,e.d.z));z<=cl(Math.max(e.a.z,e.b.z,e.d.z));z++){const kk=x+','+y+','+z;(H.get(kk)||H.set(kk,[]).get(kk)).push(e);}
+  const v=new THREE.Vector3(),tr=new THREE.Triangle(),cp=new THREE.Vector3(),un=[];for(const e of T){if(Math.abs(e.m.z-zc)<.06)continue;v.set(e.m.x,e.m.y,2*zc-e.m.z);let ok=false;
+    for(const u of H.get(cl(v.x)+','+cl(v.y)+','+cl(v.z))||[]){tr.set(u.a,u.b,u.d);tr.closestPointToPoint(v,cp);if(cp.distanceTo(v)<.06){ok=true;break;}}if(!ok)un.push(e);}
+  for(const e of un)for(let j=0;j<3;j++)e.uv.setX(e.I[e.t+j],(1+.5)/32);for(const k in g)if(g[k].attributes.uv)g[k].attributes.uv.needsUpdate=true;}
 function rotorMark(geo,os,sp){const P=geo.attributes.position,uv=geo.attributes.uv,I=geo.index&&geo.index.array;if(!uv||!I)return;let R=0;for(let i=0;i<P.count;i++)R=Math.max(R,Math.hypot(P.getX(i),P.getY(i)));if(!(R>0))return;
   const km=new Map(),par=new Int32Array(P.count);for(let i=0;i<P.count;i++){const k=Math.round(P.getX(i)*500)+','+Math.round(P.getY(i)*500)+','+Math.round(P.getZ(i)*500);const j=km.get(k);if(j!==undefined)par[i]=j;else{km.set(k,i);par[i]=i;}}
   const f=i=>{while(par[i]!==i){par[i]=par[par[i]];i=par[i];}return i;};for(let t=0;t<I.length;t+=3){const a=f(I[t]),b=f(I[t+1]);if(a!==b)par[a]=b;const b2=f(I[t+1]),c2=f(I[t+2]);if(b2!==c2)par[b2]=c2;}
