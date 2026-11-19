@@ -112,12 +112,12 @@ CARS = {
     ]),
     # (2026-11-19) an electric Gran Turismo concept (an OBJ lying along X; its material names do not describe the parts)
     'surge': dict(src='c8/source/source/inner/Audi E-Tron Vision Gran Turismo.obj', front=1, rot90=1,
-                  cut=[(-.38, .38, -6.2, -5.55, .84, 1.19), (-.3, .3, 5.0, 5.22, 1.69, 1.92)] + hubs((-3.67, 2.97), .873, 2.3, 2.9),   # (the maker's rings, nose and tail: scratch/ringprobe.py)
+                  cut=[(-.38, .38, -6.2, -5.55, .84, 1.19, 'paint'), (-.3, .3, 5.0, 5.22, 1.69, 1.92, 'paint')] + hubs((-3.67, 2.97), .873, 2.3, 2.9),   # (the maker's rings, nose and tail: scratch/ringprobe.py)
                   rules=[
         (r'_HEADLIGHT(_GLASS)?_[BCD](\.\d+)?$', 'drop'), (r'BADGING|^BOTTOM_@', 'drop'),   # (four identical copies of some parts: kit variants; the tyres are all '_D')
         (r'SKIN2', 'paint'), (r'^RUBBER_TIRE', 'wheel:rubber'), (r'HEADLIGHTGLASS_RIM@', 'wheel:rim'),
         (r'@KIT00_FRONT_WINDOW', 'glass'), (r'^INTERIOR', 'int:dark'), (r'SIDELIGHT', lambda c, uv: np.where((np.abs(c[:, 0]) < .38) & (np.abs(c[:, 1]) > 5.0) & (c[:, 2] > .84), 'drop', np.where(c[:, 1] < 0, 'light', 'tail'))),   # (the maker's rings sit in the middle of both lamp bands) (r'^CHROME', no_rings('chrome')),
-        (r'^ALUMINUM', 'metal'), (r'HEADLIGHTGLASS_TREAD', no_rings('carbon')), (r'HEADLIGHTGLASS_@BASE', no_rings('dark')), (r'^DULLPLASTIC', no_rings('dark')), (r'HEADLIGHTGLASS_@KIT00_RIGHT_HEADLIGHT_A', no_rings('dark')), (r'^ALUMINUM', no_rings('metal')),
+        (r'HEADLIGHTGLASS_TREAD', no_rings('carbon')), (r'HEADLIGHTGLASS_@BASE', no_rings('dark')), (r'^DULLPLASTIC', no_rings('dark')), (r'HEADLIGHTGLASS_@KIT00_RIGHT_HEADLIGHT_A', no_rings('dark')), (r'^ALUMINUM', 'paint'),   # (the owner: no grey patches)
     ]),
     # (2026-11-19) a V12 track concept
     'vortex': dict(src='c9/source/lambo_v12_vgt.glb', front=-1, paint_near=1, cut=hubs((-3.26, 3.87), .93, 2.42, 2.95), rules=[

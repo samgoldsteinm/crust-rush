@@ -136,7 +136,7 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   (2026-11-13), plus new converter options: OBJ import; rot90 (a model lying along X); cut=[(x0,x1,y0,y1,z0,z1[,class])] spots
   dropped (or recoloured) from every part, in the car frame, AFTER sizing (a callable rule on the paint takes it out of the sizing
   reference: the car came out too big); paint_near (the stray check on paint: Vortex's paint simplified into long spikes). Maker's
-  marks removed: Surge's rings (cut, scratch/ringprobe.py), Vortex's flank lettering (rule), every car's hub centre recoloured flat
+  marks removed: Surge's rings (cut, recoloured to paint at the owner's ask; its grey aluminium patches are paint too), Vortex's flank lettering (rule), every car's hub centre recoloured flat
   dark (hubs()), the concept's hub caps dropped. Definitions: tools/cars/patch_cars2.py (/*cars7*/ marks; after the cars6 bodies;
   three signature themes each in LIVERIES, five combos appended to COMBOS, the PC's in pc95). Tests: sheets (blender/cars/<id>/
   sheet.jpg), cartest.py, newwh2 (every wheel), simtest per car on margherita and bedroom 200cc, calaudit_hq.
