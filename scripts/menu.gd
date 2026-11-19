@@ -3045,7 +3045,12 @@ func _records() -> Control:
 		nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		nm.clip_text = true
 		tv.add_child(nm)
-		tv.add_child(label((_racer_name(int(r["dr"])) + " · " + fmt_date(int(r["d"]))) if not r.is_empty() else "No time yet", f_med, 12.0, MUTED))
+		var sub := (_racer_name(int(r["dr"])) + " · " + fmt_date(int(r["d"]))) if not r.is_empty() else "No time yet"
+		if Ach.old_rules(r):
+			sub += " · OLD RULES"   # (pc91, web patch 96)
+		elif not r.is_empty() and r.get("prev") is Dictionary:
+			sub += " · old rules " + fmt_time(float(r["prev"]["t"]))
+		tv.add_child(label(sub, f_med, 12.0, MUTED))
 		h.add_child(tv)
 		var tm := label(fmt_time(float(r["t"])) if not r.is_empty() else "–", f_bold, 14.0, CHEESE if not r.is_empty() else MUTED)
 		tm.size_flags_vertical = Control.SIZE_SHRINK_BEGIN

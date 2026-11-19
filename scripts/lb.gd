@@ -138,7 +138,7 @@ func _fetch() -> void:
 	b_rows = null
 	b_err = ""
 	var f := ("&noitems=eq.true" if b_kind == "ni" else "&solo=eq.%s&noitems=eq.false" % ("true" if b_kind == "alone" else "false"))
-	var q := "/rest/v1/best_runs?select=name,driver,kart,platform,time_ms&map=eq.%s&cls=eq.%s%s&order=time_ms.asc,created_at.asc&limit=20" % [map_key(b_map).uri_encode(), CLS[b_cls], f]
+	var q := "/rest/v1/best_runs?select=name,driver,kart,platform,time_ms,created_at&map=eq.%s&cls=eq.%s%s&order=time_ms.asc,created_at.asc&limit=20" % [map_key(b_map).uri_encode(), CLS[b_cls], f]
 	var res: Array = await _http(HTTPClient.METHOD_GET, q)
 	if my != b_seq:
 		return
@@ -149,6 +149,15 @@ func _fetch() -> void:
 		b_err = "Cannot reach the leaderboard right now."
 	if main.menu.modal_kind == "lb":
 		main.menu.show_modal("lb")
+
+
+## (pc91, web patch 96 lbOld) a world-board run from before the speed change (web 05:54:34 UTC, PC 06:08:16 UTC on 17 Nov)
+func _old(rd: Dictionary) -> bool:
+	var s := String(rd.get("created_at", ""))
+	if s.length() < 19:
+		return false
+	var t := Time.get_unix_time_from_datetime_string(s.substr(0, 19))
+	return t < (1794895696 if String(rd.get("platform", "")) == "pc" else 1794894874)
 
 
 func board_panel() -> Control:
@@ -189,7 +198,7 @@ func board_panel() -> Control:
 			var nv: VBoxContainer = M.vbox(0)
 			nv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			nv.add_child(M.label("%s  ·  %s" % [String(rd.get("name", "")), "PC" if String(rd.get("platform", "")) == "pc" else "WEB"], M.f_bold, 15.0, Color("#fff4dc")))
-			nv.add_child(M.label("%s · %s" % [String(rd.get("driver", "")), String(rd.get("kart", ""))], M.f_med, 12.0, Color("#c2a58c")))
+			nv.add_child(M.label("%s · %s%s" % [String(rd.get("driver", "")), String(rd.get("kart", "")), "  ·  OLD RULES" if _old(rd) else ""], M.f_med, 12.0, Color("#c2a58c")))
 			h.add_child(nv)
 			h.add_child(M.label(_fmt(float(rd.get("time_ms", 0)) / 1000.0), M.f_bold, 16.0, Color("#fff4dc")))
 			list.add_child(card)

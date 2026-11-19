@@ -162,10 +162,15 @@ static func record(map_id: String, cls: String, t: float, place: int, ri: int, s
 	_load()
 	var key := map_id + "|" + cls
 	var recs: Dictionary = d["recs"]
-	var old: Dictionary = recs.get(key, {})
+	var old0: Dictionary = recs.get(key, {})
+	# (pc91, web patch 96) a best from before the speed change is not the bar to beat: it is kept as prev
+	var old: Dictionary = {} if old_rules(old0) else old0
+	var prev = {"t": old0["t"], "d": old0.get("d", 0), "dr": old0.get("dr", 0)} if old_rules(old0) else old0.get("prev")
 	var pb := old.is_empty() or t < float(old.get("t", 1e9))
 	if pb:
 		recs[key] = {"t": t, "d": int(Time.get_unix_time_from_system()), "place": place, "dr": ri, "spec": spec}
+		if prev != null:
+			recs[key]["prev"] = prev
 		# the best-run ghost and its lap times
 		for k2 in run:
 			recs[key][k2] = run[k2]
@@ -183,6 +188,12 @@ static func record(map_id: String, cls: String, t: float, place: int, ri: int, s
 		h.pop_back()
 	save()
 	return {"t": t, "old": float(old.get("t", -1.0)) if not old.is_empty() else -1.0, "pb": pb}
+
+
+## (pc91, web patch 96 RULES_T_PC) the speed rules changed (web v216 / this PC build): a record set before is "old rules"
+const RULES_T := 1794895696
+static func old_rules(r: Dictionary) -> bool:
+	return not r.is_empty() and int(r.get("d", 0)) < RULES_T
 
 
 static func best(map_id: String, cls: String) -> Dictionary:

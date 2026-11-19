@@ -3012,7 +3012,7 @@ func _start_race(cfg: Dictionary, bg := false) -> void:
 		ghost.name = "Ghost"
 		add_child(ghost)
 	var best := Ach.best(map_id, String(cfg.get("cls", sel["cls"])) if not cfg.is_empty() else String(sel["cls"]))
-	hud.pb_text = ("Best " + Hud._fmt(float(best["t"]))) if not best.is_empty() else ""
+	hud.pb_text = (("Old-rules best " if Ach.old_rules(best) else "Best ") + Hud._fmt(float(best["t"]))) if not best.is_empty() else ""   # (pc91)
 	if race.mode == "bb" or race.mode == "sb":
 		# a battle has no lap time: no best under the clock, no ghost, nothing recorded (nor has Sandbox: web if(mode!=='lss'&&!SBX)ghostStart())
 		hud.pb_text = ""

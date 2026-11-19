@@ -479,7 +479,7 @@ static func build(spec: Dictionary, ri: int) -> Dictionary:
 			var hsrc: Node3D = null
 			if own:
 				hsrc = bsrc.find_child("ph%d" % int(wq["i"]), true, false) as Node3D
-			elif wsrc != null:
+			elif wsrc != null and not ["gt", "hyper", "interceptor", "scissor", "skywing", "endur"].has(String(bd["id"])):   # (pc92, web BODY_CAL: their own calipers)
 				hsrc = wsrc.find_child("hold_" + ("L" if z < 0.0 else "R"), true, false) as Node3D
 				if hsrc == null:
 					hsrc = wsrc.find_child("hold_R", true, false) as Node3D
