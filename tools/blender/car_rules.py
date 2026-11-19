@@ -34,6 +34,17 @@ def by_texture(path, thresh, below, above):
 K_RULES = [(r'^K_PAINT', 'paint'), (r'^K_DARK', 'dark'), (r'^K_STRIPE', 'stripe'), (r'^K_CHROME', 'chrome'), (r'^K_METAL', 'steel'),
            (r'^K_GLASS', 'glass'), (r'^K_LIGHT', 'light'), (r'^K_TAIL', 'tail'), (r'^K_SEAT', 'seat'), (r'^K_WOOD', 'wood'),
            (r'^K_RED', 'red'), (r'^K_WHITE', 'white'), (r'^K_TYRE', 'wheel:rubber'), (r'^K_RIM', 'wheel:steel')]
+# (2026-11-19) the e-tron's maker's rings: raised parts in the middle of the nose and the tail; dropped from whatever they are part of
+# (2026-11-19) the hub centres of a car's own wheels, where makers put their emblems: (wheel y in the car frame list, centre height, track
+# half-width, how far out to cut, radius) -> cut boxes
+def hubs(ys, z, x0, x1, r=.17):
+    return [(sx * x0 if sx > 0 else -x1, sx * x1 if sx > 0 else -x0, y - r, y + r, z - r, z + r, 'wheel:dark') for y in ys for sx in (1, -1)]   # (one flat colour: the emblem's relief disappears)
+
+
+def no_rings(t):
+    return lambda c, uv: np.where(((np.abs(c[:, 0]) < .38) & (c[:, 1] < -5.55) & (c[:, 2] > .84) & (c[:, 2] < 1.19)) | ((np.abs(c[:, 0]) < .3) & (c[:, 1] > 5.0) & (c[:, 1] < 5.22) & (c[:, 2] > 1.69) & (c[:, 2] < 1.92)), 'drop', t)   # (measured: scratch/ringprobe.py)
+
+
 CARS = {
     'rollpin': dict(src='karts/rollpin.glb', front=-1, rules=K_RULES, tub=False, len=0.62),
     'grater': dict(src='karts/grater.glb', front=-1, rules=K_RULES, tub=False),
@@ -90,5 +101,42 @@ CARS = {
         (r'^BLACK|^DARK|^EXT_GRILLE|^EXT_PLASTIC|^rubbertrim|^frame', 'dark'),
         (r'badge|gauge_needle|reflector', 'drop'), (r'^EXT_RIVET|^aluminum|^chrome@|^screw', 'metal'), (r'^MISC_RED', 'red'), (r'^zeroblack|^EXT_DETAILS', 'dark'),
         (r'FABRIC|SEATBELT', 'int:seat'), (r'^INT_ALU|^INT_DARKALU|^INT2_ALU|^INTSTEER_ALU', 'int:metal'), (r'^INT|^blkplastic|^metalpainted|^plastic_|^rubber_', 'int:dark'),
+    ]),
+# (2026-11-19) an organic concept car on glowing wheels
+    'biome': dict(src='c7/source/source/Mercedes AVTR.fbx', front=-1, rim_ratio=.72, cut=hubs((-4.49, 3.98), .974, 2.2, 2.95), rules=[
+        (r'logo', 'drop'), (r'^avtr_primary', 'paint'), (r'^avtr_glass\.001', 'light'), (r'^avtr_glass', 'glass'),
+        (r'^avtr_black@avtr_rim', 'wheel:auto'), (r'^avtr_left_front_light@avtr_rim', 'wheel:bluem'), (r'^avtr_chrome@avtr_rim', 'drop'),   # (hub caps: the maker's emblem)
+        (r'^avtr_left_front_light', lights), (r'^avtr_right_rear_light|^avtr_taillight', 'tail'),
+        (r'^avtr_koja', 'int:seat'), (r'^avtr_wood', 'int:wood'), (r'^avtr_body\.2|^avtr_dash', 'int:dark'), (r'^avtr_secondary', 'int:dark'),
+        (r'^avtr_chassis_ok\.0', 'gunmetal'), (r'^avtr_chassis|^avtr_black', 'dark'),
+    ]),
+    # (2026-11-19) an electric Gran Turismo concept (an OBJ lying along X; its material names do not describe the parts)
+    'surge': dict(src='c8/source/source/inner/Audi E-Tron Vision Gran Turismo.obj', front=1, rot90=1,
+                  cut=[(-.38, .38, -6.2, -5.55, .84, 1.19), (-.3, .3, 5.0, 5.22, 1.69, 1.92)] + hubs((-3.67, 2.97), .873, 2.3, 2.9),   # (the maker's rings, nose and tail: scratch/ringprobe.py)
+                  rules=[
+        (r'_HEADLIGHT(_GLASS)?_[BCD](\.\d+)?$', 'drop'), (r'BADGING|^BOTTOM_@', 'drop'),   # (four identical copies of some parts: kit variants; the tyres are all '_D')
+        (r'SKIN2', 'paint'), (r'^RUBBER_TIRE', 'wheel:rubber'), (r'HEADLIGHTGLASS_RIM@', 'wheel:rim'),
+        (r'@KIT00_FRONT_WINDOW', 'glass'), (r'^INTERIOR', 'int:dark'), (r'SIDELIGHT', lambda c, uv: np.where((np.abs(c[:, 0]) < .38) & (np.abs(c[:, 1]) > 5.0) & (c[:, 2] > .84), 'drop', np.where(c[:, 1] < 0, 'light', 'tail'))),   # (the maker's rings sit in the middle of both lamp bands) (r'^CHROME', no_rings('chrome')),
+        (r'^ALUMINUM', 'metal'), (r'HEADLIGHTGLASS_TREAD', no_rings('carbon')), (r'HEADLIGHTGLASS_@BASE', no_rings('dark')), (r'^DULLPLASTIC', no_rings('dark')), (r'HEADLIGHTGLASS_@KIT00_RIGHT_HEADLIGHT_A', no_rings('dark')), (r'^ALUMINUM', no_rings('metal')),
+    ]),
+    # (2026-11-19) a V12 track concept
+    'vortex': dict(src='c9/source/lambo_v12_vgt.glb', front=-1, paint_near=1, cut=hubs((-3.26, 3.87), .93, 2.42, 2.95), rules=[
+        (r'badge|logo|dials|anniu|yibiao', 'drop'), (r'^Matte__FFFFFFFF__prim', 'paint'), (r'^barbon', 'carbon'),
+        (r'^glass1', 'int:dark'), (r'^glass_.*trans', 'glass'), (r'^glass_.*spec_001@', 'tail'),
+        (r'^tyre', 'wheel:rubber'), (r'^rotor', 'wheel:disc'), (r'^dz00.*@Object_2[12]$', 'wheel:rim'),
+        (r'^jin.*@Object_3[67]$', 'wheel:gunmetal'),   # (centre-lock hubs, not calipers)
+        (r'^jin.*@Object_35$', 'drop'),   # (hair-thin red pinlines: simplified into long spikes) (r'^vehiclelights128__spec_FR', 'light'), (r'^vehiclelights128__spec_RR', 'tail'),
+        (r'^leather', 'int:seat'), (r'^int_belt|^plastic_blcarp', 'int:dark'), (r'^jin', 'red'), (r'^grey', 'gunmetal'),
+        (r'^dz00.*@Object_27$', 'paint'),
+        (r'^dz00', lambda c, uv: np.where((np.abs(c[:, 0]) > 1.5) & (np.abs(c[:, 0]) < 2.15) & (c[:, 1] > .55) & (c[:, 1] < 1.65) & (c[:, 2] > .25) & (c[:, 2] < .92), 'drop', 'dark')),   # (the 'GT' lettering on both flanks: scratch/pieceprobe.py)
+    ]),
+    # (2026-11-19) a red front-engined Vision GT concept
+    'scarlet': dict(src='c10/source/ferrari_vgt.glb', front=-1, cut=[(-9, 9, 6.35, 99, -9, 99)] + hubs((-3.37,), .912, 2.5, 3.1) + hubs((3.87,), 1.004, 2.5, 3.1), rules=[
+        (r'^logo|^badge|^INT_TEXT|^track@|^material@|^Material_25|^Glass_rim', 'drop'), (r'^Body', 'paint'), (r'^carbon', 'carbon'),
+        (r'^EXT_Tyre', 'wheel:rubber'), (r'^Rim_[12]', 'wheel:rim'), (r'^Rim_3', 'wheel:red'), (r'^EXT_Disk', 'wheel:disc'),
+        (r'^black_shiny@Object_4[2-6]$', 'caliper'), (r'^d_glass', 'glass'), (r'^glass@', 'drop'),   # ('glass' at 11% opacity: lamp covers and a see-through sheet over the tail)
+        (r'^r_glass|^r_lights', lambda c, uv: np.where((c[:, 1] > 4.2) & (c[:, 1] < 6.3), 'tail', 'drop')),   # (the red-glass material also holds cabin bits) (r'^lights', 'light'),
+        (r'^INT1|^INT3', 'int:seat'), (r'^INT|^STEER|^Material_26|^Material_0', 'int:dark'), (r'^material_37', 'red'),
+        (r'^silver_d|^silver|^chrome', 'metal'), (r'^white', 'white'), (r'^EXT_Chassis', 'dark'), (r'^black', 'dark'),
     ]),
 }

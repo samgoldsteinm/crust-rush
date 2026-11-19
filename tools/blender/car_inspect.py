@@ -9,6 +9,7 @@ from mathutils import Vector
 for path in sys.argv[sys.argv.index('--') + 1:]:
     bpy.ops.wm.read_factory_settings(use_empty=True)
     if path.lower().endswith('.fbx'): bpy.ops.import_scene.fbx(filepath=path)
+    elif path.lower().endswith('.obj'): bpy.ops.wm.obj_import(filepath=path)   # (2026-11-19: the e-tron came as OBJ)
     else: bpy.ops.import_scene.gltf(filepath=path)
     obs = [o for o in bpy.context.scene.objects if o.type == 'MESH']
     lo = Vector((1e9,) * 3); hi = Vector((-1e9,) * 3); mats = {}

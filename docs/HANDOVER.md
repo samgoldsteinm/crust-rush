@@ -130,6 +130,17 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   and its held caliper takes the Calipers colour (k [7,1]). Added calipers: front behind, rear ahead. Check: scratch/paint/calaudit.py
   <wheel> <name> (every body x the wheel type x 4 wheels: calipers counted, pictures; standard / slick / hover / pepperoni: 0 or 1, wheel
   sets and Monster: 1 everywhere; the Onyx's front trim is class 13 but not a caliper) and calside.js (front behind, rear ahead).
+- FOUR CONCEPT CARS (web v239, NET_PROTO / PC PROTO 121; PC via the export + pc95). The owner uploaded four concept models; ids and
+  made-up names: biome "Biome" (organic electric concept, c7), surge "Surge" (electric GT racer, an OBJ lying along X, c8), vortex
+  "Vortex" (V12 single-seat track concept, c9), scarlet "Scarlet" (red front-engined concept, c10). Pipeline as "How a car gets in"
+  (2026-11-13), plus new converter options: OBJ import; rot90 (a model lying along X); cut=[(x0,x1,y0,y1,z0,z1[,class])] spots
+  dropped (or recoloured) from every part, in the car frame, AFTER sizing (a callable rule on the paint takes it out of the sizing
+  reference: the car came out too big); paint_near (the stray check on paint: Vortex's paint simplified into long spikes). Maker's
+  marks removed: Surge's rings (cut, scratch/ringprobe.py), Vortex's flank lettering (rule), every car's hub centre recoloured flat
+  dark (hubs()), the concept's hub caps dropped. Definitions: tools/cars/patch_cars2.py (/*cars7*/ marks; after the cars6 bodies;
+  three signature themes each in LIVERIES, five combos appended to COMBOS, the PC's in pc95). Tests: sheets (blender/cars/<id>/
+  sheet.jpg), cartest.py, newwh2 (every wheel), simtest per car on margherita and bedroom 200cc, calaudit_hq.
+  NOT ADDED: the owner's film-car model (a famous fictional vehicle: its design itself is protected, not only its logos).
 - HYPERCAR ROOF, GT ROOF FRONT (105, web v238; PC via the export). The Hypercar's roof is a glass canopy (b_glass at roof height,
   scratch/paint/hyglass.js) drawn at 18% opacity: it read as no roof. GLASS_ROOF splits the upward-facing glass near the top into a
   smoked mesh (88% opaque). Its driver: fit s .24, rim 1.35. The GT's roofFix zone now reaches 1.5 below the top (the roof slopes).

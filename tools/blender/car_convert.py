@@ -56,6 +56,7 @@ def log(*a): print('[car %5.0fs]' % (time.time() - T0), *a); sys.stdout.flush()
 def read_scene(path):
     crlib.reset()
     if path.lower().endswith('.fbx'): bpy.ops.import_scene.fbx(filepath=path)
+    elif path.lower().endswith('.obj'): bpy.ops.wm.obj_import(filepath=path)   # (2026-11-19: the e-tron came as OBJ)
     else: bpy.ops.import_scene.gltf(filepath=path)
     soups = {}
     for o in bpy.context.scene.objects:
@@ -362,6 +363,9 @@ def render(objs, path, views, size=(1280, 760)):
 def convert(cid, fast=False):
     cfg = CARS[cid]; os.makedirs(f'{OUT}/{cid}', exist_ok=True)
     soups = read_scene(f'{IN}/{cfg["src"]}'); log('read', len(soups), 'material/object groups,', sum(len(v[0]) for v in soups.values()), 'triangles')
+    if cfg.get('rot90'):   # (2026-11-19) a model lying along X: turned a quarter about the vertical so its length runs along Y
+        q = cfg['rot90']; Rz = np.array([[0, -q, 0], [q, 0, 0], [0, 0, 1]], np.float64)
+        soups = {k: (P @ Rz.T, N @ Rz.T, U) for k, (P, N, U) in soups.items()}
     # --- what each material becomes
     tg = {k: target_of(k, cfg['rules']) for k in soups}
     for k in sorted(soups):
@@ -380,6 +384,9 @@ def convert(cid, fast=False):
         P = (P - org) * s * mul; N = N * mul; t = tg[k]; cen = P.mean(1)
         if callable(t): t = t(cen, U)
         tt = np.array([t] * len(P)) if isinstance(t, str) else np.asarray(t)
+        for bx in cfg.get('cut', ()):   # (2026-11-19) spots cut out of every part (a maker's mark shaped into the body), in this frame
+            inb = (cen[:, 0] > bx[0]) & (cen[:, 0] < bx[1]) & (cen[:, 1] > bx[2]) & (cen[:, 1] < bx[3]) & (cen[:, 2] > bx[4]) & (cen[:, 2] < bx[5])
+            if inb.any(): tt = np.where(inb, bx[6] if len(bx) > 6 else 'drop', tt)   # (a seventh value: the spot is recoloured to it instead)
         for u in np.unique(tt):
             m = tt == u; rep.append((k, u, int(m.sum()), np.round(cen[m].min(0), 1).tolist(), np.round(cen[m].max(0), 1).tolist()))
             if u == 'drop': continue
@@ -442,7 +449,7 @@ def convert(cid, fast=False):
         res = {}
         for g, o in d.items():
             V, F, C, ao = read_obj(o); n0 = len(F)
-            if g != 'paint': k = refs[g].near(V, F, .16); F = F[k]; C = C[k]
+            if g != 'paint' or cfg.get('paint_near'): k = refs[g].near(V, F, .16); F = F[k]; C = C[k]   # (2026-11-19 paint_near: a paint group that simplifies into spikes)
             N, bad = refs[g].normals(V, F); N = unify(F, N, bad)
             res[g] = (V, F, C, ao, N); log(f'    {o.name}: {len(F)} tris ({n0 - len(F)} strays dropped), {bad.mean() * 100:.1f}% corners without a normal of their own')
         return res
