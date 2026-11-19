@@ -463,10 +463,10 @@ const UG_P := {
 	"tourer": [6.575, 2.049, 0.02, -0.002, 0.961, 5.319, -4.583, 1.093, 1.115, 1.746, 0.865],
 	"wedge": [5.85, 2.55, 0.05, 0.0, 0.47, 3.05, -3.05, 1.05, 1.3, 2.9, 1.058]
 }
-const UG_GAIN := 1.0       # (web UG_GAIN) the garage floor's light
+const UG_GAIN := 1.35      # (pc102: a third brighter; web UG_GAIN) the garage floor's light
 const UG_TONE := 1.4      # Godot's ACES (white 8) compresses more than three.js's: the same glow on screen as the web
-const UG_BOUNCE := 0.35    # the light under the car in the garage
-const UG_BOUNCE_R := 1.6   # the lights under a racing kart, x the dark
+const UG_BOUNCE := 0.47    # (pc102) the light under the car in the garage
+const UG_BOUNCE_R := 2.15  # (pc102) the lights under a racing kart, x the dark
 const UG_SHEET := preload("res://shaders/ug_sheet.gdshader")
 
 
@@ -594,7 +594,7 @@ func _style_frame(k: Kart, v: Dictionary, time: float, dark: float) -> void:
 			(L as OmniLight3D).light_color = ug_sat(rc)
 	var hm: ShaderMaterial = v.get("ug_haze")
 	if hm != null:
-		hm.set_shader_parameter("ug_alpha", 0.1 + 0.6 * dark)   # (faint by day, the glow at night)
+		hm.set_shader_parameter("ug_alpha", 0.14 + 0.78 * dark)   # (faint by day, the glow at night)
 		if rb:
 			ug_colour(hm, rc)
 

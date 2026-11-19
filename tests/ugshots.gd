@@ -9,6 +9,8 @@ var main: Node
 func _shot(name_: String) -> void:
 	for i in 6:
 		await get_tree().process_frame
+	if main != null and main.menu != null and main.menu._gcam != null:
+		print("CAM2 pos ", main.menu._gcam.global_position, " z ", main.menu._gzoom, " p ", main.menu._gpitch, " zc ", main.menu._gzc, " pc ", main.menu._gpc)
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("res://build/menu/%s.png" % name_))
 	print("UG shot ", name_)
 
@@ -55,8 +57,9 @@ func _ready() -> void:
 		main.menu._gpitch = 0.12 if big else 0.35
 		main.menu._gpc = main.menu._gpitch
 		main.menu._frame_garage_cam()
-		for i in 4:
+		for i in (int(OS.get_environment("UG_WAIT")) if OS.get_environment("UG_WAIT") != "" else 4):
 			await get_tree().process_frame
+		print("CAM grad ", main.menu._grad, " cy ", main.menu._gcy, " pos ", main.menu._gcam.global_position, " zc ", main.menu._gzc, " big ", main.menu._gbig)
 		await _shot(nm)
 		get_tree().quit(0)
 		return

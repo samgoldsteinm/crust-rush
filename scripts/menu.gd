@@ -1703,11 +1703,11 @@ func _garage() -> Control:
 					_gtap = Vector2(-1, -1)
 			elif mb.pressed and (mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN):
 				var up := mb.button_index == MOUSE_BUTTON_WHEEL_UP
-				_gzoom = clampf(_gzoom * exp((-0.12 if up else 0.12) * maxf(1.0, mb.factor)), 0.32, 1.5)
+				_gzoom = clampf(_gzoom * exp((-0.12 if up else 0.12) * maxf(1.0, mb.factor)), 0.32, 1.1)
 				if up and not _gbig:
 					_set_big(true)
 		elif ev is InputEventMagnifyGesture:
-			_gzoom = clampf(_gzoom / (ev as InputEventMagnifyGesture).factor, 0.32, 1.5)
+			_gzoom = clampf(_gzoom / (ev as InputEventMagnifyGesture).factor, 0.32, 1.1)
 		elif ev is InputEventMouseMotion and _gdrag:
 			var mm := ev as InputEventMouseMotion
 			_grot += mm.relative.x * 0.011
@@ -2634,6 +2634,7 @@ func _garage_scene() -> void:
 	var rim := DirectionalLight3D.new()   # (pc73) a cool rim light from behind, for the edges of the body
 	rim.light_energy = 1.1
 	rim.light_color = Color("#dfe8ff")
+	rim.light_cull_mask = 1   # (pc101) the car, not the workshop room (layer 2)
 	w3.add_child(rim)
 	rim.look_at_from_position(Vector3(-14, 10, -12), Vector3.ZERO, Vector3.UP)
 	var sun := DirectionalLight3D.new()
@@ -2648,6 +2649,26 @@ func _garage_scene() -> void:
 	_gcam = Camera3D.new()
 	_gcam.fov = 30.0
 	w3.add_child(_gcam)
+	# (pc101) the web's workshop room round the turntable (godot/tools/studioexport.py), and the paint reflecting it
+	if ResourceLoader.exists("res://assets/garage_studio/studio.glb"):
+		var ps = load("res://assets/garage_studio/studio.glb")
+		if ps is PackedScene:
+			var room: Node3D = (ps as PackedScene).instantiate()
+			for mi in room.find_children("*", "MeshInstance3D", true, false):
+				(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				(mi as MeshInstance3D).layers = 2   # the rim light (car only) skips the room: it glared on the polished concrete
+			w3.add_child(room)
+			var pr := ReflectionProbe.new()
+			pr.update_mode = ReflectionProbe.UPDATE_ONCE
+			pr.size = Vector3(66.0, 15.6, 56.0)
+			pr.position = Vector3(0.0, 7.8, 0.0)
+			pr.origin_offset = Vector3(0.0, -4.8, 0.0)   # captured from car height
+			pr.box_projection = false
+			pr.interior = true
+			pr.ambient_mode = ReflectionProbe.AMBIENT_DISABLED
+			pr.max_distance = 120.0
+			pr.intensity = 0.5
+			w3.add_child(pr)
 	var fl := MeshInstance3D.new()
 	var disc := CylinderMesh.new()
 	disc.top_radius = 15.5
@@ -2780,8 +2801,14 @@ func _frame_garage_cam(dt := 0.0) -> void:
 		asp = float(_gview.size.x) / float(_gview.size.y)
 	var vh := deg_to_rad(15.0)
 	var hh := atan(tan(vh) * asp)
-	var d := _grad / sin(minf(vh, hh)) * (0.95 if _gbig else 0.84) * _gzc
-	var el := 0.22 + _gpc
+	var d0 := _grad / sin(minf(vh, hh)) * (0.95 if _gbig else 0.84) * _gzc
+	var el0 := 0.22 + _gpc
+	# (pc101, web patch 87) under the room's ceiling: closer first (not nearer than 1.7 x the radius), then no higher
+	var yM := 12.6
+	var d := d0
+	if sin(el0) > 0.02 and _gcy + sin(el0) * d0 > yM:
+		d = maxf(minf(d0, _grad * 1.7), (yM - _gcy) / sin(el0))
+	var el := minf(el0, asin(clampf((yM - _gcy) / d, -1.0, 1.0)))
 	var hz := cos(el) * d
 	var sh := 0.0 if _gbig else _grad * 0.34 * minf(1.0, asp / 1.3)
 	_gcam.near = maxf(0.5, minf(d - _grad * 1.6, d * 0.25))
@@ -2819,7 +2846,7 @@ func _process(dt: float) -> void:
 				_grot += sp * dt * 2.6
 			if _gbig and absf(zy) > 0.18:
 				var z2 := signf(zy) * (absf(zy) - 0.18) / 0.82
-				_gzoom = clampf(_gzoom * exp(z2 * dt * 1.6), 0.32, 1.5)
+				_gzoom = clampf(_gzoom * exp(z2 * dt * 1.6), 0.32, 1.1)
 		_gturn.rotation.y = _grot
 		if not _gug_P.is_empty() and _gfloor != null and is_instance_valid(_gkart):
 			# (pc77) the floor's light follows the turning car

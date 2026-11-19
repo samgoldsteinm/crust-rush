@@ -74,7 +74,7 @@ float ug_ls(vec2 p) {
 	float a = ug_p0.x;
 	float b = ug_p0.y;
 	float h = ug_p0.z;
-	float kT = ug_p0.w;
+	float kT = ug_p0.w * 1.8;   // (pc103: the tyres block harder)
 	float wf = ug_p1.x;
 	float wr = ug_p1.y;
 	float wz = ug_p1.z;
@@ -87,10 +87,10 @@ float ug_ls(vec2 p) {
 	}
 	float ins = 0.08 * b;
 	float zs = b - ins;
-	vec4 oFp = vec4(wf, wz, rf * 0.85, tw * 0.5);
-	vec4 oFm = vec4(wf, -wz, rf * 0.85, tw * 0.5);
-	vec4 oRp = vec4(wr, wz, rr * 0.85, tw * 0.5);
-	vec4 oRm = vec4(wr, -wz, rr * 0.85, tw * 0.5);
+	vec4 oFp = vec4(wf, wz, rf, tw * 0.62);
+	vec4 oFm = vec4(wf, -wz, rf, tw * 0.62);
+	vec4 oRp = vec4(wr, wz, rr, tw * 0.62);
+	vec4 oRm = vec4(wr, -wz, rr, tw * 0.62);
 	float x0 = wr + rr * 1.1;
 	float x1 = wf - rf * 1.1;
 	vec2 acc = vec2(0.0);
@@ -103,7 +103,7 @@ float ug_ls(vec2 p) {
 	float zw = 0.75 * zs;
 	acc += ug_strip(p, vec2(xF, -zw), vec2(xF, zw), vec2(1.0, 0.0), 4, oFp, oFm, h, kT);
 	acc += ug_strip(p, vec2(xR, -zw), vec2(xR, zw), vec2(-1.0, 0.0), 4, oRp, oRm, h, kT);
-	float rc = 0.3 * b;
+	float rc = 0.85 * b;   // (pc103: nearly a pill, was 0.3 b)
 	float Lb = 0.15 * b + 0.6 * h;
 	vec2 q = abs(p) - vec2(a - rc, b - rc);
 	float sd = length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - rc;
