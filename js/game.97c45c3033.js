@@ -1587,7 +1587,7 @@ const _ugF={};function ugTexFor(id){if(_ugF[id]!==undefined)return _ugF[id];cons
 /* (patch 77) the underglow as LED strips under the sills and bumpers: ugParams (the body's outline, sill height and wheels, in the
    kart's own units, from the body's centre), ugLs (the light on the ground at a point), ugBake (the picture). The PC's
    shaders/underglow.gdshaderinc is the same sum, line for line */
-const UG_GAIN=1,UG_REF=.048,UG_BOUNCE=.35,UG_BOUNCE_R=1.6;/* (the garage floor's light; the floor's own colour at the middle; the lights under the car, garage and race) */
+const UG_GAIN=1.35,UG_REF=.048,UG_BOUNCE=.47,UG_BOUNCE_R=2.15;/* (patch 113: a third brighter; were 1, .35, 1.6) *//* (the garage floor's light; the floor's own colour at the middle; the lights under the car, garage and race) */
 function ugSm(a,b,v){const t=Math.min(1,Math.max(0,(v-a)/(b-a)));return t*t*(3-2*t);}
 const _ugPc={};
 function ugParams(cfg){const id=cfg.car&&CAR_PACKS[cfg.car]?cfg.car:null,key=id||('k'+[cfg.fw,cfg.rw].join());if(_ugPc[key])return _ugPc[key];let P;
@@ -1615,12 +1615,12 @@ function ugSlab(ox,oz,dx,dz,cx,cz,ex,ez){if(ex<=0)return 0;let t0=0,t1=1;
 function ugStrip(px,pz,x0,z0,x1,z1,nx,nz,n,O1,O2,h,kT,acc){const len=Math.hypot(x1-x0,z1-z0);if(len<1e-4)return;const tx=(x1-x0)/len,tz=(z1-z0)/len,al=(px-x0)*tx+(pz-z0)*tz,dp=(px-x0)*nx+(pz-z0)*nz,r2=dp*dp+h*h,rho=Math.sqrt(r2),I=.3+.7*ugSm(-.5,.6,dp/rho);
   for(let k=0;k<n;k++){const ta=k*len/n-al,tb=(k+1)*len/n-al,e=I*h/r2*(tb/Math.sqrt(tb*tb+r2)-ta/Math.sqrt(ta*ta+r2)),sx=x0+tx*(k+.5)*len/n,sz=z0+tz*(k+.5)*len/n,dx=px-sx,dz=pz-sz,
     L=ugSlab(sx,sz,dx,dz,O1[0],O1[1],O1[2],O1[3])+ugSlab(sx,sz,dx,dz,O2[0],O2[1],O2[2],O2[3]);acc[0]+=e*Math.exp(-L*kT);acc[1]+=e;}}
-function ugLs(P,px,pz){const {a,b,h,wf,wr,wz,rf,rr,M,kT}=P,tw=Math.max(P.tw,.2),ins=.08*b,zs=b-ins,acc=[0,0],
-    oFp=[wf,wz,rf*.85,tw*.5],oFm=[wf,-wz,rf*.85,tw*.5],oRp=[wr,wz,rr*.85,tw*.5],oRm=[wr,-wz,rr*.85,tw*.5],x0=wr+rr*1.1,x1=wf-rf*1.1;
+function ugLs(P,px,pz){const {a,b,h,wf,wr,wz,rf,rr,M}=P,kT=P.kT*1.8/* (patch 114: the tyres block harder) */,tw=Math.max(P.tw,.2),ins=.08*b,zs=b-ins,acc=[0,0],
+    oFp=[wf,wz,rf,tw*.62],oFm=[wf,-wz,rf,tw*.62],oRp=[wr,wz,rr,tw*.62],oRm=[wr,-wz,rr,tw*.62],x0=wr+rr*1.1,x1=wf-rf*1.1;
   if(x1>x0){ugStrip(px,pz,x0,zs,x1,zs,0,1,6,oFp,oRp,h,kT,acc);ugStrip(px,pz,x0,-zs,x1,-zs,0,-1,6,oFm,oRm,h,kT,acc);}
   const xF=Math.max(wf+rf*1.15,a-2*ins),xR=Math.min(wr-rr*1.15,-a+2*ins),zw=.75*zs;
   ugStrip(px,pz,xF,-zw,xF,zw,1,0,4,oFp,oFm,h,kT,acc);ugStrip(px,pz,xR,-zw,xR,zw,-1,0,4,oRp,oRm,h,kT,acc);
-  const rc=.3*b,Lb=.15*b+.6*h,qx=Math.abs(px)-(a-rc),qz=Math.abs(pz)-(b-rc),sd=Math.hypot(Math.max(qx,0),Math.max(qz,0))+Math.min(Math.max(qx,qz),0)-rc,
+  const rc=.85*b/* (patch 114: nearly a pill, was .3b) */,Lb=.15*b+.6*h,qx=Math.abs(px)-(a-rc),qz=Math.abs(pz)-(b-rc),sd=Math.hypot(Math.max(qx,0),Math.max(qz,0))+Math.min(Math.max(qx,qz),0)-rc,
     t=acc[0]*h/1.2+.22*Math.exp(-Math.max(sd,0)/Lb)*(.2+.8*(acc[1]>0?acc[0]/acc[1]:1));
   return (1-Math.exp(-1.25*t))*(1-ugSm(.5*M,M,sd));}
 /* the picture, once per car: tA (rgb = alpha = the light's square root: an additive sheet gives colour x light), tP (the light, for the
@@ -8356,7 +8356,7 @@ function syncKart(k,dt,time){
   {const bl=k.inv>0&&k.spin<=0&&!(k.flatT>0)&&!(k.frozen>0)&&state==='race'&&Math.floor(time*12)%2===1;if(m.tilt.visible===bl)m.tilt.visible=!bl;}
   const f=Math.min(1,8*dt);if(k.trickT>0){const u=clamp(1-k.trickT/TRICK_T,0,1),e=u*u*u*(u*(u*6-15)+10),T=TRICKS[k.trickK|0]||TRICKS[0];_tq.setFromAxisAngle(T.ax,T.d*e*Math.PI*2);m.tilt.quaternion.copy(_tq);_tc.set(0,(m.top||7)*.42,0);_tv.copy(_tc).applyQuaternion(_tq);m.tilt.position.set(_tc.x-_tv.x,_tc.y-_tv.y,_tc.z-_tv.z);m.trickPy=m.tilt.position.y;m.trickOn=true;}else{if(m.trickOn){m.tilt.rotation.set(0,0,0);m.tilt.position.set(0,0,0);m.trickPy=0;m.trickOn=false;}m.tilt.rotation.x+=((m.bike?-(k.steer*(.26+.1*Math.min(1,Math.abs(k.speed)/BASE_MAX))+(k.drift?k.steer*.12*(k.dAmt||0):0)):((k.drift?k.steer*.08*(k.dAmt||0):0)+k.steer*.04))-m.tilt.rotation.x)*f;}
   if(m.hover){m.tilt.position.y=(m.trickOn?m.trickPy:0)+Math.sin(time*2.4+k.ri*1.7)*.22;if(m.hglow)m.hglow.material.opacity=.55+Math.sin(time*9+k.ri)*.12+(k.boost>0?.3:0);}
-  {const ug=m.g.userData.ug;if(ug){/* (patch 65) the underglow: brighter in the dark; (patch 66) the light does the work, the picture is a haze over it */const L=SBX&&typeof sbClockF==='function'?sbClockF().L:(MAPS[mapIdx]&&MAPS[mapIdx].theme==='night'?1:0),rc=ug.rb?rainbowC(time,k.ri*.13):null;if(ug.pl){ug.pl.material.opacity=.06+.4*L;/* (patch 72) */if(rc)ug.pl.material.color.copy(rc);}if(ug.pl2){ug.pl2.material.color.copy(rc||ug.base).multiplyScalar(.75+.25*L+(k.boost>0?.15:0));}{const ws=ug.ws||(ug.ws=m.g.getWorldScale(new THREE.Vector3()).x);for(const l of ug.lights){l.intensity=ug.on?UG_BOUNCE_R*(ug.cp||1)*L*(k.boost>0?1.2:1):0;l.distance=(l.userData.ld||40)*ws;if(rc)l.color.copy(rc);}}/* (patch 77) */}}
+  {const ug=m.g.userData.ug;if(ug){/* (patch 65) the underglow: brighter in the dark; (patch 66) the light does the work, the picture is a haze over it */const L=SBX&&typeof sbClockF==='function'?sbClockF().L:(MAPS[mapIdx]&&MAPS[mapIdx].theme==='night'?1:0),rc=ug.rb?rainbowC(time,k.ri*.13):null;if(ug.pl){ug.pl.material.opacity=.09+.52*L;/* (patch 113) *//* (patch 72) */if(rc)ug.pl.material.color.copy(rc);}if(ug.pl2){ug.pl2.material.color.copy(rc||ug.base).multiplyScalar(1+.3*L+(k.boost>0?.15:0));}{const ws=ug.ws||(ug.ws=m.g.getWorldScale(new THREE.Vector3()).x);for(const l of ug.lights){l.intensity=ug.on?UG_BOUNCE_R*(ug.cp||1)*L*(k.boost>0?1.2:1):0;l.distance=(l.userData.ld||40)*ws;if(rc)l.color.copy(rc);}}/* (patch 77) */}}
   m.tilt.rotation.z+=(clamp(k.acc*.0006,-.07,.05)-m.tilt.rotation.z)*f;
   for(const w of m.wheels)w.spin.rotation.z-=k.speed*dt/(w.r*KS);if(k.oilT>0&&!m.isFar)oilDrip(k,m);
   for(const fw of m.front)fw.rotation.y=-k.steer*.42;
