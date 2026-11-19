@@ -119,6 +119,10 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   barrel". Its spokes and barrel are one piece of one class at the same depth (scratch/paint/concz.js). barrelMark labels the barrel
   14 (uv only): the white ribs (2) and the dark surface in the outer half facing away from the axle; WHEEL_CUT keeps its lip. Test:
   scratch/paint/rimc.js. Keep it fixed: another wheel whose barrel and spokes share a class needs the same (WHEEL_CUT + a mark).
+- TWO CALIPERS ON A WHEEL SET (97, web v232; PC pc92). The owner (Endurance GT on Redline): "2 calipers shown". Six car bodies carry
+  their own calipers in the body (BODY_CAL: GT, Hyper, Interceptor, Scissor, Skywing, Endurance; scratch/paint/bodycal.js); a wheel set or
+  the Monster wheel added its own. Now a wheel type's held part is hidden on those bodies (web holdOut noCal; PC no hold node). The body's
+  calipers never spun. Test: scratch/paint/twocal2.js. Keep it fixed: a new car with calipers in its body joins BODY_CAL on both.
 - RECORDS FROM BEFORE THE SPEED CHANGE: "OLD RULES" (96, web v231; PC pc91). Patch 60 (web v216, 05:54:34 UTC 17 Nov; PC
   06:08:16 UTC, godot 4ddd3cd) cut a speed bar from 1.4% to .35% of top speed. The owner could not beat a 16 Nov Megawatt time:
   "mark it as old rules and any records that came before". Not a database change (no service key): the boards read created_at and
