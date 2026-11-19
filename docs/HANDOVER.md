@@ -133,9 +133,14 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
 - NIGHT TANK (web v241, NET_PROTO / PC PROTO 122; pc96). The owner's Tumbler model (CC BY, "Batmobile-The Dark Knight Tumbler" by
   Gravity Jack); the owner confirmed the game is private, for a few friends. Credited in Settings > More > Credits (web and PC): keep that
   line while the car is in. id nighttank, rules in car_rules.py (one material: parts by object name; move= shifts the jet, fins, fans
-  and struts that sit 5.9 model units off the body; the front strut bar floated ahead of the nose: dropped). Theme 'Dark Knight'
+  and struts that sit off the body: corrected in v242, see NIGHT TANK JET). Theme 'Dark Knight'
   (matte camo) and combo 'Dark Knight' (gloss black, gunmetal): slightly different as asked. Also Surge: its door / bonnet aluminium
   plate (a separate square on the body) dropped.
+- NIGHT TANK JET (web v242). The owner: "missing the rocket booster in the back". Frontbody's children (jet, struts, Spoiler1-6,
+  boostfans, FrontStrut*) were off by Frontbody's FBX GeometricTranslation, not just 5.9 sideways: move= is now minus Frontbody's world
+  matrix times it, (6.021, 8.287, 2.226). The jet sits in the tail between the rear tyres, the fins on the rear deck, and the front strut
+  bar is the front bumper again (kept). The nozzle's inside (jet, y > 5.3, within .5 of its axis) is 'tail' so it glows; fit pipes moved
+  to the nozzle (-6.0, 2.15, 0). Visual only: no PROTO change.
 - FOUR CONCEPT CARS (web v239, NET_PROTO / PC PROTO 121; PC via the export + pc95). The owner uploaded four concept models; ids and
   made-up names: biome "Biome" (organic electric concept, c7), surge "Surge" (electric GT racer, an OBJ lying along X, c8), vortex
   "Vortex" (V12 single-seat track concept, c9), scarlet "Scarlet" (red front-engined concept, c10). Pipeline as "How a car gets in"

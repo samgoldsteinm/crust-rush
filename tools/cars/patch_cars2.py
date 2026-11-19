@@ -29,7 +29,7 @@ CARS = [
     # (web v241) the owner's armoured night tank: CC BY 'Batmobile-The Dark Knight Tumbler' by Gravity Jack (credited in Settings > More)
     dict(id='nighttank', sf=1.08, name='Night Tank', eng='jet', st=[0, -1, -1, 1, 1],
          desc='An armoured night tank on huge rear tyres, with a jet in its tail. Heavy, unstoppable and at home off the road; slow to turn.',
-         roof=3.6, belt=2.5, lean=.25, smax=.3, drv=[1.6, 1.5, -.75], pipes=[[-5.2, 2.2, 0]], numPos=[.2, 1.8], bubY=3.3, bubS=1.3, glY=9.5, top=4.4),
+         roof=3.6, belt=2.5, lean=.25, smax=.3, drv=[1.6, 1.5, -.75], pipes=[[-6.0, 2.15, 0]], numPos=[.2, 1.8], bubY=3.3, bubS=1.3, glY=9.5, top=4.4),
 ]
 # three signature themes each (pat, A main, B second, C third, m metal, r roughness, dec decal, word, num)
 LIV = [

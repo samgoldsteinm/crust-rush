@@ -142,8 +142,11 @@ CARS = {
     # (2026-11-19) the owner's armoured night tank (CC BY: "Batmobile-The Dark Knight Tumbler" by Gravity Jack, credited in the game);
     # one material for everything: parts by object name; the jet, fins, fans and front struts sit apart from the body in the file
     'nighttank': dict(src='c11/source/source/Batmobile.fbx', front=-1, rim_ratio=.62, tub=False,
-                      move={r'@(jet|struts|Spoiler\d|boostfan|FrontStrut)': (5.886, 0, 0)}, rules=[
-        (r'@FrontStrut', 'drop'), (r'@Frontbody|@Hatch', 'paint'), (r'@Window', 'glass'), (r'tire|wheel', 'wheel:auto'),
-        (r'@jet', 'gunmetal'), (r'@boostfan', 'metal'), (r'@', 'dark'),
+                      # (v242) Frontbody's children: the FBX gives Frontbody a GeometricTranslation, and the original places its
+                      # children as if they took it too; minus Frontbody's world matrix times it, so the jet sits in the tail
+                      # between the rear tyres and the front strut becomes the front bumper bar again
+                      move={r'@(jet|struts|Spoiler\d|boostfan|FrontStrut)': (6.021, 8.287, 2.226)}, rules=[
+                          (r'@Frontbody|@Hatch', 'paint'), (r'@Window', 'glass'), (r'tire|wheel', 'wheel:auto'),
+        (r'@jet', lambda c, uv: np.where((c[:, 1] > 5.3) & (np.hypot(c[:, 0], c[:, 2] - 2.15) < .5), 'tail', 'gunmetal')),   # (v242: the nozzle's inside glows, as in the original) (r'@boostfan', 'metal'), (r'@', 'dark'),
     ]),
 }
