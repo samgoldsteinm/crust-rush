@@ -136,6 +136,16 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   and struts that sit off the body: corrected in v242, see NIGHT TANK JET). Theme 'Dark Knight'
   (matte camo) and combo 'Dark Knight' (gloss black, gunmetal): slightly different as asked. Also Surge: its door / bonnet aluminium
   plate (a separate square on the body) dropped.
+- PC GARAGE WORKSHOP (pc101; web had it since v224 patch 81, the PC never did). The owner noticed it missing. godot/tools/studioexport.py
+  (glbexport.js __exportStudio: gStudioSet once every scanned model is in, LED panels as emissive, ~15 MB) ->
+  assets/garage_studio/studio.glb; menu.gd _garage_scene loads it on layer 2 (the rim light, cull mask 1, glared on the concrete),
+  a ReflectionProbe (once, intensity .5); camera: web patch 87's ceiling rule, zoom out max 1.1. Rerun the export when gStudioSet changes.
+  Port audit 2026-11-19 (every HANDOVER entry and web patch docstring vs godot): nothing else missing; the Sandbox read-out move (86) is
+  touch-screen only. ugshots.tscn needs UG_WAIT=90 now (shaders compile first; earlier frames show a stale close-up).
+- UNDERGLOW BRIGHTER, ROUNDER, WHEELS BLOCK IT (web v247 patch113/114; PC pc102/pc103). Gains x1.35 (UG_GAIN 1.35, UG_BOUNCE .47,
+  UG_BOUNCE_R 2.15; race haze .09+.52L, PC .14+.78 dark); tyre footprints rf x tw*.62, kT x1.8; outline corner radius .3b -> .85b
+  (a superellipse was tried: not a true distance, the light hit the picture's edge and was cut straight). Same sum in
+  shaders/underglow.gdshaderinc.
 - LSS ON A CLOCK (web v246, patch111; PC pc99; online 124). Last Slice Standing: every 30 s (LSS_EVERY) the last kart is out; at two
   left the other wins on that elimination; next due at (number out + 1) x 30 s so guests count the same. LAPS 99 (safety net only),
   HUD "Lap N" + "Next out 17s" (red last 5 s), tracker by position on the current lap, eliminated logos hidden. PC bug fixed: race.gd
