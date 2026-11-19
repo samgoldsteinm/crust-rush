@@ -130,6 +130,10 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   and its held caliper takes the Calipers colour (k [7,1]). Added calipers: front behind, rear ahead. Check: scratch/paint/calaudit.py
   <wheel> <name> (every body x the wheel type x 4 wheels: calipers counted, pictures; standard / slick / hover / pepperoni: 0 or 1, wheel
   sets and Monster: 1 everywhere; the Onyx's front trim is class 13 but not a caliper) and calside.js (front behind, rear ahead).
+- HYPERCAR ROOF, GT ROOF FRONT (105, web v238; PC via the export). The Hypercar's roof is a glass canopy (b_glass at roof height,
+  scratch/paint/hyglass.js) drawn at 18% opacity: it read as no roof. GLASS_ROOF splits the upward-facing glass near the top into a
+  smoked mesh (88% opaque). Its driver: fit s .24, rim 1.35. The GT's roofFix zone now reaches 1.5 below the top (the roof slopes).
+  The owners' source files for the GT and Hypercar are not in scratch/cars_in; check a car's roof two-sided (gtroof2.py) first.
 - GT RACER ROOF (104, web v237; PC via the export). The owner: "the gt racers roof is gone" (its source GLB shows a black carbon roof).
   The roof is a one-sided carbon panel facing INTO the car (scratch/paint/roofw.js), culled from outside. roofFix (ROOF_FIX gt) adds a
   reversed twin of every carbon triangle within .8 of the top (|z|<1.3); the detailed pack's roof has a gap at the front, so the GT
