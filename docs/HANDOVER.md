@@ -130,6 +130,11 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   and its held caliper takes the Calipers colour (k [7,1]). Added calipers: front behind, rear ahead. Check: scratch/paint/calaudit.py
   <wheel> <name> (every body x the wheel type x 4 wheels: calipers counted, pictures; standard / slick / hover / pepperoni: 0 or 1, wheel
   sets and Monster: 1 everywhere; the Onyx's front trim is class 13 but not a caliper) and calside.js (front behind, rear ahead).
+- CALIPERS ONE SIDE ONLY (103, web v236; PC via the export). The owner (Scissor and Mega GT, garage, both sides). The garage builds the
+  DETAILED packs (_hq): the Scissor's left calipers there are inside out (wound against their normals; scratch/paint/wind.js), and the
+  detailed Mega GT has body calipers its standard pack lacks. bodyCalSplit now runs on every car and turns inside-out caliper faces;
+  body calipers hide on any wheel type. Keep it fixed: run caliper checks with hq:1 too (scratch/paint/calaudit_hq.py, calz.js); a
+  'second source' on bike_moto (its held fender pieces) and on the Onyx front (red trim, class 13) is not a caliper.
 - STREET CRUISER FENDERS HALF MISSING (102, web v235; PC pc94 + export). The owner: "the green wheel covers are still half
   disappeared". Its fenders' lower halves were cut into its WHEEL models at conversion; patch 85's wheelTrim deleted them. Now BIKE_KEEP
   skips the trim for it and patch 99's hold keeps them still (held paint drawn with M.carPaint); WHEEL_SCALE scales only the rolling
