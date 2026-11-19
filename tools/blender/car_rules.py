@@ -147,6 +147,8 @@ CARS = {
                       # between the rear tyres and the front strut becomes the front bumper bar again
                       move={r'@(jet|struts|Spoiler\d|boostfan|FrontStrut)': (6.021, 8.287, 2.226)}, rules=[
                           (r'@Frontbody|@Hatch', 'paint'), (r'@Window', 'glass'), (r'tire|wheel', 'wheel:auto'),
-        (r'@jet', lambda c, uv: np.where((c[:, 1] > 5.3) & (np.hypot(c[:, 0], c[:, 2] - 2.15) < .5), 'tail', 'gunmetal')),   # (v242: the nozzle's inside glows, as in the original) (r'@boostfan', 'metal'), (r'@', 'dark'),
+        (r'@jet', lambda c, uv: np.where((c[:, 1] > 5.3) & (np.hypot(c[:, 0], c[:, 2] - 2.15) < .5), 'tail', 'gunmetal')),   # (v242: the nozzle's inside glows, as in the original)
+        (r'@boostfan', 'metal'), (r'@Spoiler\d', 'carbon'),   # (v244: the accent shows on the three pairs of rear fins and, ACC_X metal, the two side fans)
+        (r'@', 'dark'),
     ]),
 }

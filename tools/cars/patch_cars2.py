@@ -27,7 +27,8 @@ CARS = [
          desc='A long red concept racer with its engine up front and a cockpit pushed far back. Fast and beautifully balanced; light, low and never meant for gravel.',
          roof=2.4, belt=1.95, lean=.35, smax=.26, drv=[.8, .45, 0], pipes=[[-6.1, .9, .7], [-6.1, .9, -.7]], numPos=[.2, 1.0], bubY=2.4, glY=7.9, top=2.65),
     # (web v241) the owner's armoured night tank: CC BY 'Batmobile-The Dark Knight Tumbler' by Gravity Jack (credited in Settings > More)
-    dict(id='nighttank', sf=1.08, name='Night Tank', eng='jet', st=[0, -1, -1, 1, 1],
+    dict(id='nighttank', sf=1.16,   # (v244: a size up from the race cars: 13.1 long, the SUV 13.4, the Monster 14)
+         name='Night Tank', eng='jet', st=[0, -1, -1, 1, 1],
          desc='An armoured night tank on huge rear tyres, with a jet in its tail. Heavy, unstoppable and at home off the road; slow to turn.',
          roof=3.6, belt=2.5, lean=.25, smax=.3, drv=[1.6, 1.5, -.75], pipes=[[-6.0, 2.15, 0]], numPos=[.2, 1.8], bubY=3.3, bubS=1.3, glY=9.5, top=4.4),
 ]

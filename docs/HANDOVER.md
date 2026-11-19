@@ -136,6 +136,16 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   and struts that sit off the body: corrected in v242, see NIGHT TANK JET). Theme 'Dark Knight'
   (matte camo) and combo 'Dark Knight' (gloss black, gunmetal): slightly different as asked. Also Surge: its door / bonnet aluminium
   plate (a separate square on the body) dropped.
+- TREAD, STOCK WHEELS, NIGHT TANK ACCENTS / SIZE / MONSTER FIT (web v244; patches 107-109, PC pc97 + export; NET_PROTO / PROTO 123).
+  (1) The owner's uploaded wheel sets had blotchy rubber (decimated long ago; the originals are gone). tools/cars/tread.py (run once;
+  packs marked 'tread') drops each wheel's rubber (class 8) and builds a new tyre the same size: crisp-walled tread cells, rounded
+  shoulder, bulged sidewall. One pattern each, as the owner asked: Redline 'perf', Emerald 'touring', Stealth 'arrow' (V), Forged
+  'block', Turbo Fan 'semi' (semi-slick), Monster 'lug' (all four of the Monster truck's own wheels too: the Monster wheel type is its
+  w3; its tyre is the rubber outside the rim's lip, and the old 'rim'-class tread blocks went). About 2-4.6k triangles a tyre.
+  (2) Standard wheels are named Stock (id still 'standard') with st [-1,0,0,0,1]; help text updated. (3) Night Tank accent: its rear fin
+  pairs are carbon (car_rules.py), ACC_X nighttank metal 7 (side fans): symmetric. (4) Sizes (scratch/paint/carsize.js, body length):
+  the new cars 12.2-12.5 like the other sports cars; the Night Tank sf 1.08 -> 1.16 (13.1; SUV 13.4, Monster 14). (5) Monster wheels
+  on a car with big wheels: factor capped so the biggest is 1.75 (wr, not under 1.16): only the Night Tank changes.
 - SURGE WHEELS (web v243, patch106). The owner: other wheel types stuck far out of the Surge (Pepperoni etc.), Hover sat too far in;
   stock looked great. Its own tyres are narrow, so wider wheels touched the body and clearZ pushed them out. WHEEL_FLUSH {surge}: no
   push-out (unless R > 1.2x the car's own: Monster), then the built wheel's measured outer face goes on the stock tyre's drawn outer face
