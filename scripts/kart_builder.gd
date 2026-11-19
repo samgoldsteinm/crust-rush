@@ -291,7 +291,7 @@ static func colours(spec: Dictionary, ri: int) -> Dictionary:
 
 ## (pc86, web patch 88) a held part's colours: its caliper classes (13, the pack's own HOLD_K, the wheel's calipers and spoke classes)
 ## take the Calipers colour; nothing else is repainted
-const HOLD_K := {"monster": [12, 11], "muscle": [12], "retrogt": [7], "hatch": [9], "redline": [16, 17, 18], "emerald": [16, 17, 18], "stealth": [16, 17, 18],
+const HOLD_K := {"monster": [12, 11], "muscle": [12], "retrogt": [7], "hatch": [9], "suv": [7, 1], "redline": [16, 17, 18], "emerald": [16, 17, 18], "stealth": [16, 17, 18],
 	"turbo": [16, 17, 18], "forged": [16, 17, 18]}   # (pc87: the wheel sets' calipers)
 static func hold_cols(cols: Dictionary, spec: Dictionary, hid: String) -> Dictionary:
 	var c := cols.duplicate()
@@ -305,6 +305,7 @@ static func hold_cols(cols: Dictionary, spec: Dictionary, hid: String) -> Dictio
 		for ci in cl.slice(0, 4):
 			re[ci] = Color(String(clc["h"]))
 	c["rimre"] = re
+	c["rimc"] = null   # (pc94: held paint keeps the paint, not the rims colour)
 	c["rimall"] = re
 	c["rimpbr"] = {}
 	c["rimallpbr"] = {}
@@ -442,6 +443,14 @@ static func build(spec: Dictionary, ri: int) -> Dictionary:
 	var liv = (info.get("liv", []) as Array)[b] if b < (info.get("liv", []) as Array).size() else null
 	if body != null:
 		_paint(body, cols, liv, ri)
+	# (pc93, web patch 101) a car's own calipers: not on a wheel type that brings its own
+	if bsrc != null and String(wd["id"]) == "standard":
+		var bc := bsrc.find_child("bcal", true, false) as Node3D
+		if bc != null:
+			bc = bc.duplicate() as Node3D
+			bc.position = Vector3(0, lift, 0)
+			root.add_child(bc)
+			_paint(bc, cols, liv, ri)
 	# hover bikes: the cyan glow pooled under them (web cfg.glow; the exporter leaves it out of the model)
 	var hglow: MeshInstance3D = null
 	if float(pl.get("hover", 0.0)) > 0.0 and body != null:
@@ -479,10 +488,15 @@ static func build(spec: Dictionary, ri: int) -> Dictionary:
 			var hsrc: Node3D = null
 			if own:
 				hsrc = bsrc.find_child("ph%d" % int(wq["i"]), true, false) as Node3D
-			elif wsrc != null and not ["gt", "hyper", "interceptor", "scissor", "skywing", "endur"].has(String(bd["id"])):   # (pc92, web BODY_CAL: their own calipers)
-				hsrc = wsrc.find_child("hold_" + ("L" if z < 0.0 else "R"), true, false) as Node3D
+			elif wsrc != null:
+				# (pc93, web patch 101) the corner's caliper, turned (front: behind the axle, rear: ahead); on its own truck, as modelled
+				var sd := "L" if z < 0.0 else "R"
+				if String(wd["id"]) == String(bd["id"]):
+					hsrc = wsrc.find_child("hold0_" + sd, true, false) as Node3D
 				if hsrc == null:
-					hsrc = wsrc.find_child("hold_R", true, false) as Node3D
+					hsrc = wsrc.find_child("hold_" + ("F" if bool(wq["front"]) else "R") + sd, true, false) as Node3D
+				if hsrc == null:
+					hsrc = wsrc.find_child("hold_" + sd, true, false) as Node3D
 			if hsrc != null:
 				var hn := Node3D.new()
 				hn.name = nm + "_hold"
