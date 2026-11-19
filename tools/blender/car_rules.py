@@ -117,7 +117,7 @@ CARS = {
         (r'_HEADLIGHT(_GLASS)?_[BCD](\.\d+)?$', 'drop'), (r'BADGING|^BOTTOM_@', 'drop'),   # (four identical copies of some parts: kit variants; the tyres are all '_D')
         (r'SKIN2', 'paint'), (r'^RUBBER_TIRE', 'wheel:rubber'), (r'HEADLIGHTGLASS_RIM@', 'wheel:rim'),
         (r'@KIT00_FRONT_WINDOW', 'glass'), (r'^INTERIOR', 'int:dark'), (r'SIDELIGHT', lambda c, uv: np.where((np.abs(c[:, 0]) < .38) & (np.abs(c[:, 1]) > 5.0) & (c[:, 2] > .84), 'drop', np.where(c[:, 1] < 0, 'light', 'tail'))),   # (the maker's rings sit in the middle of both lamp bands) (r'^CHROME', no_rings('chrome')),
-        (r'HEADLIGHTGLASS_TREAD', no_rings('carbon')), (r'HEADLIGHTGLASS_@BASE', no_rings('dark')), (r'^DULLPLASTIC', no_rings('dark')), (r'HEADLIGHTGLASS_@KIT00_RIGHT_HEADLIGHT_A', no_rings('dark')), (r'^ALUMINUM', 'paint'),   # (the owner: no grey patches)
+        (r'HEADLIGHTGLASS_TREAD', no_rings('carbon')), (r'HEADLIGHTGLASS_@BASE', no_rings('dark')), (r'^DULLPLASTIC', no_rings('dark')), (r'HEADLIGHTGLASS_@KIT00_RIGHT_HEADLIGHT_A', no_rings('dark')), (r'^ALUMINUM_MISC', 'drop'), (r'^ALUMINUM', 'paint'),   # (the owner: no grey patches; the door / bonnet plate is a separate square on top of the body: dropped)
     ]),
     # (2026-11-19) a V12 track concept
     'vortex': dict(src='c9/source/lambo_v12_vgt.glb', front=-1, paint_near=1, cut=hubs((-3.26, 3.87), .93, 2.42, 2.95), rules=[
@@ -138,5 +138,12 @@ CARS = {
         (r'^r_glass|^r_lights', lambda c, uv: np.where((c[:, 1] > 4.2) & (c[:, 1] < 6.3), 'tail', 'drop')),   # (the red-glass material also holds cabin bits) (r'^lights', 'light'),
         (r'^INT1|^INT3', 'int:seat'), (r'^INT|^STEER|^Material_26|^Material_0', 'int:dark'), (r'^material_37', 'red'),
         (r'^silver_d|^silver|^chrome', 'metal'), (r'^white', 'white'), (r'^EXT_Chassis', 'dark'), (r'^black', 'dark'),
+    ]),
+    # (2026-11-19) the owner's armoured night tank (CC BY: "Batmobile-The Dark Knight Tumbler" by Gravity Jack, credited in the game);
+    # one material for everything: parts by object name; the jet, fins, fans and front struts sit apart from the body in the file
+    'nighttank': dict(src='c11/source/source/Batmobile.fbx', front=-1, rim_ratio=.62, tub=False,
+                      move={r'@(jet|struts|Spoiler\d|boostfan|FrontStrut)': (5.886, 0, 0)}, rules=[
+        (r'@FrontStrut', 'drop'), (r'@Frontbody|@Hatch', 'paint'), (r'@Window', 'glass'), (r'tire|wheel', 'wheel:auto'),
+        (r'@jet', 'gunmetal'), (r'@boostfan', 'metal'), (r'@', 'dark'),
     ]),
 }

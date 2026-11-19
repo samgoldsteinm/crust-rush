@@ -130,6 +130,12 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   and its held caliper takes the Calipers colour (k [7,1]). Added calipers: front behind, rear ahead. Check: scratch/paint/calaudit.py
   <wheel> <name> (every body x the wheel type x 4 wheels: calipers counted, pictures; standard / slick / hover / pepperoni: 0 or 1, wheel
   sets and Monster: 1 everywhere; the Onyx's front trim is class 13 but not a caliper) and calside.js (front behind, rear ahead).
+- NIGHT TANK (web v241, NET_PROTO / PC PROTO 122; pc96). The owner's Tumbler model (CC BY, "Batmobile-The Dark Knight Tumbler" by
+  Gravity Jack); the owner confirmed the game is private, for a few friends. Credited in Settings > More > Credits (web and PC): keep that
+  line while the car is in. id nighttank, rules in car_rules.py (one material: parts by object name; move= shifts the jet, fins, fans
+  and struts that sit 5.9 model units off the body; the front strut bar floated ahead of the nose: dropped). Theme 'Dark Knight'
+  (matte camo) and combo 'Dark Knight' (gloss black, gunmetal): slightly different as asked. Also Surge: its door / bonnet aluminium
+  plate (a separate square on the body) dropped.
 - FOUR CONCEPT CARS (web v239, NET_PROTO / PC PROTO 121; PC via the export + pc95). The owner uploaded four concept models; ids and
   made-up names: biome "Biome" (organic electric concept, c7), surge "Surge" (electric GT racer, an OBJ lying along X, c8), vortex
   "Vortex" (V12 single-seat track concept, c9), scarlet "Scarlet" (red front-engined concept, c10). Pipeline as "How a car gets in"
@@ -140,7 +146,6 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   dark (hubs()), the concept's hub caps dropped. Definitions: tools/cars/patch_cars2.py (/*cars7*/ marks; after the cars6 bodies;
   three signature themes each in LIVERIES, five combos appended to COMBOS, the PC's in pc95). Tests: sheets (blender/cars/<id>/
   sheet.jpg), cartest.py, newwh2 (every wheel), simtest per car on margherita and bedroom 200cc, calaudit_hq.
-  NOT ADDED: the owner's film-car model (a famous fictional vehicle: its design itself is protected, not only its logos).
 - HYPERCAR ROOF, GT ROOF FRONT (105, web v238; PC via the export). The Hypercar's roof is a glass canopy (b_glass at roof height,
   scratch/paint/hyglass.js) drawn at 18% opacity: it read as no roof. GLASS_ROOF splits the upward-facing glass near the top into a
   smoked mesh (88% opaque). Its driver: fit s .24, rim 1.35. The GT's roofFix zone now reaches 1.5 below the top (the roof slopes).

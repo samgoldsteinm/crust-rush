@@ -26,6 +26,10 @@ CARS = [
     dict(id='scarlet', sf=1.08, name='Scarlet', eng='race', st=[2, 0, 2, -2, -2],
          desc='A long red concept racer with its engine up front and a cockpit pushed far back. Fast and beautifully balanced; light, low and never meant for gravel.',
          roof=2.4, belt=1.95, lean=.35, smax=.26, drv=[.8, .45, 0], pipes=[[-6.1, .9, .7], [-6.1, .9, -.7]], numPos=[.2, 1.0], bubY=2.4, glY=7.9, top=2.65),
+    # (web v241) the owner's armoured night tank: CC BY 'Batmobile-The Dark Knight Tumbler' by Gravity Jack (credited in Settings > More)
+    dict(id='nighttank', sf=1.08, name='Night Tank', eng='jet', st=[0, -1, -1, 1, 1],
+         desc='An armoured night tank on huge rear tyres, with a jet in its tail. Heavy, unstoppable and at home off the road; slow to turn.',
+         roof=3.6, belt=2.5, lean=.25, smax=.3, drv=[1.6, 1.5, -.75], pipes=[[-5.2, 2.2, 0]], numPos=[.2, 1.8], bubY=3.3, bubS=1.3, glY=9.5, top=4.4),
 ]
 # three signature themes each (pat, A main, B second, C third, m metal, r roughness, dec decal, word, num)
 LIV = [
@@ -41,6 +45,7 @@ LIV = [
     "{id:'sc_classic',name:'Rosso Classico',only:'scarlet',pat:2,A:'#b0060f',B:'#f2f2f0',C:'#111214',m:.3,r:.24,dec:-1,word:-1,num:1}",
     "{id:'sc_giallo',name:'Giallo Sun',only:'scarlet',pat:9,A:'#ffc400',B:'#111214',C:'#c40c0c',m:.3,r:.26,dec:2,word:-1,num:1}",
     "{id:'sc_night',name:'Midnight Flame',only:'scarlet',pat:4,A:'#0d0e12',B:'#ff3a12',C:'#ffd23a',m:.55,r:.22,dec:1,word:-1}",
+    "{id:'nt_knight',name:'Dark Knight',only:'nighttank',pat:7,A:'#1b1c1f',B:'#2b2d31',C:'#3d4046',m:.15,r:.72,dec:-1,word:-1}",
 ]
 # one signature combo each, then one shared by the two electric cars (paint index, style; $ price)
 COMBOS = [
@@ -49,6 +54,7 @@ COMBOS = [
     "{n:'Acid Strike',p:12,st:{tr:1,ac:1,in:12,rm:1,cl:12,gl:4,hl:5,sm:5},$:550,only:['vortex']}",
     "{n:'Grand Prix Red',p:10,st:{tr:1,ac:16,in:11,rm:16,cl:16,gl:0,hl:0,sm:0},$:500,only:['scarlet']}",
     "{n:'Static Charge',p:17,st:{tr:1,ac:13,in:1,rm:14,cl:13,gl:1,hl:2,sm:2},$:450,only:['biome','surge']}",
+    "{n:'Dark Knight',p:23,st:{tr:1,ac:14,in:1,rm:14,cl:1,gl:0,hl:2,sm:1},$:500,only:['nighttank']}",
 ]
 f = lambda v: re.sub(r'(?<![0-9])0\.', '.', json.dumps(v, separators=(',', ':')))
 
@@ -70,7 +76,7 @@ def main():
     for c in CARS:
         w = json.load(open(f"{BL}/{c['id']}/{c['id']}.json"))['info']['wheels']; r = next(q for q in w if not q['f'] and q['c'][2] > 0); fr = next(q for q in w if q['f'] and q['c'][2] > 0)
         fn.append(f"{c['id']}(S,M,rc,idx,B){{carBody('{c['id']}',M,B);return {{car:'{c['id']}',fit:{{roof:{c['roof']},belt:{c['belt']},lean:{c['lean']},smax:{c['smax']}}},belt:{c['belt']},numPos:{f(c['numPos'])},"
-                  f"rw:{f([r['c'][0], r['c'][2], r['r']])},fw:{f([fr['c'][0], fr['c'][2], fr['r']])},wz:1.3,drv:{f(c['drv'])},drvS:{c['smax']},noCockpit:1,pipes:{f(c['pipes'])},bubY:{c['bubY']},bubS:1.1,glY:{c['glY']},top:{c['top']}}};}}")
+                  f"rw:{f([r['c'][0], r['c'][2], r['r']])},fw:{f([fr['c'][0], fr['c'][2], fr['r']])},wz:1.3,drv:{f(c['drv'])},drvS:{c['smax']},noCockpit:1,pipes:{f(c['pipes'])},bubY:{c['bubY']},bubS:{c.get('bubS',1.1)},glY:{c['glY']},top:{c['top']}}};}}")
     s = s[:e] + '/*cars7fn*/Object.assign(BODY_FN,{' + ','.join(fn) + f'}});/*:cars7*/{nl}' + s[e:]
     # --- the Cars tab and the engine sounds
     a = s.index("const CAR_BODIES=["); e = s.index(']', a); cur = [x for x in json.loads(s[a + 17:e + 1].replace("'", '"')) if x not in ids]

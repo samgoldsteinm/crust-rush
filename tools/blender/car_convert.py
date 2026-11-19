@@ -363,6 +363,8 @@ def render(objs, path, views, size=(1280, 760)):
 def convert(cid, fast=False):
     cfg = CARS[cid]; os.makedirs(f'{OUT}/{cid}', exist_ok=True)
     soups = read_scene(f'{IN}/{cfg["src"]}'); log('read', len(soups), 'material/object groups,', sum(len(v[0]) for v in soups.values()), 'triangles')
+    for rx, d in cfg.get('move', {}).items():   # (2026-11-19) parts placed apart from the body in the model: shifted (model units)
+        soups = {k: ((P + np.array(d, np.float64)) if re.search(rx, k, re.I) else P, N, U) for k, (P, N, U) in soups.items()}
     if cfg.get('rot90'):   # (2026-11-19) a model lying along X: turned a quarter about the vertical so its length runs along Y
         q = cfg['rot90']; Rz = np.array([[0, -q, 0], [q, 0, 0], [0, 0, 1]], np.float64)
         soups = {k: (P @ Rz.T, N @ Rz.T, U) for k, (P, N, U) in soups.items()}
