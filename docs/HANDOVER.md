@@ -119,6 +119,14 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   barrel". Its spokes and barrel are one piece of one class at the same depth (scratch/paint/concz.js). barrelMark labels the barrel
   14 (uv only): the white ribs (2) and the dark surface in the outer half facing away from the axle; WHEEL_CUT keeps its lip. Test:
   scratch/paint/rimc.js. Keep it fixed: another wheel whose barrel and spokes share a class needs the same (WHEEL_CUT + a mark).
+- RECORDS FROM BEFORE THE SPEED CHANGE: "OLD RULES" (96, web v231; PC pc91). Patch 60 (web v216, 05:54:34 UTC 17 Nov; PC
+  06:08:16 UTC, godot 4ddd3cd) cut a speed bar from 1.4% to .35% of top speed. The owner could not beat a 16 Nov Megawatt time:
+  "mark it as old rules and any records that came before". Not a database change (no service key): the boards read created_at and
+  tag older runs (web lbOld, PC lb.gd _old; web cutoff for web rows, PC cutoff for PC rows); your own records (web crust-recs d in
+  ms, PC ach.gd d in seconds) older than the cutoff show "Old rules", and a run under today's rules becomes the best even if slower
+  (the old one kept as prev and shown beside it). Test: scratch/oldrules.js (local and live board). NOTE for estimates: the computer
+  driver (scratch/speedcmp.py) put the cost at 2-4%; a real run under today's rules (1:40.950, 18 Nov) was only ~1.5 s off the old
+  1:39.417: skilled driving loses less than the top-speed ratio suggests.
 - OWNER'S NOTES ON v229 (95, web v230; PC pc90 + export). (1) The Slipstream's red crescent in its wheel model spun: held
   (WHEEL_HOLD slip, class 17). (2) Accent "random spots ... that don't actually cover a part": the Slipstream's and the Concept's black
   decal patches (class 1, from ACC_X): removed; the Onyx's carbon engine cover turned the accent colour ("spoiler is messed up"):
