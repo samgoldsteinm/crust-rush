@@ -142,6 +142,18 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   a ReflectionProbe (once, intensity .5); camera: web patch 87's ceiling rule, zoom out max 1.1. Rerun the export when gStudioSet changes.
   Port audit 2026-11-19 (every HANDOVER entry and web patch docstring vs godot): nothing else missing; the Sandbox read-out move (86) is
   touch-screen only. ugshots.tscn needs UG_WAIT=90 now (shaders compile first; earlier frames show a stale close-up).
+- PC PAINT FLAT, STEALTH GREEN (pc104). The owner: "the cars look really flat on the pc version"; "on the stealth color way the car
+  looks green"; "the paint on the night tank is super flat". pc101's ReflectionProbe sat inside the car (origin y 3) and captured it:
+  every car's reflections were its own cabin and the driver (Basil = green streaks on a black car), at half strength. Now cull_mask 2
+  (the room only), intensity 1. All 25 car bodies checked (scratch/paint/pc_allcars.jpg). Keep: any probe near the kart gets a cull mask.
+- PC COMBO CARDS AS THE WEB, NAMED COMBOS (pc105). Cards: rgba(0,0,0,.28), 2 px border (cheese when worn), name, a row of colour dots
+  (paint/livery, trim, accent, rims, calipers, glow), Owned/Free/price; My combos with the x in the corner; "Save this look" asks a
+  name (modal "cbname", up to 24 letters) as the web's prompt.
+- PC HEADLIGHTS SHOWED NOTHING (pc106). The owner: "i dont think we have added the headlights or street lights and map lights to the
+  pc version". Sandbox night was ported (sandbox_night.gd) but the spot's light_projector (the cookie picture) blacked out the whole
+  light in Godot, flipped or not: no beam at all. Now no projector; spot 34 deg, angle attenuation 1.2, energy 30 x L, aimed 140 ahead.
+  tests/sbnight.tscn passes; tests/sblamps.tscn (SBL_TO=<place>) fast-travels and pictures the lamps. Street lamps are on the open-air
+  pizzas only (spiral is indoors: its room lamps are on); napoli/tour are not in the local maps/ folder, so not pictured here.
 - UNDERGLOW BRIGHTER, ROUNDER, WHEELS BLOCK IT (web v247 patch113/114; PC pc102/pc103). Gains x1.35 (UG_GAIN 1.35, UG_BOUNCE .47,
   UG_BOUNCE_R 2.15; race haze .09+.52L, PC .14+.78 dark); tyre footprints rf x tw*.62, kT x1.8; outline corner radius .3b -> .85b
   (a superellipse was tried: not a true distance, the light hit the picture's edge and was cut straight). Same sum in
