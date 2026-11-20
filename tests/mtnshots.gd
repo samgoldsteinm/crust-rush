@@ -19,6 +19,16 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
 	var T: TrackData = main.T
 	var tag := "%s_%s" % [OS.get_environment("CR_MAP"), "web" if OS.get_environment("CR_HD") == "0" else "hd"]
+	if OS.get_environment("MT_GI") == "1":
+		main.env.sdfgi_enabled = true
+		main.env.sdfgi_use_occlusion = true
+		main.env.sdfgi_min_cell_size = 2.0
+		main.env.sdfgi_cascades = 6
+		main.env.sdfgi_energy = 1.0
+		tag += "_gi"
+		Engine.time_scale = 1.0
+		for i in 90:
+			await get_tree().process_frame
 	for f in [0.05, 0.2, 0.35, 0.5, 0.65, 0.8]:
 		var j := int(f * T.N)
 		var k: Kart = main.kart

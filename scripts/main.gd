@@ -1986,6 +1986,7 @@ func _build_world() -> void:
 		sm.set_shader_parameter("hor_col", skyc.lightened(0.4))
 		sm.set_shader_parameter("bot_col", skyc.lightened(0.25))
 		sm.set_shader_parameter("sun_col", Color(1, 0.96, 0.86))
+	WorldBuild.sky_env(sm, T.theme)   # (pc112)
 	sky.sky_material = sm
 	sky.radiance_size = Sky.RADIANCE_SIZE_64
 	env.sky = sky
@@ -3355,7 +3356,7 @@ func _fin_ahead(k: Kart, dist: float) -> Array:
 		acc += Vector2(T.px[j2] - T.px[j], T.py[j2] - T.py[j]).length()
 		j = j2
 		n += 1
-	return [T.px[j], T.py[j], T.tx[j] * dir, T.ty[j] * dir]
+	return [T.px[j], T.py[j], T.tx[j] * dir, T.ty[j] * dir, j]   # (pc113: and which point, for the road's height there)
 
 
 func _fin_cam(dt: float, k: Kart, rx: float, ry: float, rz: float, rma: float) -> void:
@@ -3381,7 +3382,7 @@ func _fin_cam(dt: float, k: Kart, rx: float, ry: float, rz: float, rma: float) -
 				cl = lat - side * 20.0
 			var x := float(a[0]) + nxa * cl
 			var y := float(a[1]) + nya * cl
-			fin_cp = Vector3(x, T.ground(x, y) + 3.2, y)
+			fin_cp = Vector3(x, T.ground(x, y) + T.ey[int(a[4])] + 3.2, y)   # (pc113) on the road, raised decks too
 		if sh == 2:
 			var d := clampf(fin_sp * (2.1 if online else 1.25), 70.0, 420.0)
 			var a := _fin_ahead(k, d)
@@ -3394,7 +3395,7 @@ func _fin_cam(dt: float, k: Kart, rx: float, ry: float, rz: float, rma: float) -
 			g.add_child(nm)
 			g.scale = Vector3.ONE * minf(1.0, T.RW * 1.7 / maxf(1.0, maxf(float(top.get_meta("w")), float(nm.get_meta("w")))))
 			add_child(g)
-			g.global_position = Vector3(float(a[0]), T.ground(float(a[0]), float(a[1])) + 14.0, float(a[1]))
+			g.global_position = Vector3(float(a[0]), T.ground(float(a[0]), float(a[1])) + T.ey[int(a[4])] + 14.0, float(a[1]))   # (pc113)
 			g.rotation.y = atan2(-float(a[2]), -float(a[3]))
 			var L: Array = (top.get_meta("L") as Array) + (nm.get_meta("L") as Array)
 			for l in L:

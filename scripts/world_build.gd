@@ -391,6 +391,28 @@ func _build() -> bool:
 
 ## notes what the thread is starting on, and how long the part before it took (for the log)
 var _ph_t := 0
+## (pc112) the web's reflection picture for a theme (THEMES[theme].env and the spots of its envFrom call), into the sky shader
+static func sky_env(sm: ShaderMaterial, theme: String) -> void:
+	var E := {"kitchen": ["#fff6e4", "#ffb26a", "#7a3a1c", "#1e0e08"], "bay": ["#9cc4ff", "#ffc39a", "#2e7b8f", "#0d3442"],
+		"freezer": ["#cfe6ff", "#ffffff", "#9db8d4", "#5a7590"], "night": ["#2a3a7a", "#3a3a6a", "#120c1c", "#05050a"]}
+	var P := {"kitchen": [[128, 40, 30, "#ffffff"], [384, 40, 30, "#ffffff"], [256, 140, 40, "#ff8a2a"]],
+		"freezer": [[256, 50, 50, "#ffffff"], [100, 120, 20, "#dff2ff"]], "bay": [[380, 110, 40, "#fff2d0"]]}
+	var cols: Array = E.get(theme, E["kitchen"])
+	var sp: Array = P.get(theme, [[100, 60, 10, "#bcd0ff"], [300, 130, 16, "#ffd27a"], [420, 130, 16, "#ffd27a"]])
+	sm.set_shader_parameter("env_on", true)
+	for i in 4:
+		var c := Color(String(cols[i]))
+		sm.set_shader_parameter("env%d" % i, Vector3(c.r, c.g, c.b))
+	for i in 3:
+		if i < sp.size():
+			var s: Array = sp[i]
+			var c2 := Color(String(s[3]))
+			sm.set_shader_parameter("spot%d" % i, Vector4(float(s[0]), float(s[1]), float(s[2]), 0.0))
+			sm.set_shader_parameter("spot_c%d" % i, Vector3(c2.r, c2.g, c2.b))
+		else:
+			sm.set_shader_parameter("spot%d" % i, Vector4.ZERO)
+
+
 func _ph(name: String) -> void:
 	var now := Time.get_ticks_msec()
 	if phase != "" and _ph_t > 0:
@@ -426,6 +448,7 @@ func _world() -> void:
 		sm.set_shader_parameter("hor_col", skyc.lightened(0.4))
 		sm.set_shader_parameter("bot_col", skyc.lightened(0.25))
 		sm.set_shader_parameter("sun_col", Color(1, 0.96, 0.86))
+	sky_env(sm, T.theme)   # (pc112)
 	sky.sky_material = sm
 	# (the sky's light for glossy paint is worked out when the sky is first drawn. All at once that is a long frame, so
 	#  here it is spread over several (the same quality), and it is made at the size main.gd _apply_quality will ask for,

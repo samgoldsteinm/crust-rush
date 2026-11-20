@@ -583,7 +583,7 @@ func _make_kart(ri: int, slot: int, is_player: bool, info: Dictionary) -> Kart:
 	var k := Kart.new()
 	var x := T.px[idx] + T.nx[idx] * lat
 	var y := T.py[idx] + T.ny[idx] * lat
-	k.setup(T, {"x": x, "y": y, "a": T.ang[idx], "wy": T.ground(x, y)}, idx - T.N, info)
+	k.setup(T, {"x": x, "y": y, "a": T.ang[idx], "wy": T.ground(x, y) + T.k_ey(idx, x, y)}, idx - T.N, info)   # (pc114) on a raised start too
 	k.idx = idx
 	k.ri = ri
 	k.racer_name = String(T.racers[ri]["name"]) if ri < T.racers.size() else String(info.get("name", "Racer"))

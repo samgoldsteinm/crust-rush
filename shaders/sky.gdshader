@@ -8,6 +8,44 @@ uniform vec3 sun_col : source_color = vec3(1.0, 0.86, 0.66);
 uniform float sun_disc = 1200.0;
 // Sandbox's night (scripts/sandbox_clock.gd): 0 none, up to about 1 at midnight
 uniform float stars = 0.0;
+// (pc112) the web's reflection picture (envFrom): a 512x256 panorama, gradient stops at 0 .42 .55 1 down the picture, round
+// lights (x, y, radius in its pixels; colour) fading out to their edge; drawn only into the reflections
+uniform bool env_on = false;
+uniform vec3 env0 = vec3(1.0);
+uniform vec3 env1 = vec3(1.0);
+uniform vec3 env2 = vec3(0.5);
+uniform vec3 env3 = vec3(0.1);
+uniform vec4 spot0 = vec4(0.0);
+uniform vec4 spot1 = vec4(0.0);
+uniform vec4 spot2 = vec4(0.0);
+uniform vec3 spot_c0 = vec3(1.0);
+uniform vec3 spot_c1 = vec3(1.0);
+uniform vec3 spot_c2 = vec3(1.0);
+
+vec3 lin(vec3 c) {
+	return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+}
+
+vec3 spot(vec3 base, vec2 px, vec4 s, vec3 col) {
+	if (s.z <= 0.0) {
+		return base;
+	}
+	vec2 d = px - s.xy;
+	d.x = mod(d.x + 256.0, 512.0) - 256.0;   // (round the panorama)
+	float a = clamp(1.0 - length(d) / s.z, 0.0, 1.0);
+	return mix(base, col, a);
+}
+
+vec3 env_pic(vec3 d) {
+	float px = (atan(d.z, d.x) / (2.0 * PI) + 0.5) * 512.0;
+	float py = (0.5 - asin(clamp(d.y, -1.0, 1.0)) / PI) * 256.0;
+	float t = py / 256.0;
+	vec3 c = t < 0.42 ? mix(env0, env1, t / 0.42) : (t < 0.55 ? mix(env1, env2, (t - 0.42) / 0.13) : mix(env2, env3, (t - 0.55) / 0.45));
+	c = spot(c, vec2(px, py), spot0, spot_c0);
+	c = spot(c, vec2(px, py), spot1, spot_c1);
+	c = spot(c, vec2(px, py), spot2, spot_c2);
+	return lin(c);
+}
 
 void sky() {
 	float yv = EYEDIR.y;
@@ -32,4 +70,7 @@ void sky() {
 	}
 	// the web sky is drawn without tone mapping; this keeps it as bright after Godot's
 	COLOR = c * 1.2;
+	if (env_on && AT_CUBEMAP_PASS) {
+		COLOR = env_pic(EYEDIR);   // (pc112) what the gloss shows: the web's reflection picture
+	}
 }

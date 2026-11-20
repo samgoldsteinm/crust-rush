@@ -752,6 +752,7 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 			var hB := T.ground(x + ca * fR, y + sa * fR) + T.k_ey(k.idx, x + ca * fR, y + sa * fR)
 			var hL := T.ground(x - sa * fW, y + ca * fW) + T.k_ey(k.idx, x - sa * fW, y + ca * fW)
 			var hR := T.ground(x + sa * fW, y - ca * fW) + T.k_ey(k.idx, x + sa * fW, y - ca * fW)
+			var hC := T.ground(x, y) + T.k_ey(k.idx, x, y)   # (pc115) the road under the middle
 			if T.battle:
 				# Balloon Battle: the body stands on the arena's own ground (a ramp, the boxes), not the bare table of the
 				# height map (web syncKart: hF = BATTLE ? battleG(...) : surfH(...); "the car sort of floats on the object")
@@ -760,12 +761,14 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 				hB = arena.ground(x + ca * fR, y + sa * fR)
 				hL = arena.ground(x - sa * fW, y + ca * fW)
 				hR = arena.ground(x + sa * fW, y - ca * fW)
+				hC = arena.ground(x, y)
 			if k.tun != null:
 				# Sandbox, in the tunnel between two places: its floor is level
 				hF = k.tun.y
 				hB = hF
 				hL = hF
 				hR = hF
+				hC = hF
 			elif k.sbf:
 				# Sandbox, free driving: the body is laid on Sandbox's own ground at the kart's level, not on the slope of
 				# a lap point it may be nowhere near (web syncKart: BATTLE ? battleG(.., z+1) : surfH(..))
@@ -774,10 +777,15 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 				hB = sbx.ground(x + ca * fR, y + sa * fR, z + 1.0)
 				hL = sbx.ground(x - sa * fW, y + ca * fW, z + 1.0)
 				hR = sbx.ground(x + sa * fW, y - ca * fW, z + 1.0)
+				hC = sbx.ground(x, y, z + 1.0)
 			# on a jump ramp the body lies along the ramp (the ramp is not in the ground's or the road's height)
 			var sF := (hF - hB) / (fF - fR) + (k.ramp_s if k.on_ramp else 0.0)
 			var sR := (hL - hR) / (2.0 * fW)
 			var ff := minf(1.0, 16.0 * dt)
+			# (pc115) the body on the road under it, as the web's (syncKart: mid, base, clamp)
+			var mid := hB + (hF - hB) * (-fR) / (fF - fR)
+			var base := maxf(hC, maxf(mid, (hL + hR) * 0.5))
+			pos.y = maxf(z, base) if (k.on_ramp or k.z > 0.4) else clampf(base, z - 1.2, z + 6.0)
 			tp += (atan(sF) - tp) * ff
 			tr += (-atan(sR) - tr) * ff
 		else:

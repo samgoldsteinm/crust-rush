@@ -303,12 +303,12 @@ func _top_bar() -> Dictionary:
 	var pos_w := num_w + 6.0 + suf_w
 	var lap_txt := ("%d" % (me.lap() if me else 1)) if race != null and race.mode == "lss" else "%d/%d" % [me.lap() if me else 1, T.LAPS if T else 3]
 	var row_w := f_bold.get_string_size("LAP", HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x + 4.0 + 8.0 + f_disp.get_string_size(lap_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, int(lap_big)).x + 8.0 + 3 * 10.0 + 2 * 3.0
-	var lap_w := maxf(row_w, 80.0) + 20.0
 	var lap_h := 4.0 + lap_big * 1.15 + 1.0 + time_size * 1.2 + 5.0
 	var pb_size := clampf(2.2 * _vmin(), 11.0, 14.0)
 	if pb_text != "":
 		lap_h += pb_size * 1.2
 		row_w = maxf(row_w, f_bold.get_string_size(pb_text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(pb_size)).x)
+	var lap_w := maxf(row_w, 80.0) + 20.0   # (pc111) after the best-time line is measured, so it fits
 	var bar_h := maxf(pos_size * 0.85, lap_h)
 	var tb_x := x0 + pos_w + 12.0
 	var tb_w := tl_w - pos_w - lap_w - 24.0
