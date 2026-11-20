@@ -142,6 +142,13 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   a ReflectionProbe (once, intensity .5); camera: web patch 87's ceiling rule, zoom out max 1.1. Rerun the export when gStudioSet changes.
   Port audit 2026-11-19 (every HANDOVER entry and web patch docstring vs godot): nothing else missing; the Sandbox read-out move (86) is
   touch-screen only. ugshots.tscn needs UG_WAIT=90 now (shaders compile first; earlier frames show a stale close-up).
+- PC CHEESE HILLS STREAKED (pc109). The owner: "these mountains are all messed up on pc compared to the web version". The web's
+  ground is triplanar (triplanar(mat,110), a shader change the export can't carry); the PC had only the top-down UVs, so steep crust
+  slopes smeared into streaks. HdGround.triplanar(root) gives "terrain_N" materials world triplanar 1/110, sharpness 4, from both
+  _prepare_tracks (with or without Finished models). Check: tests/mtnshots.tscn (CR_MAP, CR_HD=0 for the web's shapes).
+- PC WALKERS' LEGS APART (pc110). The owner: "these guys legs are still not connected to their body on pc". Godot's import renames
+  repeats (body2, leg02, leg12), and view.gd found walker parts by exact name, so only walk0 was seated (_seat_body) and its legs
+  animated. Now by name prefix. Check: tests/walkdump.tscn (CR_MAP=basil: every body at the same seated y).
 - PC MENU TOO BIG (pc107, pc108). The owner: "the menu screen on the pc is massive can we make it the same size as the web app".
   menu.gd's Z was a fixed 1.18 (the web's zoom at 1280x720) on top of Godot's canvas stretch (window/1280x720), so 1080p showed 1.77x
   where the web shows 1.32x. Z is now a var set by _fit_z(screen): the web's @media zoom for the window in CSS px (window / dpi/96;
