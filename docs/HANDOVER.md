@@ -142,6 +142,12 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   a ReflectionProbe (once, intensity .5); camera: web patch 87's ceiling rule, zoom out max 1.1. Rerun the export when gStudioSet changes.
   Port audit 2026-11-19 (every HANDOVER entry and web patch docstring vs godot): nothing else missing; the Sandbox read-out move (86) is
   touch-screen only. ugshots.tscn needs UG_WAIT=90 now (shaders compile first; earlier frames show a stale close-up).
+- PC MENU TOO BIG (pc107, pc108). The owner: "the menu screen on the pc is massive can we make it the same size as the web app".
+  menu.gd's Z was a fixed 1.18 (the web's zoom at 1280x720) on top of Godot's canvas stretch (window/1280x720), so 1080p showed 1.77x
+  where the web shows 1.32x. Z is now a var set by _fit_z(screen): the web's @media zoom for the window in CSS px (window / dpi/96;
+  panels 1/1.18/1.32/1.6, garage 1/1.25/1.45/1.75) over the stretch; a window resize rebuilds the open screen. Home, driver and track
+  stop at 1240 wide, centred (web .wiz max-width), and the home logo is the web's min(clamp(34,6.4vw,96),17vh). Check with
+  tests/menushots.tscn (--windowed --resolution WxH; a maximised window wins on the owner's 2560x1440 screen).
 - PC PAINT FLAT, STEALTH GREEN (pc104). The owner: "the cars look really flat on the pc version"; "on the stealth color way the car
   looks green"; "the paint on the night tank is super flat". pc101's ReflectionProbe sat inside the car (origin y 3) and captured it:
   every car's reflections were its own cabin and the driver (Basil = green streaks on a black car), at half strength. Now cull_mask 2
