@@ -292,6 +292,7 @@ func _use_vertex_colours(root: Node) -> int:
 ## (main.gd _prepare_track, into this object's own lists)
 func _prepare_track(root: Node) -> void:
 	_use_vertex_colours(root)
+	HdGround.triplanar(root)   # (pc109)
 	for n in root.find_children("*", "MeshInstance3D", true, false):
 		var mi := n as MeshInstance3D
 		var nm := String(mi.name)

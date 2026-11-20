@@ -2164,6 +2164,7 @@ func _use_vertex_colours(root: Node) -> int:
 
 func _prepare_track(root: Node) -> void:
 	print("vertex colours switched on for %d track materials" % _use_vertex_colours(root))
+	HdGround.triplanar(root)   # (pc109)
 	for n in root.find_children("*", "MeshInstance3D", true, false):
 		var mi := n as MeshInstance3D
 		var nm := String(mi.name)

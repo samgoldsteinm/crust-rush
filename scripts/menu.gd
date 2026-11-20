@@ -18,7 +18,8 @@ signal setting_changed(key: String, value)
 signal modal_closed
 signal lb_open(map_id: String, map_name: String, cls: String)   # Records: a track card opens its world board (scripts/lb.gd)
 
-const Z := 1.18
+var _css := Vector2(1280, 720)   # (pc108) the window in the web's CSS pixels
+var Z := 1.18   # (pc107) set by _fit_z: the web's zoom for this screen over Godot's stretch
 const CHEESE := Color("#f7c948")
 const CREAM := Color("#fff4dc")
 const SAUCE := Color("#e0452c")
@@ -226,6 +227,43 @@ func _ready() -> void:
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
+	_fit_z("home")
+	# (pc107) a new window size: the open screen again at the web's size for it
+	get_viewport().size_changed.connect(func():
+		if cur != "" and is_visible_in_tree() and modal == null and _fit_z(cur):
+			open(cur))
+
+
+## (pc107) the web's zoom for this window (its @media steps, in CSS pixels: the window over Windows' scale), over Godot's
+## canvas stretch (window / 1280x720), so the menu is the size the web's is on the same screen
+func _fit_z(scr: String) -> bool:
+	var ws := Vector2(DisplayServer.window_get_size())
+	if ws.x < 2.0 or ws.y < 2.0:
+		return false
+	var dpr := clampf(DisplayServer.screen_get_dpi() / 96.0, 1.0, 3.0)
+	var cw := ws.x / dpr
+	var ch := ws.y / dpr
+	var wz := 1.0
+	if scr == "garage":
+		if cw >= 2400 and ch >= 1200:
+			wz = 1.75
+		elif cw >= 1800 and ch >= 900:
+			wz = 1.45
+		elif cw >= 1300 and ch >= 700:
+			wz = 1.25
+	else:
+		if cw >= 2200 and ch >= 1100:
+			wz = 1.6
+		elif cw >= 1500 and ch >= 800:
+			wz = 1.32
+		elif cw >= 1100 and ch >= 620:
+			wz = 1.18
+	var st := minf(ws.x / 1280.0, ws.y / 720.0)
+	var nz := clampf(wz * dpr / maxf(st, 0.1), 0.6, 1.6)
+	var ch_ := absf(nz - Z) > 0.004
+	Z = nz
+	_css = Vector2(cw, ch)   # (pc108)
+	return ch_
 
 
 func z(v: float) -> float:
@@ -636,6 +674,7 @@ func open(name_: String) -> void:
 		if fo != null and is_ancestor_of(fo):
 			_focus_after = _ctl_key(fo)
 	cur = name_
+	_fit_z(name_)   # (pc107)
 	bg.set_blur(name_ == "garage")
 	sel_focus = null
 	default_focus = null
@@ -803,18 +842,22 @@ static func _scroll_target(root: Node) -> ScrollContainer:
 	return best
 
 
-func _screen_root() -> MarginContainer:
+func _screen_root(maxw := 0.0) -> MarginContainer:
 	var m := MarginContainer.new()
 	m.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	m.add_theme_constant_override("margin_left", zi(14))
-	m.add_theme_constant_override("margin_right", zi(14))
+	# (pc108) the web's steps stop at 1240 wide (.wiz max-width) and sit in the middle
+	var side := float(zi(14))
+	if maxw > 0.0:
+		side = maxf(side, (get_viewport_rect().size.x - z(maxw)) * 0.5)
+	m.add_theme_constant_override("margin_left", int(side))
+	m.add_theme_constant_override("margin_right", int(side))
 	m.add_theme_constant_override("margin_top", zi(12))
 	m.add_theme_constant_override("margin_bottom", zi(10))
 	return m
 
 
 func _home() -> Control:
-	var root := _screen_root()
+	var root := _screen_root(1240.0)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", zi(36))
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -825,7 +868,7 @@ func _home() -> Control:
 	brand.size_flags_stretch_ratio = 1.1
 	brand.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_child(brand)
-	brand.add_child(logo("CRUST RUSH", 82.0, true))
+	brand.add_child(logo("CRUST RUSH", minf(clampf(_css.x * 0.064, 34.0, 96.0), _css.y * 0.17), true))   # (pc108) the web's size
 	var tag := para("Kart racing on giant pizzas. Pick a mode, choose your driver, build your ride and drift your way to the trophy.", 15.0, MUTED, 340.0)
 	tag.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	brand.add_child(tag)
@@ -1024,7 +1067,7 @@ static func build_info() -> String:
 
 
 func _driver() -> Control:
-	var root := _screen_root()
+	var root := _screen_root(1240.0)
 	var v := vbox(8)
 	root.add_child(v)
 	var three := KartBuilder.ready()
@@ -1252,7 +1295,7 @@ func _step_head(back_text: String, back_to: String, small: String, title: String
 
 
 func _track() -> Control:
-	var root := _screen_root()
+	var root := _screen_root(1240.0)
 	var v := vbox(8)
 	root.add_child(v)
 	var cls_label := ""

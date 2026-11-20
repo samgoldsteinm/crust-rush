@@ -6,6 +6,26 @@ class_name HdGround
 ## <track>_hd.json next to the track), so they match every track's ground. Drawing only.
 
 static var _grain: NoiseTexture2D
+
+
+## (pc109) the web's ground picture is laid on from three sides (its triplanar(mat, 110)), so the steep crust slopes
+## aren't streaked: the ground materials ("terrain_N") the same, with or without the finished ground
+static func triplanar(root: Node) -> int:
+	var n := 0
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi.mesh == null:
+			continue
+		for si in mi.mesh.get_surface_count():
+			var m := mi.mesh.surface_get_material(si) as StandardMaterial3D
+			if m == null or m.uv1_triplanar or not String(m.resource_name).begins_with("terrain"):
+				continue
+			m.uv1_triplanar = true
+			m.uv1_world_triplanar = true
+			m.uv1_scale = Vector3(1.0 / 110.0, 1.0 / 110.0, 1.0 / 110.0)
+			m.uv1_triplanar_sharpness = 4.0
+			n += 1
+	return n
 static var _white: ImageTexture
 static var _mask: ImageTexture
 
