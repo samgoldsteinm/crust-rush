@@ -142,6 +142,14 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   a ReflectionProbe (once, intensity .5); camera: web patch 87's ceiling rule, zoom out max 1.1. Rerun the export when gStudioSet changes.
   Port audit 2026-11-19 (every HANDOVER entry and web patch docstring vs godot): nothing else missing; the Sandbox read-out move (86) is
   touch-screen only. ugshots.tscn needs UG_WAIT=90 now (shaders compile first; earlier frames show a stale close-up).
+- PC GRID UNDER A RAISED START (pc114). The owner: the countdown camera stood in the furniture on a toy track (Bedroom Blitz:
+  its start deck is ~260 up). race.gd _make_kart set wy = T.ground without the road's height: + T.k_ey(idx, x, y) now.
+  Check: tests/cdcam.tscn (CR_MAP, CD_TAG; prints the kart's and camera's heights in the countdown).
+- PC WHEELS INTO THE ROAD (pc115). The owner: "some of the wheels are going into the tracks on some maps". view.gd draw_kart
+  put the body at the kart's height; the web's syncKart sets it to base = max(road at the middle, between the axles, between
+  the sides), clamp(base, z-1.2, z+6) (at least z on a ramp or in the air). Ported. tests/wheelshots.tscn: side views at wheel
+  height round each map (WH_UP raises the camera: low side views on the toy tracks' banked ramps hide the wheels' bottoms
+  behind the road's near edge, which looks like sinking but isn't). The owner to name a map if it still shows.
 - PC LAP BOX OVERFLOW (pc111). "Old-rules best 4:27.02" ran out of the lap box: hud.gd took lap_w before measuring pb_text.
 - PC RACE PAINT FLAT (pc112). The owner: "the cars look a little flat in the game ... double check they all have a clear coat".
   The paint has its clear coat; in a race it mirrored the visible sky (no bright spots). The web's scene.environment is
