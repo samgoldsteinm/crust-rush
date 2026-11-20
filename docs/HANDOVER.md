@@ -142,6 +142,16 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   a ReflectionProbe (once, intensity .5); camera: web patch 87's ceiling rule, zoom out max 1.1. Rerun the export when gStudioSet changes.
   Port audit 2026-11-19 (every HANDOVER entry and web patch docstring vs godot): nothing else missing; the Sandbox read-out move (86) is
   touch-screen only. ugshots.tscn needs UG_WAIT=90 now (shaders compile first; earlier frames show a stale close-up).
+- PC LAP BOX OVERFLOW (pc111). "Old-rules best 4:27.02" ran out of the lap box: hud.gd took lap_w before measuring pb_text.
+- PC RACE PAINT FLAT (pc112). The owner: "the cars look a little flat in the game ... double check they all have a clear coat".
+  The paint has its clear coat; in a race it mirrored the visible sky (no bright spots). The web's scene.environment is
+  envFrom(THEMES[theme].env, spots): sky.gdshader draws that picture when AT_CUBEMAP_PASS (env_on, env0-3, spot0-2), set by
+  WorldBuild.sky_env(sm, theme) from both world builders. Visible sky unchanged; toy rooms' probes still win inside them.
+  Also tried SDFGI on Margherita (tests/mtnshots.tscn with MT_GI=1): warmer bounce light, deeper shade, frame cost; not
+  switched on (a friend's GPU broke on SSIL before): offered to the owner as an opt-in setting.
+- PC CINEMATIC FINISH ON TOY TRACKS (pc113). The owner: "the cinematic camera shots are not working on the hot wheels maps".
+  Shot A's camera and shot C's sign used T.ground (the room floor) without T.ey (the raised deck): the camera sat on the floor.
+  Now ground + ey at the point (_fin_ahead returns its index). Check: tests/fincam.tscn (CR_MAP=bedroom, FIN_TAG).
 - PC CHEESE HILLS STREAKED (pc109). The owner: "these mountains are all messed up on pc compared to the web version". The web's
   ground is triplanar (triplanar(mat,110), a shader change the export can't carry); the PC had only the top-down UVs, so steep crust
   slopes smeared into streaks. HdGround.triplanar(root) gives "terrain_N" materials world triplanar 1/110, sharpness 4, from both
