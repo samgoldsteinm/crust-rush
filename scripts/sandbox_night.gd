@@ -58,14 +58,14 @@ func arm(main_: Node, T_: TrackData, id_: String, kind_: String) -> void:
 	spot = SpotLight3D.new()
 	spot.light_color = Color("#eef3ff")
 	spot.spot_range = 420.0
-	spot.spot_angle = 35.5
-	spot.spot_angle_attenuation = 0.6
+	spot.spot_angle = 34.0   # (pc106: the cone and its soft edge shape the beam)
+	spot.spot_angle_attenuation = 1.2
 	# (Godot dims a light as distance^-attenuation, in world units: a kart is 12 long, so 1.15 left 8% of it 60 ahead and the
 	# owner saw no headlights at all. A gentle curve instead, the range window doing the rest: web v217)
 	spot.spot_attenuation = 0.3
 	spot.light_energy = 0.0
 	spot.shadow_enabled = false   # (the kart's own body would shadow its headlights: web patch 53)
-	spot.light_projector = _cookie()
+	# (pc106) no beam picture: a light_projector blacked out the whole light (no headlights at all on the PC)
 	add_child(spot)
 	if LAMPS.has(id) and kind == "out":
 		_build_lamps()
@@ -206,14 +206,14 @@ func frame(dt: float, L: float, k: Kart) -> void:
 	# by themselves only when it is properly dark (L .5 to .8); or on / off by hand (main.hl_mode, the L key: web patch 54)
 	var hm = main.get("hl_mode")
 	var hon := clampf((L - 0.5) / 0.3, 0.0, 1.0) if hm == null else (1.0 if hm else 0.0)
-	spot.light_energy = 3.2 * maxf(L, 0.45) * hon * (1.0 if hm == true else hf)
+	spot.light_energy = 30.0 * maxf(L, 0.45) * hon * (1.0 if hm == true else hf)
 	# the headlight colour from the style shop (web patch 65); halogen, the first, keeps the cool white beam
 	var hli: Dictionary = preload("res://scripts/style.gd").pick(k.info.get("spec", {}) if k.info.get("spec") is Dictionary else {}, "hl")
 	var hc := Color(String(hli["h"])) if String(hli["h"]) != "#fff2d6" else Color("#eef3ff")
 	if spot.light_color != hc:
 		spot.light_color = hc
 	var from := kp + fwd * 7.0 + Vector3(0, 4, 0)
-	var to := kp + fwd * 120.0 + Vector3(0, -10, 0)
+	var to := kp + fwd * 140.0 + Vector3(0, -2, 0)   # (pc106)
 	spot.global_position = from
 	if from.distance_to(to) > 1.0:
 		spot.look_at(to, Vector3.UP)

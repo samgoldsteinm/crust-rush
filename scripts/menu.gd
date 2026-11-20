@@ -2384,39 +2384,32 @@ func _my_combos(outer: VBoxContainer, st: Dictionary) -> void:
 		var on := int(build.get("p", -1)) == int(c.get("p", 0)) and String(build.get("t", "")) == String(c.get("t", ""))
 		for k in S.SLOTS:
 			on = on and int(st.get(k, 0)) == int(cst.get(k, 0))
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", zi(2))
-		var bt := Button.new()
-		bt.custom_minimum_size = Vector2(z(118), z(58))
-		bt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		bt.clip_text = true
-		bt.text = "%s\n%s" % [String(c.get("n", "My combo")), "Livery" if String(c.get("t", "")) != "" else "Saved"]
-		bt.set_meta("gkey", "my:%d" % mi)
 		var pls: Array = KartBuilder.info.get("paints", [])
-		var pc = pls[int(c.get("p", 0))] if int(c.get("p", 0)) < pls.size() else null
-		var chips: Array = [Color(String(pc)) if pc != null else Color("#555555")]
-		for k in ["tr", "ac", "rm", "cl", "gl"]:
-			var L: Array = S.SLOTS[k][1]
-			var it2: Dictionary = L[clampi(int(cst.get(k, 0)), 0, L.size() - 1)]
-			if it2["h"] != null and String(it2["h"]) != "rainbow":
-				chips.append(Color(String(it2["h"])).darkened(0.25))
-		var cbx := box(chips, 120.0, 12.0, CHEESE if on else Color(1, 0.957, 0.863, 0.25), 3.0 if on else 1.5)
-		for s2 in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
-			bt.add_theme_stylebox_override(s2, cbx)
-		bt.add_theme_font_override("font", f_bold)
-		bt.add_theme_font_size_override("font_size", zi(13))
-		bt.add_theme_color_override("font_color", Color("#fff4dc"))
-		bt.add_theme_color_override("font_outline_color", Color("#1a0e08"))
-		bt.add_theme_constant_override("outline_size", zi(5))
+		var lvd: Dictionary = KartBuilder.livery(String(c.get("t", ""))) if String(c.get("t", "")) != "" else {}
+		var first = lvd.get("A") if not lvd.is_empty() else (pls[int(c.get("p", 0))] if int(c.get("p", 0)) < pls.size() else null)
+		var bt := _combo_tile(String(c.get("n", "My combo")), _combo_chips(first, cst), String(lvd.get("name", "Livery")) if not lvd.is_empty() else "Saved", on, true)
+		bt.set_meta("gkey", "my:%d" % mi)
 		var mix := mi
 		bt.pressed.connect(func(): _my_wear(mix))
-		row.add_child(bt)
-		var dx := Button.new()
+		var dx := Button.new()   # (the web's round x in the card's top right corner)
 		dx.text = "×"
-		dx.custom_minimum_size = Vector2(z(26), z(26))
-		dx.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		dx.tooltip_text = "Delete"
 		dx.set_meta("gkey", "myx:%d" % mi)
+		dx.focus_mode = Control.FOCUS_NONE
+		dx.add_theme_font_override("font", f_bold)
+		dx.add_theme_font_size_override("font_size", zi(13))
+		dx.add_theme_color_override("font_color", Color("#fff4dc"))
+		var dxs := StyleBoxFlat.new()
+		dxs.bg_color = Color(0, 0, 0, 0.45)
+		dxs.set_corner_radius_all(zi(11))
+		for s3 in ["normal", "hover", "pressed", "focus"]:
+			dx.add_theme_stylebox_override(s3, dxs)
+		dx.anchor_left = 1.0
+		dx.anchor_right = 1.0
+		dx.offset_left = -z(26)
+		dx.offset_right = -z(4)
+		dx.offset_top = z(4)
+		dx.offset_bottom = z(26)
 		dx.pressed.connect(func():
 			var M2: Array = S.my_combos()
 			if mix >= M2.size():
@@ -2429,27 +2422,150 @@ func _my_combos(outer: VBoxContainer, st: Dictionary) -> void:
 			M2.remove_at(mix)
 			S.my_combos_put(M2)
 			_build_changed())
-		row.add_child(dx)
-		mg.add_child(row)
+		bt.add_child(dx)
+		mg.add_child(bt)
 	if mine.size() < 12:
 		var sv := Button.new()
-		sv.custom_minimum_size = Vector2(z(118), z(58))
-		sv.text = "+\nSave this look"
+		sv.custom_minimum_size = Vector2(z(118), z(66))
+		sv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		sv.set_meta("gkey", "mysave")
-		sv.add_theme_font_override("font", f_bold)
-		sv.add_theme_font_size_override("font_size", zi(13))
+		for s2 in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
+			sv.add_theme_stylebox_override(s2, _combo_sb(Color(0, 0, 0, 0.18 if s2 == "normal" else 0.3), Color(1, 0.957, 0.863, 0.35)))
+		var svv := VBoxContainer.new()
+		svv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		svv.alignment = BoxContainer.ALIGNMENT_CENTER
+		svv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		svv.add_theme_constant_override("separation", zi(2))
+		for t2 in [["+", 20.0, 1.0], ["Save this look", 11.5, 0.85]]:
+			var l2 := label(String(t2[0]), f_bold, float(t2[1]), Color(1, 0.957, 0.863, float(t2[2])))
+			l2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			svv.add_child(l2)
+		sv.add_child(svv)
 		sv.pressed.connect(func():
-			var M3: Array = S.my_combos()
-			if M3.size() >= 12:
+			if S.my_combos().size() >= 12:
 				setting_changed.emit("toast", "You can keep 12 combos. Delete one first.")
 				return
-			var nm := "My look %d" % (M3.size() + 1)
-			M3.append({"n": nm, "p": int(build.get("p", 0)), "t": String(build.get("t", "")), "st": (build.get("st", {}) as Dictionary).duplicate() if build.get("st") is Dictionary else {}})
-			S.my_combos_put(M3)
-			setting_changed.emit("toast", "Saved %s. Wear it on any vehicle from My combos." % nm)
-			_build_changed())
+			modal_builders["cbname"] = _cb_name_panel
+			show_modal("cbname"))
 		mg.add_child(sv)
 	outer.add_child(mg)
+
+
+## (pc105) the web's combo card: rgba(0,0,0,.28), a 2 px border (cheese when worn), corners 12 px
+func _combo_sb(bg: Color, border: Color) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.border_color = border
+	sb.set_border_width_all(maxi(1, zi(2)))
+	sb.set_corner_radius_all(zi(12))
+	sb.anti_aliasing = true
+	return sb
+
+
+## (pc105) the web's combo colours: paint (or the livery's first), trim, accent, rims, calipers, underglow
+func _combo_chips(first, cst: Dictionary) -> Array:
+	var S := preload("res://scripts/style.gd")
+	var out: Array = [first]
+	for k in ["tr", "ac", "rm", "cl", "gl"]:
+		var L: Array = S.SLOTS[k][1]
+		out.append((L[clampi(int(cst.get(k, 0)), 0, L.size() - 1)] as Dictionary)["h"])
+	return out
+
+
+## (pc105) a combo card as the web's: the name, a row of overlapping colour dots, a small line under
+func _combo_tile(name_: String, chips: Array, sub: String, on: bool, room_x := false) -> Button:
+	var bt := Button.new()
+	bt.custom_minimum_size = Vector2(z(118), z(66))
+	bt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bt.tooltip_text = name_
+	var line := Color("#f7c948") if on else Color(1, 0.957, 0.863, 0.14)
+	bt.add_theme_stylebox_override("normal", _combo_sb(Color(0, 0, 0, 0.28), line))
+	for s2 in ["hover", "pressed", "hover_pressed", "focus"]:
+		bt.add_theme_stylebox_override(s2, _combo_sb(Color(0, 0, 0, 0.4), Color("#f7c948") if on else Color(1, 0.957, 0.863, 0.3)))
+	var v := VBoxContainer.new()
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	v.offset_left = z(10)
+	v.offset_right = -z(26 if room_x else 10)
+	v.offset_top = z(8)
+	v.offset_bottom = -z(8)
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.add_theme_constant_override("separation", zi(5))
+	var nl := label(name_, f_bold, 13.0, Color("#fff4dc"))
+	nl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	nl.clip_text = true
+	nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.add_child(nl)
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", -zi(4))
+	for h in chips:
+		var d := Control.new()
+		d.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		d.custom_minimum_size = Vector2(z(14), z(14))
+		var hh = h
+		d.draw.connect(func():
+			var c0 := d.size * 0.5
+			var r := d.size.x * 0.5
+			d.draw_circle(c0, r + z(2), Color("#1a1210"))
+			if hh != null and String(hh) == "rainbow":
+				var rb := [Color("#ff3030"), Color("#ffd22a"), Color("#3dff6a"), Color("#2ae8ff"), Color("#a040ff")]
+				for q in 5:
+					var pts := PackedVector2Array([c0])
+					for e in 9:
+						var a := TAU * (q + e / 8.0) / 5.0 - PI * 0.5
+						pts.append(c0 + Vector2(cos(a), sin(a)) * r)
+					d.draw_colored_polygon(pts, rb[q])
+			else:
+				d.draw_circle(c0, r, Color(String(hh)) if hh != null else Color("#333333")))
+		row.add_child(d)
+	v.add_child(row)
+	v.add_child(label(sub, f_semi, 11.5, Color(1, 0.957, 0.863, 0.8)))
+	bt.add_child(v)
+	return bt
+
+
+## (pc105, web mySave's prompt) the name for the look being saved
+func _cb_name_panel() -> Control:
+	var S := preload("res://scripts/style.gd")
+	var v: VBoxContainer = vbox(12)
+	v.add_child(para("A name for this look in My combos. You can wear it on any vehicle.", 15.0, Color("#c2a58c"), 480.0))
+	var ed := LineEdit.new()
+	ed.text = "My look %d" % (S.my_combos().size() + 1)
+	ed.max_length = 24
+	ed.select_all_on_focus = true
+	ed.add_theme_font_override("font", f_semi)
+	ed.add_theme_font_size_override("font_size", zi(18))
+	ed.custom_minimum_size = Vector2(z(420), z(44))
+	v.add_child(ed)
+	var save := func():
+		var M3: Array = S.my_combos()
+		if M3.size() >= 12:
+			close_modal()
+			setting_changed.emit("toast", "You can keep 12 combos. Delete one first.")
+			return
+		var nm := ed.text.strip_edges().left(24)
+		if nm == "":
+			nm = "My look %d" % (M3.size() + 1)
+		M3.append({"n": nm, "p": int(build.get("p", 0)), "t": String(build.get("t", "")), "st": (build.get("st", {}) as Dictionary).duplicate() if build.get("st") is Dictionary else {}})
+		S.my_combos_put(M3)
+		close_modal()
+		setting_changed.emit("toast", "Saved %s. Wear it on any vehicle from My combos." % nm)
+		_build_changed()
+	ed.text_submitted.connect(func(_t): save.call())
+	var row: HBoxContainer = hbox(10)
+	var later: Button = button("Cancel", "ghost", 15.0, Vector4(16, 10, 16, 10))
+	later.pressed.connect(close_modal)
+	row.add_child(later)
+	var ok: Button = button("Save", "cta", 15.0, Vector4(22, 10, 22, 10))
+	ok.pressed.connect(save)
+	row.add_child(ok)
+	v.add_child(row)
+	(func():
+		if is_instance_valid(ed):
+			ed.grab_focus()
+			ed.select_all()).call_deferred()
+	return v
 
 
 ## (pc86, web myWear) put a saved combo on the vehicle in the garage
@@ -2510,25 +2626,10 @@ func _style_shop(outer: VBoxContainer) -> void:
 		var con := int(build.get("p", -1)) == int(cb["p"]) and String(build.get("t", "")) == ""
 		for k in cst:
 			con = con and int(st.get(k, 0)) == int(cst[k])
-		var bt := Button.new()
-		bt.custom_minimum_size = Vector2(z(150), z(58))
-		bt.text = "%s%s\n%s" % ["★ " if cb.has("only") else "", String(cb["n"]), ("Free" if int(cb["c"]) == 0 else "Owned") if cown else "%d coins" % int(cb["c"])]
-		bt.set_meta("gkey", "cb:%d" % ci)
 		var pls: Array = KartBuilder.info.get("paints", [])
-		var pc = pls[int(cb["p"])] if int(cb["p"]) < pls.size() else null
-		var chips: Array = [Color(String(pc)) if pc != null else Color("#555555")]
-		for k in ["tr", "ac", "rm", "cl", "gl"]:
-			var it2: Dictionary = (S.SLOTS[k][1] as Array)[int(cst.get(k, 0))]
-			if it2["h"] != null and String(it2["h"]) != "rainbow":
-				chips.append(Color(String(it2["h"])).darkened(0.25))
-		var cbx := box(chips, 120.0, 12.0, CHEESE if con else Color(1, 0.957, 0.863, 0.25), 3.0 if con else 1.5)
-		for s2 in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
-			bt.add_theme_stylebox_override(s2, cbx)
-		bt.add_theme_font_override("font", f_bold)
-		bt.add_theme_font_size_override("font_size", zi(13))
-		bt.add_theme_color_override("font_color", Color("#fff4dc"))
-		bt.add_theme_color_override("font_outline_color", Color("#1a0e08"))
-		bt.add_theme_constant_override("outline_size", zi(5))
+		var bt := _combo_tile(("★ " if cb.has("only") else "") + String(cb["n"]), _combo_chips(pls[int(cb["p"])] if int(cb["p"]) < pls.size() else null, cst),
+			(("Free" if int(cb["c"]) == 0 else "Owned") if cown else "%d coins" % int(cb["c"])), con)
+		bt.set_meta("gkey", "cb:%d" % ci)
 		var cix := ci
 		bt.pressed.connect(func():
 			var c2: Dictionary = S.COMBOS[cix]
@@ -2667,7 +2768,8 @@ func _garage_scene() -> void:
 			pr.interior = true
 			pr.ambient_mode = ReflectionProbe.AMBIENT_DISABLED
 			pr.max_distance = 120.0
-			pr.intensity = 0.5
+			pr.intensity = 1.0   # (pc104: full, as the web's envMap)
+			pr.cull_mask = 2   # (pc104) the room only: from inside the car it caught the cabin and the driver
 			w3.add_child(pr)
 	var fl := MeshInstance3D.new()
 	var disc := CylinderMesh.new()
@@ -2944,7 +3046,7 @@ func _show_modal(kind: String) -> void:
 	var root := _screen_root()
 	m.add_child(scroll_wrap(root))
 	# centred column: the web's sheets are 760 CSS px wide (Records and Awards use the whole width)
-	var widths := {"how": 760.0, "set": 760.0, "tips": 760.0, "mp": 560.0, "netlog": 760.0, "lb": 760.0, "lbname": 600.0}
+	var widths := {"how": 760.0, "set": 760.0, "tips": 760.0, "mp": 560.0, "netlog": 760.0, "lb": 760.0, "lbname": 600.0, "cbname": 560.0}
 	var row := HBoxContainer.new()
 	root.add_child(row)
 	var v := vbox(14)
@@ -2966,7 +3068,7 @@ func _show_modal(kind: String) -> void:
 		sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		sp.size_flags_stretch_ratio = 0.5
 		v.add_child(sp)
-	var titles := {"how": "How to play", "rec": "Records", "ach": "Achievements", "set": "Settings", "tips": "Best setup", "mp": "Play with friends", "netlog": "Network log", "lb": lb_title, "lbname": "Pick a username"}
+	var titles := {"how": "How to play", "rec": "Records", "ach": "Achievements", "set": "Settings", "tips": "Best setup", "mp": "Play with friends", "netlog": "Network log", "lb": lb_title, "lbname": "Pick a username", "cbname": "Name this combo"}
 	var head := hbox(14)
 	var tl := label(String(titles.get(kind, "")).to_upper(), f_disp, 44.0, CHEESE, SAUCE_DARK, Vector2(0, 4))
 	tl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
