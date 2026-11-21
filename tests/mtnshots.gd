@@ -20,11 +20,10 @@ func _ready() -> void:
 	var T: TrackData = main.T
 	var tag := "%s_%s" % [OS.get_environment("CR_MAP"), "web" if OS.get_environment("CR_HD") == "0" else "hd"]
 	if OS.get_environment("MT_GI") == "1":
-		main.env.sdfgi_enabled = true
-		main.env.sdfgi_use_occlusion = true
-		main.env.sdfgi_min_cell_size = 2.0
-		main.env.sdfgi_cascades = 6
-		main.env.sdfgi_energy = 1.0
+		main.quality = 2
+		main.gi_on = true   # the Settings > Bounced light path (pc116)
+		main._apply_quality()
+		print("MTN gi ", main.env.sdfgi_enabled)
 		tag += "_gi"
 		Engine.time_scale = 1.0
 		for i in 90:

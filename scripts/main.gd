@@ -5518,6 +5518,7 @@ func _settings_panel() -> Control:
 				["PC extras", "A step past the web game's Ultra: shadows reach more than twice as far and soften with distance like real sunlight, a little light bounces between nearby surfaces, and textures and reflections are sharper. Off matches the web game's Ultra exactly. Ultra only.", "pcx", on_off, "1" if pc_plus else "0"],
 				["Finished models", "Trees, palms, bushes, rocks and the ground as finished models: leafy crowns that sway in the wind, bark, stone and a cheese surface with real depth. Far away, and when off, the web game's own shapes. Balanced and Ultra; applies from the next race.", "hd", on_off, "1" if hd_on else "0"],
 				["Look", "Vivid: a darker base tone with a stronger sun, deeper shadows and richer colour, so lit faces and light sources stand out. Classic: the softer, brighter balance. Applies from the next race.", "look", [["vivid", "Vivid"], ["classic", "Classic"]], look],
+				["Bounced light", "Sunlight bounces off the ground, walls and buildings onto everything near them, so shade picks up the colour around it, the way real light does. The most realistic lighting, and the heaviest: try it on a fast graphics card. Ultra only.", "gi", on_off, "1" if gi_on else "0"],
 				["Ambient occlusion", "Soft contact shading in corners and crevices, computed every frame. The single most expensive effect: turn it off to run Ultra's detail at a higher frame rate.", "ao", on_off, "1" if ao_on else "0"],
 				["Motion blur", "The edges of the picture streak with speed and wind lines rush past; your kart and the road ahead stay sharp.", "mblur", on_off, "1" if mblur_on else "0"],
 				["Background blur", "On the toy tracks the far side of the room goes soft, like a close-up photo of a model; the track ahead stays sharp. Ultra.", "dof", on_off, "1" if dof_on else "0"],
@@ -5972,6 +5973,7 @@ var web_start_b: Button
 var hd_on := true         # Settings > Finished models
 var look := "vivid"
 var ao_on := true
+var gi_on := false      # (pc116) Settings > Bounced light (SDFGI), Ultra only, off by default
 var sharpen_on := true
 var mblur_on := false   # Settings > Motion blur
 var dof_on := true      # Settings > Background blur (toy tracks, Ultra)
@@ -6062,6 +6064,9 @@ func _apply_setting(key: String, val: String) -> void:
 		"ao":
 			ao_on = val == "1"
 			_apply_quality()
+		"gi":
+			gi_on = val == "1"
+			_apply_quality()
 		"sharp":
 			sharpen_on = val == "1"
 			_apply_res()
@@ -6125,6 +6130,15 @@ func _apply_quality() -> void:
 	# (2026-11-16) SSIL off for good: a friend of the owner's on Ultra saw the picture break into spreading black squares (bad values
 	# from the screen-space effects, spread by the glow); Fast, with no SSIL or SSAO, was "fixed for the most part"
 	env.ssil_enabled = false
+	# (pc116) bounced light: SDFGI round the camera, six cascades from 2-unit cells (reaches across a toy room)
+	var gi := gi_on and quality >= 2 and not is_phone
+	if env.sdfgi_enabled != gi:
+		env.sdfgi_enabled = gi
+	if gi:
+		env.sdfgi_use_occlusion = true
+		env.sdfgi_min_cell_size = 2.0
+		env.sdfgi_cascades = 6
+		env.sdfgi_energy = 1.0
 	env.ssil_radius = 6.0
 	env.ssil_intensity = 0.55
 	env.ssil_sharpness = 0.98
@@ -6195,7 +6209,7 @@ func _save_settings() -> void:
 	cf.set_value("gfx", "res", res_scale)
 	cf.set_value("snd", "vol", sfx_vol)
 	cf.set_value("snd", "level", snd_level)
-	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "mblur_on", "dof_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "curs", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "gi_on", "sharpen_on", "mblur_on", "dof_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "curs", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
 		cf.set_value("opt", k2, get(k2))
 	cf.set_value("opt", "stats_on", KartBuilder.stats_on)
 	Keys.save_to(cf)
@@ -6223,7 +6237,7 @@ func _load_settings() -> void:
 	res_scale = float(cf.get_value("gfx", "res", res_scale))
 	sfx_vol = float(cf.get_value("snd", "vol", 1.0))
 	snd_level = float(cf.get_value("snd", "level", 1.0))
-	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "sharpen_on", "mblur_on", "dof_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "curs", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "gi_on", "sharpen_on", "mblur_on", "dof_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "curs", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
 		var vv = cf.get_value("opt", k2, get(k2))
 		if typeof(vv) == typeof(get(k2)):
 			set(k2, vv)
