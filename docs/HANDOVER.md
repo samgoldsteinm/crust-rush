@@ -157,6 +157,9 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   WorldBuild.sky_env(sm, theme) from both world builders. Visible sky unchanged; toy rooms' probes still win inside them.
   Also tried SDFGI on Margherita (tests/mtnshots.tscn with MT_GI=1): warmer bounce light, deeper shade, frame cost; not
   switched on (a friend's GPU broke on SSIL before): offered to the owner as an opt-in setting.
+- PC BOUNCED LIGHT SETTING (pc116). The owner said yes to the opt-in: Settings > Graphics > Bounced light (gi_on, saved,
+  off by default, Ultra on a computer only). main.gd _apply_quality turns SDFGI on (occlusion, 2-unit cells, 6 cascades,
+  energy 1). Checked on Bedroom Blitz (mtnshots MT_GI=1 now goes through the setting): the yellow track lights the wall.
 - PC CINEMATIC FINISH ON TOY TRACKS (pc113). The owner: "the cinematic camera shots are not working on the hot wheels maps".
   Shot A's camera and shot C's sign used T.ground (the room floor) without T.ey (the raised deck): the camera sat on the floor.
   Now ground + ey at the point (_fin_ahead returns its index). Check: tests/fincam.tscn (CR_MAP=bedroom, FIN_TAG).
