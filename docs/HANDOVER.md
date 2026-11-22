@@ -181,6 +181,10 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   menu.g_p2 (build/ri swapped with p2_build/p2_ri on opening "garage2", swapped back when another screen opens; emits p2_build;
   a new p2 driver resets p2_build to that driver's own kart, main._p2_default). make_cfg prefs carry it. Player 2's engine: sfx2
   (a second Sfx) driven in player 2's HUD pass. tests/splitmenu prints both builds through the flow.
+  pc123 (the owner: "sound effect from items it should be like playing a regular game as player 2"): _drain_events runs a
+  second time with player 2's state swapped in (_p2_drain: their shakes, flashes, toasts, battle banners, sounds; auto_drive on
+  so no awards, stats restored; view.kart_event once). Player 1's pass keeps the events (_keep_ev) for it. Sfx.dedupe: player 2's
+  pass skips a sound player 1's already played as loud this step (else plays the missing loudness). Sfx.played2 counts them.
 - APARTMENT RUN (web v248/v249 published; PC export needed ciexport to skip Sandbox for special maps). The owner's own apartment as a toy track, its own Special category
   (special:1, no cup, not in Sandbox). Plan approved by the owner from their sketch, video and photos: tools/mini/apt_plan.py
   (metres; scratch/apt_plan6.png). Layout tools/mini/t_apartment.py (12 614 units, 3 laps; bed 193, dresser 297, desk 264);
