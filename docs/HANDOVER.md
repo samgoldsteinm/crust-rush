@@ -176,7 +176,11 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   _in_p2: no keyboard/touch, no engine sound, no spectating). No cinematic finish, no spectating, no ghost in split screen.
   view.me2: player 2's kart is never hidden for being near player 1's camera. Tests: tests/split.tscn (CR_SPLIT=1 forces it
   without a pad; SPLIT_FULL=1 to the results; CR_MODE=bb), tests/splitmenu.tscn (menus, pause, results). Known: item halos face
-  player 1's camera; the engine sound is player 1's; player 2 has no garage choice (the driver's own kart).
+  player 1's camera.
+  pc122 (the owner: "add the ability to pick karts for player 2 and hear the engine sounds"): player 2's garage = the garage with
+  menu.g_p2 (build/ri swapped with p2_build/p2_ri on opening "garage2", swapped back when another screen opens; emits p2_build;
+  a new p2 driver resets p2_build to that driver's own kart, main._p2_default). make_cfg prefs carry it. Player 2's engine: sfx2
+  (a second Sfx) driven in player 2's HUD pass. tests/splitmenu prints both builds through the flow.
 - APARTMENT RUN (web v248/v249 published; PC export needed ciexport to skip Sandbox for special maps). The owner's own apartment as a toy track, its own Special category
   (special:1, no cup, not in Sandbox). Plan approved by the owner from their sketch, video and photos: tools/mini/apt_plan.py
   (metres; scratch/apt_plan6.png). Layout tools/mini/t_apartment.py (12 614 units, 3 laps; bed 193, dresser 297, desk 264);
