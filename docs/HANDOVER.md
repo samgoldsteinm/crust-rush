@@ -165,7 +165,19 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   (post.gdshader split/sh_col/hi_col, HdLook.GRADES). Road detail (HdLook.road: surfaces found by lying on the track at
   road height get a cellular grain, darker patches and varied gloss) goes with Finished models. Tests: tests/lookshots
   (LOOK=on|off, CR_NOGI, CR_NOROAD), tests/gitest; tools/stack_shots.py stacks before/after pictures.
-- APARTMENT RUN (web, in progress, not published). The owner's own apartment as a toy track, its own Special category
+- PC SPLIT SCREEN (pc120, pc121). The owner: "Can we add split screen to the game" (2 players; Single race, Grand Prix, Balloon
+  Battle; PC first, then web), then "assign each controller to each player ... two Bluetooth controllers". Home: Players 1 / 2 (off
+  line, those modes); with 2, menu.open("track") goes to "driver2" first (Player 2's driver; Choose controller: the next button
+  pressed on any pad is player 2's: sel p2_pad (device id) + p2_guid; Menu.pad_for_p2 falls back to the guid, then the last pad).
+  Player 1: keyboard + every other pad (_my_pad). Race: make_cfg peers [1,2] + setup_cfg (as an online room seats people), kart2
+  remote=false, race.player2 driven by race.p2_inp (race.gd branch before is_player). Screen: two SubViewports (sv_layer, layer -2)
+  over the root's world, root disable_3d; each half has its camera, post ColorRect and Hud (player 1's cam/post/hud are reparented
+  in, and back in _split_stop). Player 2's camera/HUD/grade/input = player 1's code run again with P_VARS swapped (_p_swap,
+  _in_p2: no keyboard/touch, no engine sound, no spectating). No cinematic finish, no spectating, no ghost in split screen.
+  view.me2: player 2's kart is never hidden for being near player 1's camera. Tests: tests/split.tscn (CR_SPLIT=1 forces it
+  without a pad; SPLIT_FULL=1 to the results; CR_MODE=bb), tests/splitmenu.tscn (menus, pause, results). Known: item halos face
+  player 1's camera; the engine sound is player 1's; player 2 has no garage choice (the driver's own kart).
+- APARTMENT RUN (web v248/v249 published; PC export needed ciexport to skip Sandbox for special maps). The owner's own apartment as a toy track, its own Special category
   (special:1, no cup, not in Sandbox). Plan approved by the owner from their sketch, video and photos: tools/mini/apt_plan.py
   (metres; scratch/apt_plan6.png). Layout tools/mini/t_apartment.py (12 614 units, 3 laps; bed 193, dresser 297, desk 264);
   room and every model in tools/mini/apartment.js (AP.* models, toyApartment; evening light, TV's pink LED glow, night
