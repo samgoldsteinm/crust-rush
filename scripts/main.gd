@@ -2398,7 +2398,11 @@ func _build_hud() -> void:
 			_toast(String(v))   # (the style shop's messages, web patch 65)
 			return
 		sel[k] = v
-		if k == "favs":
+		if k == "p2_ri":
+			# a new driver for player 2 starts from that driver's own kart (pc122)
+			sel["p2_build"] = _p2_default(int(v))
+			menu.p2_build = (sel["p2_build"] as Dictionary).duplicate()
+		if k == "favs" or k == "players" or k == "p2_ri" or k == "p2_guid" or k == "p2_build":
 			_save_settings()
 		if k == "mode":
 			_bb_mode_map()   # Balloon Battle's arena comes in behind the menu, and goes again with the mode
@@ -2953,6 +2957,7 @@ func _start_race(cfg: Dictionary, bg := false) -> void:
 	panel_results.visible = false
 	panel_menu.visible = false
 	hud_race.visible = true
+	_split_stop()
 	_clear_race_nodes()
 	if cfg.has("map") and String(cfg["map"]) != map_id:
 		if not load_map(String(cfg["map"])):
@@ -2973,7 +2978,13 @@ func _start_race(cfg: Dictionary, bg := false) -> void:
 	sb_next = false
 	_sb_view_clear()
 	var pri := int(sel["ri"])
-	if cfg.is_empty():
+	var two := not bg and cfg.is_empty() and _split_want()
+	if two:
+		# split screen (pc120): two people in the middle of the grid, as an online room seats them
+		var cf := race.make_cfg(roster, pri, [1, 2], (randi() & 0x7fffffff) + 1, String(sel["cls"]), _my_build(), {2: {"ri": int(sel.get("p2_ri", -1)), "build": sel.get("p2_build", {}) if sel.get("p2_build") is Dictionary else {}}})
+		Race.trim_cpus(cf, cpu_n)
+		race.setup_cfg(T, roster, cf, 1)
+	elif cfg.is_empty():
 		race.setup(T, roster, pri, 0, String(sel["cls"]), _my_build(), cpu_n)
 	else:
 		race.setup_cfg(T, roster, cfg, (web.me + 1) if (web.role != "" and not web.cfg.is_empty()) else multiplayer.get_unique_id())
@@ -2982,6 +2993,16 @@ func _start_race(cfg: Dictionary, bg := false) -> void:
 				if k.peer > 1:
 					k.web = true
 	kart = race.player
+	kart2 = null
+	if two:
+		for k in race.karts:
+			if k.peer == 2:
+				kart2 = k
+		if kart2 != null:
+			kart2.remote = false
+			kart2.is_player = true
+			kart2.ai["auto"] = auto_drive
+			race.player2 = kart2
 	race.net_on = net_role != "" or web.role != ""
 	if auto_drive and net_role != "client":
 		kart.ai["auto"] = true
@@ -3039,9 +3060,9 @@ func _start_race(cfg: Dictionary, bg := false) -> void:
 		hud.pb_text = ""
 		ghost.start({}, false, kart.ri, {})
 		ghost.recording = false
-	elif race.mode == "lss" or auto_drive:
+	elif race.mode == "lss" or auto_drive or kart2 != null:   # (split screen: no ghost on either half)
 		ghost.start({}, false, kart.ri, {})
-		ghost.recording = not auto_drive
+		ghost.recording = not auto_drive and kart2 == null
 	else:
 		ghost.start(best, ghost_on, kart.ri, _my_build())
 	hud.icons = icons
@@ -3049,6 +3070,8 @@ func _start_race(cfg: Dictionary, bg := false) -> void:
 	hud.racer_cols = []
 	for r in T.racers:
 		hud.racer_cols.append(Color.html(String((r as Dictionary)["color"])))
+	if kart2 != null:
+		_split_start()
 	state = "countdown"
 	cd = 3.2
 	fin_t = 0.0
@@ -3072,7 +3095,7 @@ func _start_race(cfg: Dictionary, bg := false) -> void:
 		cd = 0.9
 		_show_center(race.sb.title, 2.2, "md" if String(race.sb.title).length() <= 18 else "sm")   # (a long name at the larger size is wider than the screen)
 		return
-	_show_center("3", 0.9)
+	_show_both("3", 0.9)
 
 
 func _show_center(t: String, dur: float, kind := "md") -> void:
@@ -3154,13 +3177,13 @@ func _sim_tick(dt: float) -> void:
 		cd -= dt
 		var after := ceili(cd)
 		if after != before and after > 0:
-			_show_center(str(after), 0.9)
+			_show_both(str(after), 0.9)
 			sfx.play("beep")
 		if cd <= 0.0:
 			state = "race"
 			race.state = "race"
 			if race.sb == null:   # (Sandbox: the place's name stays up, nothing is started)
-				_show_center("Go!", 1.0)
+				_show_both("Go!", 1.0)
 				sfx.play("go")
 		for k in race.karts:
 			k._save_prev()
@@ -3170,8 +3193,16 @@ func _sim_tick(dt: float) -> void:
 		for k in race.karts:
 			k._save_prev()
 		return
+	if split_live and kart2 != null:
+		race.p2_inp = _p2_input()
 	race.update(dt, _input_state())
+	sfx.dedupe.clear()
+	var two_up := split_live and kart2 != null
+	_keep_ev = two_up   # (player 2's pass reads the same events, then they are cleared)
 	_drain_events()
+	_keep_ev = false
+	if two_up:
+		_p2_drain()
 	if race.sb != null:
 		_sb_tick()
 	if state == "race":
@@ -3181,6 +3212,8 @@ func _sim_tick(dt: float) -> void:
 			if race.race_time > 8.0 and race.stand.size() > 1 and race.stand[race.stand.size() - 1] == kart:
 				was_last = true
 		_finish_check()
+		if split_live and kart2 != null:
+			_p2_checks()
 		# the race is over once every person has finished (the computer drivers get estimated times)
 		var all_done := true
 		for k in race.karts:
@@ -3236,7 +3269,7 @@ func _mmss(t: float) -> String:
 
 func _fin_start() -> void:
 	_fin_clear()
-	if spec_on or kart == null or race == null or race.mode == "lss" or race.mode == "bb" or race.sb != null or T.battle or auto_drive:
+	if split_live or spec_on or kart == null or race == null or race.mode == "lss" or race.mode == "bb" or race.sb != null or T.battle or auto_drive:
 		return
 	fin_on = true
 	fin_tt = 0.0
@@ -3520,7 +3553,8 @@ func _drain_events() -> void:
 			net_out.append(d)
 	for k in race.karts:
 		for e in k.events:
-			view.kart_event(k, e)
+			if not _in_p2:
+				view.kart_event(k, e)
 			var mine := k == kart
 			if e.begins_with("boost") and e.length() == 6:
 				var tier := int(e.right(1))
@@ -3587,7 +3621,8 @@ func _drain_events() -> void:
 			elif e == "ready":
 				if mine:
 					sfx.play("ready", 0.8)
-		k.events.clear()
+		if not _keep_ev:
+			k.events.clear()
 	for e in race.fx:
 		var ed: Dictionary = e
 		view.race_event(ed)
@@ -3803,7 +3838,8 @@ func _drain_events() -> void:
 			fx.ring(float(ed["x"]), float(ed["h"]), float(ed["y"]), Color("#ffd65a"), 26.0, 0.5, false)
 			_show_center("Pepperoni coin! %d of %d" % [int(ed["n"]), int(ed["of"])], 1.6, "sm")
 			sfx.play("ready")
-	race.fx.clear()
+	if not _keep_ev:
+		race.fx.clear()
 
 
 func _kpos(k: Kart) -> Vector3:
@@ -4069,6 +4105,8 @@ func _show_results() -> void:
 		gp_done = int(gp["race"]) >= (gp["tracks"] as Array).size() - 1
 	var v := _sheet(panel_results, 820.0 if not gp.is_empty() else 520.0, 10.0)
 	var title := "%s place!" % _ordinal(me_place)
+	if split_live and kart2 != null:
+		title = "P1 %s · P2 %s" % [_ordinal(me_place), _ordinal(kart2.place if kart2.place > 0 else race.position_of(kart2))]
 	if gp_done:
 		var cp := 1
 		for i in gp_rows.size():
@@ -4164,7 +4202,7 @@ func _show_results() -> void:
 
 ## one line of a results table: place, the racer's colour, name, time or points
 func _result_row(place: int, k: Kart, right: String, add: String) -> Control:
-	var me := k == kart
+	var me := k == kart or (split_live and k == kart2)
 	var st := menu.glass(10.0, Vector4(12, 5, 12, 5))
 	if me:
 		st = menu.box([Color(0.97, 0.79, 0.28, 0.2), Color(0.88, 0.27, 0.17, 0.14)], 135.0, 10.0, Color("#f7c948"), 1.0, Vector4(12, 5, 12, 5))
@@ -4180,7 +4218,7 @@ func _result_row(place: int, k: Kart, right: String, add: String) -> Control:
 	sw.custom_minimum_size = Vector2(menu.z(12), menu.z(12))
 	sw.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(sw)
-	var nm := menu.label(k.racer_name + ("  (you)" if me else ""), menu.f_bold, 15.0, Color("#fff4dc"))
+	var nm := menu.label(k.racer_name + ((("  (P1)" if k == kart else "  (P2)") if split_live and me else ("  (you)" if me else ""))), menu.f_bold, 15.0, Color("#fff4dc"))
 	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(nm)
 	if add != "":
@@ -4233,7 +4271,7 @@ func _input_state() -> Dictionary:
 	var look := false
 	var stick_back := false
 	# keyboard (the keys set in Settings > Controls; the web game's by default)
-	var typing := get_viewport().gui_get_focus_owner() is LineEdit
+	var typing := _in_p2 or get_viewport().gui_get_focus_owner() is LineEdit   # (player 2 has no keyboard)
 	if Keys.held("left") and not typing:
 		steer -= 1.0
 	if Keys.held("right") and not typing:
@@ -4244,9 +4282,8 @@ func _input_state() -> Dictionary:
 	if Keys.held("look") and not typing:
 		look = true
 	# controller, mapped as on the web: left stick (20% dead zone) or d-pad, RT gas, LT drift, A/LB and B/RB items, X look back
-	var pads := Input.get_connected_joypads()
-	if pads.size() > 0:
-		var j: int = pads[0]
+	var j: int = _my_pad()   # (pc120: with two players each has their own)
+	if j >= 0:
 		var ax := Input.get_joy_axis(j, JOY_AXIS_LEFT_X)
 		var ay := Input.get_joy_axis(j, JOY_AXIS_LEFT_Y)
 		var rt := Input.get_joy_axis(j, JOY_AXIS_TRIGGER_RIGHT)
@@ -4332,7 +4369,7 @@ func _input_state() -> Dictionary:
 	# touch
 	var l := false
 	var r := false
-	for k in touches:
+	for k in ({} if _in_p2 else touches):
 		var z: String = touches[k]
 		if z == "pedal":
 			brake = true
@@ -4572,6 +4609,17 @@ func _input(ev: InputEvent) -> void:
 						_toggle_pause()
 	elif ev is InputEventJoypadButton:
 		var jb := ev as InputEventJoypadButton
+		if jb.pressed and split_live and kart2 != null and jb.device == p2_pad:
+			# split screen: player 2's controller (its stick, triggers and item buttons are read in _input_state)
+			p2["pad_used_at"] = Time.get_ticks_msec()
+			if jb.button_index == JOY_BUTTON_Y and state == "race" and not paused:
+				p2["item_queued"] = "ability"
+			if jb.button_index == JOY_BUTTON_START:
+				if state == "results":
+					_results_primary()
+				elif not (menu != null and menu.visible):
+					_toggle_pause()
+			return
 		if jb.pressed:
 			pad_used_at = Time.get_ticks_msec()
 			if race != null and race.sb != null and state == "race" and not (menu != null and menu.visible):
@@ -4690,20 +4738,10 @@ func _process(dt: float) -> void:
 	for wm in water_mats:
 		var w: StandardMaterial3D = wm
 		w.uv1_offset += Vector3(dt * 0.004, dt * 0.003, 0.0) * (0.0 if paused else 1.0)
-	# post: edge flash, speed streaks while boosting
-	if edge_t > 0.0:
-		edge_t -= dt
-	var ea := edge_a * clampf(edge_t / 0.3, 0.0, 1.0)
-	post_mat.set_shader_parameter("edge_c", Vector3(edge_c.r, edge_c.g, edge_c.b))
-	post_mat.set_shader_parameter("edge_a", ea)
-	spd_fx += ((1.0 if (kart.boost > 0.0 and state == "race") else 0.0) - spd_fx) * minf(1.0, dt / 0.25)
-	post_mat.set_shader_parameter("spd", spd_fx)
-	post_mat.set_shader_parameter("rbw", 1.0 if T.neon else 0.0)
-	var mb_t := (pow(minf(1.5, maxf(0.0, kart.speed) / maxf(1.0, kart.base_max)), 2.0) * 0.8) if (mblur_on and state == "race" and kart.spin <= 0.0) else 0.0
-	mb_fx += (mb_t - mb_fx) * minf(1.0, dt * 7.0)
-	post_mat.set_shader_parameter("mb", mb_fx)
-	post_mat.set_shader_parameter("tm", time)
+	_post_tick(dt)
 	_hud(dt)
+	if split_live and kart2 != null and view.views.has(kart2):
+		_p2_pass(dt)
 
 
 ## the web game's close chase camera: it eases round behind the kart, hangs on a sprung mount, leans
@@ -4986,19 +5024,24 @@ func _incoming(dt: float) -> void:
 
 
 func _hud(dt: float) -> void:
-	_spec_tick(dt)
+	if not _in_p2:
+		_spec_tick(dt)
 	var k := kart
 	hud.fps_on = fps_counter
 	_incoming(dt)
-	if lbl_info.visible:
+	if lbl_info.visible and not _in_p2:
 		var vr := get_viewport().get_viewport_rid()
 		var vp := get_viewport()
 		lbl_info.text = Menu.build_info() + "\n%d fps · %s · graphics card %.1f ms · processor %.1f ms\nview %dk tris %d draws · shadows %dk tris %d draws\n%s" % [Engine.get_frames_per_second(), RenderingServer.get_current_rendering_driver_name(),
 			RenderingServer.viewport_get_measured_render_time_gpu(vr), RenderingServer.viewport_get_measured_render_time_cpu(vr) + RenderingServer.get_frame_setup_time_cpu(),
 			vp.get_render_info(Viewport.RENDER_INFO_TYPE_VISIBLE, Viewport.RENDER_INFO_PRIMITIVES_IN_FRAME) / 1000, vp.get_render_info(Viewport.RENDER_INFO_TYPE_VISIBLE, Viewport.RENDER_INFO_DRAW_CALLS_IN_FRAME),
 			vp.get_render_info(Viewport.RENDER_INFO_TYPE_SHADOW, Viewport.RENDER_INFO_PRIMITIVES_IN_FRAME) / 1000, vp.get_render_info(Viewport.RENDER_INFO_TYPE_SHADOW, Viewport.RENDER_INFO_DRAW_CALLS_IN_FRAME), _win_info()]
-	sfx.drive(absf(k.speed) / k.base_max, true, k.boost > 0.0, k.drift != 0 and not k.air, k.tier, state != "countdown" and state != "results" and state != "menu" and not paused)
-	if k.roll > 0.0 and not paused:
+	if _in_p2 and sfx2 != null:
+		sfx2.silent = sfx.silent
+		sfx2.drive(absf(k.speed) / k.base_max, true, k.boost > 0.0, k.drift != 0 and not k.air, k.tier, state != "countdown" and state != "results" and state != "menu" and not paused)
+	elif not _in_p2:
+		sfx.drive(absf(k.speed) / k.base_max, true, k.boost > 0.0, k.drift != 0 and not k.air, k.tier, state != "countdown" and state != "results" and state != "menu" and not paused)
+	if k.roll > 0.0 and not paused and not _in_p2:
 		roll_tick -= dt
 		if roll_tick <= 0.0:
 			roll_tick = 0.09
@@ -5022,7 +5065,7 @@ func _hud(dt: float) -> void:
 	hud.pad_mode = Time.get_ticks_msec() - pad_used_at < 20000
 	hud.tick(dt)
 	hud.td = {}
-	if test_drive and kart != null and race != null and state == "race" and not kart.finished and spec_k == null and race.mode != "bb" and race.mode != "sb":
+	if not _in_p2 and test_drive and kart != null and race != null and state == "race" and not kart.finished and spec_k == null and race.mode != "bb" and race.mode != "sb":
 		hud.td = race.td_tick(kart)
 		hud.td["on"] = true
 
@@ -5079,6 +5122,11 @@ func _menu_sync() -> void:
 	menu.mode = String(sel["mode"])
 	menu.cls = String(sel["cls"])
 	menu.cpus = clampi(int(sel.get("cpus", 7)), 0, 7)
+	menu.players = clampi(int(sel.get("players", 1)), 1, 2)
+	menu.p2_ri = int(sel.get("p2_ri", -1))
+	menu.p2_pad = int(sel.get("p2_pad", -1))
+	menu.p2_build = (sel["p2_build"] as Dictionary).duplicate() if (sel.get("p2_build") is Dictionary and not (sel["p2_build"] as Dictionary).is_empty()) else _p2_default(int(sel.get("p2_ri", -1)))
+	menu.p2_guid = String(sel.get("p2_guid", ""))
 	menu.no_items = all_items_off()
 	menu.ri = int(sel["ri"])
 	menu.cup = int(sel["cup"])
@@ -6284,6 +6332,9 @@ func _load_settings() -> void:
 	opt_kmh = bool(cf.get_value("opt", "kmh", false))
 	for k in ["mode", "cls", "ri", "cup"]:
 		sel[k] = cf.get_value("menu", k, sel[k])
+	for k in ["players", "p2_ri", "p2_pad", "p2_guid", "p2_build"]:   # (pc120: split screen's choices)
+		if cf.has_section_key("menu", k):
+			sel[k] = cf.get_value("menu", k)
 	var fv = cf.get_value("menu", "favs", {})
 	if fv is Dictionary:
 		sel["favs"] = fv
@@ -6614,6 +6665,8 @@ func _live_rows() -> void:
 
 
 func _spec_enter() -> void:
+	if split_live:
+		return   # (split screen: each half stays on its own kart)
 	if not _spec_can_watch():
 		return
 	spec_on = true
@@ -7168,3 +7221,298 @@ func _enter_tree() -> void:
 	add_child(cam)
 	cam.current = true
 
+
+## the grade's per-frame settings (edge flash, boost streaks, motion blur); split screen runs it for each half
+func _post_tick(dt: float) -> void:
+	# post: edge flash, speed streaks while boosting
+	if edge_t > 0.0:
+		edge_t -= dt
+	var ea := edge_a * clampf(edge_t / 0.3, 0.0, 1.0)
+	post_mat.set_shader_parameter("edge_c", Vector3(edge_c.r, edge_c.g, edge_c.b))
+	post_mat.set_shader_parameter("edge_a", ea)
+	spd_fx += ((1.0 if (kart.boost > 0.0 and state == "race") else 0.0) - spd_fx) * minf(1.0, dt / 0.25)
+	post_mat.set_shader_parameter("spd", spd_fx)
+	post_mat.set_shader_parameter("rbw", 1.0 if T.neon else 0.0)
+	var mb_t := (pow(minf(1.5, maxf(0.0, kart.speed) / maxf(1.0, kart.base_max)), 2.0) * 0.8) if (mblur_on and state == "race" and kart.spin <= 0.0) else 0.0
+	mb_fx += (mb_t - mb_fx) * minf(1.0, dt * 7.0)
+	post_mat.set_shader_parameter("mb", mb_fx)
+	post_mat.set_shader_parameter("tm", time)
+
+
+# ---------------------------------------------------------------- split screen (pc120)
+## Two players on one screen: player 1 on top, player 2 below. Each half is a SubViewport over the same world with its own
+## camera, grade (post) and HUD. Player 2's kart is race.player2, driven by race.p2_inp from the controller p2_pad. The camera,
+## HUD and input code is the one-player code run a second time with player 2's state swapped in (P_VARS, _p_swap).
+const P_VARS := ["kart", "hud", "cam", "post_mat", "cam_a", "cam_base", "cam_look", "cam_sb", "cam_sa", "cam_snap", "shake_imp", "cam_gp",
+	"cam_gr", "cam_sx", "cam_oy", "cam_vy", "cam_pvz", "cam_pspd", "cam_occ", "cam_lb", "cam_bo", "cam_up", "bb_cam_f", "look_back", "aim_back",
+	"spec_k", "pad_held", "pad_hold", "item_queued", "pad_used_at", "last_lap", "shown_finish", "edge_c", "edge_a", "edge_t", "spd_fx", "mb_fx",
+	"fin_punch", "inc_beep", "roll_tick"]
+var split_live := false
+var kart2: Kart = null
+var hud2: Hud = null
+var cam2: Camera3D = null
+var post2: ColorRect = null
+var p2 := {}                  # player 2's copy of P_VARS while player 1's are in place
+var p2_pad := -1              # player 2's controller
+var _in_p2 := false           # the code is running for player 2 now
+var sv_layer: CanvasLayer = null
+var sv_ports: Array = []      # the two halves (SubViewport)
+var sv_hud: Array = []        # each half's HUD holder
+var sv_post: Array = []       # each half's grade layer
+var cam_home: Node = null     # where the camera, the grade and the HUD live with one player
+var post_home: Node = null
+var _sv_sync_t := 0.0
+var sfx2: Sfx = null           # player 2's engine (pc122)
+
+
+## a driver's own kart (the build the web game gives that driver), for player 2
+func _p2_default(ri: int) -> Dictionary:
+	for q in roster.get("racers", []):
+		if int((q as Dictionary).get("ri", -1)) == ri and (q as Dictionary).get("build") is Dictionary:
+			return ((q as Dictionary)["build"] as Dictionary).duplicate()
+	return {"b": 0, "w": 0, "g": 0, "p": 0, "t": ""}
+
+
+func _p_swap() -> void:
+	for n in P_VARS:
+		var a = get(n)
+		set(n, p2[n])
+		p2[n] = a
+
+
+## a race started from the menu with Players 2 (CR_SPLIT=1 for the tests), off line, with a controller for player 2
+func _split_want() -> bool:
+	var forced := OS.get_environment("CR_SPLIT") == "1"
+	if not (forced or int(sel.get("players", 1)) == 2):
+		return false
+	if net_role != "" or web.role != "" or not ["gp", "single", "bb"].has(String(sel.get("mode", ""))):
+		return false
+	if Input.get_connected_joypads().is_empty() and not forced:
+		_toast("Plug in a controller for player 2", 2.4)
+		return false
+	return true
+
+
+## the controller this player drives with: player 2 their own, player 1 the first of the others
+func _my_pad() -> int:
+	var pads := Input.get_connected_joypads()
+	if _in_p2:
+		return p2_pad if pads.has(p2_pad) else -1
+	for j in pads:
+		if not (split_live and int(j) == p2_pad):
+			return int(j)
+	return -1
+
+
+func _sv_sync() -> void:
+	var r := get_viewport()
+	for sv in sv_ports:
+		for pn in ["msaa_3d", "screen_space_aa", "use_taa", "use_debanding", "scaling_3d_mode", "scaling_3d_scale", "fsr_sharpness", "mesh_lod_threshold",
+				"use_occlusion_culling", "positional_shadow_atlas_size", "anisotropic_filtering_level", "texture_mipmap_bias"]:
+			if pn in r and pn in sv:
+				(sv as SubViewport).set(pn, r.get(pn))
+
+
+func _split_start() -> void:
+	# player 2's controller: the one chosen on the menu's player 2 screen, else the last one plugged in
+	p2_pad = Menu.pad_for_p2(int(sel.get("p2_pad", -1)), String(sel.get("p2_guid", "")))
+	if sv_layer == null:
+		sv_layer = CanvasLayer.new()
+		sv_layer.layer = -2
+		add_child(sv_layer)
+		var bg := ColorRect.new()
+		bg.color = Color(0.03, 0.02, 0.02)
+		bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+		bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sv_layer.add_child(bg)
+		var box := VBoxContainer.new()
+		box.set_anchors_preset(Control.PRESET_FULL_RECT)
+		box.add_theme_constant_override("separation", 4)
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sv_layer.add_child(box)
+		for i in 2:
+			var c := SubViewportContainer.new()
+			c.stretch = true
+			c.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			box.add_child(c)
+			var sv := SubViewport.new()
+			sv.audio_listener_enable_3d = false
+			c.add_child(sv)
+			var pl := CanvasLayer.new()
+			pl.layer = -1
+			sv.add_child(pl)
+			var hl := CanvasLayer.new()
+			hl.layer = 1
+			sv.add_child(hl)
+			var holder := Control.new()
+			holder.set_anchors_preset(Control.PRESET_FULL_RECT)
+			holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			hl.add_child(holder)
+			sv_ports.append(sv)
+			sv_post.append(pl)
+			sv_hud.append(holder)
+		cam2 = Camera3D.new()
+		(sv_ports[1] as SubViewport).add_child(cam2)
+		post2 = ColorRect.new()
+		post2.set_anchors_preset(Control.PRESET_FULL_RECT)
+		post2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		(sv_post[1] as CanvasLayer).add_child(post2)
+		hud2 = Hud.new()
+		(sv_hud[1] as Control).add_child(hud2)
+	sv_layer.visible = true
+	var w := get_viewport().find_world_3d()
+	for sv in sv_ports:
+		(sv as SubViewport).world_3d = w
+	_sv_sync()
+	_sv_sync_t = 1.0
+	# player 1's camera, grade and HUD move into the top half
+	cam_home = cam.get_parent()
+	post_home = post.get_parent()
+	cam.reparent(sv_ports[0], false)
+	post.reparent(sv_post[0], false)
+	hud.reparent(sv_hud[0], false)
+	cam.make_current()
+	cam2.near = cam.near
+	cam2.far = cam.far
+	cam2.fov = cam.fov
+	cam2.attributes = cam.attributes
+	cam2.environment = cam.environment
+	cam2.cull_mask = cam.cull_mask
+	cam2.compositor = cam.compositor
+	cam2.make_current()
+	post2.material = post_mat.duplicate()
+	hud2.kmh = hud.kmh
+	hud2.show_touch = false
+	hud2.race = race
+	hud2.me = kart2
+	hud2.T = T
+	hud2.icons = icons
+	hud2.portraits = portraits
+	hud2.racer_cols = hud.racer_cols
+	hud2.pb_text = ""
+	hud2.banner("", 0.0)
+	view.me2 = kart2
+	if sfx2 == null:
+		sfx2 = Sfx.new()
+		add_child(sfx2)
+	sfx2.set_body(String(kart2.info.get("body", "")))
+	p2 = {}
+	for n in P_VARS:
+		var a = get(n)
+		p2[n] = a.duplicate() if (a is Array or a is Dictionary) else a
+	p2["kart"] = kart2
+	p2["hud"] = hud2
+	p2["cam"] = cam2
+	p2["post_mat"] = post2.material
+	p2["spec_k"] = null
+	p2["cam_a"] = kart2.ma
+	p2["cam_snap"] = true
+	p2["shake_imp"] = 0.0
+	p2["item_queued"] = ""
+	p2["last_lap"] = 1
+	p2["shown_finish"] = false
+	p2["look_back"] = false
+	p2["aim_back"] = false
+	p2["pad_held"] = [false, false, false]
+	p2["pad_hold"] = [0, 0, 0]
+	p2["pad_used_at"] = Time.get_ticks_msec()
+	get_viewport().disable_3d = true   # (the halves draw the world; the window itself only shows them)
+	split_live = true
+
+
+func _split_stop() -> void:
+	if not split_live:
+		return
+	split_live = false
+	kart2 = null
+	view.me2 = null
+	if sfx2 != null:
+		sfx2.drive(0.0, false, false, false, 0, false)   # (player 2's engine stops)
+	cam.reparent(cam_home, false)
+	post.reparent(post_home, false)
+	hud.reparent(hud_race, false)
+	hud_race.move_child(hud, 0)
+	cam.make_current()
+	sv_layer.visible = false
+	get_viewport().disable_3d = false
+
+
+func _p2_input() -> Dictionary:
+	_p_swap()
+	_in_p2 = true
+	var o := _input_state()
+	_in_p2 = false
+	_p_swap()
+	return o
+
+
+## player 2's own shakes and hit flash (the rest of the race's events are drained once, for player 1)
+func _p2_events() -> void:
+	for e in kart2.events:
+		if String(e).begins_with("boost"):
+			p2["shake_imp"] = minf(1.6, float(p2["shake_imp"]) + 0.2)
+	for ed in race.fx:
+		if ed is Dictionary and String((ed as Dictionary).get("t", "")) == "spin" and (ed as Dictionary).get("k") == kart2:
+			p2["shake_imp"] = minf(1.6, float(p2["shake_imp"]) + 1.1)
+			hud2.hit_flash()
+
+
+## the race's events again from player 2's side (pc123): their shakes, flashes, toasts and sounds; no stats or awards
+var _keep_ev := false   # player 1's pass leaves the events for player 2's
+
+
+func _p2_drain() -> void:
+	var st: Dictionary = stats.duplicate(true)
+	var ad := auto_drive
+	_p_swap()
+	_in_p2 = true
+	auto_drive = true
+	sfx.second = true
+	_drain_events()
+	sfx.second = false
+	auto_drive = ad
+	_in_p2 = false
+	_p_swap()
+	stats = st
+
+
+## player 2's laps and finish, on their own half
+func _p2_checks() -> void:
+	if race.mode == "lss" or race.mode == "bb" or race.mode == "sb":
+		return
+	if kart2.finished and not bool(p2["shown_finish"]):
+		p2["shown_finish"] = true
+		kart2.ai["auto"] = true
+		hud2.banner("Finish!", 2.4, "md")
+		sfx.play("finish")
+	var lp := kart2.lap()
+	if lp != int(p2["last_lap"]) and not kart2.finished:
+		p2["last_lap"] = lp
+		hud2.banner("Final lap" if lp == T.LAPS else "Lap %d" % lp, 1.4, "sm")
+		sfx.play("lap", 0.8, 1.2 if lp == T.LAPS else 1.0)
+
+
+func _show_both(t: String, dur: float, kind := "md") -> void:
+	_show_center(t, dur, kind)
+	if split_live and hud2 != null:
+		hud2.banner(t, dur, kind)
+
+
+## player 2's camera, grade and HUD: player 1's code with player 2's state swapped in
+func _p2_pass(dt: float) -> void:
+	_sv_sync_t -= dt
+	if _sv_sync_t <= 0.0:
+		_sv_sync_t = 1.0
+		_sv_sync()
+	var sp := sun.global_position
+	_p_swap()
+	_in_p2 = true
+	var v: Dictionary = view.views[kart]
+	_camera(dt, float(v["rx"]), float(v["ry"]), float(v["rz"]), float(v["rma"]))
+	_post_tick(dt)
+	_hud(dt)
+	_in_p2 = false
+	_p_swap()
+	sun.global_position = sp

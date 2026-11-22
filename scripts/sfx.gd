@@ -32,6 +32,9 @@ var skid: AudioStreamPlayer
 var wind: AudioStreamPlayer
 var rng := RandomNumberGenerator.new()
 var volume := 0.8
+var dedupe := {}                  # split screen (pc123): name -> loudest this step in player 1's pass
+var played2 := 0                  # (tests) sounds player 2's pass played
+var second := false               # player 2's pass: a sound already played as loud is not played again
 var silent := false               # nothing is played (a Balloon Battle being played out fast: main._bb_fast)
 
 
@@ -234,6 +237,13 @@ func _build() -> void:
 func play(name_: String, vol := 1.0, pitch := 1.0) -> void:
 	if silent or not bank.has(name_) or vol <= 0.01:
 		return
+	if second:
+		if float(dedupe.get(name_, -1.0)) >= vol * 0.85:
+			return
+		played2 += 1
+		vol = sqrt(maxf(0.0, vol * vol - pow(float(dedupe.get(name_, 0.0)), 2.0)))   # (only what is missing: the two add up to player 2's loudness)
+	else:
+		dedupe[name_] = maxf(float(dedupe.get(name_, 0.0)), vol)
 	for p in pool:
 		if not p.playing:
 			p.stream = bank[name_]

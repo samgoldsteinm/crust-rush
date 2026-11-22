@@ -22,6 +22,7 @@ var race: Race
 var fx: Fx
 var cam: Camera3D
 var me: Kart
+var me2: Kart = null   # split screen's second player (pc120): never hidden for being close to the camera
 var items_lib: Node3D
 var kart_scenes := {}
 var views := {}          # Kart -> Dictionary
@@ -797,7 +798,7 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 	else:
 		# (Sandbox: a loop ridden the other way round, k.loop.rev, pitches the other way: web m.g.rotation.set(0,-a,-lth))
 		g.transform = Transform3D(Basis(Vector3.UP, -a) * Basis(Vector3(0, 0, 1), -lth if k.loop.has("rev") else lth) * Basis.from_scale(scv), pos)
-	g.visible = not (k != me and _near_cam(x, y, 14.0)) and not k.elim
+	g.visible = not (k != me and k != me2 and _near_cam(x, y, 14.0)) and not k.elim
 	# blink for three seconds after a hit
 	tilt.visible = not (k.inv > 0.0 and k.spin <= 0.0 and racing and int(floor(time * 12.0)) % 2 == 1)
 	var f := minf(1.0, 8.0 * dt)
@@ -1006,7 +1007,7 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 			for lv3 in fxl:
 				var tv3: Vector3 = gt * (lv3 as Vector3)
 				fx.spawn_n(tv3.x, tv3.y + 0.6, tv3.z, (randf() - 0.5) * 8.0 - cos(k.ma) * 12.0, 3.0 + randf() * 5.0, (randf() - 0.5) * 8.0 - sin(k.ma) * 12.0, lc, 3.0, 13.0, 1.1, -1.5, 1.4)
-		if on and (k == me and i % 3 == 0 or (k != me and i == 0 and randf() < 0.5 and _near_cam(x, y, 160.0))):
+		if on and ((k == me or k == me2) and i % 3 == 0 or (k != me and i == 0 and randf() < 0.5 and _near_cam(x, y, 160.0))):
 			for pv in v["fxP"]:
 				var tp2: Vector3 = gt * (pv as Vector3)
 				# the sparks leave the pipes backwards at 30 relative to the kart (web v170): thrown out at 30 over the ground

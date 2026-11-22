@@ -43,6 +43,14 @@ var f_med: Font
 
 var mode := "gp"
 var cls := "medium"
+var players := 1       # split screen (pc120): 1, or 2 on one screen
+var p2_ri := -1         # player 2's driver
+var p2_build := {}      # player 2's kart (pc122)
+var g_p2 := false       # the garage is editing player 2's kart
+var _g_save := {}       # player 1's build and driver while it does
+var p2_pad := -1        # player 2's controller (a device id; -1: the last one plugged in)
+var p2_guid := ""
+var _pad_wait: Label = null   # waiting for a press on player 2's controller
 var cpus := 7          # how many computer racers (web v200 crust-cpus): 0 to 7
 var no_items := false  # every item switched off (web v209 Items On / Off): set by main before the menu is built
 var shop := false      # opened from Sandbox's mechanic's shop: the driver screen's back and the garage's next go back to Sandbox
@@ -107,6 +115,24 @@ var default_focus: Control = null
 func _input(ev: InputEvent) -> void:
 	if not visible:
 		return
+	# choosing player 2's controller: the next button pressed on any controller makes it theirs; Esc cancels
+	if _pad_wait != null:
+		if ev is InputEventJoypadButton and (ev as InputEventJoypadButton).pressed:
+			p2_pad = (ev as InputEventJoypadButton).device
+			p2_guid = Input.get_joy_guid(p2_pad)
+			setting_changed.emit("p2_pad", p2_pad)
+			setting_changed.emit("p2_guid", p2_guid)
+			_pad_wait = null
+			get_viewport().set_input_as_handled()
+			open.call_deferred(cur)
+			return
+		if ev is InputEventKey and (ev as InputEventKey).pressed and (ev as InputEventKey).keycode == KEY_ESCAPE:
+			_pad_wait = null
+			get_viewport().set_input_as_handled()
+			open.call_deferred(cur)
+			return
+		if ev is InputEventJoypadMotion:
+			return
 	if ev is InputEventMouseButton or ev is InputEventMouseMotion:
 		return
 	var nav := ev.is_action_pressed("ui_up") or ev.is_action_pressed("ui_down") or ev.is_action_pressed("ui_left") or ev.is_action_pressed("ui_right")
@@ -657,6 +683,24 @@ func open(name_: String) -> void:
 		shop = false
 		shop_done.emit()
 		return
+	# two players: player 2 picks a driver before the track (pc120)
+	if name_ == "track" and _two_up() and cur != "driver2" and cur != "track" and not g_p2:
+		name_ = "driver2"
+	# player 2's garage (pc122): the garage itself, with player 2's kart and driver swapped in until another screen opens
+	if name_ == "garage2":
+		name_ = "garage"
+		if not g_p2:
+			g_p2 = true
+			_g_save = {"build": build, "ri": ri}
+			build = p2_build.duplicate() if not p2_build.is_empty() else build.duplicate()
+			ri = p2_ri
+			_g_keep = {}
+	elif g_p2 and name_ != "garage":
+		g_p2 = false
+		p2_build = build.duplicate()
+		build = _g_save["build"]
+		ri = int(_g_save["ri"])
+		_g_keep = {}
 	close_modal()
 	for k in screens:
 		(screens[k] as Control).queue_free()
@@ -685,6 +729,8 @@ func open(name_: String) -> void:
 			s = _home()
 		"driver":
 			s = _driver()
+		"driver2":
+			s = _driver(true)
 		"track":
 			s = _track()
 		"garage":
@@ -947,6 +993,21 @@ func _home() -> Control:
 	s3.add_child(row3)
 	s3.add_child(cpu_note)
 	col.add_child(s3)
+	# two players on one screen (pc120): off line, in a race, a Grand Prix or a battle
+	if net == "" and not shop and (mode == "gp" or mode == "single" or mode == "bb"):
+		var s5 := vbox(8)
+		s5.add_child(section_label("Players"))
+		var pl_note := para("", 13.0, MUTED, 300.0)
+		var pl_upd := func():
+			var pn := Input.get_connected_joypads().size()
+			pl_note.text = "Just you" if players == 1 else ("Split screen: player 2 drives with a controller" + ("" if pn > 0 else " (plug one in)"))
+		s5.add_child(seg("players", [["1", "1 player"], ["2", "2 players"]], str(players), func(k):
+			players = int(k)
+			pl_upd.call()
+			setting_changed.emit("players", players), 14.0, 10.0))
+		pl_upd.call()
+		s5.add_child(pl_note)
+		col.add_child(s5)
 	# Items On / Off (web v209 #itmSeg): Off is every item switched off in Settings > Items, so no item boxes; never in Last Slice,
 	# Balloon Battle or Sandbox. In a friends' room the host's choice is everyone's.
 	if mode != "lss" and mode != "bb" and mode != "sb":
@@ -1066,7 +1127,7 @@ static func build_info() -> String:
 	return "PC build %s · %s" % [String(d.get("build", "?")), String(d.get("date", ""))]
 
 
-func _driver() -> Control:
+func _driver(p2 := false) -> Control:
 	var root := _screen_root(1240.0)
 	var v := vbox(8)
 	root.add_child(v)
@@ -1079,7 +1140,28 @@ func _driver() -> Control:
 			net_ready.emit()
 		else:
 			open("track")
-	v.add_child(_step_head("‹ Sandbox" if shop else ("‹ Room" if net != "" else "‹ Back"), "home", "Step 1 of 3" if three else "Step 1 of 2", "Choose your driver", nx_t, nx_f))
+	if p2:
+		if p2_ri < 0 or p2_ri == ri or p2_ri >= racers_info.size():
+			p2_ri = (ri + 1) % maxi(1, racers_info.size())
+			setting_changed.emit("p2_ri", p2_ri)
+		v.add_child(_step_head("‹ Back", "garage" if three else "driver", "Split screen", "Player 2: choose a driver", "BUILD KART  ›" if three else "CHOOSE TRACK  ›", func(): open("garage2" if three else "track")))
+		# which controller is player 2's: Choose, then press a button on it. Player 1 has the keyboard and every other controller
+		var crow := hbox(12)
+		var pd := pad_for_p2(p2_pad, p2_guid)
+		var ptxt := "No controller is plugged in" if pd < 0 else ("%s (controller %d)" % [Input.get_joy_name(pd), Input.get_connected_joypads().find(pd) + 1] + ("" if (pd == p2_pad or p2_guid != "") else ", the last one plugged in"))
+		var cl := label(("Player 2's controller · " + ptxt).to_upper(), f_bold, 12.0, CREAM)
+		cl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		cl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		var cbtn := button("Choose controller", "ghost", 14.0, Vector4(14, 8, 14, 8))
+		cbtn.pressed.connect(func():
+			_pad_wait = cl
+			cl.text = "PRESS A BUTTON ON PLAYER 2'S CONTROLLER  (ESC: CANCEL)")
+		crow.add_child(cl)
+		crow.add_child(cbtn)
+		v.add_child(crow)
+		v.add_child(para("Player 1 drives with the keyboard and every other controller. Player 2 races this driver's own kart.", 13.0, MUTED, 900.0))
+	else:
+		v.add_child(_step_head("‹ Sandbox" if shop else ("‹ Room" if net != "" else "‹ Back"), "home", "Step 1 of 3" if three else "Step 1 of 2", "Choose your driver", nx_t, nx_f))
 	if net != "":
 		var hb0: Control = v.get_child(v.get_child_count() - 1)
 		var back0 := hb0.get_child(0) as Button
@@ -1139,15 +1221,22 @@ func _driver() -> Control:
 		var info: Dictionary = racers_info[i]
 		var card := _driver_card(i, info)
 		card.pressed.connect(func():
-			ri = i
+			if p2:
+				p2_ri = i
+				setting_changed.emit("p2_ri", i)
+			else:
+				ri = i
+				setting_changed.emit("ri", i)
 			show_detail.call(i)
-			setting_changed.emit("ri", i)
+			var on_i := p2_ri if p2 else ri
 			for c in grid.get_children():
-				_mark_card(c as Button, int(c.get_meta("i")) == ri, true))
+				_mark_card(c as Button, int(c.get_meta("i")) == on_i, true))
 		grid.add_child(card)
-		if i == ri:
+		if p2:
+			_mark_card(card, i == p2_ri, true)
+		if i == (p2_ri if p2 else ri):
 			sel_focus = card
-	show_detail.call(ri)
+	show_detail.call(p2_ri if p2 else ri)
 	return root
 
 
@@ -1566,6 +1655,23 @@ func _map_card(m: Dictionary) -> Button:
 	return b
 
 
+## player 2's controller now: the one chosen if it is plugged in (by id, else by its kind), else the last one plugged in
+static func pad_for_p2(want: int, guid: String) -> int:
+	var pads := Input.get_connected_joypads()
+	if pads.has(want):
+		return want
+	if guid != "":
+		for j in pads:
+			if Input.get_joy_guid(j) == guid:
+				return int(j)
+	return int(pads[pads.size() - 1]) if not pads.is_empty() else -1
+
+
+## two players on one screen (pc120)
+func _two_up() -> bool:
+	return players == 2 and net == "" and not shop and (mode == "gp" or mode == "single" or mode == "bb")
+
+
 func _go() -> void:
 	go.emit({"mode": mode, "cls": cls, "ri": ri, "map": map_id, "cup": cup, "build": build.duplicate()})
 
@@ -1659,11 +1765,11 @@ func _garage() -> Control:
 	# header: back, title, tabs, next
 	var h := hbox(14)
 	var back := button("‹ Driver", "ghost", 15.0, Vector4(16, 10, 16, 10))
-	back.pressed.connect(func(): open("driver"))
+	back.pressed.connect(func(): open("driver2" if g_p2 else "driver"))
 	h.add_child(back)
 	var tv := vbox(0)
-	tv.add_child(label("GARAGE", f_disp, 30.0, CHEESE, SAUCE_DARK, Vector2(0, 3)))
-	tv.add_child(label("STEP 2 OF 3", f_bold, 9.0, MUTED))
+	tv.add_child(label("PLAYER 2 · GARAGE" if g_p2 else "GARAGE", f_disp, 30.0, CHEESE, SAUCE_DARK, Vector2(0, 3)))
+	tv.add_child(label("SPLIT SCREEN" if g_p2 else "STEP 2 OF 3", f_bold, 9.0, MUTED))
 	h.add_child(tv)
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -2745,7 +2851,9 @@ func _style_shop(outer: VBoxContainer) -> void:
 
 
 func _build_changed() -> void:
-	setting_changed.emit("build", build.duplicate())
+	if g_p2:
+		p2_build = build.duplicate()
+	setting_changed.emit("p2_build" if g_p2 else "build", build.duplicate())
 	_g_keep = _place()
 	open("garage")
 

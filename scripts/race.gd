@@ -50,6 +50,8 @@ const DEF_DIFF := {"skill": [0.88, 0.95], "ahead": 0.94, "behind": 1.06, "delay"
 var T: TrackData
 var karts: Array[Kart] = []
 var player: Kart
+var player2: Kart = null   # split screen (pc120): the second person's kart, driven by p2_inp
+var p2_inp := {"steer": 0.0, "brake": false, "nb": false, "mul": 1.0, "use": false, "back": false, "hold": false, "hold_sl": 1, "release": null, "look": false}
 var stand: Array[Kart] = []
 var rng := RandomNumberGenerator.new()
 var diff := {}
@@ -194,6 +196,7 @@ func setup_cfg(track: TrackData, roster: Dictionary, cfg: Dictionary, my_peer: i
 	var racers: Array = roster.get("racers", [])
 	karts.clear()
 	player = null
+	player2 = null
 	var slots: Array = cfg["slots"]
 	for s in slots.size():
 		var sl: Dictionary = slots[s]
@@ -701,6 +704,10 @@ func update(dt: float, player_inp: Dictionary) -> void:
 					use_ability(k, bool(k.net_inp["look"]))
 				if bool(inp["use"]) and k.item != "" and bool(k.net_inp["look"]) and not k.item in NOBACK:
 					inp["back"] = true
+		elif k == player2 and not bool(k.ai.get("auto", false)) and not (k.rush > 0.0 and not (k.mega_t > 0.0) and not (k.pesto_t > 0.0)):
+			inp = p2_inp   # (pc120: split screen's second player)
+			if bool(p2_inp.get("ability", false)):
+				use_ability(k, bool(p2_inp.get("look", false)))
 		elif k.is_player and not bool(k.ai.get("auto", false)) and not (k.rush > 0.0 and not (k.mega_t > 0.0) and not (k.pesto_t > 0.0)):
 			inp = player_inp
 			if bool(player_inp.get("ability", false)):
