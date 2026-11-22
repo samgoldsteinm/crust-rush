@@ -107,7 +107,7 @@ async def main():
         # either. The json is written a second time with the block in it; if anything here fails the first one stands.
         # The page's Sandbox save is emptied first, so the arches stand where a first visit puts them.
         sb_fail = False
-        if not info.get('battle'):
+        if not info.get('battle') and not info.get('special'):   # (a Special track, such as Apartment Run, is not in Sandbox)
             try:
                 if not await pg.evaluate("__ev(`typeof sbExport==='function'&&!!sbRegOf(MAPS[mapIdx].id)`)"):
                     raise RuntimeError('this web build has no sbExport, or the map is not a Sandbox place')
