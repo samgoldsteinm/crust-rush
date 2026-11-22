@@ -165,6 +165,8 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   (post.gdshader split/sh_col/hi_col, HdLook.GRADES). Road detail (HdLook.road: surfaces found by lying on the track at
   road height get a cellular grain, darker patches and varied gloss) goes with Finished models. Tests: tests/lookshots
   (LOOK=on|off, CR_NOGI, CR_NOROAD), tests/gitest; tools/stack_shots.py stacks before/after pictures.
+- PC FOG REMOVED (pc119). The owner: "Let's remove the fog it doesn't look good". The Fog and light rays setting is gone,
+  volumetric fog always off (HdLook.fog kept, unused).
 - MARGHERITA BRICK WALL BACK (pc118). The owner: there is supposed to be a brick wall. HdKitchen had painted the web's
   round brick wall over with subway tiles (kitchen_wall.gdshader, now unused); it keeps the web's brick picture and gets a
   normal map made from it (_brick_relief).
