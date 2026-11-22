@@ -6970,6 +6970,7 @@ function sbEggTick(k,dt){const g=SBA.egg;if(!g)return;if(g.hop>0){g.hop=Math.max
 
 
 
+
 /*APT-CODE*/
 /* ================= APARTMENT RUN: the owner's own apartment (their video, sketch and photos, 2026-11-22) =================
    A special track (no cup, no Sandbox). Plan in METRES, x east, y north, the bedroom's south-west corner at 0: the same numbers as
@@ -6978,7 +6979,12 @@ function sbEggTick(k,dt){const g=SBA.egg;if(!g)return;if(g.hop>0){g.hop=Math.max
    Everything here is the owner's own furniture, modelled from their photos; brand names and logos are left off. */
 const AP=(function(){const M=TM,U=M.U,{slab,blob,add,grp,box,cyl,can,tex,mat,std,phy,paint,plastic,metal,glow,glass,fabric,wood,uvw}=M;
 /* a rounded box in centimetres, centred on (x,y,z) cm */
-const B=(G,w,h,d,m,x,y,z,r,bev)=>add(G,slab(w*U,h*U,d*U,(r==null?.6:r)*U,(bev==null?.3:bev)*U,2),m,x*U,y*U,z*U);
+/* (the room has hundreds of these: TM.slab's rounding came to about 430 triangles a box, 2.6 million in all. This one is a box with its
+   corners and edges chamfered, about 90 triangles, the same size and the same light on its edges; one geometry per size) */
+const SLC={};function slabL(w,h,d,rc,bev){const k=[w,h,d,rc,bev].map(v=>v.toFixed(2)).join();if(SLC[k])return SLC[k];rc=Math.min(rc||0,w/2-.01,d/2-.01);bev=Math.min(bev||0,h/2-.01,rc);
+  const sh=new THREE.Shape(),x=w/2-bev,z=d/2-bev,c=Math.max(.001,rc-bev);sh.moveTo(-x+c,-z);sh.lineTo(x-c,-z);sh.lineTo(x,-z+c);sh.lineTo(x,z-c);sh.lineTo(x-c,z);sh.lineTo(-x+c,z);sh.lineTo(-x,z-c);sh.lineTo(-x,-z+c);sh.closePath();
+  const g=new THREE.ExtrudeGeometry(sh,{depth:Math.max(.001,h-2*bev),bevelEnabled:bev>0,bevelThickness:bev,bevelSize:bev,bevelSegments:1,curveSegments:1});g.rotateX(-Math.PI/2);g.translate(0,-h/2+bev,0);return SLC[k]=g;}
+const B=(G,w,h,d,m,x,y,z,r,bev)=>add(G,slabL(w*U,h*U,d*U,(r==null?.6:r)*U,(bev==null?.3:bev)*U),m,x*U,y*U,z*U);
 const C=(G,r0,r1,h,m,x,y,z,seg)=>add(G,cyl(r0*U,r1*U,h*U,seg||20),m,x*U,y*U,z*U);
 /* a rod from a to b (cm), radius r */
 function rod(G,a,b,r,m,seg){const A=new THREE.Vector3(a[0],a[1],a[2]).multiplyScalar(U),Bv=new THREE.Vector3(b[0],b[1],b[2]).multiplyScalar(U),d=Bv.clone().sub(A),L=d.length();
