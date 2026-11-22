@@ -157,6 +157,17 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   WorldBuild.sky_env(sm, theme) from both world builders. Visible sky unchanged; toy rooms' probes still win inside them.
   Also tried SDFGI on Margherita (tests/mtnshots.tscn with MT_GI=1): warmer bounce light, deeper shade, frame cost; not
   switched on (a friend's GPU broke on SSIL before): offered to the owner as an opt-in setting.
+- PC LOOK PAST THE WEB (pc117, scripts/hd_look.gd). The owner picked 1-6 of my list. Settings > Graphics:
+  Bounced light Off/Baked/Live (Baked default: a VoxelGI over the track's bounds baked at load, energy .35, 256 cells or
+  128 when the track is over 3600 across; 4-6 s, was 11-12 s on Spiral/Basil at 256), Fog and light rays (volumetric
+  fog, HdLook.AIR per theme; first densities washed the kitchen out, now about 40% of them), Screen reflections (SSR),
+  Tyre marks (fx.gd mark()/MARKS ring of 1600 flat strips, view.gd _marks on drift and hard launch), Film grade
+  (post.gdshader split/sh_col/hi_col, HdLook.GRADES). Road detail (HdLook.road: surfaces found by lying on the track at
+  road height get a cellular grain, darker patches and varied gloss) goes with Finished models. Tests: tests/lookshots
+  (LOOK=on|off, CR_NOGI, CR_NOROAD), tests/gitest; tools/stack_shots.py stacks before/after pictures.
+- MARGHERITA BRICK WALL BACK (pc118). The owner: there is supposed to be a brick wall. HdKitchen had painted the web's
+  round brick wall over with subway tiles (kitchen_wall.gdshader, now unused); it keeps the web's brick picture and gets a
+  normal map made from it (_brick_relief).
 - PC BOUNCED LIGHT SETTING (pc116). The owner said yes to the opt-in: Settings > Graphics > Bounced light (gi_on, saved,
   off by default, Ultra on a computer only). main.gd _apply_quality turns SDFGI on (occlusion, 2-unit cells, 6 cascades,
   energy 1). Checked on Bedroom Blitz (mtnshots MT_GI=1 now goes through the setting): the yellow track lights the wall.
