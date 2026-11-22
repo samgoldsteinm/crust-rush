@@ -99,6 +99,16 @@ var spark_tex: Texture2D
 var smoke_tex: Texture2D
 var glow_tex: Texture2D
 var lite := false
+# (pc117) tyre marks: flat dark strips on the road, oldest overwritten first, fading out as they age
+const MARKS := 1600
+var marks_on := true
+var mk_mm: MultiMesh
+var mk_node: MultiMeshInstance3D
+var mk_next := 0
+var mk_n := 0
+var mk_t := 0.0
+var mk_born := PackedFloat32Array()
+var mk_clock := 0.0
 
 
 static func radial(stops: Array, size := 64) -> GradientTexture2D:
@@ -156,6 +166,67 @@ func _ready() -> void:
 		m.visible = false
 		add_child(m)
 		rings.append({"m": m, "mat": mat, "t": 0.0, "life": 1.0, "size": 1.0, "flat": true})
+	_marks_init()
+
+
+func _marks_init() -> void:
+	mk_mm = MultiMesh.new()
+	mk_mm.transform_format = MultiMesh.TRANSFORM_3D
+	mk_mm.use_colors = true
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(1, 1)
+	mk_mm.mesh = pm
+	mk_mm.instance_count = MARKS
+	mk_mm.visible_instance_count = 0
+	mk_born.resize(MARKS)
+	mk_node = MultiMeshInstance3D.new()
+	mk_node.multimesh = mk_mm
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.albedo_color = Color(1, 1, 1, 1)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.roughness = 0.75
+	mat.render_priority = -1
+	mk_node.material_override = mat
+	mk_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mk_node.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	mk_node.extra_cull_margin = 16384.0
+	mk_node.custom_aabb = AABB(Vector3(-1e5, -1e5, -1e5), Vector3(2e5, 2e5, 2e5))
+	add_child(mk_node)
+
+
+## one strip of tyre mark from a to b (world), lying on the surface whose up is `up`, `w` wide
+func mark(a: Vector3, b: Vector3, up: Vector3, w: float, strength := 1.0) -> void:
+	if not marks_on or mk_mm == null:
+		return
+	var d := b - a
+	var ln := d.length()
+	if ln < 0.05:
+		return
+	var u := up.normalized()
+	var side := u.cross(d).normalized() * w
+	var xf := Transform3D(Basis(d, u, side), (a + b) * 0.5 + u * 0.12)
+	var i := mk_next
+	mk_next = (mk_next + 1) % MARKS
+	mk_n = mini(MARKS, mk_n + 1)
+	mk_mm.visible_instance_count = mk_n
+	mk_mm.set_instance_transform(i, xf)
+	mk_mm.set_instance_color(i, Color(0.05, 0.045, 0.04, 0.55 * strength))
+	mk_born[i] = mk_clock
+
+
+func _marks_fade() -> void:
+	# the oldest third fades away before it is overwritten; anything over 40 s old goes too
+	for i in mk_n:
+		var age := (mk_next - 1 - i + MARKS) % MARKS
+		var f := clampf((MARKS - age) / (MARKS * 0.33), 0.0, 1.0) * clampf((40.0 - (mk_clock - mk_born[i])) / 10.0, 0.0, 1.0)
+		var c := mk_mm.get_instance_color(i)
+		var a0 := minf(c.a, 0.55 * f)
+		if a0 != c.a:
+			c.a = a0
+			mk_mm.set_instance_color(i, c)
 
 
 static func _annulus(r0: float, r1: float, seg: int) -> ArrayMesh:
@@ -209,6 +280,11 @@ func ring(x: float, y: float, z: float, col: Color, size: float, life: float, fl
 func step(dt: float) -> void:
 	fxa.update(dt)
 	fxn.update(dt)
+	mk_clock += dt
+	mk_t += dt
+	if mk_t > 0.5 and mk_n > 0:
+		mk_t = 0.0
+		_marks_fade()
 	for r in rings:
 		var m: MeshInstance3D = r["m"]
 		if not m.visible:
@@ -243,6 +319,8 @@ func xform(m: Transform3D) -> void:
 		var mi: MeshInstance3D = r["m"]
 		if mi.visible:
 			mi.position = m * mi.position
+	for i in mk_n:
+		mk_mm.set_instance_transform(i, m * mk_mm.get_instance_transform(i))
 
 
 func clear() -> void:
@@ -250,3 +328,7 @@ func clear() -> void:
 	fxn.clear()
 	for r in rings:
 		(r["m"] as MeshInstance3D).visible = false
+	mk_n = 0
+	mk_next = 0
+	if mk_mm != null:
+		mk_mm.visible_instance_count = 0

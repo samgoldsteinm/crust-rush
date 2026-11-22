@@ -2096,6 +2096,7 @@ func _build_world() -> void:
 	# the ground: the same picture with depth, gloss and a fine grain up close
 	if track != null and hd:
 		print("ground: %d finished" % HdGround.upgrade(track, String(_map_info(map_id)["dir"]).path_join(map_id + "_hd.json")))
+		print("road: %d finished" % HdLook.road(track, T))   # (pc117)
 		# the sea, lakes and pools as real water (first, so the surface finish below leaves them alone)
 		print("water: %d surfaces" % HdWater.upgrade(track, T.theme, T))
 		# the web's plain-coloured scenery: a fine surface so nothing reads as flat untextured colour
@@ -2134,6 +2135,12 @@ func _build_world() -> void:
 		post_mat.set_shader_parameter("vig", float(G.get("vig", 0.16)))
 	env.glow_intensity = float(G.get("bloom", 0.3))
 	env.glow_hdr_threshold = 1.6 * float(G.get("thr", 0.94)) / 0.94
+	# (pc117) the baked bounce light, last: everything on the track is in place
+	baked_gi = null
+	if light_mode == "baked" and quality >= 2 and not is_phone and OS.get_environment("CR_NOGI") != "1":
+		baked_gi = HdLook.bake_gi(world, T)
+	if fx != null:
+		fx.marks_on = marks_on
 	_apply_quality()
 
 
@@ -5518,7 +5525,10 @@ func _settings_panel() -> Control:
 				["PC extras", "A step past the web game's Ultra: shadows reach more than twice as far and soften with distance like real sunlight, a little light bounces between nearby surfaces, and textures and reflections are sharper. Off matches the web game's Ultra exactly. Ultra only.", "pcx", on_off, "1" if pc_plus else "0"],
 				["Finished models", "Trees, palms, bushes, rocks and the ground as finished models: leafy crowns that sway in the wind, bark, stone and a cheese surface with real depth. Far away, and when off, the web game's own shapes. Balanced and Ultra; applies from the next race.", "hd", on_off, "1" if hd_on else "0"],
 				["Look", "Vivid: a darker base tone with a stronger sun, deeper shadows and richer colour, so lit faces and light sources stand out. Classic: the softer, brighter balance. Applies from the next race.", "look", [["vivid", "Vivid"], ["classic", "Classic"]], look],
-				["Bounced light", "Sunlight bounces off the ground, walls and buildings onto everything near them, so shade picks up the colour around it, the way real light does. The most realistic lighting, and the heaviest: try it on a fast graphics card. Ultra only.", "gi", on_off, "1" if gi_on else "0"],
+				["Bounced light", "Light bounces off the road, the hills and the walls onto everything near them, so shade picks up the colour around it, the way real light does. Baked: worked out while the race loads (a few seconds), light on the frame rate. Live: worked out every frame round the camera, the heaviest. Ultra only; Baked applies from the next race.", "gi", [["off", "Off"], ["baked", "Baked"], ["live", "Live"]], light_mode],
+				["Screen reflections", "Glossy surfaces (toy-track plastic, water, polished floors, the road's worn patches) reflect the karts and scenery on screen. Ultra only.", "ssr", on_off, "1" if ssr_on else "0"],
+				["Tyre marks", "Drifts and hard launches leave dark rubber marks on the road.", "marks", on_off, "1" if marks_on else "0"],
+				["Film grade", "A colour grade for each kind of track, like a film's: cool shade and warm light, deep blue nights. Off is the web game's colours.", "grade", on_off, "1" if grade_on else "0"],
 				["Ambient occlusion", "Soft contact shading in corners and crevices, computed every frame. The single most expensive effect: turn it off to run Ultra's detail at a higher frame rate.", "ao", on_off, "1" if ao_on else "0"],
 				["Motion blur", "The edges of the picture streak with speed and wind lines rush past; your kart and the road ahead stay sharp.", "mblur", on_off, "1" if mblur_on else "0"],
 				["Background blur", "On the toy tracks the far side of the room goes soft, like a close-up photo of a model; the track ahead stays sharp. Ultra.", "dof", on_off, "1" if dof_on else "0"],
@@ -5973,7 +5983,13 @@ var web_start_b: Button
 var hd_on := true         # Settings > Finished models
 var look := "vivid"
 var ao_on := true
-var gi_on := false      # (pc116) Settings > Bounced light (SDFGI), Ultra only, off by default
+var gi_on := false      # (pc116) Settings > Bounced light (SDFGI), Ultra only, off by default; (pc117) only read from old settings
+var light_mode := "baked"   # (pc117) Settings > Bounced light: off | baked (VoxelGI, baked at load) | live (SDFGI)
+var fog_on := false         # (pc117; pc119: removed, the owner: "it doesn't look good") always off
+var ssr_on := true          # (pc117) Settings > Screen reflections (Ultra)
+var marks_on := true        # (pc117) Settings > Tyre marks
+var grade_on := true        # (pc117) Settings > Film grade
+var baked_gi: VoxelGI = null
 var sharpen_on := true
 var mblur_on := false   # Settings > Motion blur
 var dof_on := true      # Settings > Background blur (toy tracks, Ultra)
@@ -6065,7 +6081,20 @@ func _apply_setting(key: String, val: String) -> void:
 			ao_on = val == "1"
 			_apply_quality()
 		"gi":
-			gi_on = val == "1"
+			light_mode = val
+			_apply_quality()
+		"fog":
+			fog_on = val == "1"
+			_apply_quality()
+		"ssr":
+			ssr_on = val == "1"
+			_apply_quality()
+		"marks":
+			marks_on = val == "1"
+			if fx != null:
+				fx.marks_on = marks_on
+		"grade":
+			grade_on = val == "1"
 			_apply_quality()
 		"sharp":
 			sharpen_on = val == "1"
@@ -6131,7 +6160,15 @@ func _apply_quality() -> void:
 	# from the screen-space effects, spread by the glow); Fast, with no SSIL or SSAO, was "fixed for the most part"
 	env.ssil_enabled = false
 	# (pc116) bounced light: SDFGI round the camera, six cascades from 2-unit cells (reaches across a toy room)
-	var gi := gi_on and quality >= 2 and not is_phone
+	var ultra := quality >= 2 and not is_phone
+	var gi := light_mode == "live" and ultra
+	# (pc117) the baked bounce light, fog and light rays, screen reflections, the film grade
+	if baked_gi != null and is_instance_valid(baked_gi):
+		baked_gi.visible = light_mode == "baked" and ultra
+	if T != null:
+		HdLook.fog(env, T, false)   # (pc119) no fog
+		HdLook.ssr(env, ssr_on and ultra)
+		HdLook.grade(post_mat, T, grade_on)
 	if env.sdfgi_enabled != gi:
 		env.sdfgi_enabled = gi
 	if gi:
@@ -6209,7 +6246,7 @@ func _save_settings() -> void:
 	cf.set_value("gfx", "res", res_scale)
 	cf.set_value("snd", "vol", sfx_vol)
 	cf.set_value("snd", "level", snd_level)
-	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "gi_on", "sharpen_on", "mblur_on", "dof_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "curs", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "light_mode", "ssr_on", "marks_on", "grade_on", "sharpen_on", "mblur_on", "dof_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "curs", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
 		cf.set_value("opt", k2, get(k2))
 	cf.set_value("opt", "stats_on", KartBuilder.stats_on)
 	Keys.save_to(cf)
@@ -6237,11 +6274,13 @@ func _load_settings() -> void:
 	res_scale = float(cf.get_value("gfx", "res", res_scale))
 	sfx_vol = float(cf.get_value("snd", "vol", 1.0))
 	snd_level = float(cf.get_value("snd", "level", 1.0))
-	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "gi_on", "sharpen_on", "mblur_on", "dof_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "curs", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
+	for k2 in ["shadows_on", "pc_plus", "hd_on", "ao_on", "light_mode", "ssr_on", "marks_on", "grade_on", "sharpen_on", "mblur_on", "dof_on", "scenery", "fps_counter", "cam_far", "cam_fp", "cam_d", "curs", "shake_on", "ghost_on", "item_set", "music_on", "music_level", "look", "fs_on", "net_name"]:
 		var vv = cf.get_value("opt", k2, get(k2))
 		if typeof(vv) == typeof(get(k2)):
 			set(k2, vv)
 	KartBuilder.stats_on = bool(cf.get_value("opt", "stats_on", true))
+	if bool(cf.get_value("opt", "gi_on", false)) and not cf.has_section_key("opt", "light_mode"):
+		light_mode = "live"   # (pc117) pc116's Bounced light "On"
 	opt_kmh = bool(cf.get_value("opt", "kmh", false))
 	for k in ["mode", "cls", "ri", "cup"]:
 		sel[k] = cf.get_value("menu", k, sel[k])

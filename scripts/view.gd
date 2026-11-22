@@ -981,6 +981,7 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 	var n2 := mini(4, int(floor(float(v["fxc"]))))
 	v["fxc"] = float(v["fxc"]) - floor(float(v["fxc"]))
 	var fxl: Array = v["fxL"]
+	_marks(k, v, gt, fxl)   # (pc117)
 	var lat := absf(T.lateral(k.idx, k.x, k.y))
 	var sf_off := lat >= T.CURB
 	for i in n2:
@@ -1023,6 +1024,33 @@ func draw_kart(k: Kart, al: float, dt: float, racing: bool, paused: bool) -> voi
 
 
 ## PC: the sparks light the road: a small flickering light in the drift's colour between the back wheels
+## (pc117) tyre marks: while a kart drifts or launches hard on the ground, each rear tyre draws a strip from where it was
+func _marks(k: Kart, v: Dictionary, gt: Transform3D, fxl: Array) -> void:
+	var on := fx.marks_on and not k.air and fxl.size() > 0 and k.z < 0.4 and ((k.drift != 0 and absf(k.speed) > 18.0) or (k.drift == 0 and k.speed > 3.0 and k.speed < 48.0 and k.acc > 30.0))
+	if not on:
+		v["mk"] = null
+		return
+	var up := gt.basis.y.normalized()
+	var pts: Array = []
+	for lv in fxl:
+		pts.append(gt * (lv as Vector3))
+	var last = v.get("mk")
+	if last is Array and (last as Array).size() == pts.size():
+		var far := false
+		for i in pts.size():
+			var dd := ((pts[i] as Vector3) - (last[i] as Vector3)).length()
+			if dd > 12.0:
+				far = true
+		if far:
+			v["mk"] = pts
+			return
+		if ((pts[0] as Vector3) - (last[0] as Vector3)).length() < 1.2:
+			return
+		for i in pts.size():
+			fx.mark(last[i], pts[i], up, 0.9 * KS, 1.0 if k.drift != 0 else 0.7)
+	v["mk"] = pts
+
+
 func _drift_light(k: Kart, v: Dictionary, tier: int) -> void:
 	var fxl: Array = v["fxL"]
 	if fxl.is_empty():

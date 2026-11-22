@@ -14,6 +14,9 @@ uniform float spd = 0.0;
 uniform float mb = 0.0;   // motion blur (Settings): 0 off, up to about 1.8 at full boost
 uniform float tm = 0.0;
 uniform float rbw = 0.0;  // Neon Cup tracks: the boost streaks are rainbow (web v168)
+uniform float split = 0.0;    // (pc117) Settings > Film grade: the theme's split-tone, shade toward sh_col, light toward hi_col
+uniform vec3 sh_col = vec3(1.0);
+uniform vec3 hi_col = vec3(1.0);
 
 // one layer of wind lines (web v169): K lines round the screen, each with its own speed, length and gaps, flowing outward
 float wind(vec2 q, float K, float sp, float sd) {
@@ -51,6 +54,11 @@ void fragment() {
 	c = clamp(c * tint, 0.0, 1.0);
 	float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
 	c = mix(vec3(l), c, sat);
+	if (split > 0.001) {
+		vec3 tt = mix(sh_col, hi_col, smoothstep(0.03, 0.45, l));
+		tt /= max(0.2, dot(tt, vec3(0.2126, 0.7152, 0.0722)));
+		c = clamp(c * mix(vec3(1.0), tt, split), 0.0, 1.0);
+	}
 	// contrast round the screen's mid-grey in display (sRGB) values, as the web does since v144: done on the linear
 	// colour it crushed everything darker than about #474747 to black (Basil Boulevard's dark green wallpaper)
 	c = lin(clamp((srgb(clamp(c, 0.0, 1.0)) - 0.5) * con + 0.5, 0.0, 1.0));
