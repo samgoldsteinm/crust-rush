@@ -165,6 +165,16 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   (post.gdshader split/sh_col/hi_col, HdLook.GRADES). Road detail (HdLook.road: surfaces found by lying on the track at
   road height get a cellular grain, darker patches and varied gloss) goes with Finished models. Tests: tests/lookshots
   (LOOK=on|off, CR_NOGI, CR_NOROAD), tests/gitest; tools/stack_shots.py stacks before/after pictures.
+- APARTMENT RUN (web, in progress, not published). The owner's own apartment as a toy track, its own Special category
+  (special:1, no cup, not in Sandbox). Plan approved by the owner from their sketch, video and photos: tools/mini/apt_plan.py
+  (metres; scratch/apt_plan6.png). Layout tools/mini/t_apartment.py (12 614 units, 3 laps; bed 193, dresser 297, desk 264);
+  room and every model in tools/mini/apartment.js (AP.* models, toyApartment; evening light, TV's pink LED glow, night
+  outside). Logos and copyrighted characters in their photos are drawn as lookalikes without them.
+  INJECT WITH tools/mini/apt_inject.py, NOT inject_mini.py: crust-rush.html has had patches (sandbox/battle, patch 40-61)
+  applied to it directly, so tools/mini/*.js are older than the page and inject_mini.py would undo those patches.
+  The game resamples the lap at twice the export's density (1577 points): chase.py indices are 2x t_apartment's.
+  Tests: tools/neon/aptload.py (load + errors), chase.py apartment, shots.py (room cameras in the commit message of this
+  entry's work), simtest: 8 finish in 262 s, 0 respawns, 0 stuck, 0 falls. PC: not yet (maps.yml export, Special tab).
 - PC FOG REMOVED (pc119). The owner: "Let's remove the fog it doesn't look good". The Fog and light rays setting is gone,
   volumetric fog always off (HdLook.fog kept, unused).
 - MARGHERITA BRICK WALL BACK (pc118). The owner: there is supposed to be a brick wall. HdKitchen had painted the web's
