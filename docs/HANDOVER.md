@@ -185,6 +185,26 @@ accident and so old fixes can be reused. Add an entry whenever a bug is fixed. N
   second time with player 2's state swapped in (_p2_drain: their shakes, flashes, toasts, battle banners, sounds; auto_drive on
   so no awards, stats restored; view.kart_event once). Player 1's pass keeps the events (_keep_ev) for it. Sfx.dedupe: player 2's
   pass skips a sound player 1's already played as loud this step (else plays the missing loudness). Sfx.played2 counts them.
+- WEB SPLIT SCREEN (web v250: patches 115-119, the PC's feature on the web). Offered on computers with controller support
+  (!COARSE, navigator.getGamepads), off line, Grand Prix / Single race / Balloon Battle (splitWant). SPLIT holds it all.
+  115 menus: Players 1/2 (crust-players); with 2: driver -> kart -> "driver2" -> "kart2" -> track. Player 2's screens are the
+  driver and garage screens with selected/playerBuild swapped for SPLIT.sel/SPLIT.build (splitMenuSwap; saves to crust-driver2,
+  crust-build2 while swapped; player 1's driver greyed). Choose controller: splitWait/splitCatch in padPoll, the first new press
+  on any pad (not also a click); crust-p2pad {i,id}; p2Pad() finds it by index, then by name. Start without it -> driver2.
+  116 race: SPLIT.on in goRace (body.split); resetRace seats player2 in slot 3 (k.p2, isPlayer, one CPU fewer); pad2Poll/PAD2
+  drive p2Input (update0 branch before playerInput); player 1's controller is any other pad while racing; Start on either
+  pauses. onP2Finish; the results wait for both; no finishPunch/cinematic; RTAINT (no records). Battle: an out player watches
+  the other (splitWatch). 117 picture: render = camStep + render2; splitDraw draws the top half, pSwap (cam/CAM2, camT/camT2,
+  camSnap, shakeImp, finPunch, camera pose+fov, grade spd/mb), camStep, bottom half; postRender/postLite halve sz.y when
+  SPLIT.half; viewport+scissor per half. Aspect per half (SPLIT.asp from fit), min vertical fov 34. AO off. Shadows follow
+  each camera (Fast/phone presets: SPLIT.noSun, the bottom half shares). Kart LOD by the nearer camera (SPLIT.c2). HUD 2: a
+  clone of .hud (.hud2, inert; ids kept so the id CSS applies; getElementById still finds player 1's), hud2()/showBanner2.
+  118 sound: E2 = a second engine voice (engMake2/applyEngine2/eng2Tick); isMe(k) for player-only sounds; the
+  if(k===player){SFX...} blocks play the sound for player2 too; near() = 1 for player 2, nearer camera. No dedupe needed (each
+  sound is one kart's). 119 results (P1)/(P2), "P1 7th · P2 2nd", no ghost, "Split screen races are not counted".
+  Test: tools/neon/splittest.py menu | race [map] [--full] | bb (two pretend pads). Known: player 2 has no battle
+  balloons/points line (player 1's bbHud only); item halos and the detail culler follow player 1's camera; real controllers
+  untested.
 - APARTMENT RUN (web v248/v249 published; PC export needed ciexport to skip Sandbox for special maps). The owner's own apartment as a toy track, its own Special category
   (special:1, no cup, not in Sandbox). Plan approved by the owner from their sketch, video and photos: tools/mini/apt_plan.py
   (metres; scratch/apt_plan6.png). Layout tools/mini/t_apartment.py (12 614 units, 3 laps; bed 193, dresser 297, desk 264);

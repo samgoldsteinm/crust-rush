@@ -8,7 +8,7 @@ A pretend controller (navigator.getGamepads is replaced before the game loads; t
 Pictures scratch/pad_*.png."""
 import asyncio, json
 from playwright.async_api import async_playwright
-INIT = """(()=>{const b=()=>({pressed:false,touched:false,value:0});const pad={id:'Test pad (STANDARD GAMEPAD)',index:0,connected:true,mapping:'standard',timestamp:1,axes:[0,0,0,0],buttons:Array.from({length:17},b),vibrationActuator:null};
+INIT = """(()=>{try{sessionStorage.setItem('crust-lb-asked','1');}catch(e){}/* no username sheet over the menu */const b=()=>({pressed:false,touched:false,value:0});const pad={id:'Test pad (STANDARD GAMEPAD)',index:0,connected:true,mapping:'standard',timestamp:1,axes:[0,0,0,0],buttons:Array.from({length:17},b),vibrationActuator:null};
 window.__pad=pad;navigator.getGamepads=()=>[pad];window.__axes=(a)=>{pad.axes=a;pad.timestamp++;};window.__btn=(i,on)=>{pad.buttons[i]={pressed:!!on,touched:!!on,value:on?1:0};pad.timestamp++;};})()"""
 async def main():
     async with async_playwright() as p:
