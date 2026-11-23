@@ -422,6 +422,15 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--cheese);outli
 .cuplist span{position:absolute;left:0;right:0;bottom:0;padding:8px 6px 3px;font-size:11px;font-weight:700;background:linear-gradient(0deg,rgba(14,7,4,.9),rgba(14,7,4,0))}
 .g-step{display:block;font-family:var(--body);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 #gBack{margin-right:4px}
+/* (patch 117) split screen: player 1's HUD on the top half, player 2's (a copy) on the bottom */
+body:not(.split) .hud.hud2{display:none!important}.hud.hud2,.hud.hud2 *{pointer-events:none!important}
+body.split #stage>.hud{bottom:50%}body.split #stage>.hud.hud2{top:50%;bottom:0}
+body.split #speedfx,body.split #hitfx,body.split #frostfx{bottom:50%}
+body.split #stage::after{content:'';position:absolute;left:0;right:0;top:calc(50% - 2px);height:4px;background:#1a0f0a;box-shadow:0 0 0 1px rgba(255,211,77,.35);pointer-events:none;z-index:3}
+body.split .tzone,body.split .brk,body.split #lookBtn,body.split #ihint,body.split #hitToast{display:none!important}
+body.split #banner{font-size:clamp(30px,8vmin,80px)}body.split #banner.sm{font-size:clamp(20px,5vmin,48px)}
+/* (patch 115) split screen's menus */
+.p2pad{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 10px}.p2pad span{font-weight:700;opacity:.88}.p2pad.wait span{color:#ffd34d}.card.taken{opacity:.32;pointer-events:none;filter:grayscale(.7)}
 @media (orientation:portrait){.st-home{grid-template-columns:1fr;align-content:center}.st-body{grid-template-columns:1fr;overflow:auto}.step{overflow:auto}.st-pick .roster{grid-template-rows:none;grid-auto-rows:minmax(150px,auto)}.st-pick .maps{grid-auto-rows:90px;height:auto}.st-pick .cups{grid-template-rows:repeat(2,150px);height:auto}.detail{min-height:300px}}
 @media (max-height:440px){.home-panel{padding:12px;gap:9px}.home-panel .seg-note{display:none}.tag{font-size:13px}.detail{padding:9px;gap:6px}.detail p{font-size:12px}#trkDetail p{display:none}.chips2 em{font-size:10px;padding:2px 6px}}
 
